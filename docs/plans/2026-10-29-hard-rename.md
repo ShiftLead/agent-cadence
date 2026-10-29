@@ -1,6 +1,6 @@
 # ADR 2026-10-29: the tool is renamed agent-cadence, everywhere, in one sitting with no aliases
 
-**Status:** proposed
+**Status:** decided 2026-10-29 by Paul (four review rounds, Fable and Sonnet, converged READY)
 **Date:** 2026-10-29
 **Related:** TD-191 (the cut-over runbook), TD-090; dev-cadence's private plan 2026-10-26-public-scrub
 (its *Amendment 2026-10-28*); ShiftLead TD-1208, TD-1014
@@ -363,7 +363,8 @@ TD-191 numbers its steps 1–6.
   session and commit checks in steps 4–6 and 9 are there to find these first. A machine other than this one,
   if one appears later, installs the new launcher fresh.
 - A worktree branched before its repo's PR has silent SessionStart hooks until it merges main.
-- A `~/dev-cadence` session after the sitting has no roster and no launcher. The private repo is frozen
+- A `~/dev-cadence` session after the sitting has no roster and no launcher, and its clone keeps its old shims
+  (never swapped), so a commit there prints *no dev-cadence launcher on PATH*. The private repo is frozen
   (TD-191 step 1), so nothing needs one.
 - `test_one_name.sh` puts a new `dev-cadence` mention, outside the allowlisted forms, out of bounds.
 - `docs/publish-accept.txt` accepts Paul's name in every plan under `docs/plans/`. It is deliberate (Paul,
