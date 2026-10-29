@@ -1,0 +1,17 @@
+# docs/cadence.toml — agent-cadence's own cadence settings (cadence.md §9.18). Not the seed:
+# files/docs/cadence.toml is what `dev-cadence adopt` creates in a consumer; this file is this repo's.
+# People write it; tools only read it.
+
+# The merge gate (cadence.md §4.12): `files/scripts/precheck.py --pr <n>` runs this in a clean
+# worktree at the PR's head and records cadence/precheck on it. CI=true makes a SKIP fail. The
+# publish gate runs last (TD-189): this repo is public, so a PR that adds a private name — a machine
+# path, a repo on the roster, a name the machine's publish-names lists — fails here, before it is
+# published by merging. Findings meant to be public are accepted in docs/publish-accept.txt.
+precheck = "ruff check files/scripts/ && CI=true ./run_tests.sh && git ls-files -z | xargs -0 python3 files/scripts/cadence_layer.py --publish-check --accept docs/publish-accept.txt"
+
+# The publish gate needs the machine's publish-names to run here; a machine without them exits 2
+# rather than pass every name the list would flag (TD-189).
+publish-gate = "required"
+
+# A public repo's ledger-id takes never name the machine (TD-124, cadence.md §2.10).
+ledger-ids-host = "off"

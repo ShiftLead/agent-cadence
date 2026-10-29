@@ -1,0 +1,99 @@
+# docs/cadence.toml — this repo's cadence settings (TD-096). Consumer-owned: `dev-cadence adopt`
+# creates it once and never overwrites it. People write it; tools only read it and never rewrite it, so a
+# comment saying why a value was chosen is safe here (cadence.md §9.18).
+#
+# Every tool reads a value through `python3 scripts/cadence_config.py get <key>` (Python >= 3.11).
+# The first that has it wins: env CADENCE_<KEY> (CADENCE_REVIEW_MODEL), this file, the machine's
+# ${XDG_CONFIG_HOME:-~/.config}/dev-cadence/cadence.toml, the default. `cadence_config.py`
+# prints every key with its value and source; `--check` names a key nothing reads.
+# To change a value, uncomment its line and edit the value (each is shown at its default).
+
+# The independent reviewer's model (§4.8): a cheaper model than the author's, never the same.
+# review-model = "sonnet"
+
+# The model the deep sweep's agents run on (/stranded-work deep).
+# sweep-model = "sonnet"
+
+# The agent tools that work this repo, comma-separated ("claude, codex"). The safety nets —
+# the anchor guard, the reaper, the session index, the sweep row — must see each one's
+# sessions; one they cannot (no backend yet, or no state on this machine) is reported as
+# "cannot see", never as nobody here (TD-100). Without "claude", the memory guard skips the
+# checks that guard Claude Code's auto-memory (TD-095). Backends today: claude, gemini
+# (TD-109), codex (TD-102).
+# agents = "claude"
+
+# Where the PRs live, for every tool that reads them (TD-103): "auto" reads origin's host —
+# github.com is GitHub, gitlab.com or a host whose first label is "gitlab" is GitLab (TD-104),
+# any other host is reported "PRs not checked", never read as GitHub. "github" or "gitlab" says
+# a host under another name is that forge. "none" is no PR API (a bare repo over ssh, TD-105): the
+# review line goes in the squash commit's body, and check_cadence.py --since reads it from git.
+# forge = "auto"
+
+# Where scripts/open_worktree.sh puts worktrees, relative to the clone root (§1, TD-101). The
+# anchor guard, the hydrate scan and the workspace generator follow it. The default is where
+# `claude --worktree` puts them; worktrees already elsewhere are not moved.
+# worktree-root = ".claude/worktrees"
+
+# The attention report's thresholds (TD-134; cadence.md §3.3, §3.9, §3.10): each a whole number,
+# read for each board from that board's repo. Days after the last sweep before it is stale:
+# sweep-every = "10"
+# The same for a deep sweep (the transcript scan):
+# deep-sweep-every = "30"
+# Days an open PR may sit before the SessionStart line names it:
+# pr-stale-days = "2"
+# Days overdue before a board item is ledger material:
+# escalate-overdue-days = "14"
+# Open items before a board is too big:
+# board-size-warn = "15"
+
+# What the SessionStart attention line lists (§3.9, TD-146): "own" is this repo's due items in
+# full and one count line for every other repo on the machine; "machine" is every repo's items.
+# `/attention` shows every repo either way. A launcher's CADENCE_ATTENTION_SCOPE=own (an
+# unattended session) is the same line unfetched, with no open-PR line (TD-077's carry-over).
+# attention-scope = "own"
+
+# --- this repo's own checks, run on a PR's head before the merge (TD-117, cadence.md §4.12):
+# read from this file only, never env or the machine's. The merge gate runs
+# `scripts/precheck.py --pr <n>`: this command, from the root of a clean worktree at the PR's
+# head (install what it needs — the worktree is fresh), its verdict recorded as a
+# cadence/precheck commit status the cadence check's ci row requires. Every repo sets it: it is
+# the merge gate, and a PR workflow spends the account's shared Actions minutes (TD-148) — unset,
+# nothing is required and the ci row warns on an open PR.
+#
+#   precheck = "pdm install && pdm run lint && pdm run typecheck && pdm run test"
+#
+# A narrower command for a PR whose every changed file matches one entry's globs (TD-155): the
+# globs space-separated, fnmatch on the repo-relative path (`*` crosses `/`); the first entry
+# that covers every file runs instead of `precheck`, and --commit always runs `precheck`. Name
+# only files no test reads — a PR that breaks a test would merge on the narrow check.
+#
+#   [precheck-paths]
+#   "docs/technical_debt*.md docs/user_attention*.md" = "python3 scripts/ledger.py --check"
+
+# --- whether a ledger id's take names this machine (TD-124, cadence.md §2.10): read from this file
+# only. scripts/ledger_next_id.py writes each take as a commit on origin's cadence/ledger-ids
+# branch, its body naming the host (never in a cloud session or a container). Set it "off" when the
+# repo is public, or about to be, so machine names stay out of it. Unset reads as "on".
+#
+#   ledger-ids-host = "off"
+
+# --- whether the publish gate must run with the machine's names (TD-189, cadence.md §9.18): read
+# from this file only. A public repo's precheck runs `cadence_layer.py --publish-check --accept
+# <list>` over its tracked files; the names it flags live in each machine's own cadence.toml
+# (publish-names), so on a machine without them the gate would pass everything. "required" makes
+# it exit 2 there instead. Unset reads as "off".
+#
+#   publish-gate = "required"
+
+# --- opt-outs (cadence.md Adoption checklist step 9): what this repo does not adopt, each
+# naming the ADR that decided it. Read by `dev-cadence adopt` (through `cadence_config.py
+# opt-outs`). Nothing uncommented here means the whole cadence is adopted.
+#
+# [not-adopted]
+# "§4" = "docs/decisions/0001-….md"
+#     §4 (branch → PR → squash) is not how this repo works: adopt installs no pre-push shim
+#     (an existing one is removed).
+#
+# [skip-seed]
+# "docs/claude-memory/MEMORY.md" = "docs/decisions/0001-….md"
+#     that SEED file is never created (one that exists is left alone — it is yours).

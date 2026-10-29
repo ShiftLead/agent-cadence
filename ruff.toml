@@ -1,0 +1,17 @@
+# TD-25: lint config for the shipped scripts, enforced by tests/test_lint.sh.
+# These rules are opt-in — ruff's default set (E4/E7/E9/F) finds none of the
+# silent-failure classes this repo cares about. DTZ is the family that would
+# have pre-empted TD-15 (naive local dates in the reader); PLW1510 makes
+# intent explicit at subprocess.run call sites (check=False in the code, not
+# in a reviewer's head); I001 keeps import blocks canonical (autofixable).
+#
+# PLW1508 (non-str default to os.environ.get) is here because the miss is
+# invisible until the variable is UNSET: `float(os.environ.get(X, 10))` works,
+# so the wrong-typed default survives review and every test that sets the
+# variable, then hands a caller an int where every other path yields str.
+# Added after a consumer's bare `ruff check` flagged three of these in this
+# repo's own remote-tier code while this repo's gate stayed green — pinning a
+# rule set means the gate only sees what it pins, so anything ruff adds to its
+# defaults lands on consumers first unless it is adopted here.
+[lint]
+select = ["E4", "E7", "E9", "F", "DTZ", "PLW1510", "PLW1508", "I001"]

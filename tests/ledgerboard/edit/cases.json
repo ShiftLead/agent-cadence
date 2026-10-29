@@ -1,0 +1,569 @@
+{
+  "today": "2026-01-15",
+  "edits": [
+    {
+      "name": "done-with-why",
+      "line": "- [ ] 2026-01-05 (session s-1 on h) — Ship it. Due: 2026-01-10.",
+      "action": "done",
+      "why": "merged."
+    },
+    {
+      "name": "done-unpunctuated",
+      "line": "- [ ] 2026-01-05 (session s-1) — Ship it",
+      "action": "done"
+    },
+    {
+      "name": "snooze-existing",
+      "line": "- [ ] act 2026-01-05 (session s-1) — Rotate. Due: 2026-01-10. Answers: now | later.",
+      "action": "snooze",
+      "to": "2026-01-20"
+    },
+    {
+      "name": "snooze-undated-before-answers",
+      "line": "- [ ] decide 2026-01-05 (session s-1) — Pick one. Answers: a | b.",
+      "action": "snooze",
+      "to": "2026-01-20"
+    },
+    {
+      "name": "snooze-undated-no-fields",
+      "line": "- [ ] 2026-01-05 (session s-1) — Plain",
+      "action": "snooze",
+      "to": "2026-01-20"
+    },
+    {
+      "name": "decide-fresh",
+      "line": "- [ ] decide 2026-01-05 (session s-1) — Pick one. Due: 2026-01-10. Answers: a | b (default).",
+      "action": "decide",
+      "answer": "b"
+    },
+    {
+      "name": "decide-again-rewrites",
+      "line": "- [ ] decide 2026-01-05 (session s-1) — Pick one. Due: 2026-01-10. Answers: a | b. Decided: a (2026-01-11).",
+      "action": "decide",
+      "answer": "b"
+    },
+    {
+      "name": "reply-ahead-of-answers",
+      "line": "- [ ] decide 2026-01-05 (session s-1) — Pick one. Due: 2026-01-10. Answers: a | b.",
+      "action": "reply",
+      "reply": "leaning b, ask the team",
+      "by": "Sam"
+    },
+    {
+      "name": "reply-second",
+      "line": "- [ ] act 2026-01-05 (session s-1) — Rotate. Due: 2026-01-10. — Sam, 2026-01-12: halfway",
+      "action": "reply",
+      "reply": "all done",
+      "by": "Sam"
+    },
+    {
+      "name": "reply-refused-field",
+      "line": "- [ ] act 2026-01-05 (session s-1) — Rotate. Due: 2026-01-10.",
+      "action": "reply",
+      "reply": "Decided: yes",
+      "by": "Sam"
+    },
+    {
+      "name": "reply-refused-due-on-undated",
+      "line": "- [ ] act 2026-01-05 (session s-1) — Rotate.",
+      "action": "reply",
+      "reply": "Due: 2026-02-01 please",
+      "by": "Sam"
+    },
+    {
+      "name": "decide-refused-empty",
+      "line": "- [ ] decide 2026-01-05 (session s-1) — Pick one.",
+      "action": "decide",
+      "answer": "  "
+    },
+    {
+      "name": "not-an-open-item",
+      "line": "- [x] 2026-01-05 (session s-1) — Done already. Closed: 2026-01-06.",
+      "action": "done"
+    }
+  ],
+  "subjects": [
+    {
+      "tool": "board_edit",
+      "action": "snooze",
+      "text": "act 2026-01-05 (session s-1 on h) — **Rotate the key** now. Context: TD-1. Due: 2026-01-10.",
+      "to": "2026-01-20"
+    },
+    {
+      "tool": "shiftlead",
+      "action": "decide",
+      "text": "decide 2026-01-05 (session `ab12` on h) — Pick a   name. Due: 2026-01-10.",
+      "answer": "beta   two"
+    },
+    {
+      "tool": "board_edit",
+      "action": "reply",
+      "text": "2026-01-05 (session s-1) — Say more. Due: 2026-01-10. — Sam, 2026-01-12: secret words"
+    },
+    {
+      "tool": "shiftlead",
+      "action": "append",
+      "text": "2026-01-05 (session `w-1` on h) — A very long item text that goes well past the sixty character limit of a head. Due: 2026-01-10.",
+      "session": "w-1"
+    },
+    {
+      "tool": "board_edit",
+      "action": "done",
+      "text": "2026-01-05 (n/a) — No session named. Due: 2026-01-10."
+    },
+    {
+      "tool": "board_edit",
+      "action": "snooze",
+      "text": "2026-01-05 (session s) — X."
+    }
+  ],
+  "subject_kinds": [
+    "board_edit: done Ship it (session s-1)",
+    "shiftlead: reply on Pick a name (session w-1)",
+    "shiftlead: append A new item (session w-1)",
+    "shiftlead: board A new item (from TD-12)",
+    "shiftlead: answer A question (from TD-12)",
+    "shiftlead: board decide TD-12 (person)",
+    "Fix the parser (#12)",
+    "board_edit: finish Ship it (session s-1)",
+    "queue: rank TD-3, TD-12 (shiftlead)",
+    "queue: join TD-7 (shiftlead)",
+    "queue: prune TD-1, TD-2 (a-tool)",
+    "queue: rank TD-3 TD-12 (shiftlead)",
+    "queue: sort TD-3 (shiftlead)",
+    "queue: rank TD-3",
+    "queue: rank TD-3 (shiftlead) extra"
+  ],
+  "compose": [
+    {
+      "fn": "item_line",
+      "text": "Look at  the\tdashboard.",
+      "due": "2026-01-20",
+      "session": "w-1",
+      "host": "box-1",
+      "context": "TD-4"
+    },
+    {
+      "fn": "item_line",
+      "text": "No session",
+      "due": "2026-01-20",
+      "session": null,
+      "host": null,
+      "context": null
+    },
+    {
+      "fn": "item_line",
+      "text": "Bad date",
+      "due": "soon",
+      "session": null,
+      "host": null,
+      "context": null
+    },
+    {
+      "fn": "decided_line",
+      "title": "Choose the store. Answers: none",
+      "ref": "TD-31",
+      "answers": [
+        "files",
+        "a | db"
+      ],
+      "default": 0,
+      "words": "files"
+    },
+    {
+      "fn": "decided_line",
+      "title": "Empty words",
+      "ref": "TD-31",
+      "answers": [],
+      "default": null,
+      "words": " "
+    },
+    {
+      "fn": "decided_line",
+      "title": "Close it",
+      "ref": "TD-31",
+      "answers": [],
+      "default": null,
+      "words": "Closed: yes"
+    },
+    {
+      "fn": "decided_line",
+      "title": "Where the cache lives",
+      "ref": "TD-40",
+      "answers": [
+        "On disk — the next run reads it back",
+        "In memory — every run starts cold",
+        "Not now"
+      ],
+      "default": 0,
+      "words": "On disk"
+    },
+    {
+      "fn": "decided_line",
+      "title": "Pick a region",
+      "ref": "TD-41",
+      "answers": [
+        "North — closer — but dearer",
+        "South"
+      ],
+      "default": 0,
+      "words": "North"
+    }
+  ],
+  "predicates": [
+    "## TD-012: A heading",
+    "| TD-012 | A row | Low | Open |",
+    "- [ ] 2026-01-05 (session s-1) — Open.",
+    "  - [x] 2026-01-05 (session s-1) — Closed.",
+    "- [ ]",
+    "Swept: 2026-01-10 (quick, 3 items)",
+    "Swept-deep: 2026-01-01 (deep)",
+    "Fields: Owner = a | b",
+    "Not a stamp: yesterday",
+    "Swept: n/a"
+  ],
+  "versions": [
+    "# Board\n\nLedgerboard: 1\n\n- [ ] 2026-01-05 (session s) — x.\n",
+    "# Board\n\nLedgerboard: 2\n\n- [ ] 2026-01-05 (session s) — x.\n",
+    "# Board\n\n- [ ] 2026-01-05 (session s) — x.\nLedgerboard: 3\n",
+    "# Board\n\n- [docs](x)\nLedgerboard: 2\n\n- [ ] 2026-01-05 (session s) — x.\n",
+    "# T\n\n## Summary\n\nLedgerboard: 2\n\n## TD-001: x\n",
+    "# Ledger\n\nLedgerboard: 3\n\n## TD-001: x\n"
+  ],
+  "bold_heads": [
+    "2026-01-05 (session s-1 on h) — **Fix the export** before Friday. Due: 2026-01-20.",
+    "decide 2026-01-05 (session s-1) — Pick one. Context: TD-004. Due: 2026-01-20. Answers: a | b.",
+    "2026-01-05 (session s-1) — **First**, then **second**. Due: 2026-01-20.",
+    "2026-01-05 (session s-1) — Plain words. Due: 2026-01-20. — Paul, 2026-01-10: **mine**, not a head",
+    "2026-01-05 (session s-1) — **Spread\tover   space** here. Due: 2026-01-20.",
+    "2026-01-05 (session s-1) — **  ** is no head. Due: 2026-01-20.",
+    "decide 2026-01-05 (session s-1) — Pick one. Due: 2026-01-20. Answers: **a** | b."
+  ],
+  "not_right_forms": [
+    "Not right: <what>",
+    "Not right:",
+    "Not right:   <say what>",
+    "Not right: wrong repo",
+    "not right: <what>",
+    "Works",
+    "Not right: <a> <b>"
+  ],
+  "not_right_fills": [
+    {
+      "name": "filled",
+      "said": "Not right:  the  button is grey",
+      "offered": [
+        "Works",
+        "Not right: <what>"
+      ]
+    },
+    {
+      "name": "bare-form-offered",
+      "said": "Not right: wrong page",
+      "offered": [
+        "Works",
+        "Not right:"
+      ]
+    },
+    {
+      "name": "form-as-offered",
+      "said": "Not right: <what>",
+      "offered": [
+        "Works",
+        "Not right: <what>"
+      ]
+    },
+    {
+      "name": "prefix-only",
+      "said": "Not right:  ",
+      "offered": [
+        "Works",
+        "Not right: <what>"
+      ]
+    },
+    {
+      "name": "another-answer",
+      "said": "Works",
+      "offered": [
+        "Works",
+        "Not right: <what>"
+      ]
+    },
+    {
+      "name": "no-form-offered",
+      "said": "Not right: wrong repo",
+      "offered": [
+        "Works",
+        "Not right: wrong repo"
+      ]
+    },
+    {
+      "name": "empty",
+      "said": "",
+      "offered": [
+        "Works",
+        "Not right: <what>"
+      ]
+    },
+    {
+      "name": "placeholder-only",
+      "said": "Not right: <b>",
+      "offered": [
+        "Works",
+        "Not right: <what>"
+      ]
+    }
+  ],
+  "queue_subjects": [
+    {
+      "tool": "shiftlead",
+      "action": "rank",
+      "ids": [
+        "TD-12",
+        "TD-3",
+        "TD-12"
+      ]
+    },
+    {
+      "tool": "shiftlead",
+      "action": "join",
+      "ids": [
+        "TD-7"
+      ]
+    },
+    {
+      "tool": "a-tool",
+      "action": "prune",
+      "ids": [
+        "TD-1",
+        "TD-2"
+      ]
+    },
+    {
+      "tool": "shiftlead",
+      "action": "move",
+      "ids": [
+        "TD-1"
+      ]
+    },
+    {
+      "tool": "shiftlead",
+      "action": "rank",
+      "ids": []
+    },
+    {
+      "tool": "shiftlead",
+      "action": "rank",
+      "ids": [
+        "far#TD-1"
+      ]
+    },
+    {
+      "tool": "a (b)",
+      "action": "rank",
+      "ids": [
+        "TD-1"
+      ]
+    }
+  ],
+  "implicit_keys": [
+    {
+      "priority": "High",
+      "type": "debt",
+      "id": "TD-7",
+      "repo": ""
+    },
+    {
+      "priority": "Medium",
+      "type": "feature",
+      "id": "TD-642",
+      "repo": "shiftlead"
+    },
+    {
+      "priority": "medium",
+      "type": null,
+      "id": "TD-642",
+      "repo": "shiftlead"
+    },
+    {
+      "priority": "Low",
+      "type": "debt",
+      "id": "TD-1234567",
+      "repo": "owner/name"
+    },
+    {
+      "priority": "?",
+      "type": "chore",
+      "id": "TD-3",
+      "repo": ""
+    }
+  ],
+  "key_orders": [
+    [
+      "2|1|000642|shiftlead",
+      "2a",
+      "2|0|000642|shiftlead",
+      "1|0|000700",
+      "2",
+      "2|0|000642",
+      "0h",
+      "z",
+      "2|0|000642|dev-cadence",
+      "1i"
+    ]
+  ],
+  "midpoints": [
+    [
+      null,
+      null
+    ],
+    [
+      null,
+      "1|0|000002"
+    ],
+    [
+      null,
+      "0h"
+    ],
+    [
+      "0h",
+      "1|0|000002"
+    ],
+    [
+      "1|0|000002",
+      "2|0|000004"
+    ],
+    [
+      "2|0|000004",
+      "2|0|000005"
+    ],
+    [
+      "2|0|000642|dev-cadence",
+      "2|0|000642|shiftlead"
+    ],
+    [
+      "2|0|000642",
+      "2|0|000642|shiftlead"
+    ],
+    [
+      "3|0|000003",
+      null
+    ],
+    [
+      "z",
+      null
+    ],
+    [
+      "x",
+      "x0h"
+    ],
+    [
+      "x",
+      "x0"
+    ],
+    [
+      "x",
+      "x|"
+    ],
+    [
+      "b",
+      "a"
+    ],
+    [
+      "a",
+      "a"
+    ],
+    [
+      "|a",
+      "b"
+    ],
+    [
+      null,
+      "0"
+    ],
+    [
+      "a",
+      "a|0|"
+    ],
+    [
+      "0",
+      "0|0|"
+    ]
+  ],
+  "rank_reads": [
+    "# comment\nTD-1: 0h\nTD-2: 2|0|000004\n",
+    "TD-1: 0h\n\n# late comment\nTD-1: 1h\nTD-2: 09\nTD-3 0h\nTD-4: |bad\nTD-5: two words\n",
+    ""
+  ],
+  "rank_writes": [
+    {
+      "text": "",
+      "lines": {
+        "TD-5": "2|0|0003"
+      }
+    },
+    {
+      "text": "# c\nTD-1: 0h\nTD-2: 2|0|000004\n",
+      "lines": {
+        "TD-3": "1i",
+        "TD-9": "0a"
+      }
+    },
+    {
+      "text": "# c\nTD-1: 0h\nTD-2: 2|0|000004\n",
+      "lines": {
+        "TD-1": "3a",
+        "TD-2": null
+      }
+    },
+    {
+      "text": "# c\nTD-1: 0h\nstray line\nTD-2: 2|0|000004",
+      "lines": {
+        "TD-4": "z"
+      }
+    },
+    {
+      "text": "# c\nTD-1: 0h\n",
+      "lines": {
+        "TD-2": "0h"
+      }
+    },
+    {
+      "text": "# c\nTD-1: 0h\n",
+      "lines": {
+        "far#TD-2": "0h"
+      }
+    },
+    {
+      "text": "# c\nTD-1: 0h\n",
+      "lines": {
+        "TD-2": "|0"
+      }
+    },
+    {
+      "text": "# c\r\nTD-1: 0h\r\n",
+      "lines": {
+        "TD-2": "1a",
+        "TD-1": "0z"
+      }
+    },
+    {
+      "text": "",
+      "lines": {
+        "TD-2": "é"
+      }
+    }
+  ],
+  "rank_paths": [
+    "docs/technical_debt.md",
+    "technical_debt.md",
+    "a/b/ledger.md",
+    "docs/ledger"
+  ],
+  "components": [
+    "ledger/ranked.md",
+    "ledger/ranked.archive.md",
+    "ledger/basic.md",
+    "ledger/parts.md"
+  ]
+}

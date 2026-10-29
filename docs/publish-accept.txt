@@ -1,0 +1,66 @@
+# Findings of the publish gate that are meant to be public (TD-189, cadence.md §9.18). The
+# precheck runs `cadence_layer.py --publish-check --accept docs/publish-accept.txt` over every
+# tracked file, so a PR that adds a private name fails its gate. One per line:
+# `<path-glob> <finding-glob>[ :: <line-glob>]`, fnmatch on the gate's `path:line: finding` (the line
+# number is not matched; the third field is matched against the flagged line's own text).
+# This file is public too: it names only what the tree already shows. Accept a class, never a whole
+# directory's findings: a new private name must still show. An accept line that matches nothing is
+# named by the gate — drop it then.
+
+# This list names what it accepts.
+docs/publish-accept.txt *
+
+# The person who decides is named where they decide: the ledger's `decision (Paul)` hold marker,
+# which ShiftLead's Queue reads, and the ledger and board text addressed to them (Paul, 2026-10-28).
+docs/ledger/* a name your publish-names lists (Paul)
+docs/briefs/* a name your publish-names lists (Paul)
+docs/claude-memory/* a name your publish-names lists (Paul)
+docs/user_attention.md a name your publish-names lists (Paul)
+* a name your publish-names lists (Paul) :: *decision (Paul)*
+
+# A board item and a sweep stamp name the machine they were written on, as the board's format says;
+# the machine's name is public (Paul, 2026-10-28).
+docs/user_attention.md this machine's short name (*) :: *(session * on *)*
+docs/user_attention.md this machine's short name (*) :: Swept*
+
+# ShiftLead's own projects stay in the public tree (decided 2026-10-27).
+* a repo on this machine's roster (shiftlead)
+* a repo on this machine's roster (ledgerboard)
+
+# A licence names its holder.
+LICENSE a name your publish-names lists (Paul)
+
+# The scrub check's own patterns and fixtures.
+files/scripts/cadence_layer.py a machine path (*) :: *a home directory named in full:*
+files/scripts/cadence_layer.py a machine path (*) :: *_RE = re.compile(*
+files/scripts/cadence_layer.py a machine path (*) :: *r"[^/\\\s`*
+tests/test_cadence_layer.sh a machine path (/home/jdoe)
+tests/test_snapshot_public.sh a machine path (/home/realname)
+tests/test_cadence_layer.sh an email address (alex@acme-mail.io)
+tests/test_cadence_layer.sh an email address (x@example.com.evil.io)
+tests/test_cadence_layer.sh an email address (y@notexample.com)
+
+# Git remote URLs in fixtures (user@host is the ssh form, not an address).
+tests/* an email address (git@github.com)
+tests/* an email address (git@gitlab.com)
+tests/* an email address (git@gitea.local)
+tests/* an email address (deploy@git.corp)
+tests/* an email address (tok@github.com)
+tests/* an email address (s3cr3t@github.com)
+
+# Placeholder homes and commit trailers in fixtures.
+tests/test_list_sessions.sh a machine path (/home/u)
+tests/test_prepare_commit_msg.sh an email address (grinder-ao-1@*)
+* an email address (noreply@anthropic.com)
+* an email address (noreply@github.com)
+
+# A template's example link (the consumer writes file.md).
+files/docs/claude-memory/MEMORY.md a link to a file the tree lacks (file.md)
+
+# The vendored ledgerboard fixture's one reply signed by the person. ShiftLead/ledgerboard is public
+# already, so this text is published there; re-releasing it to change a name would hide nothing (2026-10-28).
+tests/ledgerboard/edit/cases.json a name your publish-names lists (Paul)
+tests/ledgerboard/edit/expected.json a name your publish-names lists (Paul)
+
+# The memory index's template comment shows the link format.
+docs/claude-memory/MEMORY.md a link to a file the tree lacks (file.md)

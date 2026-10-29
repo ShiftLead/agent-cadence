@@ -1,0 +1,15 @@
+name: ci
+# By hand only (TD-148): GitHub Actions minutes are one pool across the account's repos, so the
+# merge gate is the local precheck (docs/cadence.toml, `files/scripts/precheck.py --pr <n>`).
+on:
+  workflow_dispatch:
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # test_ledger_archive.sh needs a merge-base with origin/main, or it SKIPs (a CI failure)
+      - run: pipx install ruff
+      - run: ruff check files/scripts/
+      - run: ./run_tests.sh   # CI=true is set by Actions: a SKIP fails the job
