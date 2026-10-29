@@ -1,6 +1,6 @@
 # Briefs for the unattended agent-cadence team
 
-A **brief** is the opening prompt of an unattended session. `ao team start dc-grind` (ShiftLead,
+A **brief** is the opening prompt of an unattended session. `ao team start ac-grind` (ShiftLead,
 on the person's machine) reads the team definition (below), launches every seat in its own worktree under
 `.claude/worktrees/<name>`, and hands each one ShiftLead's built-in template for its role with the
 file named there filled into the template's *This repo's rules* section (ShiftLead design §4.8,
@@ -21,12 +21,12 @@ that looks arbitrary is a scar recorded in `CLAUDE.md`, the ledger or its archiv
 
 | File | Seat | Notes |
 |---|---|---|
-| `manager-dc-1.md` | manager | Holds the `control` grant; watches the grinder, reads the cadence check's readings, winds the team down, creates no work of its own |
+| `manager-ac-1.md` | manager | Holds the `control` grant; watches the grinder, reads the cadence check's readings, winds the team down, creates no work of its own |
 | `techlead-context.md` | techlead | **Not a brief** — the primer the techlead reads on every fill, after the role preset's own brief. `tests/test_briefs_primer.sh` holds its pointers to things that exist |
-| `grinder-dc-1.md` | grinder | `free-pick` from the live ledger via `ledger.py --pickable` (blocked entries left out) |
+| `grinder-ac-1.md` | grinder | `free-pick` from the live ledger via `ledger.py --pickable` (blocked entries left out) |
 
 The team definition lives in this repo's `.shiftlead.yml` (moved from the machine's `org.yml`,
-now `~/.shiftlead/org.yml`, on 2026-10-03, PR #206 in the private dev-cadence repo; named `.agentorc.yml` until TD-091); while `org.yml` still names `dc-grind` it wins the name and this file reads
+now `~/.shiftlead/org.yml`, on 2026-10-03, PR #206 in the private dev-cadence repo; named `.agentorc.yml` until TD-091); while `org.yml` still names `ac-grind` it wins the name and this file reads
 *shadowed* — removing it there is the switch, and Paul's.
 
 ## The rules every seat shares
