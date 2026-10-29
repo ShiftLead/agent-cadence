@@ -107,6 +107,7 @@ SEED_FILES=(
     "docs/cadence.toml"
     "AGENTS.md"
     ".gemini/settings.json"
+    ".gitattributes"
 )
 
 # --- --pin: the migration (TD-129, docs/plans/2026-10-25-pinned-not-synced.md Decision 11) -------

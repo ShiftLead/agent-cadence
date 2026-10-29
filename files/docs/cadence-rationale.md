@@ -236,6 +236,10 @@ The reasoning and mechanics behind the rules in [`cadence.md`](cadence.md), keye
 
 - **A process rule found in one repo's memory is usually wanted in all of them.** Sessions record how the person wants a situation handled as `feedback` memories, and many are process rules — merging, review, the ledger, the board, worktrees — found the hard way. Held in one repo's memory, the rule never reaches the next repo, which meets the same situation and asks the person again, and the copies drift as each repo amends its own: on 2026-10-23 three repos held about 230 memories, 134 of them `feedback`. A rule held only in memory is also §7.3's decision-only-in-memory case, repeated across the roster. The person's layer (§9.18) is the home because it follows the person rather than the repo; agent-cadence receives only what is general for everyone, as a proposal, so one person's preferences never become everyone's rules (TD-128). The harvest is started only by the person, never by a hook or a sweep, because it reads other repos' memories and proposes changes to the system; and its record lives in the layer repo because it names private repos and memory files (TD-090). Decided 2026-10-23 (`docs/plans/2026-10-23-memory-harvest.md` in agent-cadence).
 
+### §7.14 Text is LF
+
+- **One line ending, chosen once.** Without a rule each repo has whatever its editors left: on 2026-10-28 two consumer repos held about 280 and 190 CRLF files, mostly from a Windows clone's `core.autocrlf`. The cost lands on scripted edits: Python's text-mode `open()` reads `\r\n` as `\n`, so a one-line edit to a CRLF file writes the whole file back as LF, and a 3-line change became a 136-line diff that collided with every branch touching the file, caught only in review. A guard that forbids *mixing* stops the spread but makes conversion a collision paid file by file; one `--renormalize` commit pays it once. A pre-commit check was considered and left until the backfills show CRLF still coming back with the attribute in place (TD-187).
+
 ## 8. Subagent discipline
 
 ### §8.2 A subagent's summary is evidence, not a source

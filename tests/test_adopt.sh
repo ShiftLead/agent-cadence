@@ -146,6 +146,24 @@ out=$( cd "$CL" && CADENCE_TEMP_ROOTS="$TMP/fx" python3 "$DC/launcher/agent_cade
 [ $rc -eq 0 ] && grep -q "registration skipped" <<< "$out" && ! grep -qxF "$(realpath "$T")" "$AGENT_CADENCE_REG_DIR/repos.txt" \
     && ok "a temp-dir repo and a roster outside the temp roots: registration skipped, said" || bad "temp roster rc=$rc: $out"
 
+# --- 6b) TD-187 (cadence.md §7.14): the .gitattributes seed makes text LF; adopt converts nothing but says
+# what the repo does once — a CRLF index, an own .gitattributes with no LF line
+T="$TMP/t1"
+grep -qx '\* text=auto eol=lf' "$T/.gitattributes" && [ "$(git -C "$T" check-attr eol -- x.md)" = "x.md: eol: lf" ] \
+    && ok "the seeded .gitattributes makes text LF" || bad "gitattributes seed: $(cat "$T/.gitattributes" 2>&1)"
+[ "$(sed 3d "$DC/.gitattributes")" = "$(sed 3d "$DC/files/.gitattributes")" ] \
+    && ok "this repo's own .gitattributes is its seed's (but the line naming which it is)" || bad "own .gitattributes differs from the seed"
+T="$TMP/t6b"; newrepo "$T"; printf 'a\r\nb\r\n' > "$T/w.md"; printf 'c\n' > "$T/u.md"; git -C "$T" add w.md u.md; git -C "$T" commit -qm crlf
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && grep -qF "1 file(s) are CRLF in the index" <<< "$out" && grep -qF 'add --renormalize .' <<< "$out" \
+    && [ "$(git -C "$T" show HEAD:w.md | od -An -c | tr -d ' \n')" = 'a\r\nb\r\n' ] && ! grep -q "has no \`\* text=auto eol=lf\` line" <<< "$out" \
+    && ok "a CRLF index: counted and the one-time renormalize named; nothing converted" || bad "crlf rc=$rc: $out"
+T="$TMP/t6c"; newrepo "$T"; printf '*.sh text eol=lf\n' > "$T/.gitattributes"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && grep -q "keep  .gitattributes" <<< "$out" && grep -qF "has no \`* text=auto eol=lf\` line: add it by hand" <<< "$out" \
+    && [ "$(cat "$T/.gitattributes")" = '*.sh text eol=lf' ] && ! grep -q "CRLF in the index" <<< "$out" \
+    && ok "an own .gitattributes with no LF rule: kept as it is, the line to add named" || bad "own attrs rc=$rc: $out"
+
 # --- 7) parity: adopt's reading of sync.sh's arrays is bash's own
 for a in SYNC_FILES SEED_FILES; do
     want=$(bash -c 'eval "$(sed -n "/^$2=(/,/^)/p" "$1")"; eval "printf \"%s\n\" \"\${$2[@]}\""' _ "$DC/sync.sh" "$a")

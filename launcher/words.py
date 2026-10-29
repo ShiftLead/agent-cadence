@@ -1099,6 +1099,20 @@ def w_adopt(args):
                 print(f"    … and {len(named) - 40} more (git -C \"{dest}\" grep -l scripts/)")
         if kept:
             print(f"\n  {len(kept)} edited copy(ies) kept (above): port each and delete it before the PR")
+    # TD-187 (cadence.md §7.14): text is LF. adopt converts nothing; it says what the repo does once
+    if ".gitattributes" in seed_files and ".gitattributes" not in skip_seed:
+        try:
+            with open(os.path.join(dest, ".gitattributes"), "rb") as fh:
+                attrs = fh.read()
+        except OSError:
+            attrs = b""
+        if not re.search(rb"^\*[ \t]+(?:\S+[ \t]+)*eol=lf\b", attrs, re.M):
+            print("\n  the repo's own .gitattributes has no `* text=auto eol=lf` line: add it by hand (cadence.md §7.14)")
+        rc, eol = _git_bytes("-C", dest, "ls-files", "--eol")
+        crlf = sum(1 for line in eol.splitlines() if line.startswith((b"i/crlf", b"i/mixed"))) if rc == 0 else 0
+        if crlf:
+            print(f"\n  {crlf} file(s) are CRLF in the index: convert them once, in a PR of their own — "
+                  f"git -C \"{dest}\" add --renormalize . (cadence.md §7.14)")
     print(f"""
 Next, in {dest}:
   1. git -C "{dest}" diff and git status — nothing is committed; branch, commit, PR (a migration's
