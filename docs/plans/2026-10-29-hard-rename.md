@@ -126,8 +126,9 @@ exists and is kept, and where the text is frozen.
 
 - **Frozen or historical files, kept whole:**
   - `files/docs/cadence-changes.md`. It is append-only, and an old entry is never edited.
-  - `docs/ledger/**`. Entries are records, and `dev-cadence#TD-NNN` refs to ids archived in the private repo
-    must keep resolving. `ledger.py` resolves them by roster basename, and live `Blocked by` lines in the
+  - `docs/ledger/TD-*.md` and `docs/ledger/archive/TD-*.md`. Entries are records, and `dev-cadence#TD-NNN` refs
+    to ids archived in the private repo must keep resolving. The two ledger READMEs are not records: R renames
+    their headings and rewrites their private-repo mentions into the two forms. `ledger.py` resolves them by roster basename, and live `Blocked by` lines in the
     consumers name them: consumer-a TD-470, consumer-b TD-059 and TD-096.
   - This plan.
   - `files/scripts/ledgerboard.py` and `tests/ledgerboard/**`. The vendored release is byte-frozen: lines 2 and
@@ -209,7 +210,8 @@ name-free and stay as they are.
    - A new `tests/test_one_name.sh` matches `dev[-_]cadence`, case-insensitively, over `git ls-files`. It fails
      on any match not covered by `tests/one_name_allow.txt`, whose lines are `<path-glob> <line-glob>` like
      `docs/publish-accept.txt`'s. The allowlist holds exactly *What keeps the name*: the frozen files whole,
-     the two prose forms on any path, and the `TOOL_NAMES` line and its cases. Untracked `.git/hooks` are beyond
+     the two prose forms on any path, the `TOOL_NAMES` line and its cases, and the allowlist file itself (as
+     `docs/publish-accept.txt` accepts itself). Untracked `.git/hooks` are beyond
      its reach, and the sitting's step 9 is the check for them.
    - A `files/docs/cadence-changes.md` entry: the command, table, dirs, variable and shim marker are renamed,
      with the old names in that entry and the shim swap's one-liner. The techlead primer and `docs/briefs/`
@@ -276,10 +278,12 @@ Before it:
   `~/dev-cadence` session sees no roster.
 
 The **shim swap**, for one clone: delete the hooks that carry the old marker
-(`grep -lF 'dev-cadence hook shim (TD-055)' "$(git -C <clone> rev-parse --git-common-dir)"/hooks/* | xargs -r rm`),
-then run `agent-cadence -C <clone> run install_git_hooks.sh`.
+(`grep -lF 'dev-cadence hook shim (TD-055)' "$(git -C <clone> rev-parse --path-format=absolute --git-common-dir)"/hooks/* | xargs -r rm`;
+without `--path-format=absolute`, a main checkout prints a relative `.git` and the glob reads the session's own
+clone), then run `agent-cadence -C <clone> run install_git_hooks.sh`. The launcher and the installer read the
+clone's working tree, so the clone is pulled to its merged main first.
 
-1. Merge R. Check that the merged tree equals the pinned head. Fetch `~/agent-cadence`. Run
+1. Merge R. Check that the merged tree equals the pinned head. Run `git -C ~/agent-cadence pull --ff-only`, so the working tree is R. Run
    `install -m 755 launcher/agent_cadence.py ~/.local/bin/agent-cadence` beside the old launcher. Do the shim
    swap in `~/agent-cadence`.
 2. Check that `~/.config/agent-cadence` is absent, run `cp -aT ~/.config/dev-cadence ~/.config/agent-cadence`,
@@ -289,21 +293,22 @@ then run `agent-cadence -C <clone> run install_git_hooks.sh`.
 4. Merge C1 (consumer-a), between :05 and :50 so the hourly deploy pull does not land mid-step. At once:
    - pull its deploy checkout by hand;
    - reinstall its crontab from the merged file;
-   - fetch consumer-a's main checkout, do its shim swap, and start one session there.
+   - `git pull --ff-only` in consumer-a's main checkout, then do its shim swap, and start one session there.
 
    Check that the next 10-minute index run logs.
 5. Merge C2–C5, one at a time. After each merge:
-   - fetch the repo's main checkout;
+   - `git pull --ff-only` in the repo's main checkout;
    - do the shim swap, once per clone;
    - start one session in it and check its SessionStart output.
 6. Merge S. Leave `~/shiftlead`'s working tree on the old pin until the home has promoted the merge. The old
    agent finds the precheck script through that pin, and pulling first stalls the promote with *no
-   cadence/precheck*. If the promote does not come, run `agent-cadence -C ~/shiftlead run precheck.py --commit
-   <sha>` by hand.
+   cadence/precheck*. If the promote does not come, run `dev-cadence -C ~/shiftlead run precheck.py --commit
+   <sha>` by hand. It must be the old launcher, because the working tree still holds `[dev-cadence]`, and the
+   old launcher stays installed until step 9. The promote's own pull then moves `~/shiftlead` to S.
 
    Once `ao doctor` shows `live <sha> = main`:
    - check that `~/.local/share/shiftlead-venv/bin/` holds `agent-cadence` and no `dev-cadence`;
-   - fetch `~/shiftlead`, do its shim swap, and start one session there;
+   - check that `~/shiftlead` is at S (the promote pulls it), do its shim swap, and start one session there;
    - rebuild consumer-b's devcontainer node and consumer-d's devcontainer.
 7. Run `ao doctor` (read it only now, after S is live: between steps 4 and 6 the old agent sees each moved
    repo as unpinned). It must show every repo row present, no pin-age warning, and dc-grind listed at
@@ -322,8 +327,8 @@ then run `agent-cadence -C <clone> run install_git_hooks.sh`.
     the first time.
 
 **Rollback during the sitting:** a consumer not yet merged keeps working on the old launcher and config. A
-merged one is reverted by a revert PR, then its shims are swapped back by the old installer: delete the
-new-marker hooks, then run `dev-cadence -C <clone> run install_git_hooks.sh`. S is reverted the same way, and
+merged one is reverted by a revert PR, then its shims are swapped back by the old installer: pull the revert, delete the
+new-marker hooks (the same `grep -lF`, with `--path-format=absolute`, on `agent-cadence hook shim (TD-055)`), then run `dev-cadence -C <clone> run install_git_hooks.sh`. S is reverted the same way, and
 the host agent rebuilds from main. Nothing is deleted before step 9.
 
 ### Where it sits in TD-191
