@@ -143,7 +143,7 @@ fi
 # The launcher fills exactly {lane}, {techlead} and {context}; any other {word} in a brief
 # ships literally. A stray one is a typo that reaches a session as-is.
 stray=""
-for b in docs/briefs/manager-dc-1.md docs/briefs/grinder-dc-1.md; do
+for b in docs/briefs/manager-ac-1.md docs/briefs/grinder-ac-1.md; do
     s="$(grep -oE '\{[a-z_]+\}' "$b" | grep -vE '^\{(lane|techlead|context)\}$' | sort -u | tr '\n' ' ')"
     [ -z "$s" ] || stray+=" $b:$s"
 done

@@ -1,10 +1,10 @@
 # ShiftLead's definition of this repo's team (ShiftLead design §4.9 *The org is an aggregate*, its TD-229):
 # moved here from ~/.agentorc/org.yml (now ~/.shiftlead/org.yml) on 2026-10-03, unchanged but for
 # `projects:`, which a repo's own team does not carry (the checkout's directory name is the team's
-# project). While org.yml still names `dc-grind` it wins the name and this file reads *shadowed*.
+# project). While org.yml still names `ac-grind` it wins the name and this file reads *shadowed*.
 # Named `.agentorc.yml` until TD-091 (2026-10-11), when the orchestrator became ShiftLead.
 teams:
-  dc-grind:
+  ac-grind:
     # On flows since TD-086 (ShiftLead design §4.9c): `build` alone — the flow fills each member's
     # stage brief. No `held:` yet, so `build-review` (the techlead's read of a held PR) would not be
     # followable; it is listed once this repo decides what its techlead reads. The member keeps its
@@ -12,11 +12,11 @@ teams:
     flows: [build]
     manager:
       role: manager
-      name: dc-manager
-      brief: docs/briefs/manager-dc-1.md
-    techlead: {name: dc-techlead, context: docs/briefs/techlead-context.md}
+      name: ac-manager
+      brief: docs/briefs/manager-ac-1.md
+    techlead: {name: ac-techlead, context: docs/briefs/techlead-context.md}
     members:
       - role: grinder
-        name: dc-grinder
+        name: ac-grinder
         lane: free-pick
-        brief: docs/briefs/grinder-dc-1.md
+        brief: docs/briefs/grinder-ac-1.md
