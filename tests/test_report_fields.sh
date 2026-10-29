@@ -5,15 +5,15 @@
 # tail whole past the clip.
 #
 # Offline: every origin is a local bare repo (or a path that does not exist); HOME,
-# XDG_CONFIG_HOME and DEV_CADENCE_REG_DIR are temp; dates derive from the run date (TD-24).
+# XDG_CONFIG_HOME and AGENT_CADENCE_REG_DIR are temp; dates derive from the run date (TD-24).
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 N="$DC/files/scripts/nudge_user_attention.py"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -28,7 +28,7 @@ cat > "$B" <<BOARD
 
 - [ ] decide $RAISED (session abcdef12 on testhost) — pick one. Context: TD-036 / PR #184 / td036-answers. Due: $T0. Answers: a | b.
 - [ ] watch $RAISED (session \`grinder-y-2\` on \`testhost\`, branch x) — look. Context: TD-250 (archived), PR #871, PR #873. Due: $T0.
-- [ ] $RAISED (session \`c0ffee01\` / \`grinder-x-2\` on testhost) — two names. Context: dev-cadence#TD-071 / branch \`td437-x\` / TD-071. Due: $T0.
+- [ ] $RAISED (session \`c0ffee01\` / \`grinder-x-2\` on testhost) — two names. Context: agent-cadence#TD-071 / branch \`td437-x\` / TD-071. Due: $T0.
 - [ ] $RAISED (n/a) — no session, no context. Due: $T0.
 - [ ] act $RAISED (session c0ffee02 on devcontainer \`ab01\`; updated) — prose says session zz on elsewhere. Context: n/a. Due: $T0.
 - [ ] $RAISED (the anchor session on testhost) — not the documented head. Context: PR #5 and PR #5 again, TD-9. Due: $T0.
@@ -43,7 +43,7 @@ it = b["items"]
 f = lambda i: (i["session"], i["host"], i["refs"])
 assert f(it[0]) == ("abcdef12", "testhost", ["TD-036", "PR #184", "branch td036-answers"]), f(it[0])
 assert f(it[1]) == ("grinder-y-2", "testhost", ["TD-250", "PR #871", "PR #873"]), f(it[1])
-assert f(it[2]) == ("c0ffee01", "testhost", ["dev-cadence#TD-071", "branch td437-x", "TD-071"]), f(it[2])
+assert f(it[2]) == ("c0ffee01", "testhost", ["agent-cadence#TD-071", "branch td437-x", "TD-071"]), f(it[2])
 assert f(it[3]) == (None, None, []), f(it[3])
 assert f(it[4]) == ("c0ffee02", "devcontainer", []), f(it[4])
 assert f(it[5]) == (None, None, ["PR #5", "TD-9"]), f(it[5])

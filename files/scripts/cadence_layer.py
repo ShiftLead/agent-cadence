@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/cadence_layer.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """The person's own cadence layers, read at session start (TD-126, cadence.md §9.18).
 
     cadence_layer.py --hook    SessionStart (cadence_hooks.sh): print every layer, in order;
@@ -38,7 +38,7 @@
                                does not descend from the pin, the diff, and the ref line moved
 
 WHY A LAYER
-dev-cadence has one central source, its owner's. A person's own rules — the ones that should
+agent-cadence has one central source, its owner's. A person's own rules — the ones that should
 hold in all their repos, on all their machines — have no home in a repo (a repo two people
 share would take one person's rules) and none in a synced file (a fork conflicts at every
 upstream merge). So they live in a file in a git repo the person owns, cloned on each machine,

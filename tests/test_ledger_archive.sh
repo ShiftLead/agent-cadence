@@ -44,12 +44,6 @@ flatten() {
     fi
     { grep -oE '^## TD-[0-9]+' "$out_l" | sed 's/^## \(.*\)/| \1 | (v2) | - | - |/'; echo; cat "$out_l"; } > "$out_l.t" && mv "$out_l.t" "$out_l"
 }
-# a published snapshot (snapshot_public.sh's README note, TD-090) carries none of this repo's own docs/,
-# CLAUDE.md or .claude/: there a dogfood check whose file is absent is not run, said; here it always runs
-snapshot() { grep -q '^> \*dev-cadence, published as agent-cadence\.\*' "$1/README.md"; }
-if [ ! -e "$DC/$LEDGER" ] && [ ! -e "$DC/$ARCHIVE" ] && [ ! -e "$DC/$LEDGER_DIR" ] && snapshot "$DC"; then
-    echo "NOTE: a published snapshot has no docs/ ledger — this repo's own archive check, not run"; echo; echo "0 passed, 0 failed"; exit 0
-fi
 
 # check <base ledger> <base archive> <ledger> <archive>: prints PASS/FAIL lines
 check() {

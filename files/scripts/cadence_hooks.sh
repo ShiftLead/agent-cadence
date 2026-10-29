@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/cadence_hooks.sh
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 #
-# The one SessionStart entry point for dev-cadence's hooks (cadence §3, 2026-09-11).
+# The one SessionStart entry point for agent-cadence's hooks (cadence §3, 2026-09-11).
 #
 #     cadence_hooks.sh --session-start
 #
@@ -68,19 +68,19 @@
 #
 # A CONSTELLATION'S SIBLING (TD-147, cadence.md §9.12)
 # A sibling repo installs no cadence: its own settings line (§9.12's, not the seed's) runs its home's
-# runner — `dev-cadence -C <home> hook session-start --serve <sibling>` once the home pins, else the
+# runner — `agent-cadence -C <home> hook session-start --serve <sibling>` once the home pins, else the
 # home's copy — from the sibling, with CADENCE_HOME naming the home. Every child judges the sibling
 # (its cwd), as the three hand-picked hooks did; only the own-scope board is the home's.
 #
-# The seeded line (byte-identical in dev-cadence files/.claude/settings.json and in
+# The seeded line (byte-identical in agent-cadence files/.claude/settings.json and in
 # ShiftLead's CADENCE_HOOK_LINE — a parity pair). Where the main checkout's docs/cadence.toml
-# pins dev-cadence ([dev-cadence], TD-129) it runs `dev-cadence hook session-start` — this runner
+# pins agent-cadence ([agent-cadence], TD-129) it runs `agent-cadence hook session-start` — this runner
 # from the pinned tree — and never a copy; a launcher exit 2 or no launcher prints why, and goes on:
-#   r=$(git -C "${CLAUDE_PROJECT_DIR:-.}" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p'); f="${r:-$CLAUDE_PROJECT_DIR}/scripts/cadence_hooks.sh"; if grep -qsE '^[[:space:]]*\[dev-cadence\][[:space:]]*(#.*)?$' "${r:-$CLAUDE_PROJECT_DIR}/docs/cadence.toml"; then if command -v dev-cadence >/dev/null 2>&1; then (cd "${CLAUDE_PROJECT_DIR:-.}" && dev-cadence hook session-start); rc=$?; [ "$rc" -ne 2 ] && exit "$rc"; echo 'dev-cadence: the launcher could not run the pin in docs/cadence.toml (it said why above), so the cadence session-start hooks did not run (TD-129)'; else echo 'dev-cadence: this repo pins dev-cadence in docs/cadence.toml but no dev-cadence launcher is on PATH, so the cadence session-start hooks did not run; install it once per machine: clone dev-cadence at its latest tag, then run: install -m 755 launcher/dev_cadence.py ~/.local/bin/dev-cadence'; fi; elif [ -x "$f" ]; then "$f" --session-start; fi
+#   r=$(git -C "${CLAUDE_PROJECT_DIR:-.}" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p'); f="${r:-$CLAUDE_PROJECT_DIR}/scripts/cadence_hooks.sh"; if grep -qsE '^[[:space:]]*\[agent-cadence\][[:space:]]*(#.*)?$' "${r:-$CLAUDE_PROJECT_DIR}/docs/cadence.toml"; then if command -v agent-cadence >/dev/null 2>&1; then (cd "${CLAUDE_PROJECT_DIR:-.}" && agent-cadence hook session-start); rc=$?; [ "$rc" -ne 2 ] && exit "$rc"; echo 'agent-cadence: the launcher could not run the pin in docs/cadence.toml (it said why above), so the cadence session-start hooks did not run (TD-129)'; else echo 'agent-cadence: this repo pins agent-cadence in docs/cadence.toml but no agent-cadence launcher is on PATH, so the cadence session-start hooks did not run; install it once per machine: clone agent-cadence at its latest tag, then run: install -m 755 launcher/agent_cadence.py ~/.local/bin/agent-cadence'; fi; elif [ -x "$f" ]; then "$f" --session-start; fi
 set -u
 
 # Children are found BESIDE this runner, not under "$CLAUDE_PROJECT_DIR/scripts": in a
-# consumer the two are the same directory, but dev-cadence itself keeps the payload under
+# consumer the two are the same directory, but agent-cadence itself keeps the payload under
 # files/scripts/, and a hardcoded scripts/ meant the one repo that maintains these hooks
 # never ran them (TD-038). Each child still runs with the session's cwd and finds its repo
 # from there. A runner reached through a symlink resolves to its target first, so the

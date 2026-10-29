@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/check_claude_memory.sh
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 # check_claude_memory.sh — guard against silently losing Claude Code auto-memory.
 #
 # Failure modes this catches:
@@ -94,7 +94,7 @@ REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || 
 #     yields a truncated path, so a trailing backslash is unparsable, not used.
 DEFAULT_MEM_DIR="$REPO_ROOT/docs/claude-memory"
 # the hydrate command a hint names: a pinned repo has no scripts/ copy (TD-164)
-if [ -n "${CADENCE_REPO_ROOT:-}" ]; then HYDRATE="dev-cadence run hydrate_worktree.sh"; else HYDRATE="scripts/hydrate_worktree.sh"; fi
+if [ -n "${CADENCE_REPO_ROOT:-}" ]; then HYDRATE="agent-cadence run hydrate_worktree.sh"; else HYDRATE="scripts/hydrate_worktree.sh"; fi
 mem_setting=""; mem_setting_src=""; mem_setting_unparsed=""; mem_setting_ambiguous=""
 mem_setting_badjson=""; mem_setting_decoy=""
 for f in "$REPO_ROOT/.claude/settings.local.json" "$REPO_ROOT/.claude/settings.json" "$HOME/.claude/settings.json"; do
@@ -303,7 +303,7 @@ fi
 # pre-push hook (an absolute path to the main checkout's hooks, a repo's own hooks
 # directory with the guard copied in) is accepted.
 # Where the shipped hook lives: scripts/git-hooks in a consumer; beside this script
-# when it runs from inside the repo, which is files/scripts/git-hooks in dev-cadence
+# when it runs from inside the repo, which is files/scripts/git-hooks in agent-cadence
 # itself (TD-038). A copy run from outside the repo keeps the consumer path.
 HOOKS_REL="scripts/git-hooks"
 here_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -325,7 +325,7 @@ elif [ -f "$REPO_ROOT/$HOOKS_REL/pre-push" ]; then
   if [ -z "$hookspath" ]; then
     common="$(cd "$REPO_ROOT" 2>/dev/null && d="$(git rev-parse --git-common-dir 2>/dev/null)" && cd "$d" && pwd -P)"
     shared="${common:-.git}/hooks/pre-push"
-    if [ -x "$shared" ] && grep -qE 'dev-cadence hook shim \(TD-055\)|ALLOW_MAIN_PUSH' "$shared" 2>/dev/null; then
+    if [ -x "$shared" ] && grep -qE 'agent-cadence hook shim \(TD-055\)|ALLOW_MAIN_PUSH' "$shared" 2>/dev/null; then
       :  # the shim, or a copy of the guard itself
     elif [ -e "$shared" ]; then
       warns+=("$shared is a pre-push hook of this clone's own, not the cadence main guard — the guard is OFF on this machine. Fix: fold $HOOKS_REL/pre-push into it, or move it aside and run $installer")
@@ -363,7 +363,7 @@ fi
 BOARD="$REPO_ROOT/docs/user_attention.md"
 
 # 6) Machine roster coverage (plan 2026-08-10 P1): does this machine's registry
-#    ($DEV_CADENCE_REG_DIR, else ${XDG_CONFIG_HOME:-~/.config}/dev-cadence, /repos.txt)
+#    ($AGENT_CADENCE_REG_DIR, else ${XDG_CONFIG_HOME:-~/.config}/agent-cadence, /repos.txt)
 #    know about this repo's board? Soft warn.
 #    ORDER IS A PERFORMANCE INVARIANT — the conditions short-circuit as written:
 #    registry existence, then open board items, then coverage — so a clean board
@@ -374,7 +374,7 @@ BOARD="$REPO_ROOT/docs/user_attention.md"
 #    is covered *somewhere*, which is all this check exists to establish).
 #    Degradation is silence, never a false warning. Path-resolution spec:
 #    cadence.md §Machine scope (parity: launcher/words.py _register, --report).
-REGISTRY="${DEV_CADENCE_REG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/dev-cadence}/repos.txt"   # TD-029
+REGISTRY="${AGENT_CADENCE_REG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/agent-cadence}/repos.txt"   # TD-029
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)"
 if [ -f "$REGISTRY" ] \
    && [ -f "$BOARD" ] && grep -Eq '^[[:space:]]*-[[:space:]]*\[ \]' "$BOARD" \
@@ -461,7 +461,7 @@ try:
     print(f"this machine's roster ({reg}) doesn't list this repo ({mine}) — "
           "machine-scope views (/attention, nudge --report) won't see this board. "
           "Fix: add the main-checkout path to the roster, one line "
-          "(`dev-cadence adopt` writes it for a repo it adopts).")
+          "(`agent-cadence adopt` writes it for a repo it adopts).")
 except Exception:
     pass  # degrade to silence, never a false warning
 PY

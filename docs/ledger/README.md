@@ -1,8 +1,8 @@
-# Technical Debt — dev-cadence
+# Technical Debt — agent-cadence
 
 Ledgerboard: 2
 
-Known issues, compromises, and deferred work for the dev-cadence repo itself (dogfooding the
+Known issues, compromises, and deferred work for the agent-cadence repo itself (dogfooding the
 system this repo distributes — decided by Paul 2026-08-08, plan doc
 dev-cadence's private plan *2026-08-08-automation-and-sharing*).
 Add an entry any time a problem is identified but not immediately fixed. See
@@ -26,10 +26,10 @@ consumer. Entries from TD-029 on are padded.)*
 
 ## History
 
-- TD-22 and TD-23 were assigned during the 2026-08-12 review of PRs dev-cadence #41/#44 but both were
+- TD-22 and TD-23 were assigned during the 2026-08-12 review of PRs #41/#44 in the private dev-cadence repo, but both were
   fixed in those PRs before this ledger landed — the numbers are retired unused; the audit
   trail lives in the PR comment threads.
-- TD-037 was filed by PR dev-cadence #89 (written as TD-036 before dev-cadence #93 took that number). TD-038…TD-058
+- TD-037 was filed by PR #89 in the private dev-cadence repo (written as TD-036 before its #93 took that number). TD-038…TD-058
   were filed by the 2026-09-22 design review.
 - **Design review 2026-09-22 — entries TD-038 to TD-058** (a block of the old archive,
   moved here at the split): filed from a full design review (docs read by the session;

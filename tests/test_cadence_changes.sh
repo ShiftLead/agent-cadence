@@ -116,7 +116,7 @@ out=$(cd "$T" && rm -f .git/cadence-changes-seen && python3 "$SCRIPT" --hook 2>&
 
 
 # --- TD-038: the changes file is found beside the script's ../docs when it runs from inside
-# the repo — scripts/ -> docs/ in a consumer, files/scripts/ -> files/docs/ in dev-cadence
+# the repo — scripts/ -> docs/ in a consumer, files/scripts/ -> files/docs/ in agent-cadence
 # itself, where a hardcoded docs/ read nothing and the hook was silent forever.
 D="$TMP/dc"; git init -q --bare -b main "$D.git"; git clone -q "$D.git" "$D" 2>/dev/null
 git -C "$D" config user.email t@t; git -C "$D" config user.name t; git -C "$D" checkout -q -b main 2>/dev/null

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# cadence_hooks.sh — one SessionStart runner for the dev-cadence hook set (cadence §3,
+# cadence_hooks.sh — one SessionStart runner for the agent-cadence hook set (cadence §3,
 # 2026-09-11). Offline: the children are stub scripts in a fixture repo. Asserts order,
 # the executable guard, output passthrough, the per-child timeout, exit 0 always, and
-# that children resolve beside the runner (so dev-cadence's files/scripts/ layout runs them, TD-038).
+# that children resolve beside the runner (so agent-cadence's files/scripts/ layout runs them, TD-038).
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$DC/files/scripts/cadence_hooks.sh"
@@ -121,20 +121,20 @@ out=$(cd "$TMP" && "$TMP/elsewhere/cadence_hooks.sh" --session-start)
 out=$(unframe <<< "$out")
 [ "$out" = "$exp" ] && ok "symlinked runner: children resolved beside the target" || bad "symlinked runner:
 $out"
-# ... and dev-cadence's own layout: the payload under files/scripts/, the runner called
+# ... and agent-cadence's own layout: the payload under files/scripts/, the runner called
 # there with CLAUDE_PROJECT_DIR at the repo root. A hardcoded "$root/scripts/<child>"
 # found nothing here, which is why the repo that maintains these hooks never ran them.
 D="$TMP/dcrepo"; mkdir -p "$D/files/scripts"; git init -q -b main "$D"
 cp "$SCRIPT" "$R/scripts/"*.py "$R/scripts/"*_memory.sh "$R/scripts/hydrate_worktree.sh" "$D/files/scripts/" 2>/dev/null
 out=$(cd "$D" && CLAUDE_PROJECT_DIR="$D" "$D/files/scripts/cadence_hooks.sh" --session-start); rc=$?
 out=$(unframe <<< "$out")
-[ "$out" = "$exp" ] && [ $rc -eq 0 ] && ok "files/scripts layout (dev-cadence itself): all seven run" || bad "files/scripts layout: rc=$rc
+[ "$out" = "$exp" ] && [ $rc -eq 0 ] && ok "files/scripts layout (agent-cadence itself): all seven run" || bad "files/scripts layout: rc=$rc
 $out"
 
 # --- 6) the seeded settings line is the runner's documented line, guarded, and works verbatim
 line=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['hooks']['SessionStart'][0]['hooks'][0]['command'])" "$SEED")
 want_line=$(cat <<'L'
-r=$(git -C "${CLAUDE_PROJECT_DIR:-.}" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p'); f="${r:-$CLAUDE_PROJECT_DIR}/scripts/cadence_hooks.sh"; if grep -qsE '^[[:space:]]*\[dev-cadence\][[:space:]]*(#.*)?$' "${r:-$CLAUDE_PROJECT_DIR}/docs/cadence.toml"; then if command -v dev-cadence >/dev/null 2>&1; then (cd "${CLAUDE_PROJECT_DIR:-.}" && dev-cadence hook session-start); rc=$?; [ "$rc" -ne 2 ] && exit "$rc"; echo 'dev-cadence: the launcher could not run the pin in docs/cadence.toml (it said why above), so the cadence session-start hooks did not run (TD-129)'; else echo 'dev-cadence: this repo pins dev-cadence in docs/cadence.toml but no dev-cadence launcher is on PATH, so the cadence session-start hooks did not run; install it once per machine: clone dev-cadence at its latest tag, then run: install -m 755 launcher/dev_cadence.py ~/.local/bin/dev-cadence'; fi; elif [ -x "$f" ]; then "$f" --session-start; fi
+r=$(git -C "${CLAUDE_PROJECT_DIR:-.}" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p'); f="${r:-$CLAUDE_PROJECT_DIR}/scripts/cadence_hooks.sh"; if grep -qsE '^[[:space:]]*\[agent-cadence\][[:space:]]*(#.*)?$' "${r:-$CLAUDE_PROJECT_DIR}/docs/cadence.toml"; then if command -v agent-cadence >/dev/null 2>&1; then (cd "${CLAUDE_PROJECT_DIR:-.}" && agent-cadence hook session-start); rc=$?; [ "$rc" -ne 2 ] && exit "$rc"; echo 'agent-cadence: the launcher could not run the pin in docs/cadence.toml (it said why above), so the cadence session-start hooks did not run (TD-129)'; else echo 'agent-cadence: this repo pins agent-cadence in docs/cadence.toml but no agent-cadence launcher is on PATH, so the cadence session-start hooks did not run; install it once per machine: clone agent-cadence at its latest tag, then run: install -m 755 launcher/agent_cadence.py ~/.local/bin/agent-cadence'; fi; elif [ -x "$f" ]; then "$f" --session-start; fi
 L
 )
 [ "$line" = "$want_line" ] && ok "seed carries the one guarded line (main checkout's runner, guarded)" || bad "seed line: $line"
@@ -170,29 +170,29 @@ out=$(cd "$TMP/wt-none" && CLAUDE_PROJECT_DIR="$TMP/wt-none" bash -c "$line")
 out=$(cd "$W" && CLAUDE_PROJECT_DIR="$W" bash -c "$line")
 [ "$out" = "NEW runner in $W" ] && ok "main checkout: the same runner as before" || bad "main checkout: $out"
 
-# --- 6a') TD-129: a [dev-cadence] pin in the MAIN checkout's docs/cadence.toml runs
-# `dev-cadence hook session-start` (a stub launcher, offline) from the session's project dir, the
+# --- 6a') TD-129: a [agent-cadence] pin in the MAIN checkout's docs/cadence.toml runs
+# `agent-cadence hook session-start` (a stub launcher, offline) from the session's project dir, the
 # payload on its stdin, never the copy; its exit is kept, a launcher exit 2 prints why and exits 0,
 # and no launcher on PATH prints the install line and exits 0. A worktree whose branch carries no
 # pin still reads the main checkout's.
-NOLAUNCH=$(printf '%s\n' "${PATH//:/$'\n'}" | while read -r d; do [ -n "$d" ] && [ ! -e "$d/dev-cadence" ] && echo "$d"; done | paste -sd: -)
+NOLAUNCH=$(printf '%s\n' "${PATH//:/$'\n'}" | while read -r d; do [ -n "$d" ] && [ ! -e "$d/agent-cadence" ] && echo "$d"; done | paste -sd: -)
 mkdir -p "$TMP/lbin" "$W/docs"
-printf '#!/usr/bin/env bash\necho "launched:$*"; echo "cwd:$PWD"; echo "stdin:$(cat)"; exit "${STUB_RC:-0}"\n' > "$TMP/lbin/dev-cadence"; chmod +x "$TMP/lbin/dev-cadence"
-printf '[dev-cadence]\nsource = "/x"\nref = "%040d"\n' 0 > "$W/docs/cadence.toml"
+printf '#!/usr/bin/env bash\necho "launched:$*"; echo "cwd:$PWD"; echo "stdin:$(cat)"; exit "${STUB_RC:-0}"\n' > "$TMP/lbin/agent-cadence"; chmod +x "$TMP/lbin/agent-cadence"
+printf '[agent-cadence]\nsource = "/x"\nref = "%040d"\n' 0 > "$W/docs/cadence.toml"
 out=$(cd "$TMP" && echo '{"p":1}' | PATH="$TMP/lbin:$NOLAUNCH" CLAUDE_PROJECT_DIR="$TMP/wt-none" bash -c "$line"); rc=$?
 [ $rc -eq 0 ] && [ "$out" = "launched:hook session-start
 cwd:$TMP/wt-none
-stdin:{\"p\":1}" ] && ok "pinned (from a worktree with no pin): dev-cadence hook session-start in the project dir, payload on stdin, never the copy" || bad "pinned line rc=$rc: $out"
+stdin:{\"p\":1}" ] && ok "pinned (from a worktree with no pin): agent-cadence hook session-start in the project dir, payload on stdin, never the copy" || bad "pinned line rc=$rc: $out"
 out=$(cd "$TMP" && STUB_RC=3 PATH="$TMP/lbin:$NOLAUNCH" CLAUDE_PROJECT_DIR="$W" bash -c "$line" </dev/null); rc=$?
 [ $rc -eq 3 ] && ok "pinned: the hook's own exit is kept" || bad "pinned exit rc=$rc: $out"
 out=$(cd "$TMP" && STUB_RC=2 PATH="$TMP/lbin:$NOLAUNCH" CLAUDE_PROJECT_DIR="$W" bash -c "$line" </dev/null); rc=$?
 [ $rc -eq 0 ] && grep -q "could not run the pin in docs/cadence.toml" <<< "$out" && ok "pinned: a launcher exit 2 says why and exits 0" || bad "launcher exit 2 rc=$rc: $out"
 out=$(cd "$TMP" && PATH="$NOLAUNCH" CLAUDE_PROJECT_DIR="$W" bash -c "$line" </dev/null); rc=$?
-[ $rc -eq 0 ] && grep -q "no dev-cadence launcher is on PATH.*install -m 755 launcher/dev_cadence.py" <<< "$out" && ! grep -q "NEW runner" <<< "$out" \
+[ $rc -eq 0 ] && grep -q "no agent-cadence launcher is on PATH.*install -m 755 launcher/agent_cadence.py" <<< "$out" && ! grep -q "NEW runner" <<< "$out" \
   && ok "pinned, no launcher: the install line, exit 0, never the copy" || bad "no launcher rc=$rc: $out"
-printf '# [dev-cadence]\n' > "$W/docs/cadence.toml"
+printf '# [agent-cadence]\n' > "$W/docs/cadence.toml"
 out=$(cd "$TMP" && PATH="$TMP/lbin:$NOLAUNCH" CLAUDE_PROJECT_DIR="$W" bash -c "$line" </dev/null)
-[ "$out" = "NEW runner in $W" ] && ok "a commented [dev-cadence] is no pin: the copy runs" || bad "near-miss pin: $out"
+[ "$out" = "NEW runner in $W" ] && ok "a commented [agent-cadence] is no pin: the copy runs" || bad "near-miss pin: $out"
 rm -rf "$W/docs"
 
 # --- 6b) the hook payload on stdin reaches every child, first and last alike
@@ -211,20 +211,13 @@ stub check_claude_memory.sh 'echo "memory:$*"'; stub cadence_changes.py 'echo "c
 
 export XDG_CONFIG_HOME="$TMP/xdg"; mkdir -p "$XDG_CONFIG_HOME"
 
-# --- 7) dev-cadence's OWN .claude/settings.json is the seed with the runner under files/
+# --- 7) agent-cadence's OWN .claude/settings.json is the seed with the runner under files/
 # (TD-038): a parity pair — the seed changes, this file changes with it, or the one repo
 # that maintains the hooks quietly stops running them again.
-# a published snapshot (snapshot_public.sh's README note, TD-090) carries none of this repo's own docs/,
-# CLAUDE.md or .claude/: there a dogfood check whose file is absent is not run, said; here it always runs
-snapshot() { grep -q '^> \*dev-cadence, published as agent-cadence\.\*' "$1/README.md"; }
-if [ ! -e "$DC/.claude/settings.json" ] && snapshot "$DC"; then
-    echo "NOTE: a published snapshot has no .claude/ — the own-settings parity pair, not run"
-else
 own=$(python3 -c "import json,sys;print(json.dumps(json.load(open(sys.argv[1])),sort_keys=True))" "$DC/.claude/settings.json" 2>&1)
 want=$(python3 -c "import json,sys;print(json.dumps(json.load(open(sys.argv[1])),sort_keys=True).replace('}/scripts/cadence_hooks.sh','}/files/scripts/cadence_hooks.sh'))" "$SEED")
 [ "$own" = "$want" ] && ok "repo settings.json = seed with files/scripts/ (parity)" || bad "repo settings.json drifted from the seed:
 $own"
-fi
 
 # --- TD-077: an unattended session gets its own repo's board only, unfetched ----------
 # TD-088: the scope is CADENCE_ATTENTION_SCOPE alone — `ao` is a PATH shim that logs any
@@ -282,19 +275,19 @@ first=$(sed -n '/^```bash$/{n;p;q}' "$DC/files/AGENTS.md")
   && grep -q '^## First, every session' "$DC/files/AGENTS.md" && [ "$(grep -m1 '^## ' "$DC/files/AGENTS.md")" = "## First, every session" ] \
   && ok "AGENTS.md (SEED) opens with the runner's --session-start, a flag the runner takes" || bad "AGENTS.md first command: '$first'"
 # ...and its pinned form (TD-129) names a word the launcher's words.py runs, the launcher's own
-# install line, and payload paths `dev-cadence path` resolves (it looks in files/ and files/docs/)
-grep -q 'run `dev-cadence hook session-start`' "$DC/files/AGENTS.md" && grep -q 'if name == "session-start":' "$DC/launcher/words.py" \
-  && grep -qF 'install -m 755 launcher/dev_cadence.py ~/.local/bin/dev-cadence' "$DC/files/AGENTS.md" \
-  && grep -qF 'install -m 755 launcher/dev_cadence.py ~/.local/bin/dev-cadence' "$DC/launcher/dev_cadence.py" \
-  && grep -qF '`dev-cadence path cadence.md`' "$DC/files/AGENTS.md" && [ -f "$DC/files/docs/cadence.md" ] \
+# install line, and payload paths `agent-cadence path` resolves (it looks in files/ and files/docs/)
+grep -q 'run `agent-cadence hook session-start`' "$DC/files/AGENTS.md" && grep -q 'if name == "session-start":' "$DC/launcher/words.py" \
+  && grep -qF 'install -m 755 launcher/agent_cadence.py ~/.local/bin/agent-cadence' "$DC/files/AGENTS.md" \
+  && grep -qF 'install -m 755 launcher/agent_cadence.py ~/.local/bin/agent-cadence' "$DC/launcher/agent_cadence.py" \
+  && grep -qF '`agent-cadence path cadence.md`' "$DC/files/AGENTS.md" && [ -f "$DC/files/docs/cadence.md" ] \
   && grep -qF 'procedures/cadence.md`)' "$DC/files/AGENTS.md" && [ -f "$DC/files/docs/procedures/cadence.md" ] \
   && ok "AGENTS.md's pinned wake-up: a launcher word, the launcher's install line, paths the payload has" || bad "AGENTS.md pinned form"
 # and the REAL reader, own scope: only this repo's due item, though the roster lists another
-RR="$TMP/real"; mkdir -p "$RR/a/docs" "$RR/b/docs" "$RR/a/scripts" "$RR/cfg/dev-cadence"
+RR="$TMP/real"; mkdir -p "$RR/a/docs" "$RR/b/docs" "$RR/a/scripts" "$RR/cfg/agent-cadence"
 for r in a b; do git init -q -b main "$RR/$r"; printf '# Board\n\n## Needs the user\n\n- [ ] %s (session n/a) — item-of-%s. Due: %s.\n' "$(date -d '3 days ago' +%F)" "$r" "$(date -d yesterday +%F)" > "$RR/$r/docs/user_attention.md"; done
 cp "$SCRIPT" "$DC/files/scripts/nudge_user_attention.py" "$DC/files/scripts/ledgerboard.py" "$RR/a/scripts/"
-printf '%s\n%s\n' "$RR/a" "$RR/b" > "$RR/cfg/dev-cadence/repos.txt"
-real() { ( cd "$RR/a" && CLAUDE_PROJECT_DIR="$RR/a" XDG_CONFIG_HOME="$RR/cfg" DEV_CADENCE_REG_DIR="$RR/cfg/dev-cadence" env "$@" "$RR/a/scripts/cadence_hooks.sh" --session-start 2>/dev/null ); }
+printf '%s\n%s\n' "$RR/a" "$RR/b" > "$RR/cfg/agent-cadence/repos.txt"
+real() { ( cd "$RR/a" && CLAUDE_PROJECT_DIR="$RR/a" XDG_CONFIG_HOME="$RR/cfg" AGENT_CADENCE_REG_DIR="$RR/cfg/agent-cadence" env "$@" "$RR/a/scripts/cadence_hooks.sh" --session-start 2>/dev/null ); }
 out=$(real CADENCE_ATTENTION_SCOPE=own); all=$(real CADENCE_ATTENTION_SCOPE=machine)
 grep -q "item-of-a" <<< "$out" && ! grep -q "item-of-b" <<< "$out" && grep -q "item-of-a" <<< "$all" && grep -q "item-of-b" <<< "$all" \
   && ok "real reader: own scope prints this repo's due item only; machine scope prints both" || bad "real reader own:
@@ -318,7 +311,7 @@ $o146"
 # --- 9) TD-147: a constellation's sibling line (cadence.md §9.12, read from there: one copy), run from a
 # sibling repo nested in its home. The home still synced: its copy of the runner runs IN the sibling,
 # each child judging the sibling, the own-scope board the home's; hydrate (home-only nested-repos.txt)
-# stays quiet. The home pinned: `dev-cadence -C <home> hook session-start --serve <sibling>`, the seed
+# stays quiet. The home pinned: `agent-cadence -C <home> hook session-start --serve <sibling>`, the seed
 # line's guards kept. No home runner and no pin: silent.
 sline=$(python3 -c '
 import re, sys
@@ -337,17 +330,17 @@ want="memory cwd=$SB project=$SB
 attention:--report --due-only --own-board $HM/docs/user_attention.md"
 [ $rc -eq 0 ] && [ "$got" = "$want" ] \
   && ok "sibling line, home synced: the home's runner runs in the sibling, the board the home's, hydrate quiet" || bad "sibling synced rc=$rc: $got"
-printf '[dev-cadence]\nsource = "/x"\nref = "%040d"\n' 0 > "$HM/docs/cadence.toml"
+printf '[agent-cadence]\nsource = "/x"\nref = "%040d"\n' 0 > "$HM/docs/cadence.toml"
 out=$(cd "$TMP" && echo '{"p":1}' | PATH="$TMP/lbin:$NOLAUNCH" CLAUDE_PROJECT_DIR="$SB" bash -c "$sline"); rc=$?
 [ $rc -eq 0 ] && [ "$out" = "launched:-C $HM hook session-start --serve $SB
 cwd:$TMP
-stdin:{\"p\":1}" ] && ok "sibling line, home pinned: dev-cadence -C <home> hook session-start --serve <sibling>, payload on stdin, never the copy" || bad "sibling pinned rc=$rc: $out"
+stdin:{\"p\":1}" ] && ok "sibling line, home pinned: agent-cadence -C <home> hook session-start --serve <sibling>, payload on stdin, never the copy" || bad "sibling pinned rc=$rc: $out"
 out=$(cd "$TMP" && STUB_RC=3 PATH="$TMP/lbin:$NOLAUNCH" CLAUDE_PROJECT_DIR="$SB" bash -c "$sline" </dev/null); rc=$?
 [ $rc -eq 3 ] && ok "sibling line: the hook's own exit is kept" || bad "sibling exit rc=$rc: $out"
 out=$(cd "$TMP" && STUB_RC=2 PATH="$TMP/lbin:$NOLAUNCH" CLAUDE_PROJECT_DIR="$SB" bash -c "$sline" </dev/null); rc=$?
 [ $rc -eq 0 ] && grep -q "could not run the home pin" <<< "$out" && ok "sibling line: a launcher exit 2 says why and exits 0" || bad "sibling exit 2 rc=$rc: $out"
 out=$(cd "$TMP" && PATH="$NOLAUNCH" CLAUDE_PROJECT_DIR="$SB" bash -c "$sline" </dev/null); rc=$?
-[ $rc -eq 0 ] && grep -q "no dev-cadence launcher is on PATH.*install -m 755" <<< "$out" && ! grep -q "memory" <<< "$out" \
+[ $rc -eq 0 ] && grep -q "no agent-cadence launcher is on PATH.*install -m 755" <<< "$out" && ! grep -q "memory" <<< "$out" \
   && ok "sibling line, no launcher: the install line, exit 0, never the copy" || bad "sibling no launcher rc=$rc: $out"
 rm -rf "$HM/docs/cadence.toml" "$HM/scripts"
 out=$(cd "$TMP" && PATH="$TMP/lbin:$NOLAUNCH" CLAUDE_PROJECT_DIR="$SB" bash -c "$sline" </dev/null); rc=$?

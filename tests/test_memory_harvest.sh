@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # memory_harvest.py — the memory harvest's inventory and record (TD-125 slice 1,
 # docs/plans/2026-10-23-memory-harvest.md). Offline and fixture-driven: the roster and the
-# machine's cadence.toml live under DEV_CADENCE_REG_DIR, the repos are temp clones of temp bare
+# machine's cadence.toml live under AGENT_CADENCE_REG_DIR, the repos are temp clones of temp bare
 # origins, and HOME/XDG_CONFIG_HOME point into the temp dir.
 # Asserts: no roster is exit 2; frontmatter type at the top level, under metadata:, and absent;
 # MEMORY.md and README.md left out; each `where` (committed, edited, not-pulled, not-on-origin,
@@ -16,11 +16,11 @@ DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$DC/files/scripts/memory_harvest.py"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset CADENCE_AGENTS
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -29,7 +29,7 @@ TODAY=$(date +%F)
 
 # 1. no roster: exit 2, named
 out=$(mh inventory 2>&1); rc=$?
-[ "$rc" = 2 ] && grep -qF "no roster at $DEV_CADENCE_REG_DIR/repos.txt" <<< "$out" && ok "1 no roster: exit 2, named" || bad "1 rc=$rc '$out'"
+[ "$rc" = 2 ] && grep -qF "no roster at $AGENT_CADENCE_REG_DIR/repos.txt" <<< "$out" && ok "1 no roster: exit 2, named" || bad "1 rc=$rc '$out'"
 
 # a repo with a bare origin: $1 name; memories committed and pushed from $2 (a dir of files)
 mkrepo() {
@@ -81,8 +81,8 @@ printf '{"autoMemoryDirectory": "%s"}\n' "$TMP/repos/epsilon/eps-docs/claude-mem
 # zeta: no origin at all
 git init -q -b main "$TMP/repos/zeta"; mkdir -p "$TMP/repos/zeta/docs/claude-memory"
 printf -- '---\nname: z\ndescription: z\ntype: feedback\n---\nz\n' > "$TMP/repos/zeta/docs/claude-memory/feedback_z.md"
-for r in alpha beta gamma delta epsilon zeta; do echo "$TMP/repos/$r"; done > "$DEV_CADENCE_REG_DIR/repos.txt"
-echo "$TMP/repos/gone" >> "$DEV_CADENCE_REG_DIR/repos.txt"
+for r in alpha beta gamma delta epsilon zeta; do echo "$TMP/repos/$r"; done > "$AGENT_CADENCE_REG_DIR/repos.txt"
+echo "$TMP/repos/gone" >> "$AGENT_CADENCE_REG_DIR/repos.txt"
 
 snap() { for r in alpha epsilon/eps-docs; do git -C "$TMP/repos/$r" for-each-ref --format='%(refname) %(objectname)'; GIT_OPTIONAL_LOCKS=0 git -C "$TMP/repos/$r" status --porcelain; stat -c %Y "$(git -C "$TMP/repos/$r" rev-parse --absolute-git-dir)/index" 2>/dev/null; done; }
 before=$(snap)
@@ -120,10 +120,10 @@ out=$(mh stamp 2>&1); rc=$?
 [ "$rc" = 1 ] && grep -q "no own layer" <<< "$out" && ok "15a stamp without a layer: exit 1, said" || bad "15a rc=$rc '$out'"
 LAYER="$TMP/layer"; git init -q -b main "$LAYER"; echo "# rules" > "$LAYER/cadence-personal.md"
 git -C "$LAYER" add -A && git -C "$LAYER" commit -qm l && git -C "$LAYER" tag v1
-printf '[[layers]]\npath = "%s/cadence-personal.md"\nref = "v1"\n' "$LAYER" > "$DEV_CADENCE_REG_DIR/cadence.toml"
+printf '[[layers]]\npath = "%s/cadence-personal.md"\nref = "v1"\n' "$LAYER" > "$AGENT_CADENCE_REG_DIR/cadence.toml"
 out=$(mh record alpha feedback_merge.md covered 2>&1); rc=$?
 [ "$rc" = 1 ] && grep -q "no own layer" <<< "$out" && ok "15b only a pinned layer: not one's own, refused" || bad "15b rc=$rc '$out'"
-printf '[[layers]]\npath = "%s/cadence-personal.md"\n' "$LAYER" >> "$DEV_CADENCE_REG_DIR/cadence.toml"
+printf '[[layers]]\npath = "%s/cadence-personal.md"\n' "$LAYER" >> "$AGENT_CADENCE_REG_DIR/cadence.toml"
 REC="$LAYER/memory-harvest.md"
 
 # 16. record writes the table beside the own layer; inventory reads it back as judged
@@ -209,7 +209,7 @@ cp "$TMP/rec.good" "$REC"
 # (the default stands, as check_claude_memory.sh does), a file that is not JSON skipped
 mkrepo eta; E="$TMP/repos/eta"; mkdir -p "$E/.claude" "$HOME/.claude" "$HOME/hm" "$TMP/pm" "$TMP/lm"
 for d in "$HOME/hm" "$TMP/pm" "$TMP/lm" "$E/docs/claude-memory"; do printf -- '---\nname: x\n---\n%s\n' "$d" > "$d/feedback_where.md"; done
-echo "$E" >> "$DEV_CADENCE_REG_DIR/repos.txt"
+echo "$E" >> "$AGENT_CADENCE_REG_DIR/repos.txt"
 src() { J=$(mh inventory --json); q "[r['source'] + ' => ' + r['memory_dir'] for r in d['repos'] if r['repo']=='eta'][0]"; }
 printf '{"autoMemoryDirectory": "~/hm"}\n' > "$HOME/.claude/settings.json"
 printf '{"autoMemoryDirectory": "%s"}\n' "$TMP/pm" > "$E/.claude/settings.json"
@@ -225,7 +225,7 @@ rm -f "$E/.claude/settings.local.json" "$HOME/.claude/settings.json"
 
 # 25. a BOM before the frontmatter; two roster repos sharing a name are not read, and record refuses
 printf '\xef\xbb\xbf---\nname: bom\ntype: feedback\n---\nb\n' > "$E/docs/claude-memory/feedback_bom.md"
-mkdir -p "$TMP/other"; git init -q -b main "$TMP/other/eta"; echo "$TMP/other/eta" >> "$DEV_CADENCE_REG_DIR/repos.txt"
+mkdir -p "$TMP/other"; git init -q -b main "$TMP/other/eta"; echo "$TMP/other/eta" >> "$AGENT_CADENCE_REG_DIR/repos.txt"
 J=$(mh inventory --json)
 [ "$(mem eta type feedback_bom.md)" = feedback ] && ok "25 a BOM does not hide the frontmatter" || bad "25 $(mem eta type feedback_bom.md)"
 out=$(mh record eta feedback_bom.md craft 2>&1); rc=$?
@@ -255,7 +255,7 @@ rep=$(python3 "$DC/files/scripts/nudge_user_attention.py" --report 2>&1)
 grep -qF "last memory harvest 31d ago ($OLD, $HOST, $NREAD repos) — run /memory-harvest (cadence.md §7.13)" <<< "$rep" \
   && ok "26e a stamp 31 days old: the report's layers section warns" || bad "26e '$rep'"
 printf '# no title line\n' > "$TMP/l2.md"; sed -i '1s/^# no title line$/plain first line/' "$TMP/l2.md"
-printf '[[layers]]\npath = "%s"\n' "$TMP/l2.md" > "$DEV_CADENCE_REG_DIR/cadence.toml"
+printf '[[layers]]\npath = "%s"\n' "$TMP/l2.md" > "$AGENT_CADENCE_REG_DIR/cadence.toml"
 mh stamp >/dev/null 2>&1
 [ "$(sed -n 1,3p "$TMP/l2.md" | tr '\n' '|')" = "Harvested: $TODAY ($HOST, $NREAD repos)||plain first line|" ] && ok "26f no title: the stamp goes at the top" || bad "26f $(cat "$TMP/l2.md")"
 printf '# t\n\n```\nHarvested: 2020-01-01 (example)\n```\n' > "$TMP/l2.md"
@@ -271,7 +271,7 @@ git init -q --bare -b main "$TMP/origins/layer.git"
 git clone -q "$TMP/origins/layer.git" "$TMP/lclone" 2>/dev/null
 printf '# rules\n§4.8 add: one\n' > "$TMP/lclone/cadence-personal.md"
 git -C "$TMP/lclone" add -A && git -C "$TMP/lclone" commit -qm l && git -C "$TMP/lclone" push -q origin main 2>/dev/null
-printf '[[layers]]\npath = "%s/cadence-personal.md"\n' "$TMP/lclone" > "$DEV_CADENCE_REG_DIR/cadence.toml"
+printf '[[layers]]\npath = "%s/cadence-personal.md"\n' "$TMP/lclone" > "$AGENT_CADENCE_REG_DIR/cadence.toml"
 mkdir -p "$TMP/lclone/.claude/worktrees/w"; echo x > "$TMP/lclone/.claude/worktrees/w/f"
 alpha_before=$(GIT_OPTIONAL_LOCKS=0 git -C "$TMP/repos/alpha" status --porcelain)
 out=$(cd "$TMP/repos/alpha" && mh clone 2>&1); rc=$?
@@ -297,10 +297,10 @@ out=$(mh clone 2>&1); rc=$?
 [ "$rc" = 1 ] && grep -qF "new.md" <<< "$out" && ok "27f clone refuses a staged file" || bad "27f rc=$rc '$out'"
 git -C "$TMP/lclone" rm -q --cached new.md; rm "$TMP/lclone/new.md"
 mkdir -p "$TMP/nogit"; echo '# r' > "$TMP/nogit/l.md"
-printf '[[layers]]\npath = "%s/l.md"\n' "$TMP/nogit" > "$DEV_CADENCE_REG_DIR/cadence.toml"
+printf '[[layers]]\npath = "%s/l.md"\n' "$TMP/nogit" > "$AGENT_CADENCE_REG_DIR/cadence.toml"
 out=$(mh clone 2>&1); rc=$?
 [ "$rc" = 1 ] && grep -qF "is not in a git clone" <<< "$out" && ok "27g clone refuses a layer outside any git clone" || bad "27g rc=$rc '$out'"
-: > "$DEV_CADENCE_REG_DIR/cadence.toml"
+: > "$AGENT_CADENCE_REG_DIR/cadence.toml"
 out=$(mh clone 2>&1); rc=$?
 [ "$rc" = 1 ] && grep -qF "no own layer" <<< "$out" && ok "27h clone with no own layer: exit 1, said" || bad "27h rc=$rc '$out'"
 

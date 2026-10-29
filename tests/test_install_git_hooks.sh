@@ -5,16 +5,16 @@
 # does): a worktree on a branch without scripts/git-hooks/, and one on a branch whose
 # pre-push was edited to let everything through — both used to push main unguarded.
 #
-# Isolation: HOME, XDG_CONFIG_HOME, DEV_CADENCE_REG_DIR and the global/system git config
+# Isolation: HOME, XDG_CONFIG_HOME, AGENT_CADENCE_REG_DIR and the global/system git config
 # point into the tmpdir, so nothing here touches the machine roster and a
 # machine's own core.hooksPath cannot leak in.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg" \
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg" \
        GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
-mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$DEV_CADENCE_REG_DIR"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$AGENT_CADENCE_REG_DIR"
 unset ALLOW_MAIN_PUSH
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
@@ -52,7 +52,7 @@ $out"
 C="$TMP/c1"; mkclone "$C"
 git -C "$C" config core.hooksPath scripts/git-hooks
 out=$(bash "$C/scripts/install_git_hooks.sh" "$C" 2>&1); rc=$?
-[ $rc -eq 0 ] && grep -qF "dev-cadence hook shim (TD-055)" "$C/.git/hooks/pre-push" && [ -x "$C/.git/hooks/pre-push" ] \
+[ $rc -eq 0 ] && grep -qF "agent-cadence hook shim (TD-055)" "$C/.git/hooks/pre-push" && [ -x "$C/.git/hooks/pre-push" ] \
   && [ -x "$C/.git/hooks/post-merge" ] && [ -z "$(git -C "$C" config core.hooksPath)" ] && grep -q "core.hooksPath (scripts/git-hooks) unset" <<< "$out" \
   && ok "install: shims for pre-push and post-merge, the relative hooksPath unset" || bad "install rc=$rc: $out"
 out=$(bash "$C/scripts/install_git_hooks.sh" "$C" 2>&1)
@@ -90,8 +90,17 @@ printf '#!/bin/sh\necho mine\n' > "$C/.git/hooks/pre-push"; chmod +x "$C/.git/ho
 out=$(bash "$C/scripts/install_git_hooks.sh" "$C" 2>&1); rc=$?
 [ $rc -eq 0 ] && grep -q "echo mine" "$C/.git/hooks/pre-push" && grep -q "is a hook of this clone's own — kept" <<< "$out" \
   && [ "$(git -C "$C" config core.hooksPath)" = scripts/git-hooks ] && grep -q "left set" <<< "$out" \
-  && grep -qF "dev-cadence hook shim" "$C/.git/hooks/post-merge" \
+  && grep -qF "agent-cadence hook shim" "$C/.git/hooks/post-merge" \
   && ok "never clobbers: an own pre-push kept, hooksPath left set, post-merge still shimmed" || bad "own hook rc=$rc: $out"
+
+# --- 5b) a shim with the OLD marker (before the rename, TD-193) is a hook of the clone's own to
+# this installer: kept with a WARN, never replaced. That is why the rename's shim swap deletes old shims first.
+C="$TMP/c2b"; mkclone "$C"
+printf '#!/bin/sh\n# %s hook shim (TD-055)\n' "dev""-cadence" > "$C/.git/hooks/pre-push"; chmod +x "$C/.git/hooks/pre-push"
+out=$(bash "$C/scripts/install_git_hooks.sh" "$C" 2>&1); rc=$?
+[ $rc -eq 0 ] && ! grep -qF "agent-cadence hook shim" "$C/.git/hooks/pre-push" && grep -q "pre-push is a hook of this clone's own — kept" <<< "$out" \
+  && grep -qF "agent-cadence hook shim" "$C/.git/hooks/post-merge" \
+  && ok "an old-marker shim is kept with a WARN, not replaced (the shim swap deletes it first)" || bad "old marker rc=$rc: $out"
 
 # --- 6) a hooksPath of the clone's own (.husky) is left alone
 C="$TMP/c3"; mkclone "$C"
@@ -114,7 +123,7 @@ cp "$DC/files/scripts/install_git_hooks.sh" "$TMP/bin/lonely.sh"
 out=$(bash "$TMP/bin/lonely.sh" "$C" 2>&1); rc=$?
 [ $rc -eq 2 ] && grep -q "no hooks found" <<< "$out" && ok "no hooks beside the installer: exit 2 and says so" || bad "lonely rc=$rc: $out"
 
-# --- 8) dev-cadence's own layout: hooks under files/scripts/git-hooks
+# --- 8) agent-cadence's own layout: hooks under files/scripts/git-hooks
 C="$TMP/dc"; git init -q -b main "$C"; mkdir -p "$C/files/scripts/git-hooks"
 cp "$DC/files/scripts/install_git_hooks.sh" "$C/files/scripts/"; cp "$DC/files/scripts/git-hooks/pre-push" "$C/files/scripts/git-hooks/"
 git -C "$C" config core.hooksPath files/scripts/git-hooks
@@ -122,21 +131,21 @@ out=$(bash "$C/files/scripts/install_git_hooks.sh" "$C" 2>&1)
 grep -qF '/files/scripts/git-hooks/${0##*/}"' "$C/.git/hooks/pre-push" && [ -z "$(git -C "$C" config core.hooksPath)" ] \
   && ok "files/ layout: the shim runs files/scripts/git-hooks, hooksPath unset" || bad "files layout: $out"
 
-# --- 10) TD-129: the dual mode. A [dev-cadence] pin in the MAIN checkout's docs/cadence.toml runs
-# `dev-cadence hook <name>` (a stub launcher here, offline) and never the copy; a launcher exit 2
+# --- 10) TD-129: the dual mode. A [agent-cadence] pin in the MAIN checkout's docs/cadence.toml runs
+# `agent-cadence hook <name>` (a stub launcher here, offline) and never the copy; a launcher exit 2
 # fails open with a warning, any other exit is the hook's own; no launcher prints the install line.
 # The pre-push shim's inline main guard holds in every mode: launcher absent, broken (exit 2) or
 # letting everything through, and the copy missing.
-NOLAUNCH=$(printf '%s\n' "${PATH//:/$'\n'}" | while read -r d; do [ -n "$d" ] && [ ! -e "$d/dev-cadence" ] && echo "$d"; done | paste -sd: -)
+NOLAUNCH=$(printf '%s\n' "${PATH//:/$'\n'}" | while read -r d; do [ -n "$d" ] && [ ! -e "$d/agent-cadence" ] && echo "$d"; done | paste -sd: -)
 mkdir -p "$TMP/lbin"
 stub_launcher() {  # $1 exit code: records its args, cwd and stdin, never runs a hook
-    printf '#!/usr/bin/env bash\n{ echo "args:$*"; echo "cwd:$PWD"; echo "stdin:$(cat)"; } >> "%s/launched"\nexit %s\n' "$TMP" "$1" > "$TMP/lbin/dev-cadence"
-    chmod +x "$TMP/lbin/dev-cadence"; : > "$TMP/launched"
+    printf '#!/usr/bin/env bash\n{ echo "args:$*"; echo "cwd:$PWD"; echo "stdin:$(cat)"; } >> "%s/launched"\nexit %s\n' "$TMP" "$1" > "$TMP/lbin/agent-cadence"
+    chmod +x "$TMP/lbin/agent-cadence"; : > "$TMP/launched"
 }
 C="$TMP/pin"; mkclone "$C"
 cp "$DC/files/scripts/git-hooks/prepare-commit-msg" "$C/scripts/git-hooks/"
 bash "$C/scripts/install_git_hooks.sh" "$C" >/dev/null 2>&1
-mkdir -p "$C/docs"; printf '# settings\n[dev-cadence]  # pinned\nsource = "/x"\nref = "%040d"\n' 0 > "$C/docs/cadence.toml"
+mkdir -p "$C/docs"; printf '# settings\n[agent-cadence]  # pinned\nsource = "/x"\nref = "%040d"\n' 0 > "$C/docs/cadence.toml"
 git -C "$C" worktree add -q -b topic "$TMP/pin-w" main
 # the copy announces itself if it ever runs, so a pinned shim that falls back to it shows
 printf '#!/usr/bin/env bash\necho COPY-RAN >> "%s/launched"\ncat >/dev/null\nexit 0\n' "$TMP" > "$C/scripts/git-hooks/pre-push"
@@ -145,7 +154,7 @@ stub_launcher 0
 out=$(PATH="$TMP/lbin:$NOLAUNCH" git -C "$TMP/pin-w" push origin HEAD:refs/heads/topic 2>&1); rc=$?
 [ $rc -eq 0 ] && grep -q "^args:hook pre-push origin $C.git$" "$TMP/launched" && grep -q "^cwd:$TMP/pin-w$" "$TMP/launched" \
   && grep -q "^stdin:HEAD [0-9a-f]* refs/heads/topic [0-9a-f]*$" "$TMP/launched" && ! grep -q COPY-RAN "$TMP/launched" \
-  && ok "pinned: the shim runs dev-cadence hook pre-push from the worktree, refs on stdin, never the copy" || bad "pinned launch rc=$rc: $out $(cat "$TMP/launched")"
+  && ok "pinned: the shim runs agent-cadence hook pre-push from the worktree, refs on stdin, never the copy" || bad "pinned launch rc=$rc: $out $(cat "$TMP/launched")"
 : > "$TMP/launched"
 PATH="$TMP/lbin:$NOLAUNCH" git -C "$TMP/pin-w" commit -q --allow-empty -m w2 2>/dev/null
 grep -q "^args:hook prepare-commit-msg .*COMMIT_EDITMSG" "$TMP/launched" && grep -q "^stdin:$" "$TMP/launched" \
@@ -162,7 +171,7 @@ stub_launcher 0
 PATH="$TMP/lbin:$NOLAUNCH" blocked "pinned, a launcher that lets everything through: main is still guarded" "$C" "$TMP/pin-w" origin HEAD:main
 : > "$TMP/launched"
 out=$(PATH="$NOLAUNCH" git -C "$TMP/pin-w" push origin HEAD:refs/heads/topic4 2>&1); rc=$?
-[ $rc -eq 0 ] && [ -n "$(remote "$C" topic4)" ] && grep -q "no dev-cadence launcher is on PATH .*install -m 755 launcher/dev_cadence.py" <<< "$out" \
+[ $rc -eq 0 ] && [ -n "$(remote "$C" topic4)" ] && grep -q "no agent-cadence launcher is on PATH .*install -m 755 launcher/agent_cadence.py" <<< "$out" \
   && ! grep -q COPY-RAN "$TMP/launched" && ok "pinned, no launcher: the install line, fail open, never the copy" || bad "no launcher rc=$rc: $out"
 PATH="$NOLAUNCH" blocked "pinned, no launcher: main is still guarded" "$C" "$TMP/pin-w" origin HEAD:main
 out=$(PATH="$NOLAUNCH" ALLOW_MAIN_PUSH=1 git -C "$TMP/pin-w" push origin HEAD:main 2>&1); rc=$?
@@ -172,8 +181,8 @@ rm "$C/docs/cadence.toml"; mv "$C/scripts/git-hooks/pre-push" "$TMP/pp.aside"
 git -C "$TMP/pin-w" commit -q --allow-empty -m w3
 PATH="$NOLAUNCH" blocked "no pin, the copy missing: main is still guarded" "$C" "$TMP/pin-w" --force origin HEAD:main
 mv "$TMP/pp.aside" "$C/scripts/git-hooks/pre-push"
-# a [dev-cadence] that is not a table header (a comment, a key) is no pin
-printf '# [dev-cadence]\nx = "[dev-cadence]"\n' > "$C/docs/cadence.toml"; : > "$TMP/launched"
+# a [agent-cadence] that is not a table header (a comment, a key) is no pin
+printf '# [agent-cadence]\nx = "[agent-cadence]"\n' > "$C/docs/cadence.toml"; : > "$TMP/launched"
 PATH="$TMP/lbin:$NOLAUNCH" git -C "$TMP/pin-w" push -q origin HEAD:refs/heads/topic5 2>/dev/null
 grep -q COPY-RAN "$TMP/launched" && ! grep -q "^args:" "$TMP/launched" && ok "no table header, no pin: the copy runs, not the launcher" || bad "near-miss pin: $(cat "$TMP/launched")"
 # the default branch is the §9 rule's, taken verbatim from pre-push: a trunk repo guards trunk
@@ -182,7 +191,7 @@ git -C "$T" config user.email t@t; git -C "$T" config user.name t; git -C "$T" c
 mkdir -p "$T/scripts/git-hooks" "$T/docs"; cp "$DC/files/scripts/install_git_hooks.sh" "$T/scripts/"; cp "$DC/files/scripts/git-hooks/pre-push" "$T/scripts/git-hooks/"
 git -C "$T" add -A; git -C "$T" commit -qm base; git -C "$T" push -q origin trunk 2>/dev/null; git -C "$T" remote set-head origin -a >/dev/null 2>&1
 bash "$T/scripts/install_git_hooks.sh" "$T" >/dev/null 2>&1
-printf '[dev-cadence]\nsource = "/x"\nref = "%040d"\n' 0 > "$T/docs/cadence.toml"; git -C "$T" commit -q --allow-empty -m d
+printf '[agent-cadence]\nsource = "/x"\nref = "%040d"\n' 0 > "$T/docs/cadence.toml"; git -C "$T" commit -q --allow-empty -m d
 before=$(remote "$T" trunk); out=$(PATH="$NOLAUNCH" git -C "$T" push origin HEAD:trunk 2>&1); rc=$?
 [ $rc -ne 0 ] && [ "$(remote "$T" trunk)" = "$before" ] && grep -q "BLOCKED — direct push to trunk" <<< "$out" \
   && ok "pinned, no launcher, a trunk repo: the inline guard blocks trunk (the §9 rule)" || bad "trunk rc=$rc: $out"

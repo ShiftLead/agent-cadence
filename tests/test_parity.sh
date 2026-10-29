@@ -14,10 +14,6 @@ DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg"; mkdir -p "$HOME"
-# a published snapshot (snapshot_public.sh's README note, TD-090) carries none of this repo's own docs/,
-# CLAUDE.md or .claude/: there a dogfood check whose file is absent is not run, said; here it always runs
-snapshot() { grep -q '^> \*dev-cadence, published as agent-cadence\.\*' "$1/README.md"; }
-snapshot "$DC" && export DC_SNAPSHOT=1
 
 out=$(cd "$DC" && PYTHONPATH="$DC/files/scripts" python3 - <<'PY' 2>&1
 import datetime as dt, re, sys
@@ -25,11 +21,8 @@ import nudge_user_attention as N, check_cadence as K, cadence_changes as C, list
 
 today = dt.date.today().isoformat()          # never a hardcoded calendar date (TD-24)
 import os
-# the seed's board and this repo's own; a published snapshot (DC_SNAPSHOT) has only the seed's
-BOARDS = [b for b in ("files/docs/user_attention.md", "docs/user_attention.md")
-          if not (os.environ.get("DC_SNAPSHOT") == "1" and b.startswith("docs/") and not os.path.exists(b))]
-if len(BOARDS) == 1:
-    print("NOTE: a published snapshot has no docs/user_attention.md — its board-format pairs, not run")
+# the seed's board and this repo's own
+BOARDS = ["files/docs/user_attention.md", "docs/user_attention.md"]
 res = []
 def check(name, cond, detail=""):
     res.append(("PASS" if cond else "FAIL") + ": " + name + ("" if cond else f" — {detail}"))
@@ -284,12 +277,12 @@ for proc in sorted(glob.glob("files/docs/procedures/*.md")):
         check(f"  ... and {ag} is {cl} apart from the header's path", read(ag) == twin, name)
         check(f"  ... and both are in SYNC_FILES", f'"{cl[6:]}"' in sync_sh and f'"{ag[6:]}"' in sync_sh, name)
 
-# --- 6d) TD-129: the [dev-cadence] pin — adopt (writer) appends it under the header the shims and
+# --- 6d) TD-129: the [agent-cadence] pin — adopt (writer) appends it under the header the shims and
 #         the seeded SessionStart line grep for, and refuses a pin they could not see; the launcher's
 #         read_pin() and words.py agree on what a source and a ref are
 import json, subprocess
 sys.path.insert(0, "launcher")
-import words as W, dev_cadence as D
+import words as W, agent_cadence as D
 check("words.py's SOURCE_RE and COMMIT_RE are the launcher's", W.SOURCE_RE.pattern == D.SOURCE_RE.pattern and W.COMMIT_RE.pattern == D.COMMIT_RE.pattern,
       (W.SOURCE_RE.pattern, D.SOURCE_RE.pattern))
 shim = re.search(r"grep -qsE '([^']+)'", read("files/scripts/install_git_hooks.sh"))
@@ -297,21 +290,21 @@ seed = re.search(r"grep -qsE '([^']+)'", json.load(open("files/.claude/settings.
 # the shim's pattern sits in a double-quoted bash string, so its \\[ and \$ are unescaped once
 shim_ere = shim.group(1).replace("\\\\", "\\").replace("\\$", "$") if shim else None
 check("the shims and the seeded SessionStart line grep for the same pin header", shim and seed and shim_ere == seed.group(1), (shim_ere, seed and seed.group(1)))
-samples = ["[dev-cadence]", "  [dev-cadence]   # pinned", "[dev-cadence]\r", "\t[dev-cadence]", "[ dev-cadence ]",
-           '["dev-cadence"]', "[dev-cadence.x]", "# [dev-cadence]", "[dev-cadence] x", "[[dev-cadence]]"]
+samples = ["[agent-cadence]", "  [agent-cadence]   # pinned", "[agent-cadence]\r", "\t[agent-cadence]", "[ agent-cadence ]",
+           '["agent-cadence"]', "[agent-cadence.x]", "# [agent-cadence]", "[agent-cadence] x", "[[agent-cadence]]"]
 for smp in samples:
     g = subprocess.run(["grep", "-qsE", seed.group(1)], input=smp + "\n", text=True).returncode == 0 if seed else None
     check(f"  ... adopt's PIN_HEADER_RE and the hooks' grep agree on {smp!r}", bool(W.PIN_HEADER_RE.search(smp + "\n")) == g, g)
 block = re.search(r'block = \((.*?)\n        after = ', read("launcher/words.py"), re.S)
-check("adopt writes the header as the hooks detect it", block and '[dev-cadence]\\nsource = ' in block.group(1), block and block.group(1)[-200:])
+check("adopt writes the header as the hooks detect it", block and '[agent-cadence]\\nsource = ' in block.group(1), block and block.group(1)[-200:])
 
 # --- 0) the registry: cadence.md §7's Parity pairs table names this test on the pairs above
 tbl = read("files/docs/cadence.md")
 sect = tbl[tbl.find("**Parity pairs"):tbl.find("- **§7.10**")]   # the table, however long it grows
-for key in ("Swept:", "cadence-review:", "Format:", "cadence-changes.md", "CADENCE_HOOK_LINE", "Harvested:", "[dev-cadence]"):
+for key in ("Swept:", "cadence-review:", "Format:", "cadence-changes.md", "CADENCE_HOOK_LINE", "Harvested:", "[agent-cadence]"):
     row = next((l for l in sect.splitlines() if l.lstrip().startswith("|") and key in l), "")
     check(f"cadence.md §7 Parity pairs table has a row for {key}", row, "row missing")
-for key in ("Swept:", "cadence-review:", "Format:", "cadence-changes.md", "Harvested:", "[dev-cadence]"):
+for key in ("Swept:", "cadence-review:", "Format:", "cadence-changes.md", "Harvested:", "[agent-cadence]"):
     row = next((l for l in sect.splitlines() if l.lstrip().startswith("|") and key in l), "")
     check(f"  ... and that row names tests/test_parity.sh", "test_parity.sh" in row, row[:120])
 

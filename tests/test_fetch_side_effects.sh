@@ -17,8 +17,8 @@ export PATH="$TMP/nogh:$PATH"
 trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
-mkdir -p "$HOME" "$XDG_CONFIG_HOME/dev-cadence"
-REG="$XDG_CONFIG_HOME/dev-cadence/repos.txt"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME/agent-cadence"
+REG="$XDG_CONFIG_HOME/agent-cadence/repos.txt"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }

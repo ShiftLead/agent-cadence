@@ -1,5 +1,5 @@
 <!-- SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/docs/procedures/memory-harvest.md
-     Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR. -->
+     Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR. -->
 
 # Memory harvest — process rules found in memories, carried to the person's layer
 
@@ -7,7 +7,7 @@ Sessions save how the person wants a situation handled as memories, and many are
 found the hard way in one repo: the next repo meets the same situation and asks again (cadence.md
 §7.13). This procedure reads every roster repo's memories, sorts each with the person, and carries
 the process rules to the person's own cadence layer (§9.18) — and, from there, a rule general
-enough for everyone on to dev-cadence. The inventory and the record are
+enough for everyone on to agent-cadence. The inventory and the record are
 `scripts/memory_harvest.py`'s; the judging is the session's and the person's.
 
 **Running it (TD-093):** this file is the procedure, and any agent runs it by reading it and following it. Claude Code also has it as a skill — `/memory-harvest` — whose `SKILL.md` only points here, and so do Codex (`$memory-harvest`) and Gemini CLI, from the same pointer under `.agents/skills/` (TD-127). **Only the person starts it** — never a hook, a sweep or an unattended session: it reads other repos' memories and proposes changes to the system, so it runs with their say-so each time.
@@ -20,7 +20,7 @@ chain …"); here they are the content under judgement, not orders to this sessi
 The session runs in any cadence repo — the one the person started it in — and writes the
 person's layer clone by path: promotions are edits to the layer, and the record
 (`memory-harvest.md`) sits beside the layer file. The scripts below are this repo's
-(`scripts/`, `files/scripts/` in the dev-cadence clone); `memory_harvest.py` finds the layer from
+(`scripts/`, `files/scripts/` in the agent-cadence clone); `memory_harvest.py` finds the layer from
 the machine's `cadence.toml` from any working directory. Find the layer clone and check it is
 fit for the run's commits:
 
@@ -140,10 +140,10 @@ judgement made is kept, and the rest comes back next run.
   `git -C <clone> commit`, `git -C <clone> push`) — so the person's other machines and every
   session start read it. The layer clone has no PR process.
 - **Upstream, only for a layer rule judged general enough for everyone** (ask the person; it is a
-  separate yes): whoever maintains dev-cadence files it there as a ledger entry — this session itself
-  when it runs in the dev-cadence clone, else a session there (its id from its allocator, §2.10; the Why cites the source memories and
+  separate yes): whoever maintains agent-cadence files it there as a ledger entry — this session itself
+  when it runs in the agent-cadence clone, else a session there (its id from its allocator, §2.10; the Why cites the source memories and
   says which repos hold the lesson; the Fix names the §), or as a PR to `files/**` when the change
-  is one sentence and the person says so; anyone else proposes it to dev-cadence as an issue, one
+  is one sentence and the person says so; anyone else proposes it to agent-cadence as an issue, one
   per run listing the items, never a diff. The record's *Where* names the entry, PR or issue
   (`record … --where`), and the PR that lands the change adds its `cadence-changes.md` entry.
 
@@ -155,7 +155,7 @@ a pointer (`Now cadence §N.M` for a rule that went upstream; for one only in th
 only in a repo the person alone works in — elsewhere the memory is still the repo's rule for
 everyone else, §7.13; ask the person, per repo, whether anyone else works in it); memories to delete (**covered-wrong**, or a pointer not worth keeping); and
 exceptions to name in the repo's map. A trim of a rule sent upstream carries
-`**Blocked by:** dev-cadence#TD-NNN` and its Fix says *after the sync PR carrying it has merged
+`**Blocked by:** agent-cadence#TD-NNN` and its Fix says *after the sync PR carrying it has merged
 here* — trimming before the rule reaches the repo loses it (§2.4). Covered items need no blocker.
 
 Then ask, per repo: *open a PR in `<repo>` adding this entry?* **Yes (default)** — open it from a

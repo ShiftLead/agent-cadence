@@ -1,4 +1,4 @@
-# Briefs for the unattended dev-cadence team
+# Briefs for the unattended agent-cadence team
 
 A **brief** is the opening prompt of an unattended session. `ao team start dc-grind` (ShiftLead,
 on the person's machine) reads the team definition (below), launches every seat in its own worktree under
@@ -6,7 +6,7 @@ on the person's machine) reads the team definition (below), launches every seat 
 file named there filled into the template's *This repo's rules* section (ShiftLead design §4.8,
 its TD-114). **The files here are supplements, not whole briefs**: every ShiftLead mechanic —
 claims, the review loop, asking, the end-of-run declarations, the usage gate — is the template's
-and moves with each ShiftLead promote. A file here holds only what dev-cadence does differently,
+and moves with each ShiftLead promote. A file here holds only what agent-cadence does differently,
 and where it and the template disagree, it wins; so a rule copied from the template goes stale
 and then overrides the newer one. `ao team start` names any heading a supplement repeats from
 the template. `ao team --skill` is the
@@ -15,7 +15,7 @@ recipe if a seat ever has to be launched by hand.
 **Why this directory exists.** The 2026-09-22 design review filed TD-038…TD-058 and the team is
 how they get worked without a person at the keyboard. The package's templates assume
 `pdm run test`, a `scripts/` layout this repo does not have, and that a SYNCED FILE header means
-hands off, and nothing in them stops a run of `dev-cadence adopt` against real repos — so the
+hands off, and nothing in them stops a run of `agent-cadence adopt` against real repos — so the
 supplements carry this repo's rules. Every rule below
 that looks arbitrary is a scar recorded in `CLAUDE.md`, the ledger or its archive.
 
@@ -26,7 +26,7 @@ that looks arbitrary is a scar recorded in `CLAUDE.md`, the ledger or its archiv
 | `grinder-dc-1.md` | grinder | `free-pick` from the live ledger via `ledger.py --pickable` (blocked entries left out) |
 
 The team definition lives in this repo's `.shiftlead.yml` (moved from the machine's `org.yml`,
-now `~/.shiftlead/org.yml`, on 2026-10-03, PR dev-cadence #206; named `.agentorc.yml` until TD-091); while `org.yml` still names `dc-grind` it wins the name and this file reads
+now `~/.shiftlead/org.yml`, on 2026-10-03, PR #206 in the private dev-cadence repo; named `.agentorc.yml` until TD-091); while `org.yml` still names `dc-grind` it wins the name and this file reads
 *shadowed* — removing it there is the switch, and Paul's.
 
 ## The rules every seat shares
@@ -46,9 +46,9 @@ and a link can be skipped:
   `cadence/precheck` status the `ci` row requires (`docs/cadence.toml`, TD-148) — not by GitHub
   Actions, whose minutes are the account's shared pool. The SessionStart
   hooks (TD-038) are detectors, not the suite.
-- **Never run `sync.sh` (its `--pin`) or `dev-cadence adopt` outside a test fixture.** An ad-hoc run appends
-  to the machine roster `~/.config/dev-cadence/repos.txt`; moving a consumer is Paul's. Tests
-  already isolate under their own `DEV_CADENCE_REG_DIR`.
+- **Never run `sync.sh` (its `--pin`) or `agent-cadence adopt` outside a test fixture.** An ad-hoc run appends
+  to the machine roster `~/.config/agent-cadence/repos.txt`; moving a consumer is Paul's. Tests
+  already isolate under their own `AGENT_CADENCE_REG_DIR`.
 - **Never change this clone's git config** (the hook shims in the clone's shared hooks dir are the push guard, TD-055), the machine
   roster, another repo's checkout, GitHub repo settings (`gh api -X PATCH`, `adopt_repo_settings.sh
   --apply`), or anything under `~/.shiftlead`, `~/.claude` or systemd.

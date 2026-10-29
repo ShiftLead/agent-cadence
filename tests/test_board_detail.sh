@@ -4,15 +4,15 @@
 # carries it as `detail` in --json and prints it in the full report, never on the
 # SessionStart line; board_edit.py edits only the head line and leaves the block as it was.
 #
-# Offline: HOME/XDG_CONFIG_HOME/DEV_CADENCE_REG_DIR are temp; dates derive from the run date.
+# Offline: HOME/XDG_CONFIG_HOME/AGENT_CADENCE_REG_DIR are temp; dates derive from the run date.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 N="$DC/files/scripts/nudge_user_attention.py"
 EDIT="$DC/files/scripts/board_edit.py"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg"
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg"
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }

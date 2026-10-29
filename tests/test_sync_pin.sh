@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # `sync.sh --pin <repo>` (TD-129, Decision 11 of docs/plans/2026-10-25-pinned-not-synced.md): a synced
-# repo's last sync. It pins the repo to the dev-cadence clone's HEAD, retires every synced copy that
+# repo's last sync. It pins the repo to the agent-cadence clone's HEAD, retires every synced copy that
 # still matches its lock hash and keeps an edited one with a WARN, drops the lock, seeds the skill
 # pointers (SEED once pinned, Decision 5) without their synced-file header, reinstalls the shims and
 # lists the repo's files that name scripts/ — committing nothing. It is adopt's code (`adopt --migrate`).
-# Offline and fixture-driven: the "dev-cadence clone" is a clone of a temp bare origin built from this
+# Offline and fixture-driven: the "agent-cadence clone" is a clone of a temp bare origin built from this
 # checkout's launcher/, files/ and sync.sh; the consumer is synced from it first, by the copy mode as
 # it was before TD-129 retired it (tests/fixtures/legacy_sync.sh). HOME, XDG and the roster are temp.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" XDG_CACHE_HOME="$TMP/cache" DEV_CADENCE_REG_DIR="$TMP/reg"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" XDG_CACHE_HOME="$TMP/cache" AGENT_CADENCE_REG_DIR="$TMP/reg"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset SHIFTLEAD_SESSION CADENCE_REPO_ROOT CADENCE_TEMP_ROOTS
@@ -83,29 +83,29 @@ done
     && ok "an edited copy is kept, with a WARN" || bad "edited copy: $out"
 [ ! -e "$R/scripts/git-hooks" ] && [ ! -e "$R/docs/procedures" ] && ok "directories left empty are removed" || bad "empty dirs: $(ls "$R/scripts" "$R/docs" 2>&1)"
 p="$R/.claude/skills/cadence/SKILL.md"
-[ -f "$p" ] && ! grep -q "SYNCED FILE" "$p" && grep -qF '`dev-cadence path procedures/cadence.md`' "$p" && [ -f "$R/.agents/skills/attention/SKILL.md" ] \
+[ -f "$p" ] && ! grep -q "SYNCED FILE" "$p" && grep -qF '`agent-cadence path procedures/cadence.md`' "$p" && [ -f "$R/.agents/skills/attention/SKILL.md" ] \
     && ok "the skill pointers are seeded without the synced-file header, naming the pinned path" || bad "pointers: $(head -8 "$p" 2>&1)"
 head -c 200 "$p" | grep -q '^---$' && [ "$(sed -n '/^---$/,/^# /p' "$p" | tail -2 | head -1)" = "" ] && ! grep -Pzq '\n\n\n' "$p" \
     && ok "  ... and keep their frontmatter, with one blank line before the title" || bad "pointer layout: $(head -8 "$p")"
-python3 -c 'import sys,tomllib; d=tomllib.load(open(sys.argv[1],"rb"))["dev-cadence"]; assert d["ref"]==sys.argv[2] and d["source"]==sys.argv[3]' \
-    "$R/docs/cadence.toml" "$HEAD1" "$ORIGIN" && grep -qx '\[dev-cadence\]' "$R/docs/cadence.toml" \
+python3 -c 'import sys,tomllib; d=tomllib.load(open(sys.argv[1],"rb"))["agent-cadence"]; assert d["ref"]==sys.argv[2] and d["source"]==sys.argv[3]' \
+    "$R/docs/cadence.toml" "$HEAD1" "$ORIGIN" && grep -qx '\[agent-cadence\]' "$R/docs/cadence.toml" \
     && ok "the pin: origin's URL and the clone's HEAD, under the header the hooks detect" || bad "pin: $(tail -4 "$R/docs/cadence.toml")"
-grep -qF 'dev-cadence hook' "$R/.git/hooks/pre-push" && grep -qF '/scripts/git-hooks/' "$R/.git/hooks/pre-push" && ! grep -qF 'files/scripts' "$R/.git/hooks/pre-push" \
+grep -qF 'agent-cadence hook' "$R/.git/hooks/pre-push" && grep -qF '/scripts/git-hooks/' "$R/.git/hooks/pre-push" && ! grep -qF 'files/scripts' "$R/.git/hooks/pre-push" \
     && ok "the shims run the pin, and fall back to the consumer's scripts/git-hooks (not the clone's files/)" || bad "shim: $(grep -n 'hook=' "$R/.git/hooks/pre-push")"
 grep -q "these files name scripts/" <<< "$out" && grep -qx "    Makefile" <<< "$out" && ! grep -qx "    scripts/reap_worktrees.sh" <<< "$out" \
     && ok "the repo's own files naming scripts/ are listed for the same change (and not edited)" || bad "named list: $out"
 [ "$(git -C "$R" log --oneline | wc -l)" = 3 ] && grep -q "check_cadence" "$R/Makefile" && ok "nothing committed, the listed file untouched" || bad "commits: $(git -C "$R" log --oneline)"
-grep -qxF "$(realpath "$R")" "$DEV_CADENCE_REG_DIR/repos.txt" && [ "$(grep -cxF "$(realpath "$R")" "$DEV_CADENCE_REG_DIR/repos.txt")" = 1 ] \
-    && ok "the roster holds the repo once" || bad "roster: $(cat "$DEV_CADENCE_REG_DIR/repos.txt")"
+grep -qxF "$(realpath "$R")" "$AGENT_CADENCE_REG_DIR/repos.txt" && [ "$(grep -cxF "$(realpath "$R")" "$AGENT_CADENCE_REG_DIR/repos.txt")" = 1 ] \
+    && ok "the roster holds the repo once" || bad "roster: $(cat "$AGENT_CADENCE_REG_DIR/repos.txt")"
 
 # --- 3) from a linked worktree on a branch: the files change there, the main checkout is untouched
 R2="$TMP/consumer2"; consumer "$R2"
 git -C "$R2" worktree add -q "$TMP/c2-wt" -b migrate
 out=$(pin "$TMP/c2-wt"); rc=$?
 [ $rc -eq 0 ] && [ ! -e "$TMP/c2-wt/docs/cadence-sync.lock" ] && [ -f "$R2/docs/cadence-sync.lock" ] && [ -f "$R2/scripts/cadence_hooks.sh" ] \
-    && ! grep -qx '\[dev-cadence\]' "$R2/docs/cadence.toml" && grep -qx '\[dev-cadence\]' "$TMP/c2-wt/docs/cadence.toml" \
+    && ! grep -qx '\[agent-cadence\]' "$R2/docs/cadence.toml" && grep -qx '\[agent-cadence\]' "$TMP/c2-wt/docs/cadence.toml" \
     && ok "a worktree named: it is migrated, the main checkout still synced" || bad "worktree: rc=$rc $out"
-grep -qF "dev-cadence hook shim (TD-055)" "$R2/.git/hooks/pre-push" && grep -qF '/scripts/git-hooks/' "$R2/.git/hooks/pre-push" \
+grep -qF "agent-cadence hook shim (TD-055)" "$R2/.git/hooks/pre-push" && grep -qF '/scripts/git-hooks/' "$R2/.git/hooks/pre-push" \
     && ok "  ... and the clone's shims, until the PR merges, still run main's scripts/git-hooks copy" || bad "worktree shim"
 
 # --- 3b) the lock is committed, so untrusted: a path out of the checkout (a `..`, a symlinked
@@ -133,7 +133,7 @@ out=$(pin "$R4"); rc=$?
 [ $rc -eq 2 ] && grep -qF "git -C $(realpath "$R4") checkout -- ." <<< "$out" && ok "a half-done checkout is refused, naming how to undo it" || bad "partial: rc=$rc $out"
 # after a migration that kept an edited copy: adopt on the pinned repo warns and carries on (the two
 # never refuse each other)
-out=$( cd "$CL" && python3 "$DC/launcher/dev_cadence.py" -C "$CL" adopt "$R" 2>&1 ); rc=$?
+out=$( cd "$CL" && python3 "$DC/launcher/agent_cadence.py" -C "$CL" adopt "$R" 2>&1 ); rc=$?
 [ $rc -eq 0 ] && grep -q "edited copies kept by the migration" <<< "$out" && ok "adopt on a migrated repo with a kept copy: a WARN, not a refusal" || bad "adopt after: rc=$rc $out"
 
 # --- 3c) TD-149: the old SessionStart line. A repo synced before the pin's line kept its own (the
@@ -221,14 +221,14 @@ out=$(pin "$H"); rc=$?
 H2="$TMP/home-moved"; consumer "$H2"
 printf 'docs-site worktree\n' > "$H2/docs/nested-repos.txt"; printf '/docs-site/\n' >> "$H2/.gitignore"
 git -C "$H2" add -A && git -C "$H2" commit -qm "a home whose sibling has moved"
-mkdir -p "$H2/docs-site/.claude"; printf '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"dev-cadence -C .. hook session-start"}]}]}}\n' > "$H2/docs-site/.claude/settings.json"
+mkdir -p "$H2/docs-site/.claude"; printf '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"agent-cadence -C .. hook session-start"}]}]}}\n' > "$H2/docs-site/.claude/settings.json"
 out=$(pin "$H2"); rc=$?
 [ $rc -eq 0 ] && ! grep -q "constellation\|docs-site" <<< "$out" && ok "TD-147: a home whose siblings no longer call its scripts/ migrates with no flag" || bad "home moved rc=$rc: $out"
 
 # --- 4) adopt (a new repo) seeds the same pointers, and a rerun of it is not refused for them
 A="$TMP/fresh"; git init -q -b main "$A"; git -C "$A" commit -q --allow-empty -m init
-out=$( cd "$CL" && python3 "$DC/launcher/dev_cadence.py" -C "$CL" adopt "$A" 2>&1 ); rc=$?
-out2=$( cd "$CL" && python3 "$DC/launcher/dev_cadence.py" -C "$CL" adopt "$A" 2>&1 ); rc2=$?
+out=$( cd "$CL" && python3 "$DC/launcher/agent_cadence.py" -C "$CL" adopt "$A" 2>&1 ); rc=$?
+out2=$( cd "$CL" && python3 "$DC/launcher/agent_cadence.py" -C "$CL" adopt "$A" 2>&1 ); rc2=$?
 [ $rc -eq 0 ] && [ $rc2 -eq 0 ] && cmp -s "$A/.claude/skills/cadence/SKILL.md" "$R/.claude/skills/cadence/SKILL.md" \
     && ok "adopt seeds the pointers the migration does, and a second adopt is not refused for them" || bad "adopt pointers rc=$rc/$rc2: $out2"
 

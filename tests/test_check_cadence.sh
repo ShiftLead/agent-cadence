@@ -290,7 +290,7 @@ out=$(run --pr 31); rc=$?
 [ "$(rowstat "$out" ci)" = UNKNOWN ] && [ $rc -eq 3 ] && cirow "$out" | grep -q "precheck is set (docs/cadence.toml) and hhh2222 carries no cadence/precheck status — run scripts/precheck.py --pr 31" \
   && ok "ci: precheck set, an open PR's head has no cadence/precheck status: unknown, naming the command to run — CI green is not enough" || bad "ci precheck missing: rc=$rc $(cirow "$out")"
 out=$(CADENCE_REPO_ROOT="$R" run --pr 31)
-cirow "$out" | grep -q "carries no cadence/precheck status — run dev-cadence run precheck.py --pr 31" \
+cirow "$out" | grep -q "carries no cadence/precheck status — run agent-cadence run precheck.py --pr 31" \
   && ok "ci: from a pin, the command named is the launcher's word (TD-164)" || bad "ci precheck pinned hint: $(cirow "$out")"
 st cadence/precheck success; out=$(run --pr 31); rc=$?
 [ "$(rowstat "$out" ci)" = PASS ] && [ $rc -eq 0 ] && cirow "$out" | grep -q "2 check run(s) green" \
@@ -584,16 +584,16 @@ out=$(run --branch topic5 --json); echo "$out" | python3 -c 'import json,sys; d=
 printf '[{"number":5,"state":"OPEN"}]' > "$FAKE/prlist_head.json"
 LREG="$TMP/layer-reg"; mkdir -p "$LREG"; printf '§4.8 override: review with haiku\n§9.99 add: nothing\n' > "$TMP/layer.md"
 printf '[[layers]]\npath = "%s"\n' "$TMP/layer.md" > "$LREG/cadence.toml"
-out=$(DEV_CADENCE_REG_DIR="$LREG" run --branch topic5); rc=$?
+out=$(AGENT_CADENCE_REG_DIR="$LREG" run --branch topic5); rc=$?
 [ $rc -eq 0 ] && grep -qF "layers: 1 active on this machine" <<< "$out" && grep -qF "1. $TMP/layer.md (own) — §4.8: layer 1 overrides; §9.99: layer 1 adds — 1 warning — cadence_layer.py --effective shows each" <<< "$out" \
   && ok "12b the active layers are one line after the rows; the verdict is the PR's" || bad "12b rc=$rc $out"
-out=$(DEV_CADENCE_REG_DIR="$LREG" run --branch topic5 --json); echo "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); l=d["layers"]; assert d["verdict"]=="pass" and l["layers"][0]["n"]==1 and l["warnings"]==1 and l["by_section"][0].startswith("§4.8")' \
+out=$(AGENT_CADENCE_REG_DIR="$LREG" run --branch topic5 --json); echo "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); l=d["layers"]; assert d["verdict"]=="pass" and l["layers"][0]["n"]==1 and l["warnings"]==1 and l["by_section"][0].startswith("§4.8")' \
   && ok "12c --json carries the layers apart from the verdict" || bad "12c $out"
 echo 'layers = [{path = "relative.md"}]' > "$LREG/cadence.toml"
-out=$(DEV_CADENCE_REG_DIR="$LREG" run --branch topic5); rc=$?
+out=$(AGENT_CADENCE_REG_DIR="$LREG" run --branch topic5); rc=$?
 [ $rc -eq 0 ] && grep -q '^layers: not read — ' <<< "$out" && ok "12d a setting that cannot be read is said, and costs nothing else" || bad "12d rc=$rc $out"
-out=$(DEV_CADENCE_REG_DIR="$TMP/no-reg" run --branch topic5 --json)
-! grep -q 'layers' <<< "$out" && ! grep -q '^layers' <<< "$(DEV_CADENCE_REG_DIR="$TMP/no-reg" run --branch topic5)" && ok "12e no layers set: nothing of them" || bad "12e $out"
+out=$(AGENT_CADENCE_REG_DIR="$TMP/no-reg" run --branch topic5 --json)
+! grep -q 'layers' <<< "$out" && ! grep -q '^layers' <<< "$(AGENT_CADENCE_REG_DIR="$TMP/no-reg" run --branch topic5)" && ok "12e no layers set: nothing of them" || bad "12e $out"
 printf '[]' > "$FAKE/prlist_head.json"
 out=$(run --branch nothing); rc=$?; [ $rc -eq 2 ] && echo "$out" | grep -q "no PR with head" && ok "--branch with no PR exits 2" || bad "no head: rc=$rc $out"
 

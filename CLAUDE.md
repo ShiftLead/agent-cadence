@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-dev-cadence is the **canonical source** of a working-cadence system (docs + stdlib-only bash/python scripts + Claude Code skills/hooks) that each consumer repo runs from a **pin**: `[dev-cadence]` in its `docs/cadence.toml` names a commit, and the `dev-cadence` launcher (`launcher/`) runs that tree from a per-machine cache (cadence.md §9.19, TD-129). Nothing is copied into a consumer any more. There is no package and no registry — deliberately (see README "Philosophy / non-goals"; one exception: `files/scripts/ledgerboard.py`, vendored from a ShiftLead/ledgerboard release by `vendor_ledgerboard.sh`).
+agent-cadence is the **canonical source** of a working-cadence system (docs + stdlib-only bash/python scripts + Claude Code skills/hooks) that each consumer repo runs from a **pin**: `[agent-cadence]` in its `docs/cadence.toml` names a commit, and the `agent-cadence` launcher (`launcher/`) runs that tree from a per-machine cache (cadence.md §9.19, TD-129). Nothing is copied into a consumer any more. There is no package and no registry — deliberately (see README "Philosophy / non-goals"; one exception: `files/scripts/ledgerboard.py`, vendored from a ShiftLead/ledgerboard release by `vendor_ledgerboard.sh`).
 
 **Read [`files/docs/cadence.md`](files/docs/cadence.md) first.** It is the system, and its rules (§1 worktrees, §2 the TD ledger, §3 never strand work, §4 review/merge loop, §7 memory and docs) govern how work is done *in this repo* as well — this repo dogfoods itself.
 
@@ -18,7 +18,7 @@ bash tests/test_p2_report.sh    # one suite
 ruff check files/scripts/       # lint (rules pinned in ruff.toml; tests/test_lint.sh gates it,
                                 # and SKIPs loudly-but-green when ruff is absent)
 
-dev-cadence -C . adopt /path/to/repo   # pin a new repo to this clone's HEAD (seeds, pin, shims, roster; commits nothing)
+agent-cadence -C . adopt /path/to/repo   # pin a new repo to this clone's HEAD (seeds, pin, shims, roster; commits nothing)
 ./sync.sh --pin /path/to/repo          # the migration of a repo still carrying synced copies (TD-129) — by hand, one repo at a time
                                        # sync.sh no longer copies: its copy mode, --verify and sync-all.sh are retired (2026-10-28)
 
@@ -31,7 +31,7 @@ files/scripts/cadence_changes.py --list   # convention changes (--hook prints un
 files/scripts/cadence_hooks.sh --list     # the SessionStart hook set; a new hook is added here, never as a settings.json line
 ```
 
-**Any ad-hoc run of `dev-cadence adopt` or `sync.sh --pin` against a fixture or a scratch path must set `DEV_CADENCE_REG_DIR=$(mktemp -d)` first.** Registering the target in this machine's roster (`~/.config/dev-cadence/repos.txt`) is their last mutating step (one writer, `launcher/words.py` `_register`), the file is append-only with no auto-clean, and removing a bad line is manual. The committed test suites already isolate; ad-hoc and review-time runs are the gap — a reviewer polluted the real roster with `/tmp` fixture paths on 2026-08-10. `DEV_CADENCE_REG_DIR` moves only the roster (every reader and writer honours it, cadence.md §9), so `gh` keeps its credentials; the older `XDG_CONFIG_HOME=$(mktemp -d)` recipe hid them (TD-029, resolved 2026-09-25). `sync-all.sh`, which read its targets from the roster (TD-048), is retired with the copy (TD-129, 2026-10-28), and `consumers.txt` is read by nothing (delete it).
+**Any ad-hoc run of `agent-cadence adopt` or `sync.sh --pin` against a fixture or a scratch path must set `AGENT_CADENCE_REG_DIR=$(mktemp -d)` first.** Registering the target in this machine's roster (`~/.config/agent-cadence/repos.txt`) is their last mutating step (one writer, `launcher/words.py` `_register`), the file is append-only with no auto-clean, and removing a bad line is manual. The committed test suites already isolate; ad-hoc and review-time runs are the gap — a reviewer polluted the real roster with `/tmp` fixture paths on 2026-08-10. `AGENT_CADENCE_REG_DIR` moves only the roster (every reader and writer honours it, cadence.md §9), so `gh` keeps its credentials; the older `XDG_CONFIG_HOME=$(mktemp -d)` recipe hid them (TD-029, resolved 2026-09-25). `sync-all.sh`, which read its targets from the roster (TD-048), is retired with the copy (TD-129, 2026-10-28), and `consumers.txt` is read by nothing (delete it).
 
 Tests are plain bash: each is self-contained, overrides `HOME`/`XDG_CONFIG_HOME` (and PATH-shims `gh`) so the real registry, real `~/.claude`, and the network are never touched. Keep new tests fully offline and fixture-driven, and **derive date fixtures from the run date** — hardcoded calendar dates rot the suite (TD-24).
 
@@ -39,12 +39,12 @@ Tests are plain bash: each is self-contained, overrides `HOME`/`XDG_CONFIG_HOME`
 
 - `files/**` — the canonical payload that consumers run from their pin. **All edits to the system happen here.**
 - `docs/**` — this repo's *own* live board/ledger/plans (dogfooding). Do not confuse `docs/ledger/` (live) with `files/docs/technical_debt.md` (the empty template that seeds consumers). Same trap for `user_attention.md`.
-- `tests/**`, `ruff.toml`, `sync.sh`, `launcher/` — tooling; nothing here is copied anywhere (`launcher/dev_cadence.py` is installed once per machine by hand). `tests/fixtures/legacy_sync.sh` is the retired copy mode, kept only to make `sync.sh --pin`'s input in a test.
+- `tests/**`, `ruff.toml`, `sync.sh`, `launcher/` — tooling; nothing here is copied anywhere (`launcher/agent_cadence.py` is installed once per machine by hand). `tests/fixtures/legacy_sync.sh` is the retired copy mode, kept only to make `sync.sh --pin`'s input in a test.
 - This clone's hooks are TD-055 shims in `.git/hooks` (`files/scripts/install_git_hooks.sh`, installed 2026-09-27; `core.hooksPath` is unset), so every worktree runs the main checkout's `files/scripts/git-hooks/` — the shipped pre-push main guard runs against its own canonical copy whatever branch a worktree is on.
 
 ## The distribution contract
 
-A consumer runs the commit its pin names; an upgrade is a `dev-cadence bump` PR in that repo (cadence.md §9.19). `sync.sh` keeps the payload's three file lists, `SYNC_FILES` / `SEED_FILES` / `RETIRED_FILES`, which `dev-cadence adopt` reads (`launcher/words.py` `_sh_array`):
+A consumer runs the commit its pin names; an upgrade is an `agent-cadence bump` PR in that repo (cadence.md §9.19). `sync.sh` keeps the payload's three file lists, `SYNC_FILES` / `SEED_FILES` / `RETIRED_FILES`, which `agent-cadence adopt` reads (`launcher/words.py` `_sh_array`):
 
 - **SYNC** — the payload, run from the pinned tree and never present in a consumer. Edit here. `adopt` refuses a repo that still carries a copy; `sync.sh --pin` removes each one still matching its lock hash and keeps an edited one with a WARN.
 - **SEED** — created by `adopt` only if missing (ledger, board, `MEMORY.md`, `.claude/settings.json`, …). The consumer owns the content.
@@ -54,7 +54,7 @@ A consumer runs the commit its pin names; an upgrade is a `dev-cadence bump` PR 
 
 Repo-specific behavior stays out of SYNC files. Anything marked *(adapt per repo)* in `cadence.md` gets its concrete form in the consumer's own CLAUDE.md/AGENTS.md or `docs/cadence.toml` — never by editing the payload.
 
-Machine-scope state lives in exactly one machine-local file, `${XDG_CONFIG_HOME:-~/.config}/dev-cadence/repos.txt` (roster of cadence repos on this machine; `remote_repos.txt` optionally filters `/attention remote`). Scripts append idempotently under flock; only humans delete lines.
+Machine-scope state lives in exactly one machine-local file, `${XDG_CONFIG_HOME:-~/.config}/agent-cadence/repos.txt` (roster of cadence repos on this machine; `remote_repos.txt` optionally filters `/attention remote`). Scripts append idempotently under flock; only humans delete lines.
 
 ## Conventions this repo enforces on itself
 

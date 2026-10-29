@@ -1,33 +1,33 @@
 #!/usr/bin/env python3
-"""The launcher's words (TD-129): what `dev-cadence <word>` does, pinned with the tree it is in.
+"""The launcher's words (TD-129): what `agent-cadence <word>` does, pinned with the tree it is in.
 
-The launcher (launcher/dev_cadence.py, installed per machine and frozen) resolves a repo's pin and
+The launcher (launcher/agent_cadence.py, installed per machine and frozen) resolves a repo's pin and
 execs this file from the pinned tree with CADENCE_REPO_ROOT set to the repo's root. So every word
 here is pinned like the rest of the payload, and a new word is a change to this file, never to
 the launcher (docs/plans/2026-10-25-pinned-not-synced.md, *Decision* 3).
 
-    dev-cadence words                 list the words
-    dev-cadence run <script> [args…]  run files/scripts/<script> from the pinned tree (.py with
+    agent-cadence words                 list the words
+    agent-cadence run <script> [args…]  run files/scripts/<script> from the pinned tree (.py with
                                       this Python, .sh with bash, anything else as itself), from
                                       the directory the command was run in
-    dev-cadence path [<name>]         print the pinned payload's absolute path, or that of a file
+    agent-cadence path [<name>]         print the pinned payload's absolute path, or that of a file
                                       in it: <name> relative to files/, else to files/docs/ —
-                                      `dev-cadence path cadence.md` is the rules this repo runs
-    dev-cadence hook session-start    the SessionStart runner (cadence_hooks.sh --session-start),
+                                      `agent-cadence path cadence.md` is the rules this repo runs
+    agent-cadence hook session-start    the SessionStart runner (cadence_hooks.sh --session-start),
                                       the session's stdin passed through
-    dev-cadence -C <home> hook session-start --serve <sibling>
+    agent-cadence -C <home> hook session-start --serve <sibling>
                                       the same for a constellation's sibling: the home's pin, the
                                       hooks run in the sibling, the board read from the home
-    dev-cadence hook <git-hook> [args…]
+    agent-cadence hook <git-hook> [args…]
                                       a shipped git hook (files/scripts/git-hooks/<git-hook>)
-    dev-cadence gc [--apply]          the cached trees no roster repo or worktree pins: listed,
+    agent-cadence gc [--apply]          the cached trees no roster repo or worktree pins: listed,
                                       and with --apply removed
-    dev-cadence bump [<tag|commit>]   the repo's pin: with no argument, the newer tags of its
+    agent-cadence bump [<tag|commit>]   the repo's pin: with no argument, the newer tags of its
                                       source; with one, move the pin there — the ref line and its
                                       tag comment alone — and print what the bump PR's body carries
-    dev-cadence -C <clone> adopt <repo>
+    agent-cadence -C <clone> adopt <repo>
                                       adopt a NEW repo at this clone's HEAD: the missing SEED files and
-                                      skill pointers, the [dev-cadence] pin, the git hook shims, the
+                                      skill pointers, the [agent-cadence] pin, the git hook shims, the
                                       roster line — committed by nobody; <repo> is relative to <clone>
                                       like any -C (a synced repo moves by `sync.sh --pin <repo>`)
 
@@ -40,14 +40,14 @@ exits 2 before this file runs, so failing open on that is the shim's job (the ne
 pre-push main guard kept inline
 in the shim, *Decision* 6).
 
-`adopt` runs from a dev-cadence clone, never through a target's pin (a repo with no pin resolves
+`adopt` runs from an agent-cadence clone, never through a target's pin (a repo with no pin resolves
 nowhere): the clone must be clean and its HEAD on origin's default branch as last fetched, and the
 pin names origin's URL and that commit, with the tag as a comment only when HEAD is exactly at one.
-It refuses a repo that carries synced copies, a dev-cadence clone, and a repo whose own ledger or board the
+It refuses a repo that carries synced copies, an agent-cadence clone, and a repo whose own ledger or board the
 pinned readers cannot read (TD-168: `ledger.py --check`, a shape they skip, a newer format major); it seeds what is missing
 (sync.sh's SEED_FILES, less the repo's `[skip-seed]`, and the six skill pointers, which are SEED
 once pinned — *Decision* 5 — and lose their synced-file header), appends the pin under a header
-written exactly `[dev-cadence]` (the form the shims and the SessionStart line detect), installs the
+written exactly `[agent-cadence]` (the form the shims and the SessionStart line detect), installs the
 shims by the tree's install_git_hooks.sh, and registers the repo on the roster, last. It commits
 nothing. `adopt --migrate`, which only `sync.sh --pin <repo>` runs, is the migration (*Decision* 11):
 the same, on a clean synced checkout, after retiring each synced copy that still matches its lock
@@ -73,24 +73,24 @@ import sys
 TREE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 PAYLOAD = os.path.join(TREE, "files")
 V1_LEDGER = ("docs/technical_debt.md", "docs/technical_debt_archive.md")   # seeds a v2 ledger (docs/ledger/) holds (TD-160)
-INSTALL_LINE = ("clone dev-cadence at its latest tag, then run: "
-                "install -m 755 launcher/dev_cadence.py ~/.local/bin/dev-cadence")
+INSTALL_LINE = ("clone agent-cadence at its latest tag, then run: "
+                "install -m 755 launcher/agent_cadence.py ~/.local/bin/agent-cadence")
 
 
 def fail(msg):
-    print(f"dev-cadence: {msg}", file=sys.stderr)
+    print(f"agent-cadence: {msg}", file=sys.stderr)
     return 2
 
 
 HELP = """\
-dev-cadence words                 list the words
-dev-cadence run <script> [args…]  run files/scripts/<script> from the pinned tree
-dev-cadence path [<name>]         the pinned payload's path, or a file's in it (files/, then files/docs/)
-dev-cadence hook session-start    the SessionStart runner
-dev-cadence hook <git-hook> [args…]  a shipped git hook (fails open)
-dev-cadence gc [--apply]          the cached trees nothing on the roster pins (--apply removes them)
-dev-cadence bump [<tag|commit>]   the newer tags; with one, move the repo's pin there
-dev-cadence -C <clone> adopt <repo>  pin a NEW repo to the clone's HEAD: seeds, pin, hook shims, roster"""
+agent-cadence words                 list the words
+agent-cadence run <script> [args…]  run files/scripts/<script> from the pinned tree
+agent-cadence path [<name>]         the pinned payload's path, or a file's in it (files/, then files/docs/)
+agent-cadence hook session-start    the SessionStart runner
+agent-cadence hook <git-hook> [args…]  a shipped git hook (fails open)
+agent-cadence gc [--apply]          the cached trees nothing on the roster pins (--apply removes them)
+agent-cadence bump [<tag|commit>]   the newer tags; with one, move the repo's pin there
+agent-cadence -C <clone> adopt <repo>  pin a NEW repo to the clone's HEAD: seeds, pin, hook shims, roster"""
 
 
 def w_words(args):
@@ -100,7 +100,7 @@ def w_words(args):
 
 def w_run(args):
     if not args:
-        return fail("run needs a script (`dev-cadence run check_cadence.py --pr 12`)")
+        return fail("run needs a script (`agent-cadence run check_cadence.py --pr 12`)")
     name, rest = args[0], args[1:]
     if not name or "/" in name or name.startswith("."):
         return fail(f"run takes a script's name in files/scripts/, not a path: {name!r}")
@@ -146,7 +146,7 @@ def w_hook(args):
             # launcher left as the cwd — as the line's unpinned branch names it, never the main
             # checkout the pin was read from
             if len(rest) < 2 or not os.path.isdir(rest[1]):
-                print(f"dev-cadence: hook session-start --serve needs the sibling's directory, not "
+                print(f"agent-cadence: hook session-start --serve needs the sibling's directory, not "
                       f"{rest[1] if len(rest) > 1 else 'nothing'} — the hooks did not run", file=sys.stderr)
                 return 0   # a hook fails open
             os.environ["CADENCE_HOME"] = os.getcwd()
@@ -158,31 +158,31 @@ def w_hook(args):
         script = os.path.join(PAYLOAD, "scripts", "git-hooks", name)
         argv = [script, *rest]
     if "/" in name or name.startswith(".") or not (os.path.isfile(script) and os.access(script, os.X_OK)):
-        print(f"dev-cadence: no hook {name!r} in {PAYLOAD} — it did not run", file=sys.stderr)
+        print(f"agent-cadence: no hook {name!r} in {PAYLOAD} — it did not run", file=sys.stderr)
         return 0   # a hook fails open
     os.execvp(argv[0], argv)
     return 0   # not reached
 
 
-# The cache's layout is the launcher's frozen interface (launcher/dev_cadence.py): trees/<commit>,
+# The cache's layout is the launcher's frozen interface (launcher/agent_cadence.py): trees/<commit>,
 # sources/<key>.git, and one cache-wide lock that a launcher holds while it makes a tree.
 COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 # The pin's other two shapes, each the launcher's or the hooks' own (cadence.md §7.9; tests/test_parity.sh
 # 6d holds each to its twin): a source the launcher accepts (its SOURCE_RE), and the header line the
 # shims and the seeded SessionStart line grep for, which is the only pin they see
 SOURCE_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://\S+|[^/\s:]+:\S+|/\S*")
-PIN_HEADER_RE = re.compile(r"^[^\S\n]*\[dev-cadence\][^\S\n]*(#.*)?$", re.M)   # [^\S\n]: as grep's [[:space:]] for what TOML parses
+PIN_HEADER_RE = re.compile(r"^[^\S\n]*\[agent-cadence\][^\S\n]*(#.*)?$", re.M)   # [^\S\n]: as grep's [[:space:]] for what TOML parses
 
 
 def _cache():
     base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
-    return os.path.join(base, "dev-cadence")
+    return os.path.join(base, "agent-cadence")
 
 
 def _roster():
     """The roster's repos (cadence.md §9), or None when there is no roster."""
-    d = os.environ.get("DEV_CADENCE_REG_DIR") or os.path.join(
-        os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config"), "dev-cadence")
+    d = os.environ.get("AGENT_CADENCE_REG_DIR") or os.path.join(
+        os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config"), "agent-cadence")
     try:
         with open(os.path.join(d, "repos.txt"), encoding="utf-8", errors="replace") as f:
             lines = f.read().splitlines()
@@ -200,12 +200,12 @@ def _pinned(checkout):
     try:
         import tomllib
         with open(path, "rb") as f:
-            table = tomllib.load(f).get("dev-cadence")
+            table = tomllib.load(f).get("agent-cadence")
     except (OSError, ValueError, ImportError) as e:
         return None, f"{path}: {e}"
     ref = table.get("ref") if isinstance(table, dict) else None
     if table is not None and not (isinstance(ref, str) and COMMIT_RE.fullmatch(ref)):
-        return None, f"{path}: [dev-cadence] ref is not a full commit ({ref!r})"
+        return None, f"{path}: [agent-cadence] ref is not a full commit ({ref!r})"
     return ref, None
 
 
@@ -271,7 +271,7 @@ def w_gc(args):
         elif problems:
             print(f"gc: {len(drop)} tree(s) nothing readable pins — --apply refuses until the above is fixed")
         else:
-            print(f"gc: {len(drop)} tree(s) nothing pins — `dev-cadence gc --apply` removes them")
+            print(f"gc: {len(drop)} tree(s) nothing pins — `agent-cadence gc --apply` removes them")
         return 0
     import fcntl
     os.makedirs(_cache(), exist_ok=True)
@@ -425,17 +425,17 @@ def _hand_off(source, new):
     if os.path.basename(TREE) == new:
         return None
     here = os.path.join(TREE, "launcher")
-    if not os.path.isfile(os.path.join(here, "dev_cadence.py")):
-        print(f"warning: {TREE} has no launcher/dev_cadence.py to make {new[:12]}'s tree: this bump runs "
+    if not os.path.isfile(os.path.join(here, "agent_cadence.py")):
+        print(f"warning: {TREE} has no launcher/agent_cadence.py to make {new[:12]}'s tree: this bump runs "
               "the old pin's code, so a change to bump itself arrives with the next one", file=sys.stderr)
         return None
     if here not in sys.path:
         sys.path.insert(0, here)
-    import dev_cadence
+    import agent_cadence
     try:
-        tree = dev_cadence.ensure_tree(source, new)
-        dev_cadence.check_interface(tree)
-    except (dev_cadence.Refusal, OSError) as e:
+        tree = agent_cadence.ensure_tree(source, new)
+        agent_cadence.check_interface(tree)
+    except (agent_cadence.Refusal, OSError) as e:
         return fail(f"cannot make {new[:12]}'s tree to run its bump ({e}) — nothing written")
     print(f"bump: running {new[:12]}'s bump, so what it checks and writes is the new pin's (TD-174)", file=sys.stderr)
     sys.stdout.flush()
@@ -450,8 +450,8 @@ def w_bump(args):
     root = os.environ.get("CADENCE_REPO_ROOT", "").strip()
     path = os.path.join(root, "docs", "cadence.toml")
     if not root or not os.path.isfile(path):
-        return fail(f"no docs/cadence.toml with a [dev-cadence] pin to move in {root or 'this checkout'} "
-                    "(dev-cadence's own repo runs from its tree)")
+        return fail(f"no docs/cadence.toml with a [agent-cadence] pin to move in {root or 'this checkout'} "
+                    "(agent-cadence's own repo runs from its tree)")
     try:
         import tomllib
         with open(path, "rb") as f:
@@ -459,9 +459,9 @@ def w_bump(args):
         table = tomllib.loads(before.decode("utf-8"))
     except (OSError, ValueError, ImportError) as e:
         return fail(f"cannot read the pin in {path}: {e}")
-    pin = table.get("dev-cadence")
+    pin = table.get("agent-cadence")
     if not root or not isinstance(pin, dict) or not COMMIT_RE.fullmatch(str(pin.get("ref"))):
-        return fail(f"{path} has no [dev-cadence] pin to move (dev-cadence's own repo runs from its tree)")
+        return fail(f"{path} has no [agent-cadence] pin to move (agent-cadence's own repo runs from its tree)")
     source, old = str(pin.get("source", "")).strip(), pin["ref"]
     bare, warn = _source_clone(source)
     if bare is None:
@@ -482,7 +482,7 @@ def w_bump(args):
         _, ahead = _git("--git-dir", bare, "rev-list", "--count", f"{old}..{head}")
         print(f"pinned at {old}; {ahead or '?'} commit(s) on {source} {head} since"
               + (f"; newer tags: {', '.join(newer)}" if newer else "; no newer tag"))
-        print("move the pin with: dev-cadence bump <tag|commit>")
+        print("move the pin with: agent-cadence bump <tag|commit>")
         return 0
     want = args[0]
     rc, new = _git("--git-dir", bare, "rev-parse", "--verify", "--quiet", f"{want}^{{commit}}")
@@ -508,16 +508,16 @@ def w_bump(args):
     in_pin, at = False, []
     for i, ln in enumerate(lines):
         if TABLE_RE.match(ln):
-            in_pin = ln.split("#", 1)[0].strip().replace(" ", "") in ("[dev-cadence]", '["dev-cadence"]')
+            in_pin = ln.split("#", 1)[0].strip().replace(" ", "") in ("[agent-cadence]", '["agent-cadence"]')
         elif in_pin and PIN_REF_RE.match(ln.rstrip("\r\n")):
             at.append(i)
     if len(at) != 1:
-        return fail(f"{path}: the pin's ref is not one line `ref = \"<commit>\"` in [dev-cadence] — move it to {new} by hand")
+        return fail(f"{path}: the pin's ref is not one line `ref = \"<commit>\"` in [agent-cadence] — move it to {new} by hand")
     m = PIN_REF_RE.match(lines[at[0]].rstrip("\r\n"))
     nl = lines[at[0]][len(lines[at[0]].rstrip("\r\n")):]
     lines[at[0]] = f'{m.group(1)}"{new}"' + (f"   # {tag}" if tag else "") + nl
     after = "".join(lines)
-    expect = dict(table, **{"dev-cadence": dict(pin, ref=new)})
+    expect = dict(table, **{"agent-cadence": dict(pin, ref=new)})
     if tomllib.loads(after) != expect:
         return fail(f"{path} not changed — the edit would not read as the same file with the new ref")
     pointers = _pointer_plan(bare, new, root)
@@ -589,12 +589,12 @@ def _register(root):
     """Append root to the roster, adopt's last step (cadence.md §9; the retired copy's too): idempotent, under
     flock, never a temp-dir repo onto a roster outside one; a failure is a warning, never fatal."""
     import fcntl
-    d = os.environ.get("DEV_CADENCE_REG_DIR") or os.path.join(
-        os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config"), "dev-cadence")
+    d = os.environ.get("AGENT_CADENCE_REG_DIR") or os.path.join(
+        os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config"), "agent-cadence")
     reg = os.path.join(d, "repos.txt")
     if _under_temp(root) and not _under_temp(d):
         print(f"  WARN  {root} is in a temp dir and {reg} is not — registration skipped (a fixture on the "
-              "machine roster is polled by every roster reader). Set DEV_CADENCE_REG_DIR=$(mktemp -d) for a test run.")
+              "machine roster is polled by every roster reader). Set AGENT_CADENCE_REG_DIR=$(mktemp -d) for a test run.")
         return
     try:
         os.makedirs(d, exist_ok=True)
@@ -860,7 +860,7 @@ def _format_problems(dest, adopt, skip):
 
 def w_adopt(args):
     """Adopt a repo to a pin: the seeds (with the skill pointers, *Decision* 5), the pin, the hook shims
-    and the roster line. A NEW repo, from `dev-cadence -C <clone> adopt <repo>`; a synced one only through
+    and the roster line. A NEW repo, from `agent-cadence -C <clone> adopt <repo>`; a synced one only through
     `sync.sh --pin <repo>` (`adopt --migrate`), the migration's last sync (*Decision* 11), which first
     retires the synced copies and the lock."""
     import subprocess
@@ -871,14 +871,14 @@ def w_adopt(args):
     if moved:
         args = [a for a in args if a != "--siblings-moved"]
     if len(args) != 1 or args[0].startswith("-"):
-        return fail("adopt takes the repo to adopt: dev-cadence -C <a dev-cadence clone> adopt <repo>")
+        return fail("adopt takes the repo to adopt: agent-cadence -C <an agent-cadence clone> adopt <repo>")
     word = "sync.sh --pin" if migrate else "adopt"
     # the source: this tree, as a clean checkout whose HEAD is on origin's default branch — never a
     # commit that exists only here (a pin the source cannot serve resolves nowhere else)
     rc, top = _git("-C", TREE, "rev-parse", "--show-toplevel")
     if rc != 0 or os.path.realpath(top) != os.path.realpath(TREE):
-        return fail(f"{word} runs from a dev-cadence clone, and {TREE} is not one (a cached tree has no "
-                    "origin to pin): dev-cadence -C <a dev-cadence clone> adopt <repo>")
+        return fail(f"{word} runs from an agent-cadence clone, and {TREE} is not one (a cached tree has no "
+                    "origin to pin): agent-cadence -C <an agent-cadence clone> adopt <repo>")
     rc, dirty = _git("-C", TREE, "status", "--porcelain", "--untracked-files=no")
     if rc != 0 or dirty:
         return fail(f"{TREE} has uncommitted changes: a pin names a commit, so {word} from a clean checkout")
@@ -918,12 +918,12 @@ def w_adopt(args):
     if migrate:
         dest = os.path.realpath(_git("-C", args[0], "rev-parse", "--show-toplevel")[1])
     if root == os.path.realpath(TREE) or os.path.isfile(os.path.join(root, "launcher", "words.py")):
-        return fail(f"{root} is a dev-cadence clone: dev-cadence's own repo has no pin and runs from its tree")
+        return fail(f"{root} is an agent-cadence clone: agent-cadence's own repo has no pin and runs from its tree")
     lock = os.path.join(dest, "docs", "cadence-sync.lock")
     if migrate:
         if not os.path.isfile(lock):
             return fail(f"{dest} has no docs/cadence-sync.lock: it is not a synced repo — adopt a new repo "
-                        "with `dev-cadence -C <clone> adopt <repo>`")
+                        "with `agent-cadence -C <clone> adopt <repo>`")
         rc, dirty = _git("-C", dest, "status", "--porcelain", "--untracked-files=no")
         if rc != 0 or dirty:
             return fail(f"{dest} has uncommitted changes: the migration is one reviewable change, so start it "
@@ -946,14 +946,14 @@ def w_adopt(args):
             import tomllib
             with open(toml_path, "rb") as f:
                 raw = f.read()
-            pinned = "dev-cadence" in tomllib.loads(raw.decode("utf-8"))
+            pinned = "agent-cadence" in tomllib.loads(raw.decode("utf-8"))
         except (OSError, ValueError) as e:
             return fail(f"cannot read {toml_path}: {e} — fix it, then {word}")
         # a pin the shims and the SessionStart line cannot see (they grep for this header) would
         # leave every hook running a copy this repo does not have
         if pinned and not PIN_HEADER_RE.search(raw.decode("utf-8")):
-            return fail(f"{toml_path} pins dev-cadence in another TOML form (a dotted key, an inline table, "
-                        f"[ dev-cadence ]): write it under a header exactly `[dev-cadence]`, which the hooks "
+            return fail(f"{toml_path} pins agent-cadence in another TOML form (a dotted key, an inline table, "
+                        f"[ agent-cadence ]): write it under a header exactly `[agent-cadence]`, which the hooks "
                         f"detect, then {word}")
     if not migrate:
         carried = [f for f in [*sync_files, "docs/cadence-sync.lock"]
@@ -988,7 +988,7 @@ def w_adopt(args):
                     "a ledger or board it keeps declares a format the pinned scripts cannot read:")
                     + "".join(f"\n    {p}" for p in problems)
                     + "\n  convert or fix them (the list above is where to start), then run it again — nothing was written")
-    print(("migrating" if migrate else "adopting") + f" {dest}: dev-cadence {source} at {ref}" + (f" ({tag})" if tag else ""))
+    print(("migrating" if migrate else "adopting") + f" {dest}: agent-cadence {source} at {ref}" + (f" ({tag})" if tag else ""))
     # every seed's body read before anything is removed, so a commit missing one fails here, not
     # half-way through a migration
     bodies = {}
@@ -1000,7 +1000,7 @@ def w_adopt(args):
             return fail(f"files/{f} is not in {ref}: {body.decode(errors='replace').strip()}")
         bodies[f] = body
     # the pin, built and read back before anything is removed: appended as the file's last table, the
-    # header written exactly [dev-cadence] — the one form the shims and the SessionStart line detect
+    # header written exactly [agent-cadence] — the one form the shims and the SessionStart line detect
     if not pinned:
         import tomllib
         if os.path.lexists(toml_path):
@@ -1008,12 +1008,12 @@ def w_adopt(args):
                 before = f.read()
         else:
             before = bodies.get("docs/cadence.toml", b"").decode("utf-8")   # seeded below, then pinned
-        block = ("\n# The dev-cadence this repo runs (TD-129): `source` is never moved by a bump, and `ref` is a\n"
-                 f"# full commit, moved by `dev-cadence bump` in a reviewed PR. Written by `{word}`.\n"
-                 f'[dev-cadence]\nsource = "{source}"\nref = "{ref}"' + (f"   # {tag}" if tag else "") + "\n")
+        block = ("\n# The agent-cadence this repo runs (TD-129): `source` is never moved by a bump, and `ref` is a\n"
+                 f"# full commit, moved by `agent-cadence bump` in a reviewed PR. Written by `{word}`.\n"
+                 f'[agent-cadence]\nsource = "{source}"\nref = "{ref}"' + (f"   # {tag}" if tag else "") + "\n")
         after = before + ("" if not before or before.endswith("\n") else "\n") + block
         try:
-            readback = tomllib.loads(after) == dict(tomllib.loads(before), **{"dev-cadence": {"source": source, "ref": ref}})
+            readback = tomllib.loads(after) == dict(tomllib.loads(before), **{"agent-cadence": {"source": source, "ref": ref}})
         except ValueError:
             readback = False
         if not readback:
@@ -1041,7 +1041,7 @@ def w_adopt(args):
             print(f"  seed  {f}")
     # the pin, checked above, replaces the file in one rename
     if pinned:
-        print(f"  keep  {toml_path}: it already has a [dev-cadence] pin — left as it is (move it with `dev-cadence bump`)")
+        print(f"  keep  {toml_path}: it already has a [agent-cadence] pin — left as it is (move it with `agent-cadence bump`)")
     else:
         now = ""
         if os.path.lexists(toml_path):
@@ -1053,8 +1053,8 @@ def w_adopt(args):
         with open(tmp, "w", encoding="utf-8", newline="") as f:
             f.write(after)
         os.replace(tmp, toml_path)
-        print(f"  pin   [dev-cadence] ref = {ref}" + (f" ({tag})" if tag else "") + " (docs/cadence.toml)")
-    # the TD-055 shims, by the tree's own installer. Pinned, each runs `dev-cadence hook`; until the
+        print(f"  pin   [agent-cadence] ref = {ref}" + (f" ({tag})" if tag else "") + " (docs/cadence.toml)")
+    # the TD-055 shims, by the tree's own installer. Pinned, each runs `agent-cadence hook`; until the
     # main checkout pins (a migration's PR not yet merged) each runs the main checkout's copy, which a
     # consumer keeps in scripts/git-hooks — so that is the layout the shims name, wherever this tree is
     env = dict(os.environ, CADENCE_HOOKS_SKIP=" ".join(skip_hooks), CADENCE_HOOKS_REL="scripts/git-hooks")
@@ -1092,7 +1092,7 @@ def w_adopt(args):
                 named.append(f)
         if named:
             print(f"\n  these files name scripts/, which the pinned repo no longer has — move each to "
-                  f"`dev-cadence run <script>` in this change ({len(named)}):")
+                  f"`agent-cadence run <script>` in this change ({len(named)}):")
             for f in named[:40]:
                 print(f"    {f}")
             if len(named) > 40:

@@ -4,16 +4,16 @@
 # count), origin's branches naming it, the entry's Status on origin/<default> (fetched), an
 # archived entry; exit 1 / 0 / 2 (a lookup that could not be made is never "none").
 # Offline: origin is a temp bare repo; `gh` is a PATH shim answering `pr list` from a fixture.
-# HOME, XDG_CONFIG_HOME, DEV_CADENCE_REG_DIR and git config are temp.
+# HOME, XDG_CONFIG_HOME, AGENT_CADENCE_REG_DIR and git config are temp.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 S="$DC/files/scripts"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset CADENCE_FORGE
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }

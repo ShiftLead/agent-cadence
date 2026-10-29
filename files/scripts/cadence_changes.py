@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/cadence_changes.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """Tell a session which cadence conventions changed since this worktree last heard.
 
     cadence_changes.py --hook          SessionStart: print unseen entries once per worktree, then remember them
@@ -111,7 +111,7 @@ def origin_default(root):
 def changes_path(root):
     """The changes file's path in the repo: beside this script's ``../docs`` when the
     script lives inside ``root`` (``scripts/`` in a consumer, ``files/scripts/`` in
-    dev-cadence itself, TD-038), else the consumer layout."""
+    agent-cadence itself, TD-038), else the consumer layout."""
     here = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
     top = os.path.realpath(root)
     if os.path.commonpath([here, top]) == top:

@@ -5,18 +5,18 @@
 # three 404s (File / Commit / Project Not Found) told apart. `gh` is a shim too, so a test
 # that should not touch GitHub can say it did not.
 #
-# Offline: HOME, XDG_CONFIG_HOME, DEV_CADENCE_REG_DIR and git config are temp;
+# Offline: HOME, XDG_CONFIG_HOME, AGENT_CADENCE_REG_DIR and git config are temp;
 # GIT_ALLOW_PROTOCOL=file stops a fetch of a fixture's https origin before it leaves.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 S="$DC/files/scripts"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t GIT_ALLOW_PROTOCOL=file
 unset CADENCE_FORGE
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
-FILTER="$DEV_CADENCE_REG_DIR/remote_repos.txt"
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
+FILTER="$AGENT_CADENCE_REG_DIR/remote_repos.txt"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }

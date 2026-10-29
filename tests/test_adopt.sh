@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# `dev-cadence adopt` (TD-129, launcher/words.py w_adopt): run from a dev-cadence clone against a NEW
-# repo, it seeds what is missing, appends the [dev-cadence] pin (origin's URL, the clone's HEAD, the
+# `agent-cadence adopt` (TD-129, launcher/words.py w_adopt): run from an agent-cadence clone against a NEW
+# repo, it seeds what is missing, appends the [agent-cadence] pin (origin's URL, the clone's HEAD, the
 # tag as a comment only at a tag), installs the git hook shims and registers the repo — committing
 # nothing — and refuses a repo carrying synced copies, a dirty clone, a HEAD origin does not have.
-# Offline and fixture-driven: the "dev-cadence clone" is a clone of a temp bare origin built from
+# Offline and fixture-driven: the "agent-cadence clone" is a clone of a temp bare origin built from
 # this checkout's launcher/, files/ and sync.sh; HOME, XDG and the roster are temp.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" XDG_CACHE_HOME="$TMP/cache" DEV_CADENCE_REG_DIR="$TMP/reg"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" XDG_CACHE_HOME="$TMP/cache" AGENT_CADENCE_REG_DIR="$TMP/reg"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset SHIFTLEAD_SESSION CADENCE_REPO_ROOT CADENCE_TEMP_ROOTS
@@ -26,9 +26,9 @@ git -C "$TMP/build" add -A && git -C "$TMP/build" commit -qm c1 && git -C "$TMP/
 git clone -q --bare "$TMP/build" "$ORIGIN"
 git clone -q "$ORIGIN" "$CL"
 HEAD1=$(git -C "$CL" rev-parse HEAD)
-adopt() { (cd "$CL" && python3 "$DC/launcher/dev_cadence.py" -C "$CL" adopt "$@" 2>&1); }
+adopt() { (cd "$CL" && python3 "$DC/launcher/agent_cadence.py" -C "$CL" adopt "$@" 2>&1); }
 newrepo() { git init -q -b main "$1" && git -C "$1" commit -q --allow-empty -m init; }
-pinval() { python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1],"rb"))["dev-cadence"][sys.argv[2]])' "$1/docs/cadence.toml" "$2"; }
+pinval() { python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1],"rb"))["agent-cadence"][sys.argv[2]])' "$1/docs/cadence.toml" "$2"; }
 mapfile -t SEEDS < <(bash -c 'eval "$(sed -n "/^SEED_FILES=(/,/^)/p" "$1")"; printf "%s\n" "${SEED_FILES[@]}"' _ "$DC/sync.sh")
 
 # --- 1) a new repo: seeds, the pin at origin's URL and HEAD with its tag, shims, the roster, no commit
@@ -40,12 +40,12 @@ python3 -c 'import json, sys; f = json.load(open(sys.argv[1]))["context"]["fileN
     && ok "the seeded .gemini/settings.json makes Gemini CLI read AGENTS.md (TD-111)" || bad "gemini seed: $(cat "$T/.gemini/settings.json" 2>&1)"
 [ "$(pinval "$T" source)" = "$ORIGIN" ] && [ "$(pinval "$T" ref)" = "$HEAD1" ] \
     && ok "the pin: source is origin's URL, ref the clone's HEAD" || bad "pin: $(cat "$T/docs/cadence.toml" | tail -4)"
-grep -qx "ref = \"$HEAD1\"   # v9" "$T/docs/cadence.toml" && grep -qx '\[dev-cadence\]' "$T/docs/cadence.toml" \
-    && ok "HEAD at a tag: the tag is the ref line's comment; the header is written exactly [dev-cadence]" || bad "tag/header: $(tail -3 "$T/docs/cadence.toml")"
-grep -qsE '^[[:space:]]*\[dev-cadence\][[:space:]]*(#.*)?$' "$T/docs/cadence.toml" && grep -qF 'dev-cadence hook' "$T/.git/hooks/pre-push" \
-    && grep -qF "dev-cadence hook shim (TD-055)" "$T/.git/hooks/pre-push" \
+grep -qx "ref = \"$HEAD1\"   # v9" "$T/docs/cadence.toml" && grep -qx '\[agent-cadence\]' "$T/docs/cadence.toml" \
+    && ok "HEAD at a tag: the tag is the ref line's comment; the header is written exactly [agent-cadence]" || bad "tag/header: $(tail -3 "$T/docs/cadence.toml")"
+grep -qsE '^[[:space:]]*\[agent-cadence\][[:space:]]*(#.*)?$' "$T/docs/cadence.toml" && grep -qF 'agent-cadence hook' "$T/.git/hooks/pre-push" \
+    && grep -qF "agent-cadence hook shim (TD-055)" "$T/.git/hooks/pre-push" \
     && ok "the shims are installed, and their pin test finds the pin adopt wrote" || bad "shims: $(ls "$T/.git/hooks") / $out"
-[ "$(cat "$DEV_CADENCE_REG_DIR/repos.txt")" = "$(realpath "$T")" ] && ok "the repo is on the roster" || bad "roster: $(cat "$DEV_CADENCE_REG_DIR/repos.txt" 2>&1)"
+[ "$(cat "$AGENT_CADENCE_REG_DIR/repos.txt")" = "$(realpath "$T")" ] && ok "the repo is on the roster" || bad "roster: $(cat "$AGENT_CADENCE_REG_DIR/repos.txt" 2>&1)"
 [ "$(git -C "$T" rev-list --count HEAD)" = 1 ] && [ -n "$(git -C "$T" status --porcelain)" ] \
     && ok "nothing committed: the seeds and the pin are left for a PR" || bad "commits: $(git -C "$T" log --oneline)"
 python3 -c 'import sys,tomllib; tomllib.load(open(sys.argv[1],"rb"))' "$T/docs/cadence.toml" && grep -q '^# review-model' "$T/docs/cadence.toml" \
@@ -54,8 +54,8 @@ python3 -c 'import sys,tomllib; tomllib.load(open(sys.argv[1],"rb"))' "$T/docs/c
 # --- 2) again: idempotent — the pin kept, seeds kept, one roster line
 before=$(cat "$T/docs/cadence.toml")
 out=$(adopt "$T"); rc=$?
-[ $rc -eq 0 ] && [ "$(cat "$T/docs/cadence.toml")" = "$before" ] && grep -q "already has a \[dev-cadence\] pin" <<< "$out" \
-    && grep -q "keep  AGENTS.md" <<< "$out" && [ "$(wc -l < "$DEV_CADENCE_REG_DIR/repos.txt")" = 1 ] \
+[ $rc -eq 0 ] && [ "$(cat "$T/docs/cadence.toml")" = "$before" ] && grep -q "already has a \[agent-cadence\] pin" <<< "$out" \
+    && grep -q "keep  AGENTS.md" <<< "$out" && [ "$(wc -l < "$AGENT_CADENCE_REG_DIR/repos.txt")" = 1 ] \
     && ok "a second run changes nothing and adds no roster line" || bad "rerun rc=$rc: $out"
 
 # --- 3) a repo's own cadence.toml (no final newline) and its opt-outs: [skip-seed], §4 not adopted
@@ -77,7 +77,7 @@ out=$(adopt "$T"); rc=$?
 
 # --- 3c) TD-168 (TD-133, as the retired copy's first sync): the repo's own ledger and board are read by the
 # pinned readers first; one they cannot read is refused with the list, and nothing is written
-untouched() { [ ! -e "$1/docs/cadence.toml" ] && [ ! -e "$1/AGENTS.md" ] && ! grep -qs "dev-cadence" "$1/.git/hooks/pre-push"; }
+untouched() { [ ! -e "$1/docs/cadence.toml" ] && [ ! -e "$1/AGENTS.md" ] && ! grep -qs "agent-cadence" "$1/.git/hooks/pre-push"; }
 refuse() {  # refuse <dir> <what the output names> <label>
   local out rc; out=$(adopt "$1"); rc=$?
   [ $rc -eq 2 ] && [[ "$out" == *"adopt refuses"*"$2"*"nothing was written"* ]] && untouched "$1" && ok "$3" || bad "$3: rc=$rc $out"
@@ -104,10 +104,10 @@ T="$TMP/t4"; newrepo "$T"; mkdir -p "$T/scripts"; echo x > "$T/scripts/cadence_h
 refuse "a repo carrying a synced copy (the migration is sync.sh's)" "carries synced copies (scripts/cadence_hooks.sh" "$T"
 T="$TMP/t5"; newrepo "$T"; mkdir -p "$T/docs"; echo x > "$T/docs/cadence-sync.lock"
 refuse "a repo with a sync lock" "carries synced copies (docs/cadence-sync.lock" "$T"
-refuse "dev-cadence's own clone" "is a dev-cadence clone" "$CL"
+refuse "agent-cadence's own clone" "is an agent-cadence clone" "$CL"
 mkdir -p "$TMP/plain"; refuse "not a git checkout" "is not a git checkout" "$TMP/plain"
-T="$TMP/t8"; newrepo "$T"; mkdir -p "$T/docs"; printf 'dev-cadence.source = "x"\ndev-cadence.ref = "y"\n' > "$T/docs/cadence.toml"
-refuse "a pin in a form the hooks cannot detect (a dotted key)" "pins dev-cadence in another TOML form" "$T"
+T="$TMP/t8"; newrepo "$T"; mkdir -p "$T/docs"; printf 'agent-cadence.source = "x"\nagent-cadence.ref = "y"\n' > "$T/docs/cadence.toml"
+refuse "a pin in a form the hooks cannot detect (a dotted key)" "pins agent-cadence in another TOML form" "$T"
 T="$TMP/t9"; newrepo "$T"; git -C "$CL" remote set-url origin "https://u:s3cret@example.com/dc.git"
 refuse "an origin URL carrying a credential" "carries a credential" "$T"
 git -C "$CL" remote set-url origin "https://ghp_t0ken@example.com/dc.git"
@@ -142,8 +142,8 @@ git -C "$CL" update-index --no-assume-unchanged files/AGENTS.md; cp "$TMP/agents
 
 # --- 6) a temp-dir repo is never written to a roster outside the temp roots (TD-068)
 T="$TMP/fx/t7"; mkdir -p "$TMP/fx"; newrepo "$T"
-out=$( cd "$CL" && CADENCE_TEMP_ROOTS="$TMP/fx" python3 "$DC/launcher/dev_cadence.py" -C "$CL" adopt "$T" 2>&1 ); rc=$?
-[ $rc -eq 0 ] && grep -q "registration skipped" <<< "$out" && ! grep -qxF "$(realpath "$T")" "$DEV_CADENCE_REG_DIR/repos.txt" \
+out=$( cd "$CL" && CADENCE_TEMP_ROOTS="$TMP/fx" python3 "$DC/launcher/agent_cadence.py" -C "$CL" adopt "$T" 2>&1 ); rc=$?
+[ $rc -eq 0 ] && grep -q "registration skipped" <<< "$out" && ! grep -qxF "$(realpath "$T")" "$AGENT_CADENCE_REG_DIR/repos.txt" \
     && ok "a temp-dir repo and a roster outside the temp roots: registration skipped, said" || bad "temp roster rc=$rc: $out"
 
 # --- 7) parity: adopt's reading of sync.sh's arrays is bash's own

@@ -327,8 +327,8 @@ mkwt r12b landed 'echo work >> base.txt; git commit -qam "real work"'
 squash r12b landed
 out=$(report r12b); pinned=$(CADENCE_REPO_ROOT="$TMP/r12b" report r12b)
 if grep -q "— run scripts/reap_worktrees.sh --reap to remove$" <<< "$out" \
-   && grep -q "— run dev-cadence run reap_worktrees.sh --reap to remove$" <<< "$pinned"; then
-    ok "the closing line: scripts/reap_worktrees.sh in a copy, dev-cadence run reap_worktrees.sh from a pin"
+   && grep -q "— run agent-cadence run reap_worktrees.sh --reap to remove$" <<< "$pinned"; then
+    ok "the closing line: scripts/reap_worktrees.sh in a copy, agent-cadence run reap_worktrees.sh from a pin"
 else
     bad "closing line: copy='$(tail -1 <<< "$out")' pinned='$(tail -1 <<< "$pinned")'"
 fi
@@ -586,7 +586,7 @@ else
 fi
 
 
-# --- 22. TD-038: dev-cadence's own layout (payload under files/scripts/) --------------
+# --- 22. TD-038: agent-cadence's own layout (payload under files/scripts/) --------------
 # The reaper finds check_anchor.py and hydrate beside itself; with scripts/ hardcoded
 # the registry probe failed here, every row read idle=? and nothing was ever reapable.
 # post-merge finds the reaper beside its own git-hooks/ directory the same way.

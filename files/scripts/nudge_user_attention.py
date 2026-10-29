@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/nudge_user_attention.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """Due-date nudges for docs/user_attention.md items, delivered to any channel.
 
 Reads the user-attention board, finds unchecked items whose optional
@@ -21,8 +21,8 @@ generic hook comes first):
      is visible.
 
 When a message is going out anyway (due items, or the Monday summary), a
-best-effort staleness line rides along if the board repo's dev-cadence pin
-(``[dev-cadence]`` in ``docs/cadence.toml``) lacks the upstream's latest payload commit
+best-effort staleness line rides along if the board repo's agent-cadence pin
+(``[agent-cadence]`` in ``docs/cadence.toml``) lacks the upstream's latest payload commit
 (anonymous-https ``git ls-remote``, 5 s timeout, silent on any failure), or the repo still
 carries a ``docs/cadence-sync.lock`` that nothing syncs any more (TD-169) —
 so a consumer repo can't quietly fall behind for weeks. Staleness alone never
@@ -42,7 +42,7 @@ Report mode (``--report``, plan 2026-08-10 P2): print a machine-wide attention
 report to stdout and exit — no delivery channel is ever invoked, regardless of
 NUDGE_COMMAND/TELEGRAM_* being set. Boards come from repeated ``--board`` flags,
 or (with none) from every entry in this machine's roster
-(``repos.txt`` in ``$DEV_CADENCE_REG_DIR``, else ``${XDG_CONFIG_HOME:-~/.config}/dev-cadence`` — written by `dev-cadence
+(``repos.txt`` in ``$AGENT_CADENCE_REG_DIR``, else ``${XDG_CONFIG_HOME:-~/.config}/agent-cadence`` — written by `agent-cadence
 adopt`; path-resolution spec: cadence.md §Machine scope), falling back to the
 usual single-board resolution when no roster exists. Offline and fast by
 default; ``--fetch`` (opt-in) additionally fetches each repo's origin serially —
@@ -166,7 +166,7 @@ class FormatTooNew(ValueError):
 def checked(text: str, where: object) -> str:
     """`text` once ledgerboard's version_problem() finds nothing in it; else FormatTooNew naming
     `where` (TD-133, cadence.md §2.12). The spec's rule is that a reader meeting a newer major reads
-    nothing and says so, and no parser checks for its caller — so every dev-cadence script that
+    nothing and says so, and no parser checks for its caller — so every agent-cadence script that
     parses a ledger or a board reads it through here (this script, ledger.py, ledger_next_id.py,
     check_cadence.py), and a reader added later does too; board_edit.py, which imports ledgerboard
     alone, calls version_problem() itself."""
@@ -484,7 +484,7 @@ PAYLOAD_PATHS = ("files/", "launcher/", "sync.sh")
 
 
 def _fresh_upstream_clone(url: str) -> tuple[Path, str] | None:
-    """(root, origin/<default>) of a dev-cadence clone on this machine's roster whose origin is
+    """(root, origin/<default>) of an agent-cadence clone on this machine's roster whose origin is
     `url` (TD-035); None when there is none — or when that clone's origin/<default> is not the
     remote's tip right now (a live ls-remote, the same call the fallback makes): a clone nobody
     re-fetched must never answer "in step" for a repo that is behind."""
@@ -509,7 +509,7 @@ def _fresh_upstream_clone(url: str) -> tuple[Path, str] | None:
 
 
 def _read_pin(toml: Path) -> tuple[str, str] | None:
-    """(source, ref) of the [dev-cadence] pin in a repo's docs/cadence.toml; None when there is
+    """(source, ref) of the [agent-cadence] pin in a repo's docs/cadence.toml; None when there is
     none or it cannot be read (an older Python has no tomllib: nothing to say, not a failure)."""
     if not toml.is_file():
         return None
@@ -517,7 +517,7 @@ def _read_pin(toml: Path) -> tuple[str, str] | None:
         import tomllib
     except ImportError:
         return None
-    pin = tomllib.loads(toml.read_text(encoding="utf-8")).get("dev-cadence")
+    pin = tomllib.loads(toml.read_text(encoding="utf-8")).get("agent-cadence")
     if not isinstance(pin, dict):
         return None
     source, ref = pin.get("source"), pin.get("ref")
@@ -545,7 +545,7 @@ def staleness_line(board: Path | None) -> str | None:
     Reads docs/cadence.toml next to the board (so the check targets the BOARD's repo even
     when this script runs from another repo's checkout). A pinned repo (cadence.md §9.19) is
     behind when upstream's last commit touching the payload (PAYLOAD_PATHS) is not in its
-    pin — TD-035's rule: a ledger edit upstream never reads as "behind". A dev-cadence clone
+    pin — TD-035's rule: a ledger edit upstream never reads as "behind". An agent-cadence clone
     on this machine's roster, fetched to the remote's tip, answers it; without one the
     fallback is the remote HEAD via anonymous ``ls-remote``, which cannot tell a payload
     change from any other, so its line says so. A repo with no pin that still carries
@@ -578,7 +578,7 @@ def staleness_line(board: Path | None) -> str | None:
                     return None
                 _, n = _git_out(root, "rev-list", "--count", f"{ref}..{tip}", "--", *PAYLOAD_PATHS)
                 return (f"🔄 cadence pin behind ({n or '?'} payload commit(s) since the pin {ref[:8]} → "
-                        f"upstream {upstream[:8]}): move it with a `dev-cadence bump` PR in this repo.")
+                        f"upstream {upstream[:8]}): move it with an `agent-cadence bump` PR in this repo.")
         r = subprocess.run(
             ["git", "ls-remote", url, "HEAD"],
             check=False,
@@ -593,7 +593,7 @@ def staleness_line(board: Path | None) -> str | None:
             return None
         return (
             f"🔄 cadence upstream moved (pin {ref[:8]} → upstream {head[:8]}) — possibly only files "
-            f"outside the payload; `dev-cadence bump` with no argument lists what is new."
+            f"outside the payload; `agent-cadence bump` with no argument lists what is new."
         )
     except (OSError, subprocess.SubprocessError, UnicodeDecodeError, ValueError):
         # The best-effort family the docstring means: the file unreadable (a TOML error is a
@@ -790,12 +790,12 @@ def sweep_note_for(content: str, today: date, root: Path | None) -> str | None:
 
 
 def machine_dir() -> Path:
-    """The machine-scope directory (cadence.md §9): DEV_CADENCE_REG_DIR when set — it
+    """The machine-scope directory (cadence.md §9): AGENT_CADENCE_REG_DIR when set — it
     isolates only the roster, leaving gh's credentials under XDG_CONFIG_HOME alone
-    (TD-029) — else ${XDG_CONFIG_HOME:-~/.config}/dev-cadence."""
-    if os.environ.get("DEV_CADENCE_REG_DIR"):
-        return Path(os.environ["DEV_CADENCE_REG_DIR"])
-    return Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")) / "dev-cadence"
+    (TD-029) — else ${XDG_CONFIG_HOME:-~/.config}/agent-cadence."""
+    if os.environ.get("AGENT_CADENCE_REG_DIR"):
+        return Path(os.environ["AGENT_CADENCE_REG_DIR"])
+    return Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")) / "agent-cadence"
 
 
 def registry_path() -> Path:
@@ -1226,7 +1226,7 @@ def settings_line(root: Path, spent: dict) -> str | None:
     if not off:
         return None
     # a pinned repo has no scripts/ copy: name the launcher's word (TD-164)
-    cmd = "dev-cadence run adopt_repo_settings.sh" if os.environ.get("CADENCE_REPO_ROOT", "").strip() else "scripts/adopt_repo_settings.sh"
+    cmd = "agent-cadence run adopt_repo_settings.sh" if os.environ.get("CADENCE_REPO_ROOT", "").strip() else "scripts/adopt_repo_settings.sh"
     return (f"⚙ repo settings differ from cadence.md §4: {', '.join(off)} — "
             f"`{cmd} --check` for the detail (never applied from here)")
 

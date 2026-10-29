@@ -8,8 +8,8 @@ DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 S="$DC/files/scripts"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -37,15 +37,15 @@ put true false false true
 [ "$(line "$R")" = NONE ] && ok "settings as the cadence wants: no line" || bad "clean: $(line "$R")"
 # a repo that keeps auto-delete off on purpose, listed in no_auto_delete.txt: not nagged about it
 put true false false false
-echo "Tester/Thing  # stacks PRs" > "$DEV_CADENCE_REG_DIR/no_auto_delete.txt"
+echo "Tester/Thing  # stacks PRs" > "$AGENT_CADENCE_REG_DIR/no_auto_delete.txt"
 [ "$(line "$R")" = NONE ] && ok "no_auto_delete.txt: auto-delete off is not drift for a listed repo" || bad "opt-out: $(line "$R")"
 put true true false false
 line "$R" | grep -q "allow_merge_commit on" && ! line "$R" | grep -q delete_branch && ok "…but its other settings still are" || bad "opt-out others: $(line "$R")"
-rm "$DEV_CADENCE_REG_DIR/no_auto_delete.txt"
+rm "$AGENT_CADENCE_REG_DIR/no_auto_delete.txt"
 put true true false false
 [ "$(line "$R")" = "⚙ repo settings differ from cadence.md §4: allow_merge_commit on, delete_branch_on_merge off — \`scripts/adopt_repo_settings.sh --check\` for the detail (never applied from here)" ] \
     && ok "drift: one line naming each setting, pointing at the adopt script" || bad "drift: $(line "$R")"
-CADENCE_REPO_ROOT="$R" line "$R" | grep -qF "— \`dev-cadence run adopt_repo_settings.sh --check\` for the detail" \
+CADENCE_REPO_ROOT="$R" line "$R" | grep -qF "— \`agent-cadence run adopt_repo_settings.sh --check\` for the detail" \
     && ok "drift from a pin: the hint is the launcher's word (TD-164)" || bad "drift pinned: $(CADENCE_REPO_ROOT="$R" line "$R")"
 put true true false null
 [ "$(line "$R")" = NONE ] && ok "a null field (a non-admin): nothing said — never a guess" || bad "null: $(line "$R")"
@@ -65,7 +65,7 @@ have=$(python3 -c "import sys; sys.path.insert(0,'$S'); import nudge_user_attent
 # --json carries it for fetched rows of the full report, never for --due-only (report()'s wiring,
 # in-process: a real --fetch against a GitHub origin would go to the network)
 B="$TMP/wired"; git init -q "$B"; mkdir -p "$B/docs"; echo "# board" > "$B/docs/user_attention.md"
-echo "$B" > "$DEV_CADENCE_REG_DIR/repos.txt"
+echo "$B" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 w=$(python3 - "$S" <<'PYW'
 import contextlib, io, json, sys
 sys.path.insert(0, sys.argv[1]); import nudge_user_attention as N

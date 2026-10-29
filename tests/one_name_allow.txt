@@ -1,0 +1,31 @@
+# The tool has one name, agent-cadence (the plan 2026-10-29-hard-rename). tests/test_one_name.sh fails on
+# any `dev[-_]cadence` (case-insensitive) in a tracked file that no line here covers. One per line:
+# `<path-glob> <line-glob>`, fnmatch, case-insensitive, the line glob matched against the whole line.
+# This list holds exactly the plan's *What keeps the name*; a line that matches nothing is named.
+
+# This list names what it allows.
+tests/one_name_allow.txt *
+
+# Frozen or historical files, kept whole: the append-only change log, the ledger's records (their
+# `dev-cadence#TD-NNN` refs name ids archived in the private repo), the plan, the vendored ledgerboard
+# release (byte-frozen until a release renames it, ledgerboard#TD-004) and the retired copy mode.
+files/docs/cadence-changes.md *
+docs/ledger/TD-*.md *
+docs/ledger/archive/TD-*.md *
+docs/plans/2026-10-29-hard-rename.md *
+files/scripts/ledgerboard.py *
+tests/ledgerboard/* *
+tests/fixtures/legacy_sync.sh *
+# The provenance test reads that release's own SYNCED FILE line.
+tests/test_sync_provenance.sh *(vendored by dev-cadence as files/*
+
+# The two prose forms that name the private predecessor repo, on any path.
+* *dev-cadence's private plan*
+* *the private dev-cadence repo*
+
+# The publish gate's own name list, and its cases: the gate reads the old name as the tool's own.
+files/scripts/cadence_layer.py TOOL_NAMES = {"dev-cadence", "agent-cadence"}
+tests/test_cadence_layer.sh *$TMP/elsewhere/dev-cadence"*
+tests/test_cadence_layer.sh dev-cadence and agent-cadence are the tool
+tests/test_cadence_layer.sh *publish-names = ?"dev-cadence"?*
+tests/test_cadence_layer.sh *publish-names lists dev-cadence, the tool's own name*

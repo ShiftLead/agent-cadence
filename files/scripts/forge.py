@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/forge.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """The forge adapter (TD-103, the decision in TD-097): every question the PR tooling asks a
 forge goes through here, in one neutral shape, so a second forge is one more backend and
 never a branch in each caller.
@@ -628,7 +628,7 @@ class GitLab(_CLI):
     auto_delete = "remove_source_branch_after_merge"
     not_squash_hint = (" — a merge_method = merge project lands a merge commit around the squash; "
                        "the cadence wants merge_method ff with squash_option always "
-                       + ("(dev-cadence run adopt_repo_settings.sh)" if os.environ.get("CADENCE_REPO_ROOT", "").strip()
+                       + ("(agent-cadence run adopt_repo_settings.sh)" if os.environ.get("CADENCE_REPO_ROOT", "").strip()
                           else "(scripts/adopt_repo_settings.sh)"))   # TD-164: a pinned repo has no scripts/
 
     def __init__(self, slug: str | None = None, **kw):

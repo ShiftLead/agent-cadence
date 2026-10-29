@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/agent_sessions.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """The session adapter (TD-100): what the safety nets know about agent sessions, read
 through one module with a backend per tool (docs/plans/2026-10-12-session-introspection-adapter.md
-in dev-cadence).
+in agent-cadence).
 
 The nets — the anchor guard (check_anchor.py), the reaper's idle gate (reap_worktrees.sh),
 the session index (list_sessions.py) and the sweep row (nudge_user_attention.py) — ask
@@ -242,7 +242,7 @@ def format_canary() -> "str | None":
 
 # ----------------------------------------------------------------------------------------
 # The Gemini CLI backend (TD-109), on the facts read off Gemini CLI 0.64.0 on 2026-10-13
-# (docs/plans/2026-10-12-session-introspection-adapter.md in dev-cadence, *Gemini CLI, as
+# (docs/plans/2026-10-12-session-introspection-adapter.md in agent-cadence, *Gemini CLI, as
 # read*): ~/.gemini/projects.json maps an absolute path to a slug (the basename,
 # lowercased); tmp/<slug>/.project_root holds the path again; each session is
 # tmp/<slug>/chats/session-<time>-<uuid8>.jsonl, its first record {sessionId, projectHash,
@@ -443,7 +443,7 @@ def gemini_format_note() -> "str | None":
 
 # ----------------------------------------------------------------------------------------
 # The Codex CLI backend (TD-102), on the facts read off codex-cli 0.163.0 on 2026-10-20
-# (docs/plans/2026-10-12-session-introspection-adapter.md in dev-cadence, *Codex CLI, as
+# (docs/plans/2026-10-12-session-introspection-adapter.md in agent-cadence, *Codex CLI, as
 # read*): one rollout per session at $CODEX_HOME/sessions/YYYY/MM/DD/rollout-<local
 # time>-<uuid>.jsonl, every record {timestamp, ordinal, type, payload}, the first a
 # session_meta whose payload carries id, timestamp and cwd; user and assistant turns are

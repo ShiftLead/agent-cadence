@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/ledger.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """What in the TD ledger may be picked now, and what is blocked on what (TD-064).
 
     ledger.py --pickable [--ledger PATH] [--archive PATH] [--json]
@@ -16,9 +16,9 @@ after it runs to the end of the line and may hold anything. An ID may name anoth
 (TD-071), ``<repo>#TD-NNN`` — ``<repo>`` a roster path's basename, or ``owner/name`` (its origin)
 when basenames collide:
 
-    **Blocked by:** dev-cadence#TD-036, TD-120
+    **Blocked by:** agent-cadence#TD-036, TD-120
 
-It resolves through this machine's roster (cadence.md §9, ``$DEV_CADENCE_REG_DIR`` honoured) to
+It resolves through this machine's roster (cadence.md §9, ``$AGENT_CADENCE_REG_DIR`` honoured) to
 that clone's ledger and archive, read from its ``origin/<default>`` when the ref exists, else its
 working tree; it lifts when the entry is in that archive. Anything it cannot resolve keeps the block. **Pickable is derived, never written:** an entry is pickable when
 it has no Blocked by field, or every entry it names is archived and it names no decision.

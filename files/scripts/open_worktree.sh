@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/open_worktree.sh
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 # Create (if needed) a worktree for a topic and open it in its own VS Code window.
 #
 # FOR A WORKTREE THE PERSON WILL OPEN — NOT A SESSION'S OWN (TD-139, cadence.md §1.1)
@@ -85,8 +85,8 @@ CLONE_ROOT="$(cd "$(dirname "$(git rev-parse --git-common-dir)")" && pwd)"
 # Sibling scripts (hydrate, the workspace generator) come from the main checkout:
 # $CLONE_ROOT/scripts/<name> first — what a synced consumer has — then the main
 # checkout's copy at THIS script's repo-relative directory (files/scripts/ in
-# dev-cadence itself, where scripts/ does not exist), and only then the copy beside
-# this one — all a repo has once it runs its pinned dev-cadence through the launcher
+# agent-cadence itself, where scripts/ does not exist), and only then the copy beside
+# this one — all a repo has once it runs its pinned agent-cadence through the launcher
 # and carries no scripts/ (TD-129). Parity: the same order as reap_worktrees.sh's
 # sibling(). Without this, a repo with no scripts/ got an unhydrated worktree, silently.
 _HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -112,7 +112,7 @@ _here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _wt_written() {
     _v="${CADENCE_WORKTREE_ROOT:-}"; [[ -n "${_v// /}" ]] && return 0
     grep -qsE '^[[:space:]]*"?worktree-root"?[[:space:]]*=' "$CLONE_ROOT/docs/cadence.toml" \
-        "${DEV_CADENCE_REG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/dev-cadence}/cadence.toml"
+        "${AGENT_CADENCE_REG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/agent-cadence}/cadence.toml"
 }
 if command -v python3 >/dev/null 2>&1 && [[ -f "$_here/cadence_config.py" ]]; then
     if ! WT_ROOT="$(python3 "$_here/cadence_config.py" get worktree-root --repo "$CLONE_ROOT")"; then

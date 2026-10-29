@@ -36,7 +36,6 @@ files/scripts/cadence_layer.py a machine path (*) :: *a home directory named in 
 files/scripts/cadence_layer.py a machine path (*) :: *_RE = re.compile(*
 files/scripts/cadence_layer.py a machine path (*) :: *r"[^/\\\s`*
 tests/test_cadence_layer.sh a machine path (/home/jdoe)
-tests/test_snapshot_public.sh a machine path (/home/realname)
 tests/test_cadence_layer.sh an email address (alex@acme-mail.io)
 tests/test_cadence_layer.sh an email address (x@example.com.evil.io)
 tests/test_cadence_layer.sh an email address (y@notexample.com)

@@ -4,14 +4,14 @@
 # counts and cap — through nudge_user_attention.py --report [--due-only] [--json] --board.
 # Existing boards (no kind word) parse unchanged: the other report suites are that check.
 #
-# Offline: HOME/XDG_CONFIG_HOME/DEV_CADENCE_REG_DIR are temp; dates derive from the run date.
+# Offline: HOME/XDG_CONFIG_HOME/AGENT_CADENCE_REG_DIR are temp; dates derive from the run date.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 N="$DC/files/scripts/nudge_user_attention.py"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg"
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg"
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -168,10 +168,10 @@ grep -q "⚠ 5 open items on this board (over 4)" <<< "$full" && ! grep -q "ledg
     && ok "TD-134 the repo's board-size-warn (an integer) and escalate-overdue-days (a string) are read" || bad "repo keys: $full"
 j=$(rep --json | python3 -c 'import json,sys; b=json.load(sys.stdin)["boards"][0]; print(b["limits"]["board-size-warn"], b["limits"]["escalate-overdue-days"], b["size"][:22], b["items"][-1]["escalate"])')
 [ "$j" = "4 30 ⚠ 5 open items on this None" ] && ok "TD-134 --json: the board's limits, and its size and escalation read with them" || bad "json limits: $j"
-rm "$C"; printf 'board-size-warn = "4"\n' > "$DEV_CADENCE_REG_DIR/cadence.toml"
+rm "$C"; printf 'board-size-warn = "4"\n' > "$AGENT_CADENCE_REG_DIR/cadence.toml"
 full=$(rep); grep -q "(over 4)" <<< "$full" && grep -q "ledger it and close it here" <<< "$full" \
     && ok "TD-134 the machine's value, and the default (14) for the key it leaves out" || bad "machine key: $full"
-rm "$DEV_CADENCE_REG_DIR/cadence.toml"
+rm "$AGENT_CADENCE_REG_DIR/cadence.toml"
 full=$(CADENCE_ESCALATE_OVERDUE_DAYS=25 rep); ! grep -q "ledger it and close it here" <<< "$full" && ok "TD-134 env CADENCE_ESCALATE_OVERDUE_DAYS wins" || bad "env key: $full"
 printf 'board-size-warn = 0\n' > "$C"; full=$(rep)
 grep -q "⚠ a threshold setting cannot be read: .*board-size-warn must be a whole number of 1 or more, not 0 — using 15" <<< "$full" \
@@ -188,12 +188,12 @@ for x in A B; do
   { printf '# board\n\nSwept: %s (h, deep)\n\n' "$T0"; for n in $(seq 1 4); do echo "- [ ] act $RAISED (n/a) — $x task $n. Due: $(d '20 days ago')."; done; } > "$TMP/$x/docs/user_attention.md"
 done
 printf 'board-size-warn = 3\nescalate-overdue-days = 30\n' > "$TMP/A/docs/cadence.toml"
-printf '%s\n%s\n' "$TMP/A" "$TMP/B" > "$DEV_CADENCE_REG_DIR/repos.txt"
+printf '%s\n%s\n' "$TMP/A" "$TMP/B" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 out=$(cd "$TMP/B" && python3 "$N" --report --due-only 2>&1)
 grep -q "^⚠ board(s) over their repo's board-size-warn — triage or ledger them: A 4$" <<< "$out" \
     && grep -q "^⚠ 4 item(s) overdue past their repo's escalate-overdue-days" <<< "$out" \
     && ok "TD-134 --due-only: each roster board by its own repo's values (A's size and escalation, B's defaults)" || bad "due-only per repo: $out"
-rm "$DEV_CADENCE_REG_DIR/repos.txt"
+rm "$AGENT_CADENCE_REG_DIR/repos.txt"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

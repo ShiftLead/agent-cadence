@@ -1,8 +1,8 @@
-This is dev-cadence's part of the grinder brief (ShiftLead design §4.8, its TD-114): what this repo does differently from the template above and below it, and nothing the template already says. The team is **dc-grind**, started by `ao team start dc-grind` on the person's machine; your manager is **manager-dc-1**. Paul is not driving you.
+This is agent-cadence's part of the grinder brief (ShiftLead design §4.8, its TD-114): what this repo does differently from the template above and below it, and nothing the template already says. The team is **dc-grind**, started by `ao team start dc-grind` on the person's machine; your manager is **manager-dc-1**. Paul is not driving you.
 
 **First reads, in place of the template's.** `CLAUDE.md`, then `files/docs/cadence.md` §1–§4 and §7 — there is no `docs/cadence.md` here, and no `docs/design.md`: the system's rules are `files/docs/cadence.md`, and a decision lives in `docs/plans/` or in its ledger entry (CLAUDE.md, *Decisions live in*).
 
-**What this repo is.** dev-cadence is the **canonical source** of the cadence system that other repos run from a pinned commit (`dev-cadence`, cadence.md §9.19), and that shapes every fix:
+**What this repo is.** agent-cadence is the **canonical source** of the cadence system that other repos run from a pinned commit (`agent-cadence`, cadence.md §9.19), and that shapes every fix:
 
 - **The system lives under `files/**`**; the scripts you edit are in `files/scripts/`, not `scripts/` (which does not exist here). `docs/**` is this repo's *own* board, ledger and plans: `docs/ledger/` is the live ledger you work, `files/docs/technical_debt.md` the empty template that seeds consumers — never file an entry there. Same trap for `user_attention.md`.
 - **The SYNCED FILE header does not bind you here.** The template says files carrying it are not yours to edit; that is a rule for *consumers*. Under `files/**` this repo holds the canonical copy the header points at, and editing it is the job.
@@ -33,7 +33,7 @@ An entry whose fix needs a decision only Paul can make (a convention with two de
 
 **Standing rules** — these add to the template's never-list:
 
-- **Never run `sync.sh` (its `--pin`) or `dev-cadence adopt` outside a test fixture.** Their last step appends the target to the machine roster `~/.config/dev-cadence/repos.txt` (append-only, cleaned by hand — a reviewer polluted it with `/tmp` paths on 2026-08-10). A hand run is only against a fixture under `$(mktemp -d)` with `DEV_CADENCE_REG_DIR=$(mktemp -d)` set. Moving a consumer's pin (`dev-cadence bump`) is Paul's.
+- **Never run `sync.sh` (its `--pin`) or `agent-cadence adopt` outside a test fixture.** Their last step appends the target to the machine roster `~/.config/agent-cadence/repos.txt` (append-only, cleaned by hand — a reviewer polluted it with `/tmp` paths on 2026-08-10). A hand run is only against a fixture under `$(mktemp -d)` with `AGENT_CADENCE_REG_DIR=$(mktemp -d)` set. Moving a consumer's pin (`agent-cadence bump`) is Paul's.
 - **Never change this clone's git config.** the hook shims in the clone's shared hooks dir (TD-055) are the push guard for every worktree on this clone; a fix that wants it changed changes `install_git_hooks.sh` and says on the board what Paul runs.
 - **Never touch another repo's checkout** (every other repo on this machine's roster, `~/shiftlead` among them), the roster, `consumers.txt`, GitHub repo settings (`gh api -X PATCH`, `adopt_repo_settings.sh --apply`), or `.github/` (CI is TD-047 and Paul's).
 - **No edits to permission settings** or to `CLAUDE.md`'s rules. A `.claude/settings.json` change is a PR like any other, reviewed, and its permissions block is the seed's — nothing wider.

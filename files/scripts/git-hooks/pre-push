@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/git-hooks/pre-push
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 # Block direct pushes to main (docs/cadence.md §4 — all changes go through PRs).
 #
 # Server-side branch protection is paywalled for private repos on GitHub's free
 # plan (GitLab Free has protected branches, which do it server-side), so this
 # client-side hook is the seatbelt on the machine all pushes
-# originate from. Enabled per-clone by scripts/install_git_hooks.sh (`dev-cadence
+# originate from. Enabled per-clone by scripts/install_git_hooks.sh (`agent-cadence
 # adopt` runs it): a shim in the clone's shared .git/hooks execs the MAIN checkout's copy of
 # this file, so every worktree runs the same hook whatever its branch — one on a
 # branch without scripts/git-hooks/ and one whose branch edits this file alike

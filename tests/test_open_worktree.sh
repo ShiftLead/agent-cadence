@@ -84,7 +84,7 @@ out=$( cd "$R" && PATH="$MIN" scripts/open_worktree.sh t4 2>&1 ); rc=$?
     && ok "no code CLI: prints the path to open" || bad "no-code rc=$rc: $out"
 
 # --- 7) siblings (hydrate, the workspace generator): the repo's scripts/ copy first, then the
-# main checkout's copy at this script's repo-relative directory (files/scripts/ in dev-cadence),
+# main checkout's copy at this script's repo-relative directory (files/scripts/ in agent-cadence),
 # then the copy beside this one — all a repo running its pinned tree has (TD-129)
 stub() {  # stub <path> <tag>: a sibling that records which copy ran, and with what
     mkdir -p "$(dirname "$1")"
@@ -108,7 +108,7 @@ WT7="$R/.claude/worktrees/t1"; mkdir -p "$WT7/files/scripts"; cp "$DC/files/scri
 stub "$WT7/files/scripts/hydrate_worktree.sh" worktree-files
 : > "$SIB_LOG"; out=$( cd "$WT7" && PATH="$BIN:$PATH" files/scripts/open_worktree.sh t7 2>&1 ); rc=$?
 [ $rc -eq 0 ] && grep -qx "main-files $R/.claude/worktrees/t7" "$SIB_LOG" && ! grep -q "^worktree-files" "$SIB_LOG" \
-    && ok "dev-cadence's layout, run from a worktree: the main checkout's files/scripts/ hydrate runs, not the worktree's" \
+    && ok "agent-cadence's layout, run from a worktree: the main checkout's files/scripts/ hydrate runs, not the worktree's" \
     || bad "files/scripts rc=$rc: $out / $(cat "$SIB_LOG")"
 
 # 8. its usage says it is the person's, and what a session uses for its own worktree (TD-139, cadence.md §1.1)

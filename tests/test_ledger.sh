@@ -136,11 +136,7 @@ python3 "$LEDGER_PY" --pickable --ledger "$TMP/nope.md" >/dev/null 2>&1; [ $? = 
   && ok "an unreadable ledger exits 2" || bad "unreadable ledger exit"
 
 # the real ledger parses without flags it cannot explain (smoke: runs, exits 0)
-# a published snapshot (snapshot_public.sh's README note, TD-090) carries none of this repo's own docs/,
-# CLAUDE.md or .claude/: there a dogfood check whose file is absent is not run, said; here it always runs
-snapshot() { grep -q '^> \*dev-cadence, published as agent-cadence\.\*' "$1/README.md"; }
-if [ ! -e "$DC/docs/technical_debt.md" ] && snapshot "$DC"; then echo "NOTE: a published snapshot has no docs/ ledger — the own-ledger smoke check, not run"
-else (cd "$DC" && python3 "$LEDGER_PY" --pickable >/dev/null 2>&1) && ok "runs on this repo's own ledger" || bad "own ledger"; fi
+(cd "$DC" && python3 "$LEDGER_PY" --pickable >/dev/null 2>&1) && ok "runs on this repo's own ledger" || bad "own ledger"
 
 # §2.11 Type: debt before feature within a Priority; unmarked is debt; unknown is flagged, read as debt
 T="$TMP/typed.md"
@@ -410,7 +406,7 @@ cat > "$XL" <<'EOF2'
 **Priority:** Low
 **Blocked by:** Zed/Dup#TD-001, TD-101
 EOF2
-out=$(DEV_CADENCE_REG_DIR="$X/roster" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md" --json 2>&1)
+out=$(AGENT_CADENCE_REG_DIR="$X/roster" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md" --json 2>&1)
 chk=$(python3 -c '
 import json, sys
 r = json.loads(sys.argv[1])
@@ -437,18 +433,18 @@ assert len(r["flags"]) == 6, fl
 print("ok")' "$out" 2>&1)
 [ "$chk" = ok ] && ok "<repo>#TD-NNN: lifted, open (origin wins), unknown repo/entry, ambiguous, owner/name, no ledger" || bad "cross-repo: $chk / $out"
 mkdir -p "$X/empty"
-DEV_CADENCE_REG_DIR="$X/empty" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md" | grep -q "TD-101: cannot resolve other#TD-036 — no roster on this machine; the block stays" \
-  && ok "no roster file: every cross-repo item keeps its block" || bad "no roster: $(DEV_CADENCE_REG_DIR="$X/empty" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md")"
-DEV_CADENCE_REG_DIR="$X/roster" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md" | grep -q "^  TD-102 .* — by other#TD-040$" \
+AGENT_CADENCE_REG_DIR="$X/empty" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md" | grep -q "TD-101: cannot resolve other#TD-036 — no roster on this machine; the block stays" \
+  && ok "no roster file: every cross-repo item keeps its block" || bad "no roster: $(AGENT_CADENCE_REG_DIR="$X/empty" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md")"
+AGENT_CADENCE_REG_DIR="$X/roster" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md" | grep -q "^  TD-102 .* — by other#TD-040$" \
   && ok "text output names the cross-repo blocker" || bad "text cross-repo"
 # a hung git in another clone (a stuck NFS mount, a held lock) degrades to unresolved, never a crash
 mkdir -p "$X/shim"; REALGIT=$(command -v git)
 printf '#!/bin/sh\ncase " $* " in *" show "*|*" cat-file "*) sleep 5;; esac\nexec "%s" "$@"\n' "$REALGIT" > "$X/shim/git"; chmod +x "$X/shim/git"
-hung=$(PATH="$X/shim:$PATH" LEDGER_GIT_TIMEOUT=1 DEV_CADENCE_REG_DIR="$X/roster" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md" 2>&1); rc=$?
+hung=$(PATH="$X/shim:$PATH" LEDGER_GIT_TIMEOUT=1 AGENT_CADENCE_REG_DIR="$X/roster" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md" 2>&1); rc=$?
 [ "$rc" = 0 ] && grep -q "TD-102: cannot resolve other#TD-040 — no readable docs/technical_debt.md" <<<"$hung" \
   && grep -q "TD-101: cannot resolve other#TD-036" <<<"$hung" \
   && ok "a git call that times out leaves the item blocked and flagged; the run exits 0" || bad "hung git: rc=$rc $hung"
-DEV_CADENCE_REG_DIR="$X/roster" python3 "$LEDGER_PY" --list --owner nobody --ledger "$XL" --archive "$TMP/none.md" >/dev/null 2>&1 \
+AGENT_CADENCE_REG_DIR="$X/roster" python3 "$LEDGER_PY" --list --owner nobody --ledger "$XL" --archive "$TMP/none.md" >/dev/null 2>&1 \
   && ok "--list runs with cross-repo items" || bad "--list cross-repo"
 
 [ -x "$LEDGER_PY" ] && ok "ledger.py is executable" || bad "ledger.py not executable"
@@ -456,9 +452,9 @@ grep -q '"scripts/ledger.py"' "$DC/sync.sh" && ok "sync.sh ships ledger.py" || b
 
 
 # --- TD-073: --check exits 1 on an error; --since judges the edit, not the ledger -------
-# A git repo, because --since reads the ledger at a ref. No roster: DEV_CADENCE_REG_DIR is empty.
+# A git repo, because --since reads the ledger at a ref. No roster: AGENT_CADENCE_REG_DIR is empty.
 C="$TMP/chk"; mkdir -p "$C/docs" "$TMP/reg"; git init -q -b main "$C"
-export DEV_CADENCE_REG_DIR="$TMP/reg"
+export AGENT_CADENCE_REG_DIR="$TMP/reg"
 cgit() { git -C "$C" -c user.email=t@t -c user.name=t "$@"; }
 CL="$C/docs/technical_debt.md"
 ent() { # id, then header lines
@@ -582,7 +578,7 @@ cgit checkout -q base -- docs
 # an unknown ref, and --since without --check: exit 2, said
 out=$(chk --since no-such-ref); rc=$?; [ $rc -eq 2 ] && echo "$out" | grep -q "no commit 'no-such-ref'" && ok "--since an unknown ref exits 2 and says so" || bad "bad ref: rc=$rc $out"
 out=$( cd "$C" && python3 "$LEDGER_PY" --pickable --since base 2>&1 ); rc=$?; [ $rc -eq 2 ] && ok "--since without --check is a usage error" || bad "since alone: rc=$rc $out"
-unset DEV_CADENCE_REG_DIR
+unset AGENT_CADENCE_REG_DIR
 
 # TD-167: a parent held by its open parts says so in every text mode — never an empty reason
 P="$TMP/parts.md"

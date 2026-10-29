@@ -7,9 +7,9 @@
 #                                              # no longer call its scripts/ (TD-147)
 #
 # sync.sh no longer copies into anything (TD-129's closing slice, decided 2026-10-28): every repo
-# runs dev-cadence from its pin (cadence.md §9.19), so the copy mode, `--verify`, the
+# runs agent-cadence from its pin (cadence.md §9.19), so the copy mode, `--verify`, the
 # docs/cadence-sync.lock it wrote and its roster registration are gone, and so is sync-all.sh.
-# A new repo is adopted by `dev-cadence -C <clone> adopt <repo>`. What stays is the three lists
+# A new repo is adopted by `agent-cadence -C <clone> adopt <repo>`. What stays is the three lists
 # below, which `adopt` reads (launcher/words.py _sh_array) and README's file-class table mirrors
 # (tests/test_readme_sync_table.sh):
 #   SYNC  — the files a synced repo carried as copies; `--pin` removes each one still matching its
@@ -26,7 +26,7 @@ for arg in "$@"; do
     case "$arg" in
         --pin) PIN=1 ;;
         --siblings-moved) MOVED=1 ;;
-        --verify) echo "ERROR: sync.sh --verify is retired (TD-129): a pinned repo carries no copies to check — \`dev-cadence bump\` lists what is newer than its pin" >&2; exit 1 ;;
+        --verify) echo "ERROR: sync.sh --verify is retired (TD-129): a pinned repo carries no copies to check — \`agent-cadence bump\` lists what is newer than its pin" >&2; exit 1 ;;
         -*) echo "ERROR: unknown option '$arg' — usage: sync.sh --pin [--siblings-moved] /path/to/target-repo" >&2; exit 1 ;;
         *)  if [ -n "$TARGET" ]; then
                 echo "ERROR: more than one target given ('$TARGET', '$arg')" >&2; exit 1
@@ -37,7 +37,7 @@ done
 if [ "$PIN" = 0 ]; then
     [ "$MOVED" = 1 ] && { echo "ERROR: --siblings-moved goes with --pin (a constellation's home, TD-147)" >&2; exit 1; }
     echo "ERROR: sync.sh no longer copies into a repo (TD-129): adopt a new repo with" >&2
-    echo "  dev-cadence -C <this clone> adopt <repo>" >&2
+    echo "  agent-cadence -C <this clone> adopt <repo>" >&2
     echo "and move a synced one to a pin with ./sync.sh --pin <repo> (cadence.md §9.19)" >&2
     exit 1
 fi
@@ -110,10 +110,10 @@ SEED_FILES=(
 )
 
 # --- --pin: the migration (TD-129, docs/plans/2026-10-25-pinned-not-synced.md Decision 11) -------
-# A synced repo's last sync: the [dev-cadence] pin at this clone's HEAD, the synced copies and the lock
+# A synced repo's last sync: the [agent-cadence] pin at this clone's HEAD, the synced copies and the lock
 # retired by the RETIRED rule (a copy still matching its lock hash is removed, an edited one kept with
 # a WARN), the seeds and the skill pointers (SEED once pinned, Decision 5), the hook shims, the roster.
-# Commits nothing. It is `dev-cadence adopt`'s code (launcher/words.py w_adopt, --migrate), never a
+# Commits nothing. It is `agent-cadence adopt`'s code (launcher/words.py w_adopt, --migrate), never a
 # copy of it; a person moves each repo, one at a time.
 if [ "$MOVED" = 1 ]; then
     exec python3 "$SRC/launcher/words.py" adopt --migrate --siblings-moved "$TARGET"

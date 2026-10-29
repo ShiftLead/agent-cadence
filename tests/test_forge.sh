@@ -6,16 +6,16 @@
 # parent count comes from git when the clone holds the merge commit.
 #
 # Offline: origins are only named, never fetched; `gh` is a PATH shim that logs every call.
-# HOME, XDG_CONFIG_HOME, DEV_CADENCE_REG_DIR and git config are temp.
+# HOME, XDG_CONFIG_HOME, AGENT_CADENCE_REG_DIR and git config are temp.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 S="$DC/files/scripts"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset CADENCE_FORGE
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -82,14 +82,14 @@ import sys; sys.path.insert(0, sys.argv[1]); import forge as F
 print(F.repo_key("github.com/O/R") == F.repo_key("o/r") == ("github.com", "o/r"), F.repo_key("gitlab.example.com/a/b"), F.repo_key("nope"))
 PY
 )" = "True ('gitlab.example.com', 'a/b') None" ] && ok "3a repo_key: github.com/O/R == o/r; another host kept; junk None" || bad "3a"
-printf 'Alpha/One\ngithub.com/beta/two  # stacked\n' > "$DEV_CADENCE_REG_DIR/no_auto_delete.txt"
+printf 'Alpha/One\ngithub.com/beta/two  # stacked\n' > "$AGENT_CADENCE_REG_DIR/no_auto_delete.txt"
 got=$(py3 <<'PY'
 import sys; sys.path.insert(0, sys.argv[1]); import nudge_user_attention as N
 print(sorted(N._no_auto_delete()))
 PY
 )
 [ "$got" = "['alpha/one', 'beta/two']" ] && ok "3b no_auto_delete.txt: both forms name the same repo" || bad "3b: $got"
-printf 'someowner\ngithub.com/c/d\ne/f\ngitlab.com/g/h\ngitlab.com/grp\ngitlab.com\nexample.org/x/y\n' > "$DEV_CADENCE_REG_DIR/remote_repos.txt"
+printf 'someowner\ngithub.com/c/d\ne/f\ngitlab.com/g/h\ngitlab.com/grp\ngitlab.com\nexample.org/x/y\n' > "$AGENT_CADENCE_REG_DIR/remote_repos.txt"
 got=$(py3 <<'PY'
 import sys; sys.path.insert(0, sys.argv[1]); import nudge_user_attention as N
 print(N._read_remote_filter())
@@ -123,7 +123,7 @@ PY
 [ "$got" = forge ] && ok "4b merge_parents: a shallow boundary (0 parents from git) asks the forge" || bad "4b: $got"
 
 # 4c. a remote_repos.txt naming only other hosts is still a filter: no discovery of the user's GitHub
-printf 'example.org/g/h\n' > "$DEV_CADENCE_REG_DIR/remote_repos.txt"; : > "$GH_LOG"
+printf 'example.org/g/h\n' > "$AGENT_CADENCE_REG_DIR/remote_repos.txt"; : > "$GH_LOG"
 out=$(py3 <<'PY'
 import sys, datetime; sys.path.insert(0, sys.argv[1]); import nudge_user_attention as N
 print("\n".join(N.remote_tier([], datetime.date.today())))

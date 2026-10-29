@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/git-hooks/post-merge
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 # Fires after `git merge` — including the fast-forward of `git pull --ff-only`,
 # which is exactly what the anchor runs right after merging a PR. That is the
 # moment a worktree becomes reapable, so it is the natural trigger: no cron, no
@@ -16,7 +16,7 @@
 # Never break or slow a pull: bounded, and exits 0 on every path.
 
 # The reaper is looked for beside this hook's directory (git-hooks/..) first, then
-# under the worktree's scripts/ — the same thing in a consumer, but dev-cadence
+# under the worktree's scripts/ — the same thing in a consumer, but agent-cadence
 # keeps the payload under files/scripts/, where scripts/ made this exit 0 on every
 # pull (TD-038).
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/hydrate_worktree.sh
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 # Bring a worktree's UNTRACKED dependencies into it — and take them back out
 # before it is removed.
 #
@@ -895,7 +895,7 @@ if [[ "$MODE" == hook ]]; then
         done < "$PARSED"
     fi
     # run from a pin, $0 is the cached tree's copy, which gc removes after a bump: name the word (TD-164)
-    if [[ -n "${CADENCE_REPO_ROOT:-}" ]]; then SELF="dev-cadence run hydrate_worktree.sh"; else SELF="$0"; fi
+    if [[ -n "${CADENCE_REPO_ROOT:-}" ]]; then SELF="agent-cadence run hydrate_worktree.sh"; else SELF="$0"; fi
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo "⚠ This worktree is missing ${#MISSING[@]} thing(s) git does not track: ${MISSING[*]}"
         echo "  Run: $SELF '$WT'"
