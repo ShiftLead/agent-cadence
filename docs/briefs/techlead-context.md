@@ -45,7 +45,7 @@ anything about a path:
 | `tests/`, `ruff.toml`, `sync.sh`, `launcher/` | tooling; `sync.sh` holds the payload's file lists and `--pin` (the migration) |
 
 A pinned consumer carries no synced copies, so there is no drift to verify: its convention
-changes arrive by a `agent-cadence bump` PR that moves the pin.
+changes arrive by an `agent-cadence bump` PR that moves the pin.
 
 ## 2. Where answers live
 

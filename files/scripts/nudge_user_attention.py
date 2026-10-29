@@ -578,7 +578,7 @@ def staleness_line(board: Path | None) -> str | None:
                     return None
                 _, n = _git_out(root, "rev-list", "--count", f"{ref}..{tip}", "--", *PAYLOAD_PATHS)
                 return (f"🔄 cadence pin behind ({n or '?'} payload commit(s) since the pin {ref[:8]} → "
-                        f"upstream {upstream[:8]}): move it with a `agent-cadence bump` PR in this repo.")
+                        f"upstream {upstream[:8]}): move it with an `agent-cadence bump` PR in this repo.")
         r = subprocess.run(
             ["git", "ls-remote", url, "HEAD"],
             check=False,

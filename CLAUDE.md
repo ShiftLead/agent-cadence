@@ -44,7 +44,7 @@ Tests are plain bash: each is self-contained, overrides `HOME`/`XDG_CONFIG_HOME`
 
 ## The distribution contract
 
-A consumer runs the commit its pin names; an upgrade is a `agent-cadence bump` PR in that repo (cadence.md §9.19). `sync.sh` keeps the payload's three file lists, `SYNC_FILES` / `SEED_FILES` / `RETIRED_FILES`, which `agent-cadence adopt` reads (`launcher/words.py` `_sh_array`):
+A consumer runs the commit its pin names; an upgrade is an `agent-cadence bump` PR in that repo (cadence.md §9.19). `sync.sh` keeps the payload's three file lists, `SYNC_FILES` / `SEED_FILES` / `RETIRED_FILES`, which `agent-cadence adopt` reads (`launcher/words.py` `_sh_array`):
 
 - **SYNC** — the payload, run from the pinned tree and never present in a consumer. Edit here. `adopt` refuses a repo that still carries a copy; `sync.sh --pin` removes each one still matching its lock hash and keeps an edited one with a WARN.
 - **SEED** — created by `adopt` only if missing (ledger, board, `MEMORY.md`, `.claude/settings.json`, …). The consumer owns the content.

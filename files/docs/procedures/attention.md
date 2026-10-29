@@ -38,7 +38,7 @@ origin's moved — a service-account append, or another machine's push) has its 
 from origin and its header tagged `— showing origin/<default>`; local-only edits and
 two-sided divergence keep reading the local file and say which. Plus a per-repo
 cadence-staleness line when a repo's agent-cadence pin lacks upstream's latest payload commit
-(the cure: a `agent-cadence bump` PR), or the repo still carries a sync lock and no pin (the
+(the cure: an `agent-cadence bump` PR), or the repo still carries a sync lock and no pin (the
 cure: `sync.sh --pin`) — so a behind repo names itself in the fetch view.
 
 For *remote*, add `--remote` instead (it implies `--fetch`): after the local

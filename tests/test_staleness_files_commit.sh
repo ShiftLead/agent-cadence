@@ -54,7 +54,7 @@ echo more >> "$U/docs/technical_debt.md"; git -C "$U" commit -qam "ledger only";
 mkdir -p "$U/launcher"; echo w > "$U/launcher/words.py"; git -C "$U" add -A; git -C "$U" commit -qm "a launcher change"
 echo b >> "$U/files/docs/cadence.md"; git -C "$U" commit -qam "a payload change"; git -C "$U" update-ref refs/remotes/origin/main HEAD
 C4=$(git -C "$U" rev-parse HEAD)
-out=$(line); grep -q "cadence pin behind (2 payload commit(s) since the pin ${C1:0:8} → upstream ${C4:0:8}): move it with a .agent-cadence bump. PR" <<< "$out" \
+out=$(line); grep -q "cadence pin behind (2 payload commit(s) since the pin ${C1:0:8} → upstream ${C4:0:8}): move it with an .agent-cadence bump. PR" <<< "$out" \
     && ok "upstream commits touching files/ and launcher/: the line fires, counting both, naming the bump" || bad "payload change: $out"
 pin "$C4"
 [ "$(line)" = NONE ] && ok "pinned at the latest payload commit: no line" || bad "bumped: $(line)"
