@@ -12,8 +12,8 @@ DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LEDGER_PY="$DC/files/scripts/ledger.py"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/roster"
-mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$DEV_CADENCE_REG_DIR"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/roster"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$AGENT_CADENCE_REG_DIR"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
@@ -221,7 +221,7 @@ O="$TMP/other"; mkv1 "$O"; lp "$O" --split >/dev/null; git -C "$O" add -A; git -
 git init -q --bare -b main "$TMP/other.git"; git -C "$O" remote add origin "$TMP/other.git"
 git -C "$O" push -q origin main; git -C "$O" fetch -q origin
 git -C "$O" mv docs/ledger/TD-003.md docs/ledger/archive/TD-003.md   # archived locally, not pushed: origin wins
-printf '%s\n' "$O" > "$DEV_CADENCE_REG_DIR/repos.txt"
+printf '%s\n' "$O" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 XL="$TMP/xl.md"
 printf '## TD-101: on an archived one there\n\n**Priority:** High\n**Blocked by:** other#TD-1\n\n## TD-102: on an open one there\n\n**Priority:** High\n**Blocked by:** other#TD-003\n' > "$XL"
 out=$(python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md" --json)

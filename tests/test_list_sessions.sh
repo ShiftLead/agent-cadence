@@ -22,7 +22,7 @@ while IFS='|' read -r in want; do
     [ "$got" = "$want" ] && ok "munge '$in' -> '$want'" || bad "munge '$in': got '$got', want '$want'"
 done <<'CASES'
 /workspaces/my_repo|-workspaces-my-repo
-/home/u/dev-cadence|-home-u-dev-cadence
+/home/u/agent-cadence|-home-u-agent-cadence
 /home/u/repo/.claude/worktrees/topic|-home-u-repo--claude-worktrees-topic
 /home/u/my repo+x|-home-u-my-repo-x
 CASES
@@ -143,8 +143,8 @@ jl "$DB/$N.jsonl" "unrelated work here"
 LS="$DC/files/scripts/list_sessions.py"
 ids=$(python3 "$LS" --repo "$RB" --mentioning "$RA" 2>&1 | grep -o '^● [0-9a-f-]*' | sed 's/^● //')
 [ "$(echo $ids)" = "$M" ] && ok "--mentioning: the session in another repo that names this repo's path, and only it" || bad "mentioning: $(echo $ids)"
-mkdir -p "$XDG_CONFIG_HOME/dev-cadence"
-printf '%s\n%s\n%s/\n%s\n' "$RA" "$RB" "$RB" "$TMP/gone" > "$XDG_CONFIG_HOME/dev-cadence/repos.txt"
+mkdir -p "$XDG_CONFIG_HOME/agent-cadence"
+printf '%s\n%s\n%s/\n%s\n' "$RA" "$RB" "$RB" "$TMP/gone" > "$XDG_CONFIG_HOME/agent-cadence/repos.txt"
 ids=$(python3 "$LS" --roster --mentioning "$RA" --days 30 2>/dev/null | grep -o '^● [0-9a-f-]*' | sed 's/^● //')
 [ "$(echo $ids | tr ' ' '\n' | sort | tr '\n' ' ')" = "$(printf '%s\n' "$S1" "$M" | sort | tr '\n' ' ')" ] \
     && ok "--roster --mentioning: candidates from every roster repo (a duplicate spelling and a gone path tolerated)" \
@@ -164,7 +164,7 @@ rm "$DB/$Q.jsonl" "$DB/$X.jsonl"
 jl "$DB/$Q.jsonl" "old work in $RA"; touch -d '40 days ago' "$DB/$Q.jsonl"
 ids=$(python3 "$LS" --repo "$RB" --mentioning "$RA" --days 30 2>&1 | grep -o '^● [0-9a-f-]*' | sed 's/^● //')
 [ "$(echo $ids)" = "$M" ] && ok "--days drops an old matching transcript" || bad "days+mentioning: $(echo $ids)"
-rm "$XDG_CONFIG_HOME/dev-cadence/repos.txt"
+rm "$XDG_CONFIG_HOME/agent-cadence/repos.txt"
 out=$(python3 "$LS" --roster 2>&1); rc=$?
 [ $rc -eq 1 ] && grep -q "roster is empty or missing" <<< "$out" && ok "--roster with no roster and no --repo: says so, exit 1" || bad "no roster rc=$rc: $out"
 

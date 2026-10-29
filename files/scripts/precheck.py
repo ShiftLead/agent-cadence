@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/precheck.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """precheck: run the repo's own checks on a PR's head, in a clean worktree, and record the
 verdict on the PR (TD-117, cadence.md §4.12).
 

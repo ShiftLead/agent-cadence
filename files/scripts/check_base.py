@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/check_base.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """What a session resumed on a topic branch should know about its own base (TD-061).
 
     check_base.py --hook      SessionStart (cadence_hooks.sh): print only what is worth saying

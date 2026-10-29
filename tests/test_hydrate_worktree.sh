@@ -487,7 +487,7 @@ else
     bad "--hook on a symlinked settings file (rc=$hrc): $hook"
 fi
 pinned=$(cd "$W25" && CADENCE_REPO_ROOT="$TMP/h24" "$TMP/h24/scripts/hydrate_worktree.sh" --hook 2>&1)
-if grep -qF "  Run: dev-cadence run hydrate_worktree.sh '$W25'" <<< "$pinned" && grep -qF "  Run: $TMP/h24/scripts/hydrate_worktree.sh '$W25'" <<< "$hook"; then
+if grep -qF "  Run: agent-cadence run hydrate_worktree.sh '$W25'" <<< "$pinned" && grep -qF "  Run: $TMP/h24/scripts/hydrate_worktree.sh '$W25'" <<< "$hook"; then
     ok "--hook's Run: hint is the launcher's word from a pin (TD-164), the script's own path in a copy"
 else
     bad "--hook Run: hint: copy='$(grep Run: <<< "$hook")' pinned='$(grep Run: <<< "$pinned")'"

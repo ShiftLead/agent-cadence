@@ -35,11 +35,8 @@ for f in sys.argv[1:]:
 PY
 }
 
-snapshot() { grep -q '^> \*dev-cadence, published as agent-cadence\.\*' "$1/README.md"; }
 mapfile -t files < <(git ls-files 'docs/ledger/*.md')
-if [ ${#files[@]} -eq 0 ] && [ ! -e "$ROOT/docs" ] && snapshot "$ROOT"; then
-  echo "NOTE: a published snapshot has no docs/ ledger — the own-ledger link check, not run"
-elif [ ${#files[@]} -eq 0 ]; then
+if [ ${#files[@]} -eq 0 ]; then
   bad "no tracked docs/ledger/*.md files — the ledger moved, so this test reads nothing"
 else
   out=$(dead "${files[@]}")

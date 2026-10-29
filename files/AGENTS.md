@@ -1,6 +1,6 @@
 # AGENTS.md
 
-<!-- Seeded by `dev-cadence adopt` (TD-092): created once if missing, never overwritten — this
+<!-- Seeded by `agent-cadence adopt` (TD-092): created once if missing, never overwritten — this
      file is the repo's own. Codex and most agent tools read AGENTS.md; Claude Code reads CLAUDE.md,
      so a repo keeps its map here and makes CLAUDE.md the one line `@AGENTS.md` (cadence.md §7.6).
      Keep the first section first: it is how a session in any tool gets the cadence's wake-up. -->
@@ -20,19 +20,19 @@ conventions that changed since this worktree last looked (`docs/cadence.md` §3)
 follow. Claude Code runs it for you through `.claude/settings.json`; a tool with no
 session-start hook runs it itself. It always exits 0.
 
-Where `docs/cadence.toml` has a table header written exactly `[dev-cadence]`, the repo runs a pinned dev-cadence through
-the `dev-cadence` launcher instead of synced copies (TD-129): run `dev-cadence hook session-start`
+Where `docs/cadence.toml` has a table header written exactly `[agent-cadence]`, the repo runs a pinned agent-cadence through
+the `agent-cadence` launcher instead of synced copies (TD-129): run `agent-cadence hook session-start`
 in place of the command above. With no launcher on PATH, install it once per machine (clone
-dev-cadence at its latest tag, then `install -m 755 launcher/dev_cadence.py ~/.local/bin/dev-cadence`). The launcher exits 2 only when
+agent-cadence at its latest tag, then `install -m 755 launcher/agent_cadence.py ~/.local/bin/agent-cadence`). The launcher exits 2 only when
 it could not resolve the pin (it says why); tell the user, since the hooks did not run.
 
 ## How this repo works
 
-The working rules are `docs/cadence.md` (in a pinned repo, the file `dev-cadence path cadence.md`
-prints; with no launcher, `files/docs/cadence.md` in the `[dev-cadence]` `source` at its `ref`) — worktrees (§1), the ledger `docs/technical_debt.md`
+The working rules are `docs/cadence.md` (in a pinned repo, the file `agent-cadence path cadence.md`
+prints; with no launcher, `files/docs/cadence.md` in the `[agent-cadence]` `source` at its `ref`) — worktrees (§1), the ledger `docs/technical_debt.md`
 (or, split, `docs/ledger/`; §2), the attention board `docs/user_attention.md` (§3), and the review and merge loop (§4).
 In a pinned repo the procedures below are in the pinned tree too
-(`dev-cadence path procedures/cadence.md`).
+(`agent-cadence path procedures/cadence.md`).
 Four procedures run on top of them, each a doc any agent follows (Claude Code, Codex and
 Gemini CLI also have each as a skill of the same name — `/cadence` in Claude Code, `$cadence`
 in Codex): `docs/procedures/stranded-work.md` (the periodic sweep, §3.11),

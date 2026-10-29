@@ -1,5 +1,5 @@
 <!-- SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/docs/cadence-changes.md
-     Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR. -->
+     Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR. -->
 
 # Cadence changes — what a session must now do differently
 
@@ -9,9 +9,12 @@ would be invisible). Each entry is at most three lines — the hook prints it in
 context once per worktree — and says what to *do*, then where the rule lives.
 
 Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators relaying to
-sessions already running (ShiftLead design §4.8). Written by the dev-cadence PR that changes
+sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-29 — the tool is agent-cadence: command, pin table, dirs, variable and shim marker renamed, no aliases
+Do: run `agent-cadence` (was `dev-cadence`, `launcher/agent_cadence.py`); pin under `[agent-cadence]`; machine files in `~/.config/agent-cadence/` and `~/.cache/agent-cadence/`; set `AGENT_CADENCE_REG_DIR` (was `DEV_CADENCE_REG_DIR`). Swap a clone's old shims: `grep -lF 'dev-cadence hook shim (TD-055)' "$(git rev-parse --path-format=absolute --git-common-dir)"/hooks/* | xargs -r rm`, then `agent-cadence run install_git_hooks.sh`.
+See: the plan 2026-10-29-hard-rename; cadence.md §9.19; TD-193.
 ## 2026-10-28 — a public repo's precheck runs the publish gate: `--publish-check --accept <list>`, and `publish-gate = "required"`
 Do: in a repo that is public, add `cadence_layer.py --publish-check --accept <list> $(git ls-files)` to `precheck` and set `publish-gate = "required"`; accept a finding meant to be public with a `<path-glob> <finding-glob>[ :: <line-glob>]` line, never by dropping the gate.
 See: cadence.md §9.18 (`publish-gate`, the publish check); TD-189.

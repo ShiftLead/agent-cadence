@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/check_anchor.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """SessionStart anchor guard — detect a second session in the main checkout.
 
 Cadence rule (docs/cadence.md §1): ONE anchor session per checkout; every other
@@ -63,7 +63,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
     import agent_sessions  # noqa: E402,F401
 except ImportError:  # a partial checkout: one line, never a traceback in SessionStart
-    print("⚠ anchor check did not run: agent_sessions.py is missing beside check_anchor.py — the tree is partial (`dev-cadence path` names it)")
+    print("⚠ anchor check did not run: agent_sessions.py is missing beside check_anchor.py — the tree is partial (`agent-cadence path` names it)")
     sys.exit(0)
 from agent_sessions import (  # noqa: E402
     SESSION_COMMS,  # noqa: F401

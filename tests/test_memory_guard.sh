@@ -103,7 +103,7 @@ else
 fi
 
 # --- TD-038: check #4 finds the shipped hook beside the guard when the guard runs from
-#     inside the repo (files/scripts/git-hooks in dev-cadence itself); scripts/ was blind
+#     inside the repo (files/scripts/git-hooks in agent-cadence itself); scripts/ was blind
 #     there, so an unset core.hooksPath went unreported. TD-055: the fix it names is the
 #     installer beside it, and the relative hooksPath this repo used to set is reported.
 R="$TMP/dclayout"; mkrepo "$R"; mkdir -p "$R/files/scripts/git-hooks" "$R/docs/claude-memory"

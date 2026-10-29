@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/reap_worktrees.sh
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 # Report (and optionally remove) worktrees whose work has landed on origin/main.
 #
 # WHY NOT A CRON
@@ -186,7 +186,7 @@ cd "$CLONE_ROOT" || exit 0
 # and a worktree mid-edit on it (or on an old branch) must not swap in its own
 # logic. So: $CLONE_ROOT/scripts/<name> first — exactly what a consumer always
 # used — then the main checkout's copy at THIS script's repo-relative directory
-# (files/scripts/ in dev-cadence itself, where scripts/ does not exist and a
+# (files/scripts/ in agent-cadence itself, where scripts/ does not exist and a
 # hardcoded path left the reaper blind to hydrate and the registry, TD-038),
 # and only then the copy beside this one.
 REL=""
@@ -597,7 +597,7 @@ fi
 if [[ $REAP -eq 0 ]]; then
     echo
     # a pinned repo has no scripts/ copy: name the launcher's word (TD-164)
-    if [[ -n "${CADENCE_REPO_ROOT:-}" ]]; then self="dev-cadence run reap_worktrees.sh"; else self="scripts/reap_worktrees.sh"; fi
+    if [[ -n "${CADENCE_REPO_ROOT:-}" ]]; then self="agent-cadence run reap_worktrees.sh"; else self="scripts/reap_worktrees.sh"; fi
     echo "${#reapable[@]} reapable worktree(s), ${#orphans[@]} deletable branch(es) — run $self --reap to remove"
     exit 0
 fi

@@ -4,9 +4,9 @@ description: Run the cadence check on this branch's PR (review evidence, squash,
 ---
 
 <!-- SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/.agents/skills/cadence/SKILL.md
-     Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR. -->
+     Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR. -->
 
 # Cadence — check a PR against cadence.md §1–§5 before merging
 
-Read [`docs/procedures/cadence.md`](../../../docs/procedures/cadence.md) — in a repo that pins dev-cadence, the file `dev-cadence path procedures/cadence.md` prints — and follow it; the whole procedure lives there,
+Read [`docs/procedures/cadence.md`](../../../docs/procedures/cadence.md) — in a repo that pins agent-cadence, the file `agent-cadence path procedures/cadence.md` prints — and follow it; the whole procedure lives there,
 where an agent in any tool can run it (TD-093); this file holds no rule of its own. An argument that is a PR number means that PR; `week` means every PR merged in the last 7 days (`--since 7d`); none means the current branch's PR.

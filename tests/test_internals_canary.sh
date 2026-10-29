@@ -7,8 +7,8 @@ DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 S="$DC/files/scripts"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
-mkdir -p "$HOME/.claude/sessions" "$DEV_CADENCE_REG_DIR"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+mkdir -p "$HOME/.claude/sessions" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/check_cadence.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """The cadence check: did a PR follow cadence.md §1–§5? One row per rule, read from git and the forge (scripts/forge.py).
 
 A DETECTOR, never a gate (cadence.md §7): it is not wired into a hook and blocks
@@ -505,7 +505,7 @@ def _ci_coming(pr, sha):
 
 PRECHECK = "cadence/precheck"   # parity (cadence.md §7.9): precheck.py's CONTEXT writes it
 # the command a hint names: a pinned repo has no scripts/ copy, so the launcher's word (TD-164)
-RUN_PRECHECK = "dev-cadence run precheck.py" if os.environ.get("CADENCE_REPO_ROOT", "").strip() else "scripts/precheck.py"
+RUN_PRECHECK = "agent-cadence run precheck.py" if os.environ.get("CADENCE_REPO_ROOT", "").strip() else "scripts/precheck.py"
 
 
 def _precheck() -> tuple[str | None, str | None]:

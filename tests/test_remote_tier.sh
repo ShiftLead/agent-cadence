@@ -8,7 +8,7 @@ NEW="$ROOT/files/scripts/nudge_user_attention.py"
 TMP=$(mktemp -d)
 export HOME="$TMP/home"; mkdir -p "$HOME"
 export XDG_CONFIG_HOME="$TMP/config"
-REG_DIR="$XDG_CONFIG_HOME/dev-cadence"; REG="$REG_DIR/repos.txt"
+REG_DIR="$XDG_CONFIG_HOME/agent-cadence"; REG="$REG_DIR/repos.txt"
 FILTER="$REG_DIR/remote_repos.txt"
 mkdir -p "$REG_DIR"
 PASS=0; FAIL=0

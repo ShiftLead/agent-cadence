@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/adopt_repo_settings.sh
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 # Check (default) or apply the GitHub or GitLab repo settings the cadence assumes (TD-034, TD-104).
 #
 #   adopt_repo_settings.sh [--check|--apply [--yes]] [--no-auto-delete] [owner/repo | host/group/repo]

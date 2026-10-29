@@ -4,15 +4,15 @@
 # fetch budget; no gh, a failing gh, or no --fetch is silence.
 #
 # Offline: a repo with a bare origin; `gh` is a PATH shim answering from a file; dates are
-# derived from now (TD-24). HOME, XDG_CONFIG_HOME, DEV_CADENCE_REG_DIR and git config temp.
+# derived from now (TD-24). HOME, XDG_CONFIG_HOME, AGENT_CADENCE_REG_DIR and git config temp.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NUDGE="$DC/files/scripts/nudge_user_attention.py"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -21,7 +21,7 @@ R="$TMP/repo"; git init -q --bare -b main "$R.git"; git clone -q "$R.git" "$R" 2
 git -C "$R" checkout -q -b main 2>/dev/null; mkdir -p "$R/docs"
 printf '# board\n\n- [ ] %s (n/a) — not due yet. Due: %s.\n' "$(date +%F)" "$(date -d '9 days' +%F)" > "$R/docs/user_attention.md"
 git -C "$R" add -A; git -C "$R" commit -qm base; git -C "$R" push -q -u origin main
-echo "$R" > "$DEV_CADENCE_REG_DIR/repos.txt"
+echo "$R" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 
 # TD-114 fixtures: `landed` (its change reached main through another commit, a stacked PR's
 # squash), `live` (a change main lacks), `moved` (landed, then main changed the file again).
@@ -82,10 +82,10 @@ grep -q "^⚠ 2 open PR(s) in repo older than 4 days" <<< "$out" && ! grep -q "#
 rm "$R/docs/cadence.toml"
 X="$TMP/other-repo"; mkdir -p "$X/docs"; git init -q "$X"; printf '# board\n' > "$X/docs/user_attention.md"
 printf 'pr-stale-days = 10\n' > "$X/docs/cadence.toml"
-printf '%s\n%s\n' "$R" "$X" > "$DEV_CADENCE_REG_DIR/repos.txt"
+printf '%s\n%s\n' "$R" "$X" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 out=$(run --fetch)
 grep -q "^⚠ 7 open PR(s) in repo older than 2 days" <<< "$out" && ok "TD-134: the PR line reads this repo's pr-stale-days, not the last roster board's" || bad "pr-stale-days here: $out"
-rm "$DEV_CADENCE_REG_DIR/repos.txt"
+rm "$AGENT_CADENCE_REG_DIR/repos.txt"
 touch "$GH_FAIL"; out=$(run --fetch); rm "$GH_FAIL"
 ! grep -q "open PR" <<< "$out" && ok "gh failing: silent" || bad "gh fail: $out"
 echo '[]' > "$GH_PRS"; out=$(run --fetch)
@@ -95,7 +95,7 @@ echo '[]' > "$GH_PRS"; out=$(run --fetch)
 # line stays and the other repo's due item is one count line; without it (env own, TD-077's
 # carry-over) the count line alone, and gh is never asked — a logging shim stays silent
 printf '# board\n\n- [ ] %s (n/a) — elsewhere. Due: %s.\n' "$(date -d '5 days ago' +%F)" "$(date -d '3 days ago' +%F)" > "$X/docs/user_attention.md"
-printf '%s\n%s\n' "$R" "$X" > "$DEV_CADENCE_REG_DIR/repos.txt"
+printf '%s\n%s\n' "$R" "$X" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 printf '[{"number": 7, "title": "an old change", "createdAt": "%s", "comments": []}]' "$(d '5 days ago')" > "$GH_PRS"
 export GH_LOG="$TMP/gh.log"; : > "$GH_LOG"
 mv "$BIN/gh" "$BIN/gh.real"; printf '#!/usr/bin/env bash\necho "$*" >> "$GH_LOG"\nexec "%s" "$@"\n' "$BIN/gh.real" > "$BIN/gh"; chmod +x "$BIN/gh"
@@ -116,15 +116,15 @@ out=$(cd "$R" && PATH="$BIN:$PATH" python3 "$NUDGE" --report --due-only --fetch 
 grep -q "elsewhere" <<< "$out" && ! grep -q "other repo" <<< "$out" \
   && ok "TD-146 --own-board on a worktree's board: its repo's roster row is the own one, and another repo is not fetched" || bad "worktree/no-fetch: $out"
 # (c) no roster and no default board: the board named is still read (the early silent return is skipped)
-rm "$DEV_CADENCE_REG_DIR/repos.txt"
+rm "$AGENT_CADENCE_REG_DIR/repos.txt"
 out=$(cd "$TMP" && USER_ATTENTION_BOARD="$TMP/none.md" CADENCE_REPO_ROOT="$TMP/norepo" python3 "$NUDGE" --report --due-only --own-board "$X/docs/user_attention.md" 2>&1)
 grep -q "elsewhere" <<< "$out" && ! grep -q "other repo" <<< "$out" && ok "TD-146 --own-board with no roster and no default board: its items still listed" || bad "no roster: $out"
-touch "$DEV_CADENCE_REG_DIR/repos.txt"
-rm "$DEV_CADENCE_REG_DIR/repos.txt"
+touch "$AGENT_CADENCE_REG_DIR/repos.txt"
+rm "$AGENT_CADENCE_REG_DIR/repos.txt"
 
 # TD-146 slice 2: /attention's forms. The default (--own-board) shows this repo in full, first, and folds
 # each other repo to one line; /attention all (--report) is every board in full; --repo <name> one repo
-printf '%s\n%s\n' "$X" "$R" > "$DEV_CADENCE_REG_DIR/repos.txt"
+printf '%s\n%s\n' "$X" "$R" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 rep() { ( cd "$R" && python3 "$NUDGE" --report "$@" 2>&1 ); }
 out=$(rep --own-board "$R/docs/user_attention.md")
 first=$(grep -m1 '^== ' <<< "$out")
@@ -146,7 +146,7 @@ out=$(rep --repo nope); rc=$?
 # review findings on #379: a folded roster row that cannot be read keeps its note; two repos of one name are
 # refused by name and reached by path; a repo off the roster with no board gets every board in full
 mkdir -p "$TMP/dup/repo/docs"; git init -q "$TMP/dup/repo"; printf '# board\n' > "$TMP/dup/repo/docs/user_attention.md"
-printf '%s\n%s\n%s\n%s\n' "$X" "$R" "$TMP/gone" "$TMP/dup/repo" > "$DEV_CADENCE_REG_DIR/repos.txt"
+printf '%s\n%s\n%s\n%s\n' "$X" "$R" "$TMP/gone" "$TMP/dup/repo" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 out=$(rep --own-board "$X/docs/user_attention.md")
 grep -A1 '^== gone' <<< "$out" | grep -q "note: roster path missing" && ok "TD-146 a folded row that cannot be read keeps its note" || bad "folded note: $out"
 grep -qF "/attention $R for its items" <<< "$out" && ok "TD-146 a folded repo sharing its name is offered by path" || bad "dup hint: $out"
@@ -158,7 +158,7 @@ mkdir -p "$TMP/offroster"; git init -q "$TMP/offroster"
 out=$(cd "$TMP/offroster" && python3 "$NUDGE" --report --own-board "$TMP/offroster/docs/user_attention.md" 2>&1)
 grep -q "elsewhere" <<< "$out" && grep -q "not due yet" <<< "$out" && ! grep -q "^== offroster" <<< "$out" \
   && ok "TD-146 a repo off the roster with no board: every board in full, no bogus row" || bad "offroster: $out"
-rm "$DEV_CADENCE_REG_DIR/repos.txt"
+rm "$AGENT_CADENCE_REG_DIR/repos.txt"
 
 echo; echo "$PASS passed, $FAIL failed"
 [ $FAIL -eq 0 ]

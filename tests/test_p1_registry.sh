@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # P1 machine-registry acceptance tests (plan 2026-08-10). Uses an XDG_CONFIG_HOME
-# override so the real ~/.config/dev-cadence/repos.txt is never touched.
+# override so the real ~/.config/agent-cadence/repos.txt is never touched.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP=$(mktemp -d)
 export XDG_CONFIG_HOME="$TMP/config"
 # A fresh CI runner has no global git identity (TD-047): the fixtures commit with this one.
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
-REG="$XDG_CONFIG_HOME/dev-cadence/repos.txt"
+REG="$XDG_CONFIG_HOME/agent-cadence/repos.txt"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -18,7 +18,7 @@ mkrepo() { # $1=path
   git -C "$1" commit -q --allow-empty -m init
 }
 
-# --- 1) the roster's writer (`dev-cadence adopt`'s _register, sync.sh's step until TD-129) twice
+# --- 1) the roster's writer (`agent-cadence adopt`'s _register, sync.sh's step until TD-129) twice
 #        -> exactly one line; the worktree-to-main and symlink cases are adopt's (tests/test_adopt.sh)
 reg() { CADENCE_TEMP_ROOTS=/nonexistent python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import words; words._register(sys.argv[2])' "$DC/launcher" "$1" >/dev/null 2>&1; }
 T1="$TMP/repo1"; mkrepo "$T1"

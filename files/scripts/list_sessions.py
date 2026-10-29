@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/list_sessions.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """Index of agent sessions for one or more repos — richer than /resume's blurbs.
 
 Reads each given repo's transcripts (its own and its worktrees') through the session
@@ -345,8 +345,8 @@ def roster_repos() -> list[Path]:
     """The machine roster's repos (cadence.md §9 path spec: canonicalized, deduped at
     read time; a missing roster is an empty list, a gone path is skipped)."""
     # the machine-scope dir as nudge_user_attention.machine_dir() resolves it (TD-029)
-    reg = (Path(os.environ["DEV_CADENCE_REG_DIR"]) if os.environ.get("DEV_CADENCE_REG_DIR")
-           else Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "dev-cadence") / "repos.txt"
+    reg = (Path(os.environ["AGENT_CADENCE_REG_DIR"]) if os.environ.get("AGENT_CADENCE_REG_DIR")
+           else Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "agent-cadence") / "repos.txt"
     try:
         lines = reg.read_text(encoding="utf-8").splitlines()
     except OSError:

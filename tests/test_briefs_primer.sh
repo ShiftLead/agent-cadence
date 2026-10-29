@@ -23,11 +23,7 @@ PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
 
-# a published snapshot (snapshot_public.sh's README note, TD-090) carries none of this repo's own docs/,
-# CLAUDE.md or .claude/: there a dogfood check whose file is absent is not run, said; here it always runs
-snapshot() { grep -q '^> \*dev-cadence, published as agent-cadence\.\*' "$1/README.md"; }
 PRIMER=docs/briefs/techlead-context.md
-if [ ! -e docs ] && snapshot "$ROOT"; then echo "NOTE: a published snapshot has no docs/briefs/ — the primer check is this repo's own, not run"; echo "---- 0 passed, 0 failed"; exit 0; fi
 [ -f "$PRIMER" ] || { bad "$PRIMER missing"; echo "---- $PASS passed, $FAIL failed"; exit 1; }
 
 # --- paths -------------------------------------------------------------------

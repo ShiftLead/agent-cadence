@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # TD-133: a ledger or board that declares a newer major of the formats (`Ledgerboard: N` on a
-# preamble line, ledgerboard SPEC *Versions*) is read by no dev-cadence script — each refuses by
+# preamble line, ledgerboard SPEC *Versions*) is read by no agent-cadence script — each refuses by
 # name rather than misread it. Offline and fixture-driven: HOME, XDG_CONFIG_HOME and the roster
-# (DEV_CADENCE_REG_DIR) point into a temp dir; origins are temp bare repos.
+# (AGENT_CADENCE_REG_DIR) point into a temp dir; origins are temp bare repos.
 # Asserts, per reader: ledger.py (the ledger, the archive, a cross-repo blocker's ledger),
 # ledger_next_id.py (main's ledger), board_edit.py, nudge_user_attention.py (--report text and
 # --json, --due-only, nudge mode), check_cadence.py's ledger row; and that `Ledgerboard: 1`,
@@ -12,11 +12,11 @@ DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 S="$DC/files/scripts"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset USER_ATTENTION_BOARD TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID NUDGE_COMMAND
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -51,7 +51,7 @@ out=$(cd "$R" && python3 "$S/ledger.py" --pickable 2>&1); rc=$?
 # --- ledger.py: a cross-repo blocker whose ledger is newer stays blocked, and says why
 B="$TMP/other"; mkdir -p "$B/docs"; git init -q -b main "$B"
 ledger "Ledgerboard: 3" TD-005 > "$B/docs/technical_debt.md"
-echo "$B" > "$DEV_CADENCE_REG_DIR/repos.txt"
+echo "$B" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 ledger "" TD-002 | sed 's/^\*\*Status:\*\* Open$/**Status:** Open\n**Blocked by:** other#TD-005/' > "$R/docs/technical_debt.md"
 grep -q "other#TD-005" "$R/docs/technical_debt.md" || printf 'fixture: no Blocked by line\n'
 out=$(cd "$R" && python3 "$S/ledger.py" --pickable --json 2>&1); rc=$?

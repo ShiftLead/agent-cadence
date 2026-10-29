@@ -13,7 +13,7 @@ export PATH="$TMP/nogh:$PATH"
 export XDG_CONFIG_HOME="$TMP/config"
 # A fresh CI runner has no global git identity (TD-047): the fixtures commit with this one.
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
-REG_DIR="$XDG_CONFIG_HOME/dev-cadence"; REG="$REG_DIR/repos.txt"
+REG_DIR="$XDG_CONFIG_HOME/agent-cadence"; REG="$REG_DIR/repos.txt"
 PASS=0; FAIL=0
 # TD-24: every Due: a test asserts against is derived from the run date —
 # hardcoded calendar dates rot (case 5 went red the day after it was written).
@@ -413,7 +413,7 @@ tmp = pathlib.Path(tempfile.mkdtemp())
 (tmp / "docs").mkdir()
 board = tmp / "docs" / "user_attention.md"; board.write_text("x")
 (tmp / "docs" / "cadence.toml").write_text(
-    '[dev-cadence]\nsource = "https://github.com/ShiftLead/agent-cadence"\nref = "' + "a" * 40 + '"\n')
+    '[agent-cadence]\nsource = "https://github.com/ShiftLead/agent-cadence"\nref = "' + "a" * 40 + '"\n')
 
 # A member of the best-effort family: expected, so DEBUG and nothing louder.
 out, levels = run_with(subprocess.TimeoutExpired("git", 5), board)

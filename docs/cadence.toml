@@ -1,5 +1,5 @@
 # docs/cadence.toml — agent-cadence's own cadence settings (cadence.md §9.18). Not the seed:
-# files/docs/cadence.toml is what `dev-cadence adopt` creates in a consumer; this file is this repo's.
+# files/docs/cadence.toml is what `agent-cadence adopt` creates in a consumer; this file is this repo's.
 # People write it; tools only read it.
 
 # The merge gate (cadence.md §4.12): `files/scripts/precheck.py --pr <n>` runs this in a clean

@@ -1,5 +1,5 @@
 <!-- SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/docs/procedures/cadence.md
-     Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR. -->
+     Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR. -->
 
 # Cadence — check a PR against cadence.md §1–§5 before merging
 

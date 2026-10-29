@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/install_git_hooks.sh
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 #
 # install_git_hooks.sh [REPO] — put this repo's git hooks in force in EVERY worktree of
 # the clone, whatever branch each is on (TD-055, cadence.md §4 "Give the rule teeth").
@@ -21,9 +21,9 @@
 #     would override the shims.
 #
 # Two modes, read at run time from the MAIN checkout (TD-129, docs/plans/2026-10-25-pinned-not-synced.md
-# Decisions 4-6): where its docs/cadence.toml pins dev-cadence — a table header written exactly
-# `[dev-cadence]` (a grep, not a TOML parser: another TOML form of the pin is no pin here) — the shim runs
-# `dev-cadence hook <name>` — the pinned tree's hook — and never a copy; a launcher exit 2 (it could
+# Decisions 4-6): where its docs/cadence.toml pins agent-cadence — a table header written exactly
+# `[agent-cadence]` (a grep, not a TOML parser: another TOML form of the pin is no pin here) — the shim runs
+# `agent-cadence hook <name>` — the pinned tree's hook — and never a copy; a launcher exit 2 (it could
 # not resolve the pin) fails open with a warning, any other exit is the hook's own and is kept, and
 # no launcher on PATH prints the install line and fails open. With no pin, the shim runs the
 # checkout's copy as before. The pre-push shim first holds the MAIN-BRANCH GUARD INLINE, in every
@@ -33,7 +33,7 @@
 # Never clobbers: an existing hook in the shared directory that is not our shim is kept
 # (and our relative core.hooksPath is then left set too, so nothing that ran before stops
 # running); a core.hooksPath pointing anywhere else is someone's own hooks setup and is
-# left alone. Each such case is a WARN naming the fix. Idempotent; run by `dev-cadence adopt`
+# left alone. Each such case is a WARN naming the fix. Idempotent; run by `agent-cadence adopt`
 # (and `sync.sh --pin`), and by hand on a clone that predates it. Exit 0 installed or already fine (WARNs
 # may print), 2 cannot install here (not a git clone, a bare repo, a separate git dir,
 # no hooks beside this script). CADENCE_HOOKS_SKIP (space-separated hook names; adopt sets
@@ -41,7 +41,7 @@
 set -u
 
 REPO="${1:-.}"
-MARK="dev-cadence hook shim (TD-055)"
+MARK="agent-cadence hook shim (TD-055)"
 
 common="$(cd "$REPO" 2>/dev/null && d="$(git rev-parse --git-common-dir 2>/dev/null)" && cd "$d" && pwd -P)" || {
     echo "  WARN  $REPO is not a git clone — hooks not installed" >&2; exit 2; }
@@ -54,7 +54,7 @@ fi
 root="${common%/*}"
 
 # Which hooks, and where they live relative to the checkout: beside this script
-# (scripts/git-hooks in a consumer, files/scripts/git-hooks in dev-cadence itself).
+# (scripts/git-hooks in a consumer, files/scripts/git-hooks in agent-cadence itself).
 # Follow a symlinked invocation to the real script first: from the link's directory the
 # hooks glob below matches nothing, and the run would install nothing and exit 0.
 self="${BASH_SOURCE[0]}"
@@ -72,7 +72,7 @@ if [ -n "$top" ]; then
 fi
 
 # CADENCE_HOOKS_REL names the hooks' directory in the main checkout instead (relative, no ..): set by
-# `dev-cadence adopt` and `sync.sh --pin`, which run this from a dev-cadence clone (files/scripts/) for
+# `agent-cadence adopt` and `sync.sh --pin`, which run this from an agent-cadence clone (files/scripts/) for
 # a consumer, whose copies — until its pin merges — are in scripts/git-hooks (TD-129).
 case "${CADENCE_HOOKS_REL:-}" in
     '') ;;
@@ -81,7 +81,7 @@ case "${CADENCE_HOOKS_REL:-}" in
 esac
 
 # no backtick or $ in it: it is written into a double-quoted echo
-INSTALL='install the dev-cadence launcher once per machine: clone dev-cadence at its latest tag, then run: install -m 755 launcher/dev_cadence.py ~/.local/bin/dev-cadence'
+INSTALL='install the agent-cadence launcher once per machine: clone agent-cadence at its latest tag, then run: install -m 755 launcher/agent_cadence.py ~/.local/bin/agent-cadence'
 guard_fn="$(sed -n '/^default_branch() {$/,/^}$/p' "$here/git-hooks/pre-push" 2>/dev/null)"
 
 conflict=0
@@ -131,17 +131,17 @@ done <<< \"\$input\"
     fi
     shim="#!/usr/bin/env bash
 # $MARK — written by ${rel%/git-hooks}/install_git_hooks.sh; rerun that, never edit.
-# Runs this hook from the dev-cadence the MAIN checkout pins, else the MAIN checkout's copy,
+# Runs this hook from the agent-cadence the MAIN checkout pins, else the MAIN checkout's copy,
 # whatever branch this worktree is on.
 d=\$(git rev-parse --git-common-dir 2>/dev/null) && d=\$(cd \"\$d\" && pwd -P) || d=
-${guard}if [ -n \"\$d\" ] && grep -qsE '^[[:space:]]*\\[dev-cadence\\][[:space:]]*(#.*)?\$' \"\${d%/*}/docs/cadence.toml\"; then
-    if command -v dev-cadence >/dev/null 2>&1; then
-        dev-cadence hook \"\${0##*/}\" \"\$@\"$feed
+${guard}if [ -n \"\$d\" ] && grep -qsE '^[[:space:]]*\\[agent-cadence\\][[:space:]]*(#.*)?\$' \"\${d%/*}/docs/cadence.toml\"; then
+    if command -v agent-cadence >/dev/null 2>&1; then
+        agent-cadence hook \"\${0##*/}\" \"\$@\"$feed
         rc=\$?
         [ \"\$rc\" -ne 2 ] && exit \"\$rc\"
-        echo \"git hook shim: the dev-cadence launcher could not run this repo's pin (above) — the \${0##*/} hook did not run (TD-129)\" >&2
+        echo \"git hook shim: the agent-cadence launcher could not run this repo's pin (above) — the \${0##*/} hook did not run (TD-129)\" >&2
     else
-        echo \"git hook shim: this repo pins dev-cadence (docs/cadence.toml) but no dev-cadence launcher is on PATH — the \${0##*/} hook did not run; $INSTALL\" >&2
+        echo \"git hook shim: this repo pins agent-cadence (docs/cadence.toml) but no agent-cadence launcher is on PATH — the \${0##*/} hook did not run; $INSTALL\" >&2
     fi
     exit 0
 fi

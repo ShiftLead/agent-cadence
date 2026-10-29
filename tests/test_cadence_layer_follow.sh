@@ -2,7 +2,7 @@
 # cadence_layer.py --follow / --update — following someone else's cadence layer with the pin
 # checked (TD-130, cadence §9.18, Adoption checklist step 12). Offline and fixture-driven: the
 # followed layer's "remote" is a temp repo, the setting is a machine cadence.toml under
-# DEV_CADENCE_REG_DIR, and HOME/XDG_CONFIG_HOME point into the temp dir.
+# AGENT_CADENCE_REG_DIR, and HOME/XDG_CONFIG_HOME point into the temp dir.
 # Asserts: each check refuses with its reason and leaves the setting byte-for-byte (an
 # unreachable ref, a branch, a missing file, a duplicate path, a URL whose --dir holds another
 # clone); the success path clones, prints the text and the effective view, and inserts the block
@@ -16,15 +16,15 @@ DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$DC/files/scripts/cadence_layer.py"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset SHIFTLEAD_SESSION
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
-CFG="$DEV_CADENCE_REG_DIR/cadence.toml"
+CFG="$AGENT_CADENCE_REG_DIR/cadence.toml"
 cl() { (cd "$TMP" && python3 "$SCRIPT" "$@" 2>&1); }
 same() { cmp -s "$CFG" "$TMP/cfg.before"; }
 

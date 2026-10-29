@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/ledger_next_id.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """Hand out the next ledger id from the counter on origin (TD-124, cadence.md §2.10).
 
     ledger_next_id.py [--count n] [--by who] [--branch name] [--floor N] [--prs] [--ledger PATH] [--archive PATH] [--json]
@@ -10,7 +10,7 @@ The counter is a branch on origin, ``cadence/ledger-ids``: never merged, never c
 local branch. Its tip's tree holds one file, ``LAST``, the last id given as a number. A take is one
 commit whose parent is the tip it read, pushed with a plain (fast-forward) push: the server takes it
 only if nobody moved the tip, so the branch is a lock with no server of ours. The design is
-docs/plans/2026-10-22-ledger-ids.md in dev-cadence.
+docs/plans/2026-10-22-ledger-ids.md in agent-cadence.
 
 1. Probe ``git ls-remote --heads origin cadence/ledger-ids``: present, absent (the first take), or
    failed — the last goes to the fallback.

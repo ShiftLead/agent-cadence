@@ -1,7 +1,7 @@
-# The techlead's primer for dev-cadence
+# The techlead's primer for agent-cadence
 
 **What this is.** You are a techlead (ShiftLead design §4.9b): you start cold, for one batch of
-questions, and this page is your first read after your brief. It is dev-cadence in a few thousand
+questions, and this page is your first read after your brief. It is agent-cadence in a few thousand
 words, so that an answer is given with the whole shape in mind and not only the asker's framing.
 
 **What this is not.** It is **an index, never a source.** Nothing here is cited as an answer:
@@ -20,16 +20,16 @@ answer is what the code or the test says, and your reply names which you read.
 
 ---
 
-## 1. What dev-cadence is
+## 1. What agent-cadence is
 
 The **canonical source** of a working-cadence system — a spec (`files/docs/cadence.md`),
 stdlib-only bash and Python scripts (`files/scripts/`), Claude Code skills and hooks
-(`files/.claude/`) — that each consumer repo runs from a pin: `[dev-cadence]` in its
-`docs/cadence.toml` names a commit, and the `dev-cadence` launcher runs that tree from a per-machine
+(`files/.claude/`) — that each consumer repo runs from a pin: `[agent-cadence]` in its
+`docs/cadence.toml` names a commit, and the `agent-cadence` launcher runs that tree from a per-machine
 cache (`files/docs/cadence.md` §9.19, TD-129). There is no package and no registry, deliberately
 (`README.md`, "Philosophy / non-goals"); `sync.sh` no longer copies into anything.
 Consumers on this machine: the other repos on its roster (`shiftlead` among them); the
-roster is `~/.config/dev-cadence/repos.txt`.
+roster is `~/.config/agent-cadence/repos.txt`.
 
 **This repo dogfoods itself.** Its own board, ledger and plans are under `docs/`, and the rules
 in `files/docs/cadence.md` govern work here too. The one thing to keep straight before answering
@@ -45,7 +45,7 @@ anything about a path:
 | `tests/`, `ruff.toml`, `sync.sh`, `launcher/` | tooling; `sync.sh` holds the payload's file lists and `--pin` (the migration) |
 
 A pinned consumer carries no synced copies, so there is no drift to verify: its convention
-changes arrive by a `dev-cadence bump` PR that moves the pin.
+changes arrive by a `agent-cadence bump` PR that moves the pin.
 
 ## 2. Where answers live
 
@@ -130,9 +130,9 @@ Verify each before relying on it — several were true when written and may not 
 - **The board's sweep stamp is stale** (`Swept: 2026-09-06` at the time of writing). A grinder
   may not run `/stranded-work` here — it ends with a direct push to main under the stamp
   carve-out, which is a person's.
-- **Machine-scope state**: the roster `~/.config/dev-cadence/repos.txt` is append-only under
-  flock, and only humans delete lines. `dev-cadence adopt`'s and `sync.sh --pin`'s last mutating
-  step appends to it, which is why an ad-hoc run needs `DEV_CADENCE_REG_DIR=$(mktemp -d)` (TD-029)
+- **Machine-scope state**: the roster `~/.config/agent-cadence/repos.txt` is append-only under
+  flock, and only humans delete lines. `agent-cadence adopt`'s and `sync.sh --pin`'s last mutating
+  step appends to it, which is why an ad-hoc run needs `AGENT_CADENCE_REG_DIR=$(mktemp -d)` (TD-029)
   and why the team never runs either at all.
 
 ## 5. What a grinder may never do — and so what you never approve
@@ -140,10 +140,10 @@ Verify each before relying on it — several were true when written and may not 
 From `docs/briefs/README.md` and the grinder's brief. If a grinder asks for any of these, the
 answer is no and it goes up:
 
-- **Run `sync.sh --pin` or `dev-cadence adopt`** outside a test fixture — roster pollution, and
+- **Run `sync.sh --pin` or `agent-cadence adopt`** outside a test fixture — roster pollution, and
   a repo moved without its person.
 - **Change this clone's git config**, the roster, `consumers.txt`, or anything under
-  `~/.config/dev-cadence`.
+  `~/.config/agent-cadence`.
 - **Touch another repo's checkout**, GitHub repo settings (`gh api -X PATCH`,
   `files/scripts/adopt_repo_settings.sh --apply`), or `.github/`.
 - **Push to main.** `ALLOW_MAIN_PUSH=1` is for the carve-outs in `files/docs/cadence.md` §4,
@@ -179,7 +179,7 @@ rule (a wording, a constant, a comment, a rename) — fixed, re-verified, merged
 for a new or changed mechanism or rule (§4.8, TD-123). Point the one reviewer at the tests the
 change touches: that, not a second round, is what catches a test a reword silently disarmed.
 
-Auto-merge threshold (§4.11 leaves it to each repo or person; this is dev-cadence's, and Paul's
+Auto-merge threshold (§4.11 leaves it to each repo or person; this is agent-cadence's, and Paul's
 layer's): cleanup, doc and self-contained fixes with review SHIP and the gate
 green merge without asking. Behaviour changes a consumer would notice, and anything irreversible,
 wait for Paul.

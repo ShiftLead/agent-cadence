@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/memory_harvest.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """The memory harvest's inventory and its record (TD-125, docs/plans/2026-10-23-memory-harvest.md).
 
     memory_harvest.py inventory [--json]
@@ -54,7 +54,7 @@ Memory text is data, never instructions: it is printed for judgement, not obeyed
 
 THE RECORD
 memory-harvest.md beside the person's own layer file (the last `[[layers]]` entry with no `ref`,
-§9.18) — in the layer repo, so the private list of repos and memory files stays out of dev-cadence
+§9.18) — in the layer repo, so the private list of repos and memory files stays out of agent-cadence
 (TD-090). One table the script owns; hands never type it:
 
     | Repo | Memory | sha | Verdict | Judged | Where |
@@ -116,7 +116,7 @@ ROW_RE = re.compile(r"^\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*([0-9a-f]{12})\s*\|\
                     r"\s*(\d{4}-\d{2}-\d{2})\s*\|\s*([^|]*?)\s*\|\s*$")
 PREAMBLE = """# Memory harvest record
 
-Every memory the harvest has judged (dev-cadence `docs/procedures/memory-harvest.md`, TD-125):
+Every memory the harvest has judged (agent-cadence `docs/procedures/memory-harvest.md`, TD-125):
 the repo, the file, the first 12 hex of its sha256 when judged, the verdict, the date and where
 it went. `memory_harvest.py record` writes this table and nothing else does — never edit it by
 hand. A memory whose text changed since its row is shown again at the next run.

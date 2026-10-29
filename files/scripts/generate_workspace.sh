@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/generate_workspace.sh
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 # Regenerate the multi-root VS Code workspace file from `git worktree list`.
 #
 # WHY THIS EXISTS

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # cadence_layer.py — the person's own cadence layers, printed at session start (TD-126,
 # cadence §9.18). Offline and fixture-driven: the layers are temp git clones, the setting is a
-# machine cadence.toml under DEV_CADENCE_REG_DIR, and HOME/XDG_CONFIG_HOME point into the temp dir.
+# machine cadence.toml under AGENT_CADENCE_REG_DIR, and HOME/XDG_CONFIG_HOME point into the temp dir.
 # Asserts: silent when unset; one's own layer from its working tree, with its commit; a pinned
 # layer read at its ref and never fetched; the layers in their order; a layer that cannot be
 # read is a warning and exit 0 under --hook; one's own layer fetched and said to be behind or ahead,
@@ -14,15 +14,15 @@ DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$DC/files/scripts/cadence_layer.py"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" DEV_CADENCE_REG_DIR="$TMP/reg"
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset SHIFTLEAD_SESSION CADENCE_ATTENTION_SCOPE
-mkdir -p "$HOME" "$DEV_CADENCE_REG_DIR"
+mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
-CFG="$DEV_CADENCE_REG_DIR/cadence.toml"
+CFG="$AGENT_CADENCE_REG_DIR/cadence.toml"
 hook() { (cd "$TMP" && python3 "$SCRIPT" --hook 2>"$TMP/err"); }
 
 # 1. no setting: the hook prints nothing; the listing says where the setting goes
@@ -244,7 +244,7 @@ cat > "$P/cadence-personal.md" <<'L'
 L
 printf 'judged: secret-svc memory 3\n' > "$P/memory-harvest.md"
 git -C "$P" add -A && git -C "$P" commit -qm one
-echo "$TMP/elsewhere/secret-svc" > "$DEV_CADENCE_REG_DIR/repos.txt"
+echo "$TMP/elsewhere/secret-svc" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 printf '[[layers]]\npath = "%s"\nref = "v1"\n[[layers]]\npath = "~/src/pub/cadence-personal.md"\n' "$TMP/alice/rules/layer.md" > "$CFG"
 out=$(python3 "$SCRIPT" --publish-check); rc=$?
 [ "$rc" = 1 ] && grep -qF "$P/cadence-personal.md:3: an email address (alex@acme-mail.io)" <<< "$out" \
@@ -269,7 +269,7 @@ $out"
 # 9f (TD-090): the machine's publish-names and short name are flagged; fixtures and the tool's name are not
 HOST=$(python3 -c 'import socket; print(socket.gethostname().split(".")[0])'); SHORT=${HOST%%-*}
 printf 'publish-names = ["Jordan", "acme-corp"]\n[[layers]]\npath = "~/src/pub/cadence-personal.md"\n' > "$CFG"
-echo "$TMP/elsewhere/dev-cadence" >> "$DEV_CADENCE_REG_DIR/repos.txt"
+echo "$TMP/elsewhere/dev-cadence" >> "$AGENT_CADENCE_REG_DIR/repos.txt"
 cat > "$P/notes.md" <<L
 ask Jordan before acme-corp's release
 see someone@example.com, a@b.test, /home/someone/x, /Users/alice/y, C:\\Users\\<user>\\z, /home/\$USER/w
@@ -448,7 +448,7 @@ A="$TMP/att"; git init -q --bare "$A/up.git"; git clone -q "$A/up.git" "$A/mine"
 echo "§4 add: x" > "$A/mine/p.md"; git -C "$A/mine" add -A; git -C "$A/mine" commit -qm one; git -C "$A/mine" push -qu origin HEAD:main 2>/dev/null
 git -C "$A/mine" branch -q --set-upstream-to=origin/main 2>/dev/null
 printf '[[layers]]\npath = "%s"\nref = "HEAD"\n[[layers]]\npath = "%s"\n' "$A/mine/p.md" "$A/mine/p.md" > "$CFG"
-rm -f "$DEV_CADENCE_REG_DIR/repos.txt"
+rm -f "$AGENT_CADENCE_REG_DIR/repos.txt"
 out=$(cd "$TMP" && python3 "$NUA" --report 2>&1); rc=$?
 [ "$rc" = 0 ] && ! grep -q 'cadence layers' <<< "$out" && ok "11 a level own layer: no layers section" || bad "11 rc=$rc
 $out"
@@ -456,7 +456,7 @@ echo "§4 add: y" >> "$A/mine/p.md"; git -C "$A/mine" commit -qam two
 out=$(cd "$TMP" && python3 "$NUA" --report 2>&1)
 grep -qF "== your cadence layers (the machine's cadence.toml, cadence.md §9.18 — not on the roster)" <<< "$out" \
   && grep -qE "^  • layer 2: $A/mine/p.md @ [0-9a-f]+ \(own\) — 1 commit not pushed to origin/main — push it" <<< "$out" \
-  && ! grep -q '• layer 1' <<< "$out" && [ ! -e "$DEV_CADENCE_REG_DIR/repos.txt" ] \
+  && ! grep -q '• layer 1' <<< "$out" && [ ! -e "$AGENT_CADENCE_REG_DIR/repos.txt" ] \
   && ok "11b an unpushed commit in one's own layer is in the report; the pinned one is not; the roster is untouched" || bad "11b
 $out"
 echo "draft" >> "$A/mine/p.md"

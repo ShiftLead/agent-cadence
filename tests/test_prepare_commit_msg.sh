@@ -28,7 +28,7 @@ cp "$DC/files/scripts/install_git_hooks.sh" scripts/
 cp "$HOOK" scripts/git-hooks/
 git add -A && git commit -qm hooks
 out=$(bash scripts/install_git_hooks.sh . 2>&1)
-grep -qF "dev-cadence hook shim" .git/hooks/prepare-commit-msg 2>/dev/null \
+grep -qF "agent-cadence hook shim" .git/hooks/prepare-commit-msg 2>/dev/null \
   && ok "install: the shim for prepare-commit-msg is in place" || bad "install: $out"
 
 body() { git log -1 --format=%B "${1:-HEAD}"; }

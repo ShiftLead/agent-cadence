@@ -31,6 +31,7 @@ bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
 MARKER="SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/"
 # A file this repo vendors from another names that repo as canonical, and itself as vendored here
 # (ShiftLead ADR 2026-10-12: ledgerboard.py, the one vendored file) — still opening "SYNCED FILE".
+# The release text names the vendoring tool by its old name until a release renames it (ledgerboard#TD-004).
 VENDORED_MARKER="SYNCED FILE — canonical copy: ShiftLead/ledgerboard ledgerboard.py (vendored by dev-cadence as files/"
 VENDORED="scripts/ledgerboard.py"
 marker() {  # $1 = a SYNC path -> the marker its header must carry, without the path

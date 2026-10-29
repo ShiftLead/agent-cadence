@@ -1,5 +1,5 @@
 <!-- SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/docs/procedures/attention.md
-     Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR. -->
+     Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR. -->
 
 # Attention — machine-wide board report
 
@@ -37,8 +37,8 @@ their merge-base — TD-030). A clone that is merely **behind** (local board unt
 origin's moved — a service-account append, or another machine's push) has its board read
 from origin and its header tagged `— showing origin/<default>`; local-only edits and
 two-sided divergence keep reading the local file and say which. Plus a per-repo
-cadence-staleness line when a repo's dev-cadence pin lacks upstream's latest payload commit
-(the cure: a `dev-cadence bump` PR), or the repo still carries a sync lock and no pin (the
+cadence-staleness line when a repo's agent-cadence pin lacks upstream's latest payload commit
+(the cure: a `agent-cadence bump` PR), or the repo still carries a sync lock and no pin (the
 cure: `sync.sh --pin`) — so a behind repo names itself in the fetch view.
 
 For *remote*, add `--remote` instead (it implies `--fetch`): after the local
@@ -46,7 +46,7 @@ sections, a labeled remote tier lists boards discovered on GitHub (gh CLI) and o
 `remote_repos.txt` names (glab CLI, TD-110) in repos no
 local row covers — repos living only on other machines. Pushed state only; archived
 repos are skipped; discovery scans the authenticated user + orgs unless
-`remote_repos.txt` in the machine-scope directory (`$DEV_CADENCE_REG_DIR`, else `${XDG_CONFIG_HOME:-~/.config}/dev-cadence`) narrows it (one `owner`,
+`remote_repos.txt` in the machine-scope directory (`$AGENT_CADENCE_REG_DIR`, else `${XDG_CONFIG_HOME:-~/.config}/agent-cadence`) narrows it (one `owner`,
 `owner/repo` or `host/owner/repo` per line, `gitlab.com/<group>` or a bare `gitlab.com` for GitLab, cadence.md §9.5;
 empty/missing = scan all of GitHub). Every failure mode (gh or glab missing,
 unauthenticated, per-repo 403/5xx, truncated listing, budget exhaustion) degrades to a
@@ -79,18 +79,18 @@ them over.
 ## No registry on this machine
 
 The report degrades to the current repo's board by itself; say that's what happened.
-Offer — never do unasked — to create `repos.txt` in the machine-scope directory: `$DEV_CADENCE_REG_DIR` when it is set (an isolated run — never the real one then), else `${XDG_CONFIG_HOME:-~/.config}/dev-cadence` (cadence.md §9).
+Offer — never do unasked — to create `repos.txt` in the machine-scope directory: `$AGENT_CADENCE_REG_DIR` when it is set (an isolated run — never the real one then), else `${XDG_CONFIG_HOME:-~/.config}/agent-cadence` (cadence.md §9).
 The registry is append-only and nothing auto-cleans it, so the seed algorithm is pinned
 and conservative:
 
 - Seed with exactly ONE line: the **current repo's** canonicalized main-checkout root
   (`git rev-parse --git-common-dir` → parent dir → `realpath` — same resolution as
-  `dev-cadence adopt`; spec: cadence.md §Machine scope).
+  `agent-cadence adopt`; spec: cadence.md §Machine scope).
 - You may *mention* other candidate repos you happen to know of, but each one is added
   only on the user's explicit per-path confirmation AND after verifying on disk that the
   path exists, is a git repo, and resolves to a main checkout — never from session
   memory alone.
-- The normal registration path is `dev-cadence adopt` (or `sync.sh --pin`) on a repo on this
+- The normal registration path is `agent-cadence adopt` (or `sync.sh --pin`) on a repo on this
   machine; hand-seeding is the exception for repos adopted by hand.
 
 ## Cross-machine questions

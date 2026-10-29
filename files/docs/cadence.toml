@@ -1,10 +1,10 @@
-# docs/cadence.toml — this repo's cadence settings (TD-096). Consumer-owned: `dev-cadence adopt`
+# docs/cadence.toml — this repo's cadence settings (TD-096). Consumer-owned: `agent-cadence adopt`
 # creates it once and never overwrites it. People write it; tools only read it and never rewrite it, so a
 # comment saying why a value was chosen is safe here (cadence.md §9.18).
 #
 # Every tool reads a value through `python3 scripts/cadence_config.py get <key>` (Python >= 3.11).
 # The first that has it wins: env CADENCE_<KEY> (CADENCE_REVIEW_MODEL), this file, the machine's
-# ${XDG_CONFIG_HOME:-~/.config}/dev-cadence/cadence.toml, the default. `cadence_config.py`
+# ${XDG_CONFIG_HOME:-~/.config}/agent-cadence/cadence.toml, the default. `cadence_config.py`
 # prints every key with its value and source; `--check` names a key nothing reads.
 # To change a value, uncomment its line and edit the value (each is shown at its default).
 
@@ -86,7 +86,7 @@
 #   publish-gate = "required"
 
 # --- opt-outs (cadence.md Adoption checklist step 9): what this repo does not adopt, each
-# naming the ADR that decided it. Read by `dev-cadence adopt` (through `cadence_config.py
+# naming the ADR that decided it. Read by `agent-cadence adopt` (through `cadence_config.py
 # opt-outs`). Nothing uncommented here means the whole cadence is adopted.
 #
 # [not-adopted]

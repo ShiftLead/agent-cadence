@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/cadence_config.py
-# Edit it there: a repo runs it from its pinned dev-cadence (`dev-cadence path`), and a fix reaches it by a bump PR.
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """The cadence's settings: the one reader every tool, skill and script goes through (TD-096).
 
     cadence_config.py get <key>     print the value; exit 1 when it is unset and has no default
     cadence_config.py               every known key, its value and where the value came from
     cadence_config.py --json        the same as JSON: {key: {"value": …, "from": …}}
     cadence_config.py --check       name each key no tool reads and each value of the wrong type
-                                    in the files below; exit 1 when there is one (the repo's [dev-cadence]
+                                    in the files below; exit 1 when there is one (the repo's [agent-cadence]
                                     pin, TD-129, is checked with the launcher's rules)
 
     cadence_config.py opt-outs --repo DIR
-                                    the repo's opt-outs (`dev-cadence adopt`'s reader, cadence.md Adoption
+                                    the repo's opt-outs (`agent-cadence adopt`'s reader, cadence.md Adoption
                                     checklist step 9): one TSV line per declaration,
                                     kind, value, adr, source, as-written — split by \\x1f (not
                                     a tab: bash's read would merge an empty field) — and
@@ -24,8 +24,8 @@ Where a value comes from, the first that has it (cadence.md §9.18):
     env      CADENCE_<KEY>, the key upper-cased with `-` as `_` (CADENCE_REVIEW_MODEL);
              an empty or all-blank value counts as unset
     repo     docs/cadence.toml at the repo root (SEED: the repo owns it, sync never rewrites it)
-    machine  cadence.toml in the roster's directory — $DEV_CADENCE_REG_DIR, else
-             ${XDG_CONFIG_HOME:-~/.config}/dev-cadence (§9.2), so a test's override moves it too
+    machine  cadence.toml in the roster's directory — $AGENT_CADENCE_REG_DIR, else
+             ${XDG_CONFIG_HOME:-~/.config}/agent-cadence (§9.2), so a test's override moves it too
     default  KEYS below
 A repo key (REPO_KEYS below: precheck, ledger-ids-host, publish-gate) has the repo row only — no env, no machine file, no
 default: it is a decision about that one repo; so are its tables — the opt-outs, the pin and
@@ -184,11 +184,11 @@ VALIDATE = {"worktree-root": _rel_dir, "attention-scope": _scope, "layers": _lay
 # The opt-outs (TD-072, moved here by TD-096): tables in the repo's file, never the machine's —
 # not adopting a rule is the repo's decision. Each maps a value to the ADR that decided it.
 OPTOUT_TABLES = ("not-adopted", "skip-seed")
-# The pin (TD-129): the [dev-cadence] table in the repo's file — `source`, a git URL, and `ref`, a
-# full 40-hex commit — names the dev-cadence the repo runs through the launcher
-# (launcher/dev_cadence.py, which reads it itself: it is installed apart from any repo, so it
+# The pin (TD-129): the [agent-cadence] table in the repo's file — `source`, a git URL, and `ref`, a
+# full 40-hex commit — names the agent-cadence the repo runs through the launcher
+# (launcher/agent_cadence.py, which reads it itself: it is installed apart from any repo, so it
 # cannot import this file). Only --check reads it here, with the launcher's rules.
-PIN_TABLE = "dev-cadence"
+PIN_TABLE = "agent-cadence"
 PIN_FIELDS = ("source", "ref")
 PIN_SOURCE_RE = r"[A-Za-z][A-Za-z0-9+.-]*://\S+|[^/\s:]+:\S+|/\S*"   # the launcher's SOURCE_RE
 
@@ -261,10 +261,10 @@ def repo_root(start: str) -> str | None:
 
 
 def machine_path() -> str:
-    reg = os.environ.get("DEV_CADENCE_REG_DIR")
+    reg = os.environ.get("AGENT_CADENCE_REG_DIR")
     if not reg:
         base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
-        reg = os.path.join(base, "dev-cadence")
+        reg = os.path.join(base, "agent-cadence")
     return os.path.join(reg, MACHINE_NAME)
 
 
@@ -430,7 +430,7 @@ def legacy_optouts(path: str) -> list[tuple]:
 
 
 def optouts(repo: str) -> list[str]:
-    """The TSV `dev-cadence adopt` reads: the repo's [not-adopted]/[skip-seed] tables, then the legacy
+    """The TSV `agent-cadence adopt` reads: the repo's [not-adopted]/[skip-seed] tables, then the legacy
     file's lines. A file that cannot be read is a warn line, never an exit: the caller adopts
     the whole payload rather than guess (cadence.md Adoption checklist step 9)."""
     out: list[str] = []
