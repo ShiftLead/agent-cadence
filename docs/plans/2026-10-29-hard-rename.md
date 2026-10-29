@@ -377,3 +377,41 @@ TD-191 numbers its steps 1–6.
 - The sitting cannot finish in one go: some consumer PR cannot merge, or a container cannot be rebuilt.
   Then the old names stay installed, and an entry decides whether the old launcher stays as a deliberate
   alias.
+
+## Outcome: the sitting, as run (2026-10-29)
+
+The sitting ran on 2026-10-29, from 15:10 to 16:45, with every team stopped. Steps 1–9 are done, and step 10 is
+Paul's. R merged as `29210e6`, a tree-equal squash of the pinned head `cca4fb5`. S and C1–C5 were re-pinned to it
+and merged: ShiftLead `92df926`, consumer-a `3361b1d`, consumer-b `06b2a2d`, consumer-c `c95a4fc`, consumer-d
+`3e9be0a`, ledgerboard `9154672`. Every clone's shims are swapped. In every repo, a session's SessionStart hooks
+and a commit's `prepare-commit-msg` run on the new names, and nothing reaches the old ones.
+
+What the sitting found that this plan did not foresee, for the next rename or tool move:
+
+- **R's own precheck needs the new machine config.** `publish-names` is a machine-only key with no env override,
+  and a scratch `AGENT_CADENCE_REG_DIR` leaks into the suites. Step 2's copy therefore ran before the sitting, on
+  2026-10-29, and step 2 in the sitting was a check that the roster had not changed.
+- **`precheck.py` passed the launcher's `CADENCE_REPO_ROOT` to the command it runs,** so this repo's suite read
+  the live checkout in place of its fixtures (#3, fixed before R).
+- **agent-cadence's merge settings were GitHub's defaults,** not §4's. They were set before the sitting
+  (`adopt_repo_settings.sh --apply`), so R's merge deleted its branch. The pinned head stayed in the clone and the
+  cache, and the tree-equality check still worked.
+- **S's re-pin also moves `LAUNCHER_COMMIT`** and its pin test, as well as `docs/cadence.toml`'s `ref`.
+- **The old host agent cannot promote the commit that renames it.** Its served check reads `[dev-cadence]` only,
+  so `ao promote` refused ShiftLead as *unserved*. The promote's own `run`, `check` and `smoke` commands
+  (`.shiftlead.yml`) were run by hand from Paul's shell, with `XDG_RUNTIME_DIR` and
+  `DBUS_SESSION_BUS_ADDRESS` set: a session shell has no user bus, and `ao service install` needs one.
+  - The home also pulls `~/shiftlead` on its own, two minutes after the merge, so step 6's *leave the working
+    tree on the old pin* cannot hold.
+  - The old agent's repo readings stay cached until the new agent's first tick, about two minutes, so doctor
+    reads stale before then.
+  - A container node the old agent built in that window carries the old launcher link. It is rebuilt once the
+    new agent is live (`ao host rebuild`).
+- **The cross-repo merges are the person's.** The session's merge of each consumer PR was refused, and Paul
+  merged or approved each one.
+- **The prechecks were quicker than budgeted.** consumer-b's runs nothing for a PR outside its two app trees
+  (1 s), and S's takes 150 s.
+- **Step 9 replaced `~/.local/bin/dev-cadence` with a fail-open stub instead of deleting it** (decided by Paul,
+  2026-10-29). The stub runs nothing, names the new command, and exits 2. A temporary user-level SessionStart
+  hook, `stale-worktree-nudge`, names the cure (merge main) in a worktree whose old line now runs nothing. On the
+  day, 29 worktrees across the roster carried the old line. Both are machine-local, and TD-194 holds when they go.
