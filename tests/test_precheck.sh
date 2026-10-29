@@ -82,6 +82,12 @@ out=$(run --pr 7); rc=$?; rm -f "$FAKE/post_fails"
 out=$(run --pr 7 --no-record); rc=$?
 [ $rc -eq 0 ] && [ ! -s "$FAKE/posts" ] && ok "5 --no-record: runs, nothing recorded" || bad "5 rc=$rc $out"
 
+# 5b. the command never inherits the launcher's CADENCE_REPO_ROOT (it names the live checkout,
+# not the worktree the command runs in), so a suite under `run precheck.py` reads its own fixtures
+cfg 'echo root=${CADENCE_REPO_ROOT:-unset}'
+out=$(CADENCE_REPO_ROOT="$TMP/live" run --pr 7 --no-record); rc=$?
+[ $rc -eq 0 ] && grep -q "root=unset" <<< "$out" && ok "5b the command runs without the launcher's CADENCE_REPO_ROOT" || bad "5b rc=$rc $out"
+
 # 6. a PR that is not open, and a head origin does not serve: exit 2, nothing run
 cfg 'echo SHOULD-NOT-RUN'
 out=$(run --pr 8); rc=$?
