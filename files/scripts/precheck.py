@@ -258,7 +258,10 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print(f"precheck: {what} at {sha[:7]}: {cmd}", flush=True)
         t0 = time.monotonic()
-        rc = subprocess.run(["bash", "-c", cmd], cwd=wt, stdin=subprocess.DEVNULL, check=False).returncode
+        # the launcher's CADENCE_REPO_ROOT names the checkout this ran from, not the clean worktree: a
+        # suite that inherits it reads the live checkout in place of its fixtures (agent-cadence's own did)
+        env = {k: v for k, v in os.environ.items() if k != "CADENCE_REPO_ROOT"}
+        rc = subprocess.run(["bash", "-c", cmd], cwd=wt, env=env, stdin=subprocess.DEVNULL, check=False).returncode
         took = time.monotonic() - t0
     finally:
         if wt.exists():
