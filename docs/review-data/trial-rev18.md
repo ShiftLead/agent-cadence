@@ -26,13 +26,13 @@ Weaknesses: total findings are not build-changing findings. Late reviews in thes
 | in-repo | TD-681 | 4 | 1 | 4 | cap | 4 | 0 | yes | cap | 4 | 0 | yes |
 | in-repo | TD-682 | 3 | 1 | 3 | stop | 3 | 0 | no | stop | 3 | 0 | no |
 | in-repo | TD-688 | 3 | 1 | 3 | stop | 3 | 0 | no | stop | 3 | 0 | no |
+| in-repo | ShiftLead ADR 2026-10-15 | 8 | 2 | 4 | stop | 1 | 6 | no | cap | 4 | 0 | yes |
 | in-repo | TD-692 | 4 | 1 | 4 | stop | 3 | 1 | no | stop | 3 | 1 | no |
 | in-repo | TD-693 | 6 | 1 | 6 | cap | 4 | 2 | yes | cap | 4 | 2 | yes |
 | in-repo | TD-702 | 5 | 1 | 5 | stop | 4 | 1 | no | stop | 4 | 1 | no |
 | in-repo | TD-722 (amendment PR #1850) | 8 | 2 | 4 | stop | 1 | 6 | no | cap | 4 | 0 | yes |
 | in-repo | TD-731 | 4 | 2 | 2 | open | 2 | 0 | no | open | 2 | 0 | no |
 | in-repo | TD-734 | 7 | 2 | 3.5 | stop | 4 | 0 | no | stop | 4 | 0 | no |
-| in-repo | decisions/2026-10-15-queue | 8 | 2 | 4 | stop | 1 | 6 | no | cap | 4 | 0 | yes |
 | in-repo | TD-112 | 14 | 2 | 7 | cap | 4 | 6 | yes | cap | 4 | 6 | yes |
 | in-repo | TD-730 | 8 | 2 | 4 | cap | 4 | 0 | yes | cap | 4 | 0 | yes |
 | in-repo | TD-745 | 4 | 2 | 2 | open | 2 | 0 | no | open | 2 | 0 | no |
@@ -53,9 +53,9 @@ Weaknesses: total findings are not build-changing findings. Late reviews in thes
 | in-repo | TD-821 | 2 | 2 | 1 | open | 1 | 0 | no | open | 1 | 0 | no |
 | in-repo | TD-823 | 2 | 2 | 1 | open | 1 | 0 | no | open | 1 | 0 | no |
 | in-repo | TD-845 | 4 | 2 | 2 | open | 2 | 0 | no | open | 2 | 0 | no |
+| in-repo | ShiftLead ADR 2026-10-19 | 7 | 2 | 3.5 | stop | 1 | 5 | no | cap | 4 | 0 | yes |
 | in-repo | TD-900 | 2 | 2 | 1 | stop | 1 | 0 | no | open | 1 | 0 | no |
 | in-repo | TD-909 | 14 | 2 | 7 | cap | 4 | 6 | yes | cap | 4 | 6 | yes |
-| in-repo | decisions/2026-10-19-queue-card | 7 | 2 | 3.5 | stop | 1 | 5 | no | cap | 4 | 0 | yes |
 | in-repo | TD-924 | 7 | 2 | 3.5 | cap | 4 | 0 | yes | cap | 4 | 0 | yes |
 | in-repo | TD-926 | 7 | 2 | 3.5 | stop | 4 | 0 | no | stop | 4 | 0 | no |
 | in-repo | TD-927 | 11 | 2 | 5.5 | cap | 4 | 3 | yes | cap | 4 | 3 | yes |

@@ -154,7 +154,7 @@
   ],
   "sources": [
    "~/dev-cadence/docs/plans/2026-10-25-pinned-not-synced.md",
-   "~/shiftlead/docs/decisions/2026-10-25-shiftlead-requires-dev-cadence.md"
+   "ShiftLead's docs/decisions (an ADR)"
   ],
   "note": "R1 sonnet 5 BLOCK 7 FIX; R2 fable 4 FIX; R3 sonnet 1 FIX; R4 fable READY. Round numbering there counts single reviews, so 4 reviews = 2 rounds of two models.",
   "class": "wide",
@@ -322,7 +322,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "decisions/2026-10-12-ledgerboard-dev-cadence-shiftlead",
+  "plan": "ShiftLead ADR 2026-10-12",
   "date": "2026-10-12",
   "class_reason": "creates the vendored ledgerboard format and splits it from dev-cadence",
   "models": [
@@ -335,7 +335,7 @@
   "reviews_detail": null,
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/decisions/2026-10-12-ledgerboard-dev-cadence-shiftlead.md"
+   "ShiftLead's docs/decisions (an ADR)"
   ],
   "note": "\"four Fable rounds and four Sonnet rounds reached READY\" = 8 reviews, 4 pairs",
   "class": "wide",
@@ -556,8 +556,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-978.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-978.md"
   ],
   "stop_note": "history says \"the loop ends\" at 19 with Fable still NOT READY on a follow-on; Sonnet had said READY at 16 and 18",
   "class": "in-repo",
@@ -671,8 +671,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1222.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1222.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -794,8 +794,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1022.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1022.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -950,8 +950,8 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-947.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-947.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -1046,8 +1046,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-999.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-999.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -1124,8 +1124,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-991.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-991.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -1328,8 +1328,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-941.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-941.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -1397,8 +1397,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1239.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1239.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -1484,8 +1484,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1143.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1143.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -1577,8 +1577,8 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1129.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1129.md"
   ],
   "class": "wide",
   "mode": "rounds",
@@ -1664,8 +1664,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1048.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1048.md"
   ],
   "class": "wide",
   "mode": "rounds",
@@ -1760,8 +1760,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-966.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-966.md"
   ],
   "class": "wide",
   "mode": "rounds",
@@ -1838,8 +1838,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-998.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-998.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -1907,8 +1907,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1066.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1066.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -1976,8 +1976,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1203.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1203.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -2072,8 +2072,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1187.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1187.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -2141,8 +2141,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1150.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1150.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -2264,8 +2264,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-975.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-975.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -2351,8 +2351,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-964.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-964.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -2474,8 +2474,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-927.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-927.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -2540,8 +2540,8 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-931.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-931.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -2627,8 +2627,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-926.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-926.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -2714,8 +2714,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-924.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-924.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -2870,8 +2870,8 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-909.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-909.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -2936,8 +2936,8 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1189.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1189.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -2996,8 +2996,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-993.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-993.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -3137,8 +3137,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1108.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1108.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -3269,8 +3269,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-986.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-986.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -3329,8 +3329,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-1200.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-1200.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -3425,8 +3425,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-623.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-623.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -3530,8 +3530,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1119.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1119.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -3680,8 +3680,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1117.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1117.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -3758,8 +3758,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1240.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1240.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -3881,8 +3881,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-1149.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-1149.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -4013,8 +4013,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-1064.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-1064.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -4127,8 +4127,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-857.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-857.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -4250,8 +4250,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1061.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1061.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -4388,8 +4388,8 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1051.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1051.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -4475,8 +4475,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1116.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1116.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -4580,8 +4580,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1042.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1042.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -4691,8 +4691,8 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-995.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-995.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -4769,8 +4769,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1026.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1026.md"
   ],
   "class": "in-repo",
   "mode": "rounds",
@@ -4928,8 +4928,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-1009.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-1009.md"
   ],
   "class": "wide",
   "mode": "rounds",
@@ -5079,7 +5079,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-112.md"
+   "ShiftLead's docs/ledger/archive/TD-112.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -5212,7 +5212,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-781.md"
+   "ShiftLead's docs/ledger/archive/TD-781.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -5318,7 +5318,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-748.md"
+   "ShiftLead's docs/ledger/archive/TD-748.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -5415,7 +5415,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-730.md"
+   "ShiftLead's docs/ledger/archive/TD-730.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -5512,7 +5512,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-801.md"
+   "ShiftLead's docs/ledger/archive/TD-801.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -5615,7 +5615,7 @@
   ],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-804.md"
+   "ShiftLead's docs/ledger/archive/TD-804.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -5702,7 +5702,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-783.md"
+   "ShiftLead's docs/ledger/archive/TD-783.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -5790,7 +5790,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-806.md"
+   "ShiftLead's docs/ledger/archive/TD-806.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -5889,7 +5889,7 @@
   ],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-734.md"
+   "ShiftLead's docs/ledger/archive/TD-734.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -5972,7 +5972,7 @@
   ],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-693.md"
+   "ShiftLead's docs/ledger/archive/TD-693.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6041,7 +6041,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-761.md"
+   "ShiftLead's docs/ledger/archive/TD-761.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6110,7 +6110,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-702.md"
+   "ShiftLead's docs/ledger/archive/TD-702.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6180,7 +6180,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-810.md"
+   "ShiftLead's docs/ledger/archive/TD-810.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6240,7 +6240,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-681.md"
+   "ShiftLead's docs/ledger/archive/TD-681.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6300,7 +6300,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-692.md"
+   "ShiftLead's docs/ledger/archive/TD-692.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6361,7 +6361,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-731.md"
+   "ShiftLead's docs/ledger/archive/TD-731.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6422,7 +6422,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-745.md"
+   "ShiftLead's docs/ledger/archive/TD-745.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6483,7 +6483,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-845.md"
+   "ShiftLead's docs/ledger/archive/TD-845.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6534,7 +6534,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-682.md"
+   "ShiftLead's docs/ledger/archive/TD-682.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6585,7 +6585,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-688.md"
+   "ShiftLead's docs/ledger/archive/TD-688.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6637,7 +6637,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-814.md"
+   "ShiftLead's docs/ledger/archive/TD-814.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6680,7 +6680,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-819.md"
+   "ShiftLead's docs/ledger/archive/TD-819.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6729,7 +6729,7 @@
   ],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-820.md"
+   "ShiftLead's docs/ledger/archive/TD-820.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6771,7 +6771,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-821.md"
+   "ShiftLead's docs/ledger/archive/TD-821.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6814,7 +6814,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-823.md"
+   "ShiftLead's docs/ledger/archive/TD-823.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6857,7 +6857,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-816.md"
+   "ShiftLead's docs/ledger/archive/TD-816.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6900,7 +6900,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-818.md"
+   "ShiftLead's docs/ledger/archive/TD-818.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -6979,7 +6979,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-818.md"
+   "ShiftLead's docs/ledger/archive/TD-818.md"
   ],
   "class": "in-repo",
   "source_kind": "transcript",
@@ -7022,7 +7022,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts (Agent calls, task notifications)",
-   "~/shiftlead/docs/ledger/archive/TD-900.md"
+   "ShiftLead's docs/ledger/archive/TD-900.md"
   ],
   "note": "two reviews by two models in one pass (Opus and Sonnet)",
   "class": "in-repo",
@@ -7317,8 +7317,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1025.md",
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1025.md",
    "Claude Code session transcripts (tokens)"
   ],
   "note": "first pass skipped this design-history TD",
@@ -7416,8 +7416,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1031.md",
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1031.md",
    "Claude Code session transcripts (tokens)"
   ],
   "note": "first pass skipped this design-history TD",
@@ -7515,8 +7515,8 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1033.md",
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1033.md",
    "Claude Code session transcripts (tokens)"
   ],
   "note": "first pass skipped this design-history TD",
@@ -7578,7 +7578,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts",
-   "~/shiftlead/docs/ledger/archive/TD-418.md"
+   "ShiftLead's docs/ledger/archive/TD-418.md"
   ],
   "note": "four Sonnet-only rounds; first pass skipped for unknown count",
   "class": "in-repo",
@@ -7712,9 +7712,9 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts",
-   "~/shiftlead/docs/ledger/archive/TD-646.md"
+   "ShiftLead's docs/ledger/archive/TD-646.md"
   ],
-  "note": "remote-access design; security-sensitive but one repo",
+  "note": "one repo",
   "class": "in-repo",
   "source_kind": "transcript",
   "mode": "rounds",
@@ -7810,7 +7810,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts",
-   "~/shiftlead/docs/ledger/archive/TD-722.md"
+   "ShiftLead's docs/ledger/archive/TD-722.md"
   ],
   "note": "first pass skipped for mixed formats; counted here from the Agent calls (Fable proposal review, then rounds on the amendment)",
   "class": "in-repo",
@@ -7821,7 +7821,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "decisions/2026-10-15-queue",
+  "plan": "ShiftLead ADR 2026-10-15",
   "date": "2026-10-15",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -7907,7 +7907,7 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/decisions/2026-10-15-queue.md",
+   "ShiftLead's docs/decisions (an ADR)",
    "Claude Code session transcripts"
   ],
   "note": "ADR says four Fable rounds + a final AGREE and three Sonnet rounds; transcripts show 4+1 Fable and 3 Sonnet = 8 reviews; earlier first pass could not settle 7 vs 8",
@@ -7919,7 +7919,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "decisions/2026-10-19-queue-card",
+  "plan": "ShiftLead ADR 2026-10-19",
   "date": "2026-10-19",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -7996,7 +7996,7 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/decisions/2026-10-19-queue-card.md",
+   "ShiftLead's docs/decisions (an ADR)",
    "Claude Code session transcripts"
   ],
   "note": "ADR stage; TD-909 (already in the set) is the later design stage of the same card",
@@ -8067,7 +8067,7 @@
   "post_build_defects": [],
   "sources": [
    "Claude Code session transcripts",
-   "~/shiftlead/docs/design-history.md"
+   "ShiftLead's docs/design-history.md"
   ],
   "note": "Fable-only; ended READY, then Paul asked for a rework",
   "class": "in-repo",
@@ -8252,7 +8252,7 @@
   ],
   "sources": [
    "Claude Code session transcripts",
-   "~/shiftlead/docs/design-history.md"
+   "ShiftLead's docs/design-history.md"
   ],
   "note": "restarted by Paul after v1; includes confirm rounds and one Sonnet pass he asked for; many reviews are confirmations of a narrow change",
   "class": "in-repo",
@@ -8318,8 +8318,8 @@
   "reviews_detail": null,
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/decisions/2026-09-25-settings-audit.md",
-   "~/shiftlead/docs/design-history.md"
+   "ShiftLead's docs/decisions (an ADR)",
+   "ShiftLead's docs/design-history.md"
   ],
   "note": "\"four Sonnet rounds to READY\"; Sonnet only",
   "class": "in-repo",
@@ -8343,7 +8343,7 @@
   "reviews_detail": null,
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/ledger/archive/TD-103.md"
+   "ShiftLead's docs/ledger/archive/TD-103.md"
   ],
   "note": "\"eight Sonnet design-review rounds, every finding adopted, closed by Fable after round 8\": 9 reviews, 4.5 rounds by the definition though one model did eight of them",
   "class": "in-repo",
@@ -8366,7 +8366,7 @@
   "reviews_detail": null,
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md"
+   "ShiftLead's docs/design-history.md"
   ],
   "note": "\"after two Fable reviews and Paul's steer\"",
   "class": "in-repo",
@@ -8389,7 +8389,7 @@
   "reviews_detail": null,
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md"
+   "ShiftLead's docs/design-history.md"
   ],
   "note": "\"Sonnet design review the same day\"; a single review",
   "class": "in-repo",
@@ -8412,7 +8412,7 @@
   "reviews_detail": null,
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md"
+   "ShiftLead's docs/design-history.md"
   ],
   "note": "\"Sonnet design review the same day\"; a single review",
   "class": "in-repo",

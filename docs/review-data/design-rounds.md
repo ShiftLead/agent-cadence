@@ -42,7 +42,7 @@ Review column legend: letter = model (F Fable, S Sonnet, O Opus), number = total
 | dev-cadence | 2026-10-26-public-scrub (amendment 2026-10-28: cut over to agent-caden | 2026-10-28 | wide | adr | 5 | 2.5 | converged |  | - |
 | dev-cadence | 2026-10-22-ledger-ids (TD-124) | 2026-10-22 | wide | adr | 5 | 2.5 | converged | S F S F S | dev-cadence TD-145, TD-150, then TD-188 (2026-10-26..28) |
 | agent-cadence | 2026-10-29-hard-rename | 2026-10-29 | wide | adr | 4 | 2 | converged | F S F S | - |
-| shiftlead | decisions/2026-10-12-ledgerboard-dev-cadence-shiftlead | 2026-10-12 | wide | adr | 8 | 4 | converged |  | - |
+| shiftlead | ShiftLead ADR 2026-10-12 | 2026-10-12 | wide | adr | 8 | 4 | converged |  | - |
 | dev-cadence | 2026-10-27-ledger-per-entry (TD-160) | 2026-10-27 | wide | adr | n/a | n/a | ? |  | dev-cadence TD-170, TD-176, TD-183, TD-185 (2026-10-28) |
 | shiftlead | TD-978 | 2026-10-22 | in-repo | design-history | 19 | 9.5 | other | F10 S13 F10 S9 F8 S1 F7 S12 F5 S1 F1 S* F1 S1 F1 S3* F1 S2 F1 | - |
 | shiftlead | TD-1222 | 2026-10-29 | in-repo | design-history | 10 | 5 | converged | F7 S6 F6 S5 F4 S5 F4 S4 F3* S* | - |
@@ -122,8 +122,8 @@ Review column legend: letter = model (F Fable, S Sonnet, O Opus), number = total
 | shiftlead | TD-418 | 2026-10-09 | in-repo | transcript | 4 | 4 | ? | S S S S | - |
 | shiftlead | TD-646 | 2026-10-14 | in-repo | transcript | 12 | 6 | ? | S S S S F S S S F S F F | - |
 | shiftlead | TD-722 (amendment PR #1850) | 2026-10-15 | in-repo | transcript | 8 | 4 | ? | F F S F S F F S | - |
-| shiftlead | decisions/2026-10-15-queue | 2026-10-15 | in-repo | adr | 8 | 4 | ? | F F F F S S S F | - |
-| shiftlead | decisions/2026-10-19-queue-card | 2026-10-19 | in-repo | adr | 7 | 3.5 | ? | F S S F S F S | - |
+| shiftlead | ShiftLead ADR 2026-10-15 | 2026-10-15 | in-repo | adr | 8 | 4 | ? | F F F F S S S F | - |
+| shiftlead | ShiftLead ADR 2026-10-19 | 2026-10-19 | in-repo | adr | 7 | 3.5 | ? | F S S F S F S | - |
 | shiftlead | TD-307 | 2026-10-04 | in-repo | transcript | 5 | 5 | ? | F F F F F | - |
 | shiftlead | TD-307 | 2026-10-04 | in-repo | transcript | 17 | 8.5 | ? | F F F F F F F F F F S S S F F F F | shiftlead TD-356 (2026-10-06) |
 | dev-cadence | 2026-10-28-ledger-id-provenance (formal Id take field; redesign of TD- | 2026-10-29 | wide | transcript | 2 | 1 | ? | F S | - |
@@ -143,19 +143,19 @@ Review column legend: letter = model (F Fable, S Sonnet, O Opus), number = total
 - **Post-build defects are a lower bound, and the two batches were found differently.** The first pass read the ledger entries citing each TD. The extension listed every ledger entry citing each added TD (after the design date, builds and backfills excluded) and judged each by its title and the citing sentence; a pure regex over the citing sentences found only 1 of the first pass's 5 known defects, so it was not used. Even so the 44 added in-repo designs show 2 clear and 3 questionable defects against 5 clear in the first pass; most of that gap is how hard each batch was searched and how recent the designs are (only 3 of the 44 are dated 10-26, but the first-pass set carries 10-27..10-30 designs that are not aged), not evidence that the added designs are cleaner. Test-gap entries (the test-audit TDs) are excluded in both batches as not design gaps.
 - **Transcript counts.** Each review is one Agent call (de-duplicated by model and round number, or by prompt text for the non-TD plans); async launches are matched to their `<task-notification>` for tokens and the hand-back text. Where a plan numbers single reviews (ShiftLead history, hard-rename) rounds = reviews / models; where it numbers pairs (the 10-15..10-17 designer runs) the pairs were launched together, so rounds = pairs, the same arithmetic. A round in which only one of Fable and Sonnet was launched counts as half. The Sonnet-only designs of 10-09..10-15 (TD-418, 681, 682, 688, 692, 693, 702) have rounds = reviews.
 - **One-round designs.** Seven added designs (TD-816, 818, 819, 820, 821, 823 of 10-17 and TD-900 of 10-19) are one Fable design review plus one Sonnet fact-check (TD-900: Opus plus Sonnet) of a design PR, counted as 1 round; whether that is a design round or the pre-merge PR review is a judgement call. Without them in-repo is 76 designs: 24 within 3 rounds (32%), 47 within 4 (62%), 67 within 6 (88%), median rounds still 4.
-- **Classification is mine and debatable**, as before. Every added design except id-provenance is classed in-repo ("changes only ShiftLead"); TD-1033 (the repo's gate moves to a local precheck) and TD-1025 (rule 12 for pinned repos) touch dev-cadence's mechanics but edit only ShiftLead. Reclassifying shifts the wide numbers by 1-4 designs.
+- **Classification is mine and debatable**, as before. Every added design except id-provenance is classed in-repo ("changes only ShiftLead"); TD-1033 and TD-1025 touch dev-cadence's mechanics but edit only ShiftLead. Reclassifying shifts the wide numbers by 1-4 designs.
 - **Long-lived designs were split or lumped by judgement.** TD-307's flows section was reworked by Paul after a READY and is recorded as two records (first draft: 5 Fable reviews; rework to v3: 17 reviews incl. confirms); TD-818 and TD-722 amendments are separate from the original design; the two Queue ADRs are separate records from TD-748 and TD-909, which sit downstream of them. If a lineage is counted as one design its round count is the sum.
 - **Prose-sourced records** (TD-100 four Sonnet rounds, TD-103 eight Sonnet plus a closing Fable, TD-057 step 3c two Fable reviews, TD-069 and TD-070 one Sonnet review each) carry no per-review detail. The two dev-cadence plans of 2026-08 are parallel-lens reviews (two Sonnet lenses plus a verification), recorded with `mode: "parallel"` and kept out of every aggregate.
 
 ### Skipped, and why
 
-- **TD-1190** (Add entry form lines): reviews launched 10-30 and the hand-backs are not in the transcript; may still be in progress.
+- **TD-1190**: reviews launched 10-30 and the hand-backs are not in the transcript; may still be in progress.
 - **agent-cadence TD-203** (this rounds plan): its own review loop is still running.
-- **TD-787** (held-PR mark): the ledger entry lists Fable rounds 1-3 and Sonnet rounds 1-2, design-history says "Fable rounds 1-4 and Sonnet rounds 1-3"; 5 or 7 reviews, unresolved.
+- **TD-787**: the ledger entry lists Fable rounds 1-3 and Sonnet rounds 1-2, design-history says "Fable rounds 1-4 and Sonnet rounds 1-3"; 5 or 7 reviews, unresolved.
 - **TD-158** (dev-cadence plan, one Fable review) and **TD-345** (a scoped Fable review): one review each with no hand-back text; **TD-052 section 4.10** (four Fable reviews and an unstated number of Sonnet ones).
-- **TD-964's first round** (the td-156 session, TD-942 in the review prompts) is already in the set as TD-964; **TD-1119, TD-975** have history lines but no transcript, and kept their history counts.
+- **TD-964's first round** (reviewed under an earlier id) is already in the set as TD-964; **TD-1119, TD-975** have history lines but no transcript, and kept their history counts.
 - **ledger-per-entry** stays in the table with its defects but has no review count, so it is outside the aggregates.
-- **Single design-PR fact-checks** of 09-22..10-12 (TD-177, 208, 240, 245, 246, 254, 351) were read as the per-PR review, not a design review. Research ADRs (herdr, paperclip, hermes, muse, grok bot, monetisation, prior art, cloud sessions) have no review record.
-- **Codex and Gemini CLI stores:** ~/.codex has empty goals, memories and logs tables and ~/.gemini holds only credentials and project markers; neither holds a design review.
-- Transcripts of the symlinked `agentorc` project directories duplicate the `shiftlead` ones and were read once (the Claude project store has 2,889 session files).
+- **Single design-PR fact-checks** of 09-22..10-12 (TD-177, 208, 240, 245, 246, 254, 351) were read as the per-PR review, not a design review. ShiftLead's research ADRs have no review record.
+- **Codex and Gemini CLI stores** on this machine hold no design review.
+- Transcripts reached through more than one project directory were read once.
 
