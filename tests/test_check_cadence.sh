@@ -958,6 +958,43 @@ out=$(lrun --pr 23); [ "$(rowstat "$out" ledger)" = PASS ] && ok "ledger: a bad 
 # a commit this clone does not have: not checked, said, never a fail
 sethead 23 0123456789abcdef0123456789abcdef01234567
 out=$(lrun --pr 23); [ "$(rowstat "$out" ledger)" = PASS ] && lrow "$out" | grep -q "ledger fields not checked: 0123456 is not in this clone" && ok "ledger: an unknown head commit is not checked, and the row says so" || bad "ledger unknown head: $(lrow "$out")"
+# --- TD-122: an entry the PR adds or edits that waits on the person with no **Ask:** line warns in the
+# ledger row, never fails it; an archived entry, an unchanged one and one with an Ask: below its header do not
+AR="$TMP/askrepo"; git init -q --bare -b main "$AR.git"; git clone -q "$AR.git" "$AR" 2>/dev/null
+agit() { git -C "$AR" -c user.email=t@t -c user.name=t "$@"; }
+aent() { printf '## %s: entry\n\n**Priority:** Low\n**Type:** debt\n%s\n**Status:** Open\n\n**Why:** x.\n%b\n---\n\n' "$1" "$2" "${3:-}"; }
+mkdir -p "$AR/docs"; { printf '# ledger\n\n'; aent TD-010 '**Blocked by:** decision (Alex)'; } > "$AR/docs/technical_debt.md"
+printf '# archive\n\n' > "$AR/docs/technical_debt_archive.md"
+( cd "$AR" && agit add -A && agit commit -qm base && git push -q -u origin HEAD:main && git fetch -q origin ) 2>/dev/null
+abranch() { # name, then a command run in the clone that edits the ledger
+  ( cd "$AR" && git checkout -q -b "$1" origin/main && eval "$2" && agit commit -qam "$1" && git rev-parse HEAD )
+}
+ADD=$(abranch ask-add 'aent TD-011 "**Owner:** person" >> docs/technical_debt.md')
+OKA=$(abranch ask-ok 'aent TD-012 "**Blocked by:** decision (alex)" "\n**Ask:** Should it? Yes or no.\n" >> docs/technical_debt.md')
+HDR=$(abranch ask-hdr 'aent TD-013 "**Ask:** Should it?" "\n**Answers:** yes | no\n" >> docs/technical_debt.md')
+EDT=$(abranch ask-edit 'sed -i "s/^\*\*Status:\*\* Open/**Status:** Open, still/" docs/technical_debt.md')
+ARC=$(abranch ask-arch '{ cat docs/technical_debt.md | sed 1,2d | sed "s/Open/Resolved/"; } >> docs/technical_debt_archive.md; printf "# ledger\n\n" > docs/technical_debt.md')
+arun() { ( cd "$AR" && python3 "$SCRIPT" "$@" 2>&1 ); }
+apr() { # n, branch, head
+  pr "$1" OPEN "$2" "TD-0$1: ask" docs/technical_debt.md docs/technical_debt_archive.md; sethead "$1" "$3"
+  comments "$1" "$(c 'cadence-review: SHIP · sonnet · docs · 0' "$BEFORE" "$BEFORE")"
+}
+apr 11 ask-add "$ADD"; out=$(arun --pr 11); rc=$?
+[ "$(rowstat "$out" ledger)" = PASS ] && lrow "$out" | grep -qF "⚠ TD-011 waits on the person (Owner: person) with no **Ask:** line" && ! lrow "$out" | grep -q "TD-010" \
+  && ok "ledger: an added entry owned by the person with no Ask: warns, the row stays PASS; the unchanged one on main does not" || bad "ask added: rc=$rc $(lrow "$out")"
+apr 12 ask-ok "$OKA"; out=$(arun --pr 12)
+[ "$(rowstat "$out" ledger)" = PASS ] && ! lrow "$out" | grep -q "Ask:" && ok "ledger: an added entry with an Ask: line below its header does not warn" || bad "ask ok: $(lrow "$out")"
+apr 13 ask-hdr "$HDR"; out=$(arun --pr 13)
+[ "$(rowstat "$out" ledger)" = PASS ] && lrow "$out" | grep -qF "TD-013 waits on the person (Answers:; its Ask: is in the header)" \
+  && ok "ledger: an Answers: entry whose Ask: sits in the header block warns, and says where it is" || bad "ask header: $(lrow "$out")"
+apr 10 ask-edit "$EDT"; out=$(arun --pr 10)
+[ "$(rowstat "$out" ledger)" = PASS ] && lrow "$out" | grep -qF "TD-010 waits on the person (decision (Alex))" \
+  && ok "ledger: an edited entry blocked on a decision with no Ask: warns" || bad "ask edited: $(lrow "$out")"
+apr 14 ask-arch "$ARC"; out=$(arun --pr 14)
+[ "$(rowstat "$out" ledger)" = PASS ] && ! lrow "$out" | grep -q "waits on the person" && ok "ledger: an entry moved to the archive does not warn" || bad "ask archived: $(lrow "$out")"
+( cd "$AR" && git checkout -q ask-add ) && out=$( cd "$AR" && python3 "$DC/files/scripts/ledger.py" --check --since origin/main ); rc=$?
+[ $rc -eq 0 ] && grep -qF "ℹ TD-011 waits on the person" <<< "$out" && ! grep -q "TD-010" <<< "$out" \
+  && ok "ledger.py --check --since: the no-ask ℹ names the new entry, rc 0, and the unchanged one is standing" || bad "ask --check: rc=$rc $out"
 
 # --- 19) TD-124: the ledger row on an open PR judges the ids it adds — head's ledger and archive
 # minus its merge-base's. Main holds unpadded TD-1..TD-3, and TD-10 only as an archive table row.
