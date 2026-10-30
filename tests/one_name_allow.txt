@@ -13,6 +13,8 @@ files/docs/cadence-changes.md *
 docs/ledger/TD-*.md *
 docs/ledger/archive/TD-*.md *
 docs/plans/2026-10-29-hard-rename.md *
+# The review data records designs by the repo they were made in, the private predecessor among them.
+docs/review-data/* *
 files/scripts/ledgerboard.py *
 tests/ledgerboard/* *
 tests/fixtures/legacy_sync.sh *
