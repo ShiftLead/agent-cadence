@@ -11,7 +11,7 @@
   - build-changing labels exist for one design (TD-173's ledger writer);
   - tokens exist for 278 reviews, covering 43 of the 97 designs;
   - models are named loosely (letters F, S, O);
-  - the link from a design to a defect it later let through was found by reading which ledger entries cite the design: a lower bound: 7 firm ShiftLead pairs (one a doc leftover after the build), 3 dev-cadence designs with firm defects (the repo is archived), and 5 "(questionable)" designs carrying 7 defect entries.
+  - the link from a design to a defect it later let through was found by reading which ledger entries cite the design: a lower bound: 7 firm ShiftLead pairs (one a doc leftover after the build), 3 dev-cadence designs with firm defects (the repo is archived), and 5 "(questionable)" designs carrying 6 defect entries.
 - **The trial** (`trial-rev18.md`) had to use total findings as a proxy for build-changing ones and could not test the link at all.
 - **Paul's direction:** "the real help is to be able to check against issues that arose after the designs"; "as tokens get cheaper and agents get stronger … people will want to rely on them more, and expand the number of allowed cycles"; "We might want to record the actual models involved."
 
@@ -39,11 +39,11 @@ The rows are recorded **whatever the key (3) says**: data not written when the r
 - **Form:** `**Escaped from:** <design>` in the entry's header block (cadence.md §2.12: the first word is the value, the rest a free comment). The value is a design's entry, `TD-NNN` or `<repo>#TD-NNN` (§2.2's form), or a plan's path (`docs/plans/<file>.md`, or `<repo>:docs/plans/<file>.md` for another repo's). One value per entry.
 - **Meaning:** a design review of that design should have caught this. A defect the design got right and the build got wrong gets no field.
 - **Who sets it:** the session filing the defect, which asks one question: *did the design miss this, or the build?* A later session may add or remove the field like any other edit, with a word why in the PR.
-- **Parsing:** it is a field the cadence defines, so it joins ledgerboard's `CADENCE_FIELDS` as a free-valued field, in a ledgerboard minor release vendored here (`vendor_ledgerboard.sh`) and in ShiftLead. Without that, a ledger with a `Fields:` line (ShiftLead's) flags it `undeclared-field`, an error under `--check --since` and so in the cadence check's `ledger` row, and a `Fields:` line cannot declare a free-valued field. `review-stats` (4) resolves each value from the raw field text (its first whitespace-delimited token, case kept; ledgerboard's `first_word` lowercases) and reports one it cannot resolve; `ledger.py --check` does not resolve it.
+- **Parsing:** it is a field the cadence defines, so it joins ledgerboard's `CADENCE_FIELDS` as a free-valued field, in a ledgerboard minor release, vendored here by `vendor_ledgerboard.sh`; ShiftLead's copy is held byte-equal to its agent-cadence pin, so it arrives by an `agent-cadence bump` there. Without that, a ledger with a `Fields:` line (ShiftLead's) flags it `undeclared-field`, an error under `--check --since` and so in the cadence check's `ledger` row, and a `Fields:` line cannot declare a free-valued field. `review-stats` (4) resolves each value from the raw field text, split and stripped as ledgerboard's `first_word` does (`WORD_RE`; surrounding `*_` and backticks, a trailing `.` or `:`) but not lowercased and reports one it cannot resolve; `ledger.py --check` does not resolve it.
 - An archived entry may take the field (the backfill edits closed defects).
 
 **3. The key `review-outcomes`** (`off` | `on`, default `off`, in `cadence_config.py`'s `KEYS`, §9.18). It turns on **only the filing question** of 2:
-- `ledger_next_id.py` prints the question once, on stderr (stdout stays the ids, one a line), when it hands out ids in a repo with the key on (every new entry takes its id there, §2.10). Under `--json` it adds a `question` key. It does not print on `--claim` or on an exit that hands out no id;
+- `ledger_next_id.py` prints the question once, on stderr (stdout stays the ids, one a line), when it hands out ids in a repo with the key on (every new entry takes its id there, §2.10). Under `--json` it adds a `question` key. It prints whenever ids are printed, exit 3's unreserved ids included, and not on `--claim` or exit 2. Under `--json` with the key off, `question` is absent; the docstring's *Output:* line names it;
 - a repo whose front end hands out ids (shiftlead's `ao td next`) asks it the same way: a shiftlead entry.
 
 No reminder to run `review-stats`: each run prints how many plans carry a Review record, and the decided ADR already says to rerun the trial after about ten plans.
@@ -64,7 +64,8 @@ No reminder to run `review-stats`: each run prints how many plans carry a Review
 
 **6. Where it lives:**
 - cadence.md §2 gains the `Escaped from:` paragraph (2); §2.12's list of fields the cadence defines names it; §4.8's *Design review rounds* paragraph (TD-203) names the Reviews table; §9.18 lists `review-outcomes`.
-- ledgerboard (ShiftLead/ledgerboard): a minor release adding `escaped from` to `CADENCE_FIELDS` and to `SPEC.md`, vendored here and bumped in ShiftLead before the backfill PR.
+- ledgerboard (ShiftLead/ledgerboard): a minor release adding `escaped from` to `CADENCE_FIELDS` and to `SPEC.md`'s list of spec fields, vendored here, and reaching ShiftLead by its agent-cadence bump before the backfill PR.
+- the seed `files/docs/technical_debt.md`'s entry template gains an optional `**Escaped from:**` line beside `Part of` (`tests/test_parity.sh` holds that template and §2.12's list to `CADENCE_FIELDS`); `ledger.py --fields` then reports it `defined_by: cadence`.
 - `files/docs/adr-template.md`'s *Review record* (TD-203) gains the Reviews table and `R<n>` in `by`.
 - `files/scripts/review_stats.py` (new, SYNC: `sync.sh`'s `SYNC_FILES` and README's file-class table).
 - `cadence_config.py`: the key, with an `off`|`on` validator; the seed `files/docs/cadence.toml` gains its commented line.
@@ -76,6 +77,7 @@ No reminder to run `review-stats`: each run prints how many plans carry a Review
 - `tests/test_cadence_config.sh`: the key's default, a repo value, a bad value as a `--check` error, and the seed parity.
 - `ledger_next_id.py` prints the question on stderr with the key on (stdout unchanged; `--json` carries `question`), and stays silent with it off and on `--claim`.
 - ledgerboard's own tests (its release): `Escaped from:` in a ledger with a `Fields:` line raises no `undeclared-field`.
+- `tests/test_parity.sh` passes with the new field in §2.12, the seed template and `CADENCE_FIELDS`.
 - A new `tests/test_review_stats.sh`, over fixture repos on a temporary roster: both tables are read, `Escaped from:` resolves (including `<repo>#TD-NNN` and a mixed-case `<repo>:` plan path), `by` is read as `R<n>` and as free text, an unresolvable value is reported, `--candidates` lists a citing defect without the field and skips one with it, the output lands beside the roster and nothing is written into a repo, and `--repo` limits the scope. An `Escaped from:` added to a fixture after a first run is counted by the second, and a design younger than `--aged` is listed apart and not counted as clean.
 
 ## Options
@@ -106,6 +108,7 @@ Pending the review rounds and Paul's go (his §2.4 layer rule: TD-204 stays `Blo
 | review | round | role | model | tokens | date | findings |
 |---|---|---|---|---|---|---|
 | R1 | 1 | fact-check | claude-sonnet-5-5 | 100982 | 2026-10-30 | F1–F7 |
+| R2 | 1 | fact-check | claude-sonnet-5-5 | 69466 | 2026-10-30 | F8–F13 |
 
 | id | round | by | topic | finding | class | status |
 |---|---|---|---|---|---|---|
@@ -116,3 +119,9 @@ Pending the review rounds and Paul's go (his §2.4 layer rule: TD-204 stays `Blo
 | F5 | 1 | R1 | design age | "the plan's Decision date" is no field | minor | applied (4: Status's decided date, else `Date:`, else first commit) |
 | F6 | 1 | R1 | findings record | `by` as `R<n>` changes the decided ADR's form; old records keep free text | minor | applied (1, 4, 7) |
 | F7 | 1 | R1 | wording | TD-203's "rules 1–11" was called stale | minor | rejected: the decided ADR has rules 1–11 (10 is where it lives, 11 the tests) |
+| F8 | 1 | R2 | `Escaped from:` parsing | adding the field to `CADENCE_FIELDS` fails `tests/test_parity.sh` unless the seed `technical_debt.md` template gains it too; the plan named neither | build-changing | applied (6, 7) |
+| F9 | 1 | R2 | data claims | the questionable designs carry 6 defect entries, not 7 | build-changing | applied (Context) |
+| F10 | 1 | R2 | `Escaped from:` parsing | "first whitespace-delimited token" differs from `first_word`'s split and strip; a backticked path would not resolve | minor | reopens F3 (applied: 2) |
+| F11 | 1 | R2 | `Escaped from:` parsing | ShiftLead's ledgerboard is a byte-equal copy of its agent-cadence pin, so it arrives by a bump, not a separate vendoring | minor | applied (2, 6) |
+| F12 | 1 | R2 | the filing question | exit 3 (unreserved ids) unstated; `--json` with the key off; the docstring's Output line | minor | reopens F2 (applied: 3) |
+| F13 | 1 | R2 | `Escaped from:` parsing | `Taken by` is a non-spec field with the same problem (`ledger_next_id.py:338`, its `"taken by" in LB.CADENCE_FIELDS` false today); add it in the same release | minor | rejected: out of this plan's scope; raised with Paul as its own entry |
