@@ -763,18 +763,23 @@ def _gitignore(dest):
         print("  WARN  .gitignore is a symlink — not written through: add by hand " + ", ".join(lines))
         return
     try:
-        with open(path, "rb") as f:
-            have = f.read()
-    except FileNotFoundError:
-        have = b""
-    present = set(have.decode("utf-8", "surrogateescape").splitlines())
-    add = [ign for ign in lines if ign not in present]
+        try:
+            with open(path, "rb") as f:
+                have = f.read()
+        except FileNotFoundError:
+            have = b""
+        present = set(have.decode("utf-8", "surrogateescape").splitlines())
+        add = [ign for ign in lines if ign not in present]
+        if add:
+            with open(path, "ab") as f:
+                f.write((b"\n" if have and not have.endswith(b"\n") else b"") + "".join(i + "\n" for i in add).encode())
+    except OSError as e:   # a directory, no permission: said, and adopt goes on to the shims and the roster
+        print(f"  WARN  .gitignore not written ({e.strerror or e}): add by hand " + ", ".join(lines))
+        return
     for ign in lines:
         if ign in present:
             print(f"  conf  {ign} already in .gitignore")
     if add:
-        with open(path, "ab") as f:
-            f.write((b"\n" if have and not have.endswith(b"\n") else b"") + "".join(i + "\n" for i in add).encode())
         for ign in add:
             print(f"  conf  {ign} added to .gitignore")
 

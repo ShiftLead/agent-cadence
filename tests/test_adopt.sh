@@ -221,6 +221,11 @@ T="$TMP/t6i"; newrepo "$T"; printf 'x/\n' > "$TMP/gi.target"; ln -s "$TMP/gi.tar
 out=$(adopt "$T"); rc=$?
 [ $rc -eq 0 ] && [ "$(cat "$TMP/gi.target")" = "x/" ] && grep -qF ".gitignore is a symlink — not written through" <<< "$out" \
     && ok "a symlinked .gitignore: warned, never written through" || bad "symlink gitignore rc=$rc: $out"
+T="$TMP/t6j"; newrepo "$T"; mkdir "$T/.gitignore"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && grep -qF ".gitignore not written" <<< "$out" && grep -qF "agent-cadence hook" "$T/.git/hooks/pre-push" \
+    && grep -qxF "$(realpath "$T")" "$AGENT_CADENCE_REG_DIR/repos.txt" \
+    && ok "a .gitignore that cannot be read (a directory): warned, and adopt still installs the shims and registers" || bad "dir gitignore rc=$rc: $out"
 
 # --- 7) parity: adopt's reading of sync.sh's arrays is bash's own
 for a in SYNC_FILES SEED_FILES; do
