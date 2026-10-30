@@ -335,7 +335,7 @@ read_config() {
 # is no per-checkout copy of a directory this checkout does not hold. A key the
 # main checkout's settings.local.json does not carry is not added.
 #
-# It stays gitignored either way: the entry the retired copy installed (adopt's is TD-168) is the
+# It stays gitignored either way: the entry adopt writes (TD-168), as the retired copy did, is the
 # exact path `.claude/settings.local.json`.
 #
 # settings_py gen   <src> <root> <wt>        -> the copy's JSON on stdout (2: src unreadable)

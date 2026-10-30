@@ -139,6 +139,9 @@ out=$(adopt "$TMP/t10-wt"); rc=$?
 git -C "$CL" update-index --no-assume-unchanged files/AGENTS.md; cp "$TMP/agents.orig" "$CL/files/AGENTS.md"
 [ $rc -eq 0 ] && cmp -s "$T/AGENTS.md" "$TMP/agents.orig" && ok "a seed is the pinned commit's file, not the clone's edited copy" || bad "seed source rc=$rc: $out"
 [ -e "$T/docs/cadence.toml" ] && [ ! -e "$TMP/t10-wt/docs/cadence.toml" ] && ok "a linked worktree named: its main checkout is adopted" || bad "worktree target: $out"
+[ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["autoMemoryDirectory"])' "$T/.claude/settings.local.json")" = "$(realpath "$T")/docs/claude-memory" ] \
+    && [ ! -e "$TMP/t10-wt/.claude/settings.local.json" ] \
+    && ok "a linked worktree named: the memory path is the main checkout's (TD-168)" || bad "worktree memdir: $(cat "$T/.claude/settings.local.json" 2>&1)"
 
 # --- 6) a temp-dir repo is never written to a roster outside the temp roots (TD-068)
 T="$TMP/fx/t7"; mkdir -p "$TMP/fx"; newrepo "$T"
@@ -226,6 +229,50 @@ out=$(adopt "$T"); rc=$?
 [ $rc -eq 0 ] && grep -qF ".gitignore not written" <<< "$out" && grep -qF "agent-cadence hook" "$T/.git/hooks/pre-push" \
     && grep -qxF "$(realpath "$T")" "$AGENT_CADENCE_REG_DIR/repos.txt" \
     && ok "a .gitignore that cannot be read (a directory): warned, and adopt still installs the shims and registers" || bad "dir gitignore rc=$rc: $out"
+
+# --- 6k) TD-168: the retired copy's memory-path step — the clone root's absolute docs/claude-memory merged into
+# its .claude/settings.local.json; a value there, a file that does not parse and a symlink are said and left alone
+amd() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("autoMemoryDirectory"))' "$1/.claude/settings.local.json"; }
+T="$TMP/t1"
+[ "$(amd "$T")" = "$(realpath "$T")/docs/claude-memory" ] && ! git -C "$T" status --porcelain | grep -q settings.local \
+    && ok "a new repo: autoMemoryDirectory is the clone root's absolute docs/claude-memory, in an ignored file" || bad "memdir: $(cat "$T/.claude/settings.local.json" 2>&1)"
+out=$(adopt "$T")
+grep -qF "conf  autoMemoryDirectory already set" <<< "$out" && ok "a rerun: already set" || bad "memdir rerun: $out"
+T="$TMP/t6k"; newrepo "$T"; mkdir -p "$T/.claude"; printf '{"permissions": {"allow": ["Bash(ls)"]}}\n' > "$T/.claude/settings.local.json"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && [ "$(amd "$T")" = "$(realpath "$T")/docs/claude-memory" ] \
+    && [ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["permissions"]["allow"][0])' "$T/.claude/settings.local.json")" = "Bash(ls)" ] \
+    && ok "an own settings.local.json: the key merged, the rest kept" || bad "merge rc=$rc: $out / $(cat "$T/.claude/settings.local.json")"
+T="$TMP/t6l"; newrepo "$T"; mkdir -p "$T/.claude"; printf '{"autoMemoryDirectory": "/elsewhere"}\n' > "$T/.claude/settings.local.json"
+cp "$T/.claude/settings.local.json" "$TMP/sl.before"; out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && cmp -s "$T/.claude/settings.local.json" "$TMP/sl.before" && grep -qF 'autoMemoryDirectory is "/elsewhere"' <<< "$out" \
+    && ok "another value already set: warned, left alone" || bad "other value rc=$rc: $out"
+T="$TMP/t6m"; newrepo "$T"; mkdir -p "$T/.claude"; printf '{nope\n' > "$T/.claude/settings.local.json"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && [ "$(cat "$T/.claude/settings.local.json")" = "{nope" ] && grep -qF "could not be parsed" <<< "$out" && grep -q "^Next, in" <<< "$out" \
+    && ok "a settings.local.json that does not parse: warned, untouched, adopt runs to its end" || bad "bad json rc=$rc: $out"
+T="$TMP/t6n"; newrepo "$T"; mkdir -p "$T/.claude"; printf '{}\n' > "$TMP/sl.target"; ln -s "$TMP/sl.target" "$T/.claude/settings.local.json"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && [ "$(cat "$TMP/sl.target")" = "{}" ] && [ -L "$T/.claude/settings.local.json" ] && grep -qF "is a symlink — left untouched" <<< "$out" \
+    && ok "a symlinked settings.local.json: warned, the link and its target untouched" || bad "symlink rc=$rc: $out"
+
+# --- 6o) TD-168: the opt-out WARNs test_sync_optout.sh 4–5b held through sync.sh — a declaration adopt cannot
+# read opts nothing out, says so, and adopt seeds the whole payload rather than guess (Adoption checklist step 9)
+T="$TMP/t6o"; newrepo "$T"; mkdir -p "$T/docs"; printf 'skip-seed: AGENTS.md — docs/plans/x.md\n' > "$TMP/local.target"
+ln -s "$TMP/local.target" "$T/docs/cadence-local.conf"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && grep -qF "WARN  docs/cadence-local.conf: is a symlink — not read; nothing is opted out" <<< "$out" && [ -e "$T/AGENTS.md" ] \
+    && ok "a symlinked legacy declaration: warned, nothing opted out, every SEED created" || bad "symlink optout rc=$rc: $out"
+T="$TMP/t6p"; newrepo "$T"; mkdir -p "$T/docs"; printf 'skip-seed: AGENTS.md — docs/plans/x.md\n' > "$T/docs/cadence-local.conf"
+chmod 000 "$T/docs/cadence-local.conf"
+if [ -r "$T/docs/cadence-local.conf" ]; then
+    ok "an unreadable legacy declaration: skipped (running as root, chmod does not bite)"
+else
+    out=$(adopt "$T"); rc=$?
+    [ $rc -eq 0 ] && grep -qF "WARN  docs/cadence-local.conf: cannot read (Permission denied) — nothing is opted out from it" <<< "$out" \
+        && [ -e "$T/AGENTS.md" ] && ok "an unreadable legacy declaration: warned, nothing opted out, every SEED created" || bad "unreadable optout rc=$rc: $out"
+fi
+chmod 644 "$T/docs/cadence-local.conf"
 
 # --- 7) parity: adopt's reading of sync.sh's arrays is bash's own
 for a in SYNC_FILES SEED_FILES; do
