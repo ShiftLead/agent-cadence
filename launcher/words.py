@@ -744,6 +744,51 @@ def _session_line(dest, ref):
 SIBLING_CALL_RE = re.compile(rb"\.\./(?:[^/\s\"'`]+/)?scripts/")   # ../scripts/, ../<home>/scripts/
 
 
+def _seed_warnings(dest, bodies, skip, migrate):
+    """TD-168: the retired copy's two detectors (tests/fixtures/legacy_sync.sh, the hook-wiring and
+    Gemini-map ones), for a SEED the repo already had, which adopt keeps. Warn, never rewrite. The
+    SessionStart line is checked on a new repo only: a migration's is `_session_line`'s, which rewrites
+    or says why it could not."""
+    import json
+
+    def commands(raw):
+        return [str(h.get("command", "")) for g in json.loads(raw).get("hooks", {}).get("SessionStart", [])
+                for h in g.get("hooks", [])]
+
+    out = []
+    rel = ".claude/settings.json"
+    path = os.path.join(dest, rel)
+    if not migrate and rel not in skip and rel in bodies and os.path.isfile(path):
+        want = next((c for c in commands(bodies[rel]) if "cadence_hooks.sh" in c), None)
+        try:
+            with open(path, "rb") as f:
+                cmds = commands(f.read())
+        except (OSError, ValueError, AttributeError, TypeError):
+            out.append(f"  WARN  {rel}: not readable as JSON; cannot check the SessionStart hook line")
+        else:
+            if want is not None and want not in cmds:
+                if any("cadence_hooks.sh" in c or "agent-cadence hook" in c for c in cmds):
+                    out.append(f"  WARN  {rel}: the cadence SessionStart line differs from the seed — make it "
+                               "byte-identical to files/.claude/settings.json's (cadence §3)")
+                else:
+                    out.append(f"  WARN  {rel}: SessionStart lacks the cadence line, so no cadence hook runs at "
+                               "session start — add the one line from files/.claude/settings.json (cadence §3)")
+    rel = ".gemini/settings.json"
+    path = os.path.join(dest, rel)
+    if rel not in skip and os.path.isfile(path):
+        try:
+            with open(path, "rb") as f:
+                names = (json.loads(f.read()).get("context") or {}).get("fileName")
+        except (OSError, ValueError, AttributeError):
+            out.append(f"  WARN  {rel}: not readable as JSON; cannot check that Gemini CLI reads AGENTS.md")
+        else:
+            if "AGENTS.md" not in (names if isinstance(names, list) else [names]):
+                out.append(f"  WARN  {rel}: context.fileName does not name AGENTS.md, so a Gemini CLI session gets "
+                           'no map and no wake-up — add "AGENTS.md" to it, as files/.gemini/settings.json does '
+                           "(cadence §7.6, TD-111)")
+    return out
+
+
 def _home_siblings(dest, root):
     """TD-147: the siblings in a home's docs/nested-repos.txt (cadence.md §9.15) whose .claude/settings.json
     or settings.local.json calls a `scripts/` one directory up (`../scripts/`, `../<dir>/scripts/` — the
@@ -1099,6 +1144,9 @@ def w_adopt(args):
                 print(f"    … and {len(named) - 40} more (git -C \"{dest}\" grep -l scripts/)")
         if kept:
             print(f"\n  {len(kept)} edited copy(ies) kept (above): port each and delete it before the PR")
+    warns = _seed_warnings(dest, bodies, skip_seed, migrate)
+    if warns:
+        print("\n" + "\n".join(warns))
     # TD-187 (cadence.md §7.14): text is LF. adopt converts nothing; it says what the repo does once
     if ".gitattributes" in seed_files and ".gitattributes" not in skip_seed:
         try:

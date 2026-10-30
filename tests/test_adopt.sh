@@ -164,6 +164,35 @@ out=$(adopt "$T"); rc=$?
     && [ "$(cat "$T/.gitattributes")" = '*.sh text eol=lf' ] && ! grep -q "CRLF in the index" <<< "$out" \
     && ok "an own .gitattributes with no LF rule: kept as it is, the line to add named" || bad "own attrs rc=$rc: $out"
 
+# --- 6c) TD-168: the retired copy's two detectors, for a SEED the repo already had — warn, never rewrite
+T="$TMP/t1"; out=$(adopt "$T")
+! grep -q "SessionStart\|context.fileName" <<< "$out" && ok "the seeds as adopt wrote them: no SessionStart or Gemini warning" || bad "seeded warns: $out"
+T="$TMP/t6d"; newrepo "$T"; mkdir -p "$T/.claude" "$T/.gemini"
+printf '{"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "scripts/old_hook.sh"}]}]}}\n' > "$T/.claude/settings.json"
+printf '{"context": {"fileName": "GEMINI.md"}}\n' > "$T/.gemini/settings.json"
+cp "$T/.claude/settings.json" "$TMP/s.before"; cp "$T/.gemini/settings.json" "$TMP/g.before"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && grep -qF ".claude/settings.json: SessionStart lacks the cadence line" <<< "$out" \
+    && grep -qF ".gemini/settings.json: context.fileName does not name AGENTS.md" <<< "$out" \
+    && cmp -s "$T/.claude/settings.json" "$TMP/s.before" && cmp -s "$T/.gemini/settings.json" "$TMP/g.before" \
+    && ok "own settings with no cadence line and a Gemini map without AGENTS.md: both warned, neither rewritten" || bad "warns rc=$rc: $out"
+T="$TMP/t6e"; newrepo "$T"; mkdir -p "$T/.claude" "$T/.gemini"
+printf '{"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "scripts/cadence_hooks.sh --session-start"}]}]}}\n' > "$T/.claude/settings.json"
+printf '{"context": {"fileName": ["AGENTS.md"]}}\n' > "$T/.gemini/settings.json"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && grep -qF ".claude/settings.json: the cadence SessionStart line differs from the seed" <<< "$out" \
+    && ! grep -q "context.fileName" <<< "$out" \
+    && ok "an older cadence line: 'differs' warned; a Gemini map naming AGENTS.md: silent" || bad "differs rc=$rc: $out"
+T="$TMP/t6f"; newrepo "$T"; mkdir -p "$T/.claude" "$T/.gemini" "$T/docs"
+printf '{not json\n' > "$T/.claude/settings.json"; printf '[1]\n' > "$T/.gemini/settings.json"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && grep -qF ".claude/settings.json: not readable as JSON" <<< "$out" && grep -qF ".gemini/settings.json: not readable as JSON" <<< "$out" \
+    && ok "unreadable settings: said, adopt goes on" || bad "unreadable rc=$rc: $out"
+T="$TMP/t6g"; newrepo "$T"; mkdir -p "$T/.gemini" "$T/docs"
+printf '{}\n' > "$T/.gemini/settings.json"; printf '[skip-seed]\n".gemini/settings.json" = "docs/plans/no-gemini.md"\n' > "$T/docs/cadence.toml"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && ! grep -q "context.fileName" <<< "$out" && ok "a skipped Gemini seed is not checked" || bad "skip gemini rc=$rc: $out"
+
 # --- 7) parity: adopt's reading of sync.sh's arrays is bash's own
 for a in SYNC_FILES SEED_FILES; do
     want=$(bash -c 'eval "$(sed -n "/^$2=(/,/^)/p" "$1")"; eval "printf \"%s\n\" \"\${$2[@]}\""' _ "$DC/sync.sh" "$a")
