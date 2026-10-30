@@ -45,7 +45,7 @@ nowhere): the clone must be clean and its HEAD on origin's default branch as las
 pin names origin's URL and that commit, with the tag as a comment only when HEAD is exactly at one.
 It refuses a repo that carries synced copies, an agent-cadence clone, and a repo whose own ledger or board the
 pinned readers cannot read (TD-168: `ledger.py --check`, a shape they skip, a newer format major); it seeds what is missing
-(sync.sh's SEED_FILES, less the repo's `[skip-seed]`, and the six skill pointers, which are SEED
+(sync.sh's SEED_FILES, less the repo's `[skip-seed]`, and the skill pointers, which are SEED
 once pinned — *Decision* 5 — and lose their synced-file header), appends the pin under a header
 written exactly `[agent-cadence]` (the form the shims and the SessionStart line detect), installs the
 shims by the tree's install_git_hooks.sh, and registers the repo on the roster, last. It commits
