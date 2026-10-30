@@ -7,7 +7,7 @@
 ## Context
 
 - **TD-203** (built, #29) made every design plan keep a findings table in its *Review record* (`files/docs/adr-template.md`; cadence.md §4.8 *Design review rounds*): each finding's id, round, reviewer, topic, class (`build-changing` | `minor`) and status. That fixes the labels the dataset lacked.
-- **Designs live in different places:** this repo writes an ADR per plan in `docs/plans/`; ShiftLead writes ADRs in `docs/decisions/` and most designs as edits to its living `docs/design/` with prose entries in `docs/design-history.md` (TD-947's from line 138). A table inside "the plan" has no fixed place for most of ShiftLead's designs, and nothing links a TD to the file holding its table.
+- **Designs live in different places:** this repo writes an ADR per plan in `docs/plans/`; ShiftLead writes ADRs in `docs/decisions/` and most designs as edits to its living `docs/design/` with prose entries in `docs/design-history.md` (TD-947's from line 139). A table inside "the plan" has no fixed place for most of ShiftLead's designs, and nothing links a TD to the file holding its table.
 - **The dataset** (`docs/review-data/`, 97 designs) was mined by an agent from design-history (49 records), transcripts (35), ADRs (10) and 3 others. It can say how long review loops run but not whether they work:
   - build-changing labels exist for one design (TD-173's ledger writer);
   - tokens exist for 278 reviews, covering 43 of the 97 designs;
@@ -18,7 +18,7 @@
 
 ## Design
 
-**1. A design's review record is one file, `docs/reviews/TD-NNN.md`,** named by the design's entry (the TD whose rounds they are), in the repo that holds that entry. A design that runs rounds has its entry before round 1 (its design-first entry); a design without one is filed one first, or gets no record and nothing can escape from it. It replaces the plan's *Review record* section: the design text stays wherever the repo keeps designs (an ADR, a living design doc), and nothing is renamed. The file is:
+**1. A design's review record is one file, `docs/reviews/TD-NNN.md`,** named by the design's entry (the TD whose rounds they are), in the repo that holds that entry. A design that runs rounds has its entry before round 1 (in ShiftLead, a `Kind: design-first` entry); a design without one is filed one first, or gets no record and nothing can escape from it. It replaces the plan's *Review record* section: the design text stays wherever the repo keeps designs (an ADR, a living design doc), and nothing is renamed. The file is:
 
 ```
 # Review record: TD-204
