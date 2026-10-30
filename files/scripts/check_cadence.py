@@ -107,6 +107,9 @@ never a fake pass):
               TD-NNN.md files are the ledger's paths (its rank.yml is not), each
               commit is read in the layout it has, and a v2 ledger whose files
               disagree (ledgerboard's v2_problems()) fails the row, named.
+              An entry the edit adds or changes that waits on the person (Owner:
+              person, decision (<who>), an **Answers:** line) with no **Ask:** line
+              in its body is a ⚠ in the detail, never a fail (TD-122).
     worktree  a merged PR's local worktree is gone or reapable (clean including
               untracked, and landed by the §1 scoped diff); it is normal for it to
               still exist until the anchor's next pull, so existing is not the fault
@@ -1027,6 +1030,11 @@ def ledger_edit_check(pr, root):
             note += f" (⚠ {r['text'].removeprefix('ℹ ')})"
     if xrepo:
         note += f" ({len(xrepo)} cross-repo blocker(s) this machine cannot resolve: {xrepo[0]})"
+    # TD-122: an entry this PR added or edited that waits on the person with no Ask: line warns, never fails
+    asks = [r for r in L.ask_flags(text, arch, before) if not r["standing"]]
+    if asks:
+        note += f" (⚠ {asks[0]['text'].removeprefix('ℹ ')}"
+        note += f"; also {', '.join(r['id'] for r in asks[1:])})" if len(asks) > 1 else ")"
     return errors, note
 
 

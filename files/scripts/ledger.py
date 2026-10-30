@@ -59,7 +59,8 @@ default, and a counter origin did not give are ℹ lines. ``--json``: ``{"flags"
 "errors": N}`` — key on ``kind`` and ``field``, never on the sentence. Kinds: fields-decl, below-header,
 type, vocabulary, blocked-item, cross-repo, blocked-unknown, blockers-archived, pickable-disagrees,
 undeclared-field, rank (a rank file line), prose-wait (TD-166: a header field that names an id after *waits on/for* or *blocked by*
-while its Blocked by does not), and the ids' id-untaken, id-taken-by, id-before-counter,
+while its Blocked by does not), no-ask (TD-122: an entry waiting on the person — Owner: person or a
+decision holder's name, decision (<who>), an **Answers:** line — with no **Ask:** line in its body), and the ids' id-untaken, id-taken-by, id-before-counter,
 id-no-taken-by, id-branch, id-counter; with ``--since``, archive-loss (an id archived at REF that is now in
 neither the ledger nor the archive, TD-179) and archive-reopened (ℹ: one back in the ledger). ``check_cadence.py``'s ``ledger`` row runs the same field check on a PR's ledger edit.
 
@@ -404,6 +405,59 @@ def prose_wait_flags(ledger: str, archive: str, old: str | None = None) -> list[
                       f"ℹ {tid}: its {field.capitalize()} field waits on {ref}, which its Blocked by does not name — "
                       "name it in Blocked by, where --pickable sees it archived (cadence.md §2.4)")}
             for tid, waits in prose_waits(ledger, archive).items() for field, ref in waits]
+
+
+# TD-122: an entry that waits on the person carries an **Ask:** line in its body, never its header
+# (cadence.md §2.3, TD-121) — one with Owner: <person>, Blocked by: decision (<person>) or an
+# **Answers:** line. A person is the word `person` or a name some entry's decision (<who>) names,
+# here or in the archive: the ledger declares no list of people, and a lane (grinder) is never one.
+ASK_RE = re.compile(r"^\*\*Ask:\*\*", re.M)
+ANSWERS_RE = re.compile(r"^\*\*Answers:\*\*", re.M)
+
+
+def _bodies(text: str) -> dict[str, str]:
+    """id -> the entry's text below its heading, comments dropped (ledgerboard's entries() bounds)."""
+    text = LB.COMMENT_RE.sub("", text or "")
+    out = {}
+    for m in LB.HEADING_RE.finditer(text):
+        nxt = LB.SECTION_RE.search(text, m.end())
+        out[m.group(1)] = text[m.end(): nxt.start() if nxt else len(text)]
+    return out
+
+
+def ask_missing(ledger: str, archive: str = "") -> dict[str, str]:
+    """id -> why the entry waits on the person (``Owner: paul``, ``decision (paul)``, ``Answers:``), for
+    each one with no ``**Ask:**`` line below its header block; the why ends ``; its Ask: is in the header``
+    when that is where it is."""
+    people = {"person"}
+    for e in LB.entries(ledger) + LB.entries(archive):
+        people.update(w.lower() for w in LB.parse_blocked(e["blocked_raw"] or "")[1])
+    bodies = _bodies(ledger)
+    out = {}
+    for e in LB.entries(ledger):
+        body = bodies.get(e["id"], "")
+        owner = LB.first_word(e["fields"].get("owner"))
+        who = LB.parse_blocked(e["blocked_raw"] or "")[1]
+        why = (f"Owner: {owner}" if owner in people else f"decision ({who[0]})" if who
+               else "Answers:" if ANSWERS_RE.search(body) or "answers" in e["fields"] else None)
+        if why is None:
+            continue
+        head = re.split(r"\n[ \t\r]*\n", body.lstrip("\n"), maxsplit=1)
+        if ASK_RE.search(head[1] if len(head) > 1 else ""):
+            continue
+        out[e["id"]] = why + ("; its Ask: is in the header" if "ask" in e["fields"] else "")
+    return out
+
+
+def ask_flags(ledger: str, archive: str, old: str | None = None) -> list[dict]:
+    """ℹ per entry waiting on the person with no Ask: line (kind no-ask); with ``old``, one whose text is
+    unchanged since REF is standing — the cadence check's ``ledger`` row warns on the rest, never fails."""
+    then = _bodies(old) if old is not None else {}
+    now = _bodies(ledger)
+    return [{"level": "info", "id": tid, "field": "ask", "kind": "no-ask", "standing": then.get(tid) == now.get(tid),
+             "text": f"ℹ {tid} waits on the person ({why}) with no **Ask:** line in its body — one sentence a cold "
+                     "reader can decide from (cadence.md §2.3)"}
+            for tid, why in ask_missing(ledger, archive).items()]
 
 
 def archive_loss_flags(ledger: str, archive: str, old_ledger: str | None, old_archive: str | None) -> list[dict]:
@@ -824,7 +878,7 @@ def main(argv: list[str] | None = None) -> int:
             except N.FormatTooNew as e:
                 print(f"ledger: --since: not read — {e}", file=sys.stderr)
                 return 2
-        recs = check(text, arch, old, rank_text=rank_text) + prose_wait_flags(text, arch, old)
+        recs = check(text, arch, old, rank_text=rank_text) + prose_wait_flags(text, arch, old) + ask_flags(text, arch, old)
         if a.since is not None:
             # what the archive held where this edit started, not at REF's tip: an entry REF archived
             # after the branch left it is not this edit's loss (TD-179)
