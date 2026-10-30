@@ -1,6 +1,6 @@
 # ADR 2026-10-30: design reviews record their models and tokens, a defect a design missed names it in `Escaped from:`, and `review-stats` rebuilds the data on demand
 
-**Status:** proposed (shape agreed with Paul 2026-10-30; review rounds not started). Class: **wide** (cap 6): it adds a ledger field and a key to what consumers run from the payload, a payload script, and its backfill edits ShiftLead's ledger.
+**Status:** proposed (shape agreed with Paul 2026-10-30; review rounds under way, round 1). Class: **wide** (cap 6): it adds a ledger field and a key to what consumers run from the payload, a payload script, a field to a vendored format (a ledgerboard release), and its backfill edits ShiftLead's ledger.
 **Date:** 2026-10-30
 **Related:** TD-204 (the build), TD-203 and ADR `2026-10-30-design-review-rounds.md` (which this extends, not supersedes); `docs/review-data/` (the 97-design dataset and `trial-rev18.md`); shiftlead TD-857 (the Gemini fact-checker, a model this must name)
 
@@ -11,7 +11,7 @@
   - build-changing labels exist for one design (TD-173's ledger writer);
   - tokens exist for 278 reviews, covering 43 of the 97 designs;
   - models are named loosely (letters F, S, O);
-  - the link from a design to a defect it later let through was found by reading which ledger entries cite the design: a lower bound, with 7 firm and 5 "(questionable)" pairs, all ShiftLead's or the archived dev-cadence's.
+  - the link from a design to a defect it later let through was found by reading which ledger entries cite the design: a lower bound: 7 firm ShiftLead pairs (one a doc leftover after the build), 3 dev-cadence designs with firm defects (the repo is archived), and 5 "(questionable)" designs carrying 7 defect entries.
 - **The trial** (`trial-rev18.md`) had to use total findings as a proxy for build-changing ones and could not test the link at all.
 - **Paul's direction:** "the real help is to be able to check against issues that arose after the designs"; "as tokens get cheaper and agents get stronger … people will want to rely on them more, and expand the number of allowed cycles"; "We might want to record the actual models involved."
 
@@ -25,11 +25,11 @@
 | R2 | 1 | design | claude-sonnet-5-5 | 88034 | 2026-11-02 | F5–F9 |
 | R3 | 1 | design | claude-fable-5-1 | 101877 | 2026-11-02 | - |
 
-- **review:** `R<n>`, in the order run. The findings table's `by` column names it (`R2`), replacing the free text (`fact-check (sonnet)`).
+- **review:** `R<n>`, in the order run. The findings table's `by` column names it (`R2`) in new records. A record kept before this (the decided ADR's own, with free text such as `fact-check (sonnet)`) is left as it is, and `review-stats` reads either form.
 - **round:** as the findings table's (the closing fact-check under the last round).
 - **role:** `fact-check` or `design`.
-- **model:** the exact id the runner reports (`claude-sonnet-5-5`; `<adapter>/<model>` for a non-Claude seat, TD-203's form). Where the runner reports only the alias it was given, the alias followed by `?` (`sonnet?`), never a guessed id.
-- **tokens:** the review's total as the runner returns it, a whole number; `?` where it returns none.
+- **model:** the exact id the runner reports (`claude-sonnet-5-5`; `<adapter>/<model>` for a non-Claude seat, TD-203's form). In Claude Code this is the Agent result's `resolvedModel`. Where a runner reports only the alias it was given, the alias followed by `?` (`sonnet?`), never a guessed id.
+- **tokens:** the review's total as the runner returns it, a whole number (in Claude Code, the completion notification's `subagent_tokens`, a single total with no input/output split); `?` where it returns none. It arrives when the review ends, so the session writes the row then.
 - **date:** ISO.
 - **findings:** the ids it raised, or `-` for a clean review. A clean review still gets a row: it is the stop rule's round, and its cost is part of what the data must show.
 
@@ -39,19 +39,19 @@ The rows are recorded **whatever the key (3) says**: data not written when the r
 - **Form:** `**Escaped from:** <design>` in the entry's header block (cadence.md §2.12: the first word is the value, the rest a free comment). The value is a design's entry, `TD-NNN` or `<repo>#TD-NNN` (§2.2's form), or a plan's path (`docs/plans/<file>.md`, or `<repo>:docs/plans/<file>.md` for another repo's). One value per entry.
 - **Meaning:** a design review of that design should have caught this. A defect the design got right and the build got wrong gets no field.
 - **Who sets it:** the session filing the defect, which asks one question: *did the design miss this, or the build?* A later session may add or remove the field like any other edit, with a word why in the PR.
-- **Parsing:** ledgerboard reads it as any other header-block field; it is not a ledgerboard-defined field and needs no ledgerboard release. `review-stats` (4) resolves each value and reports one it cannot resolve; `ledger.py --check` does not.
+- **Parsing:** it is a field the cadence defines, so it joins ledgerboard's `CADENCE_FIELDS` as a free-valued field, in a ledgerboard minor release vendored here (`vendor_ledgerboard.sh`) and in ShiftLead. Without that, a ledger with a `Fields:` line (ShiftLead's) flags it `undeclared-field`, an error under `--check --since` and so in the cadence check's `ledger` row, and a `Fields:` line cannot declare a free-valued field. `review-stats` (4) resolves each value from the raw field text (its first whitespace-delimited token, case kept; ledgerboard's `first_word` lowercases) and reports one it cannot resolve; `ledger.py --check` does not resolve it.
 - An archived entry may take the field (the backfill edits closed defects).
 
 **3. The key `review-outcomes`** (`off` | `on`, default `off`, in `cadence_config.py`'s `KEYS`, §9.18). It turns on **only the filing question** of 2:
-- `ledger_next_id.py` prints the question once when it hands out an id in a repo with the key on (every new entry takes its id there, §2.10);
+- `ledger_next_id.py` prints the question once, on stderr (stdout stays the ids, one a line), when it hands out ids in a repo with the key on (every new entry takes its id there, §2.10). Under `--json` it adds a `question` key. It does not print on `--claim` or on an exit that hands out no id;
 - a repo whose front end hands out ids (shiftlead's `ao td next`) asks it the same way: a shiftlead entry.
 
 No reminder to run `review-stats`: each run prints how many plans carry a Review record, and the decided ADR already says to rerun the trial after about ten plans.
 
 **4. `review-stats`** (`files/scripts/review_stats.py`, stdlib only), run on demand, never by a hook or a sweep. **It is mechanical and keeps no state:** every run rebuilds everything from the repos' files as they are now, with no model, no agent and no judgement, so an `Escaped from:` added since the last run (a defect found months after its design) is counted the next time anyone runs it, with nothing to update in between.
-- **Age:** a design's defects keep arriving long after it is built, so every figure carries each design's age (days since its plan's Decision date, or its first commit where it has none). The trial and the aggregates count escapes only for designs older than an `--aged DAYS` threshold (default 14), and print the young ones separately, so a young design's zero escapes is not read as a clean design.
+- **Age:** a design's defects keep arriving long after it is built, so every figure carries each design's age (days since the date in the plan's `**Status:** decided YYYY-MM-DD` line, else its `**Date:**`, else its first commit). The trial and the aggregates count escapes only for designs older than an `--aged DAYS` threshold (default 14), and print the young ones separately, so a young design's zero escapes is not read as a clean design.
 - **Scope:** every repo on the machine's roster (cadence.md §9; `$AGENT_CADENCE_REG_DIR` honoured); `--repo PATH` for one.
-- **Reads:** each repo's tracked `.md` files holding a *Review record* (the two tables of 1 and the ADR's rule 6), and its ledger's `Escaped from:` fields through `ledger.py`/ledgerboard (never a hand regex, §2.12).
+- **Reads:** each repo's tracked `.md` files holding a *Review record* (the two tables of 1 and the ADR's rule 6; `by` as `R<n>` or free text), and its ledger's `Escaped from:` fields through `ledger.py`/ledgerboard (never a hand regex, §2.12).
 - **Writes:** the rebuilt dataset (json, and the md's tables) to `review-stats/` beside the roster, never into a repo. Publishing a scrubbed copy, as `docs/review-data/` was, is a separate deliberate step.
 - **The trial:** reruns the decided ADR's rules over the rebuilt data against each repo's `design-rounds` and `design-rounds-wide`, now with real `build-changing` labels and escaped-from links. Its logic is ported from `docs/review-data/trial_rules.py` and `aggregate.py`, which stay as they are: the frozen first form, reproducing the published dataset.
 - **`--candidates [--since DATE]`:** the backfill pass (5). It lists defect entries (`Type: debt`, ledgerboard's default) since the date that cite a design entry or plan and carry no `Escaped from:`. It judges nothing.
@@ -64,6 +64,7 @@ No reminder to run `review-stats`: each run prints how many plans carry a Review
 
 **6. Where it lives:**
 - cadence.md §2 gains the `Escaped from:` paragraph (2); §2.12's list of fields the cadence defines names it; §4.8's *Design review rounds* paragraph (TD-203) names the Reviews table; §9.18 lists `review-outcomes`.
+- ledgerboard (ShiftLead/ledgerboard): a minor release adding `escaped from` to `CADENCE_FIELDS` and to `SPEC.md`, vendored here and bumped in ShiftLead before the backfill PR.
 - `files/docs/adr-template.md`'s *Review record* (TD-203) gains the Reviews table and `R<n>` in `by`.
 - `files/scripts/review_stats.py` (new, SYNC: `sync.sh`'s `SYNC_FILES` and README's file-class table).
 - `cadence_config.py`: the key, with an `off`|`on` validator; the seed `files/docs/cadence.toml` gains its commented line.
@@ -73,8 +74,9 @@ No reminder to run `review-stats`: each run prints how many plans carry a Review
 
 **7. Tests:**
 - `tests/test_cadence_config.sh`: the key's default, a repo value, a bad value as a `--check` error, and the seed parity.
-- `ledger_next_id.py` prints the question with the key on and stays silent with it off.
-- A new `tests/test_review_stats.sh`, over fixture repos on a temporary roster: both tables are read, `Escaped from:` resolves (including `<repo>#TD-NNN` and a plan path), an unresolvable value is reported, `--candidates` lists a citing defect without the field and skips one with it, the output lands beside the roster and nothing is written into a repo, and `--repo` limits the scope. An `Escaped from:` added to a fixture after a first run is counted by the second, and a design younger than `--aged` is listed apart and not counted as clean.
+- `ledger_next_id.py` prints the question on stderr with the key on (stdout unchanged; `--json` carries `question`), and stays silent with it off and on `--claim`.
+- ledgerboard's own tests (its release): `Escaped from:` in a ledger with a `Fields:` line raises no `undeclared-field`.
+- A new `tests/test_review_stats.sh`, over fixture repos on a temporary roster: both tables are read, `Escaped from:` resolves (including `<repo>#TD-NNN` and a mixed-case `<repo>:` plan path), `by` is read as `R<n>` and as free text, an unresolvable value is reported, `--candidates` lists a citing defect without the field and skips one with it, the output lands beside the roster and nothing is written into a repo, and `--repo` limits the scope. An `Escaped from:` added to a fixture after a first run is counted by the second, and a design younger than `--aged` is listed apart and not counted as clean.
 
 ## Options
 
@@ -96,13 +98,21 @@ Pending the review rounds and Paul's go (his §2.4 layer rule: TD-204 stays `Blo
 
 ## Open questions for the rounds
 
-1. Does the Claude Code runner report the exact model id and the token count back to the session that ran the review? Rule 1's `?` forms assume sometimes not. The fact-check checks this against what an Agent call returns.
+1. ~~Does the runner report the exact model id and tokens?~~ Fact-check (round 1): yes in Claude Code: the Agent result's `resolvedModel` and the notification's `subagent_tokens`, a single total. Adopted in 1; `?` stays for a seat that reports neither.
 2. Should `--candidates` also list a defect citing a design only in its Why, or only in `Related:`/`Blocked by`? The dataset's pairs came from any citation.
 
 ## Review record
 
 | review | round | role | model | tokens | date | findings |
 |---|---|---|---|---|---|---|
+| R1 | 1 | fact-check | claude-sonnet-5-5 | 100982 | 2026-10-30 | F1–F7 |
 
 | id | round | by | topic | finding | class | status |
 |---|---|---|---|---|---|---|
+| F1 | 1 | R1 | `Escaped from:` parsing | not a ledgerboard field, it is flagged `undeclared-field` (an error under `--check --since`) in any ledger with a `Fields:` line, ShiftLead's included, and a `Fields:` line cannot declare a free-valued field; "no ledgerboard release" was false | build-changing | applied (2, 6, 7, Status: a ledgerboard minor release adds it to `CADENCE_FIELDS`) |
+| F2 | 1 | R1 | the filing question | `ledger_next_id.py`'s stdout is its contract (the ids); the plan named no stream, no `--json` form, and no rule for `--claim` or a no-id exit | build-changing | applied (3, 7) |
+| F3 | 1 | R1 | `Escaped from:` parsing | ledgerboard's `first_word` lowercases, so a mixed-case path would not resolve | minor | applied (2, 7) |
+| F4 | 1 | R1 | data claims | the pair counts undercounted dev-cadence's firm designs and miscounted the questionable ones | minor | applied (Context) |
+| F5 | 1 | R1 | design age | "the plan's Decision date" is no field | minor | applied (4: Status's decided date, else `Date:`, else first commit) |
+| F6 | 1 | R1 | findings record | `by` as `R<n>` changes the decided ADR's form; old records keep free text | minor | applied (1, 4, 7) |
+| F7 | 1 | R1 | wording | TD-203's "rules 1–11" was called stale | minor | rejected: the decided ADR has rules 1–11 (10 is where it lives, 11 the tests) |
