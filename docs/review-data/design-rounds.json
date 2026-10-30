@@ -2446,7 +2446,7 @@
     "build_changing": null,
     "minor": null,
     "tokens": null,
-    "total_findings": null
+    "total_findings": 2
    }
   ],
   "post_build_defects": [],

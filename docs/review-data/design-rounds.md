@@ -29,7 +29,7 @@ Review column legend: letter = model (F Fable, S Sonnet), number = total finding
 | shiftlead | TD-909: The Queue card — three wants (Decide, Do, Read), three verbs ( | 2026-10-19 | in-repo | 14 (the history has no round 8) | 7 | other | F7 S5 F7 S6 F6 S6 F5 F4 S2 F2 S2 F1 S1 F2 | shiftlead TD-1129 |
 | shiftlead | TD-927: Token counts on the Spend page, beside every figure — by team, | 2026-10-20 | in-repo | 11 | 5.5 | converged | F5* S5 F5* S4 F4* S2 F4* S* F1 S* F1* | - |
 | shiftlead | TD-931: The top bar's pages look like three different kinds of control | 2026-10-20 | in-repo | 4 | 2 | converged | S17 F8 S8 F8* | shiftlead TD-935 |
-| shiftlead | TD-926: Hovering a Queue card's header or row draws its ⋯ names inline | 2026-10-20 | in-repo | 7 | 3.5 | converged | F5 S5 F3 S2 F3* S0* F* | - |
+| shiftlead | TD-926: Hovering a Queue card's header or row draws its ⋯ names inline | 2026-10-20 | in-repo | 7 | 3.5 | converged | F5 S5 F3 S2 F3* S0* F2* | - |
 | shiftlead | TD-924: The Sessions page's Agents count leaves out every session of a | 2026-10-20 | in-repo | 7 | 3.5 | converged | F5 S8 F4 S4 F3* S1* F3* | - |
 | shiftlead | TD-947: A background subagent's permission shows *Needs you* on a sess | 2026-10-21 | in-repo | 14 | 7 | converged | F8 S7 F7 S8 F3 S5 F4 S* F4 S4 F6 S5 F1 S* | shiftlead TD-960 |
 | shiftlead | TD-941: A Gemini session at its own *Usage limit reached* dialog reads | 2026-10-21 | in-repo | 20 | 10 | converged | F7 S7 F3 S4 F4 S5 F5 S5 F3 S3 F3 S2 F3 S4 F3 S* F2 S4 F1 S* | - |
