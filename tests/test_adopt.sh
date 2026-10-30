@@ -203,6 +203,30 @@ printf '{}\n' > "$T/.gemini/settings.json"; printf '[skip-seed]\n".gemini/settin
 out=$(adopt "$T"); rc=$?
 [ $rc -eq 0 ] && ! grep -q "context.fileName" <<< "$out" && ok "a skipped Gemini seed is not checked" || bad "skip gemini rc=$rc: $out"
 
+# --- 6h) TD-168: the retired copy's .gitignore step — the literal lines a new repo's own .gitignore needs,
+# appended after a missing final newline, a worktree-root other than the default added; a rerun adds nothing
+T="$TMP/t1"
+[ "$(cat "$T/.gitignore")" = $'docs/session_index.md\n.claude/settings.local.json\n.claude/worktrees/\n*.code-workspace' ] \
+    && git -C "$T" check-ignore -q .claude/worktrees/x && ok "a new repo: the four .gitignore lines" || bad "gitignore: $(cat "$T/.gitignore" 2>&1)"
+T="$TMP/t6h"; newrepo "$T"; mkdir -p "$T/docs"; printf 'node_modules/\n*.code-workspace' > "$T/.gitignore"
+printf 'worktree-root = "wt"\n' > "$T/docs/cadence.toml"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && [ "$(cat "$T/.gitignore")" = $'node_modules/\n*.code-workspace\ndocs/session_index.md\n.claude/settings.local.json\n.claude/worktrees/\nwt/' ] \
+    && grep -qF "conf  *.code-workspace already in .gitignore" <<< "$out" && grep -qF "conf  wt/ added to .gitignore" <<< "$out" \
+    && ok "an own .gitignore with no final newline: kept, the missing lines appended, worktree-root's directory too" || bad "own gitignore rc=$rc: $out / $(cat "$T/.gitignore")"
+cp "$T/.gitignore" "$TMP/gi.before"; out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && cmp -s "$T/.gitignore" "$TMP/gi.before" && ! grep -q "added to .gitignore" <<< "$out" \
+    && ok "a rerun adds no .gitignore line" || bad "gitignore rerun rc=$rc: $out"
+T="$TMP/t6i"; newrepo "$T"; printf 'x/\n' > "$TMP/gi.target"; ln -s "$TMP/gi.target" "$T/.gitignore"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && [ "$(cat "$TMP/gi.target")" = "x/" ] && grep -qF ".gitignore is a symlink — not written through" <<< "$out" \
+    && ok "a symlinked .gitignore: warned, never written through" || bad "symlink gitignore rc=$rc: $out"
+T="$TMP/t6j"; newrepo "$T"; mkdir "$T/.gitignore"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && grep -qF ".gitignore not written" <<< "$out" && grep -qF "agent-cadence hook" "$T/.git/hooks/pre-push" \
+    && grep -qxF "$(realpath "$T")" "$AGENT_CADENCE_REG_DIR/repos.txt" \
+    && ok "a .gitignore that cannot be read (a directory): warned, and adopt still installs the shims and registers" || bad "dir gitignore rc=$rc: $out"
+
 # --- 7) parity: adopt's reading of sync.sh's arrays is bash's own
 for a in SYNC_FILES SEED_FILES; do
     want=$(bash -c 'eval "$(sed -n "/^$2=(/,/^)/p" "$1")"; eval "printf \"%s\n\" \"\${$2[@]}\""' _ "$DC/sync.sh" "$a")
