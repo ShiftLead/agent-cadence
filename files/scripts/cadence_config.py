@@ -4,6 +4,8 @@
 """The cadence's settings: the one reader every tool, skill and script goes through (TD-096).
 
     cadence_config.py get <key>     print the value; exit 1 when it is unset and has no default
+    cadence_config.py get review-model --first
+                                    the first model of the review-model list: round one's reviewer (TD-203)
     cadence_config.py               every known key, its value and where the value came from
     cadence_config.py --json        the same as JSON: {key: {"value": …, "from": …}}
     cadence_config.py --check       name each key no tool reads and each value of the wrong type
@@ -64,7 +66,9 @@ MACHINE_NAME = "cadence.toml"
 
 # key -> (default, what it is). A key lands here with the first thing that reads it.
 KEYS = {
-    "review-model": ("sonnet", "the independent reviewer's model (§4.8): a cheaper model than the author's, never the same"),
+    "review-model": ("sonnet", "the independent reviewers' models (§4.8), in round order, comma-separated: a cheaper model than the author's first, never the author's own (TD-203)"),
+    # No default of its own: unset, it is the first review-model (resolve() says so in its source).
+    "fact-check-model": (None, "the fact-checker's model, or <adapter>/<model> (§4.8, TD-203); unset, the first review-model"),
     "sweep-model": ("sonnet", "the model the deep sweep's agents run on (/stranded-work deep)"),
     "agents": ("claude", "the agent tools whose sessions the safety nets must see, comma-separated (TD-100); without claude, the memory guard skips its Claude checks (TD-095)"),
     "forge": ("auto", "where the PRs live: auto (from origin's host), github, gitlab or none (TD-103)"),
@@ -77,6 +81,9 @@ KEYS = {
     "escalate-overdue-days": ("14", "days overdue before a board item is ledger material (§3.3)"),
     "board-size-warn": ("15", "open items on a board before the report warns it is too big (§3.3)"),
     "attention-scope": ("own", "the SessionStart attention line: own (this repo's items, a count of the rest) or machine (every repo's) (§3.9, TD-146)"),
+    # The design review rounds' caps (TD-203, §4.8): a whole number of rounds, each one pass through review-model.
+    "design-rounds": ("4", "the most review rounds for an in-repo design plan (§4.8)"),
+    "design-rounds-wide": ("6", "the most review rounds for a wide design plan: another repo, the payload, a published format, the irreversible (§4.8)"),
 }
 
 
@@ -90,7 +97,26 @@ def _count(v) -> int:
     return n
 
 
-COUNT_KEYS = ("sweep-every", "deep-sweep-every", "pr-stale-days", "escalate-overdue-days", "board-size-warn")
+COUNT_KEYS = ("sweep-every", "deep-sweep-every", "pr-stale-days", "escalate-overdue-days", "board-size-warn",
+              "design-rounds", "design-rounds-wide")
+
+
+def _models(v: str) -> str:
+    """review-model (TD-203): one model or an ordered, comma-separated list, as `sonnet, fable`.
+    Each name is non-empty with no blank inside it; the value comes back as `a, b`."""
+    names = [n.strip() for n in v.split(",")]
+    if any(not n or any(c.isspace() for c in n) for n in names):
+        raise ValueError(f"must be a model or a comma-separated list of models (\"sonnet, fable\"), not {v!r}")
+    return ", ".join(names)
+
+
+def _model(v: str) -> str:
+    """fact-check-model (TD-203): one model, or <adapter>/<model> (gemini/gemini-2.5-flash)."""
+    n = v.strip()
+    parts = n.split("/")
+    if "," in n or any(c.isspace() for c in n) or len(parts) > 2 or not all(parts):
+        raise ValueError(f"must be one model or <adapter>/<model>, not {v!r}")
+    return n
 
 
 def _scope(v: str) -> str:
@@ -178,7 +204,7 @@ REPO_CHOICES = {"ledger-ids-host": ("on", "off"), "publish-gate": ("required", "
 
 # key -> a function returning the value to use, or raising ValueError naming what is wrong.
 # `get`, every importer through resolve(), and --check all go through it.
-VALIDATE = {"worktree-root": _rel_dir, "attention-scope": _scope, "layers": _layers, "publish-names": _names, **{k: _count for k in COUNT_KEYS}}
+VALIDATE = {"worktree-root": _rel_dir, "attention-scope": _scope, "review-model": _models, "fact-check-model": _model, "layers": _layers, "publish-names": _names, **{k: _count for k in COUNT_KEYS}}
 
 
 # The opt-outs (TD-072, moved here by TD-096): tables in the repo's file, never the machine's —
@@ -333,10 +359,18 @@ def resolve(key: str, files: list[tuple[str, dict]]) -> tuple[object, str]:
             if not isinstance(v, str) or not v:
                 raise ConfigError(f"{label}: {key} must be a non-empty string, not {v!r}")
             return _valid(key, v, label), label
+    if key == "fact-check-model":   # unset: round one's reviewer checks the facts too
+        models, src = resolve("review-model", files)
+        return first(models), f"first review-model, {src}"
     default = KEYS[key][0]
     if default is not None and key in VALIDATE:
         default = VALIDATE[key](default)
     return default, "default" if default is not None else "unset"
+
+
+def first(models: str) -> str:
+    """The head of a review-model value: round one's reviewer."""
+    return models.split(",")[0].strip()
 
 
 def _valid(key: str, v, label: str):
@@ -469,11 +503,14 @@ def main(argv: list[str]) -> int:
     ap.add_argument("cmd", nargs="?", choices=["get", "opt-outs"])
     ap.add_argument("key", nargs="?")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--first", action="store_true", help="with get review-model: the first model only")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--repo")
     a = ap.parse_args(argv)
     if a.cmd == "get" and not a.key:
         ap.error("get needs a key")
+    if a.first and (a.cmd != "get" or a.key != "review-model"):
+        ap.error("--first goes with get review-model")
     if a.cmd == "opt-outs":
         if not a.repo or not os.path.isdir(a.repo):
             print("cadence_config: opt-outs needs --repo DIR, an existing directory", file=sys.stderr)
@@ -498,6 +535,8 @@ def main(argv: list[str]) -> int:
             value, _ = resolve(a.key, files)
             if value is None:
                 return 1
+            if a.first:
+                value = first(value)
             print(value if isinstance(value, str) else json.dumps(value))
             return 0
         rows = {k: dict(zip(("value", "from"), resolve(k, files))) for k in ALL_KEYS}

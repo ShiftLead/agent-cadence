@@ -13,7 +13,7 @@ trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
-unset CADENCE_REVIEW_MODEL CADENCE_SWEEP_MODEL
+unset CADENCE_REVIEW_MODEL CADENCE_SWEEP_MODEL CADENCE_FACT_CHECK_MODEL CADENCE_DESIGN_ROUNDS CADENCE_DESIGN_ROUNDS_WIDE
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -145,16 +145,20 @@ out=$(python3 "$SCRIPT" --repo "$R" --check); rc=$?
 rm -f "$R/docs/cadence.toml" "$AGENT_CADENCE_REG_DIR/cadence.toml"
 
 # 10. parity (cadence §7.9): KEYS ↔ the seed's commented lines ↔ §9.18, key and default
-# (the repo's own keys — REPO_KEYS, no default — are shown in the seed as an example, 10c)
-keys=$(PYTHONPATH="$DC/files/scripts" python3 -c 'import cadence_config as c; [print(k, d) for k,(d,_) in c.KEYS.items()]')
+# (the repo's own keys — REPO_KEYS, no default — are shown in the seed as an example, 10c; so is a
+# KEYS key with no default of its own, fact-check-model, 10e)
+keys=$(PYTHONPATH="$DC/files/scripts" python3 -c 'import cadence_config as c; [print(k, d) for k,(d,_) in c.KEYS.items() if d is not None]')
 rkeys=$(PYTHONPATH="$DC/files/scripts" python3 -c 'import cadence_config as c; [print(k) for k in c.REPO_KEYS]')
-seed=$(sed -n 's/^# *\([a-z-]*\) = "\(.*\)"$/\1 \2/p' "$SEED" | grep -vF -f <(sed 's/$/ /' <<< "$rkeys"))
+nkeys=$(PYTHONPATH="$DC/files/scripts" python3 -c 'import cadence_config as c; [print(k) for k,(d,_) in c.KEYS.items() if d is None]')
+seed=$(sed -n 's/^# *\([a-z-]*\) = "\(.*\)"$/\1 \2/p' "$SEED" | grep -vF -f <(sed 's/$/ /' <<< "$rkeys"$'\n'"$nkeys"))
 [ -n "$keys" ] && [ "$keys" = "$seed" ] && ok "10 the seed lists exactly KEYS with their defaults" || bad "10 KEYS='$keys' seed='$seed'"
 rule=$(grep -F -- '- **§9.18**' "$DC/files/docs/cadence.md")
 miss=""; while read -r k d; do grep -qF "\`$k\`" <<< "$rule" && grep -qF "default \`$d\`" <<< "$rule" || miss+=" $k"; done <<< "$keys"
 [ -z "$miss" ] && ok "10b §9.18 names every key and its default" || bad "10b §9.18 lacks:$miss"
 miss=""; while read -r k; do grep -qE "^# *$k = " "$SEED" && grep -qF "\`$k\`" <<< "$rule" || miss+=" $k"; done <<< "$rkeys"
 [ -n "$rkeys" ] && [ -z "$miss" ] && ok "10c the seed and §9.18 name every repo key (REPO_KEYS)" || bad "10c lacks:$miss"
+miss=""; while read -r k; do grep -qE "^# *$k = " "$SEED" && grep -qF "\`$k\`" <<< "$rule" || miss+=" $k"; done <<< "$nkeys"
+[ -n "$nkeys" ] && [ -z "$miss" ] && ok "10e the seed and §9.18 name every KEYS key with no default of its own" || bad "10e lacks:$miss"
 mkeys=$(PYTHONPATH="$DC/files/scripts" python3 -c 'import cadence_config as c; [print(k) for k in c.MACHINE_KEYS]')
 miss=""; while read -r k; do grep -qF "\`$k\`" <<< "$rule" && ! grep -qE "^$k *=" "$SEED" || miss+=" $k"; done <<< "$mkeys"
 [ -n "$mkeys" ] && [ -z "$miss" ] && ok "10d §9.18 names every machine key (MACHINE_KEYS), and the repo seed never sets one" || bad "10d lacks:$miss"
@@ -211,6 +215,48 @@ for kd in sweep-every:10 deep-sweep-every:30 pr-stale-days:2 escalate-overdue-da
   rm "$R/docs/cadence.toml"
 done
 [ "$FAIL" = 0 ] && ok "12 each threshold: its default, a repo integer and string, a machine value, and five invalid values flagged"
+
+# 15. TD-203: review-model is an ordered list, fact-check-model falls back to its head, and the
+# design review rounds' caps are whole numbers
+rm -f "$R/docs/cadence.toml" "$AGENT_CADENCE_REG_DIR/cadence.toml"
+[ "$(get review-model --first)" = sonnet ] && [ "$(get fact-check-model)" = sonnet ] \
+  && [ "$(get design-rounds)" = 4 ] && [ "$(get design-rounds-wide)" = 6 ] \
+  && ok "15 no file: --first is sonnet, fact-check-model falls back to it, caps 4 and 6" || bad "15 defaults"
+printf 'review-model = " haiku ,fable"\n' > "$R/docs/cadence.toml"
+[ "$(get review-model)" = "haiku, fable" ] && [ "$(get review-model --first)" = haiku ] \
+  && [ "$(get fact-check-model)" = haiku ] && python3 "$SCRIPT" --repo "$R" --check >/dev/null \
+  && python3 "$SCRIPT" --repo "$R" --json | python3 -c 'import json,sys; d=json.load(sys.stdin)["fact-check-model"]; assert d == {"value": "haiku", "from": "first review-model, docs/cadence.toml"}, d' \
+  && ok "15b a list: get prints it in order, --first its head, fact-check-model the head (and says so)" \
+  || bad "15b '$(get review-model)' '$(get review-model --first)' '$(get fact-check-model)'"
+printf 'review-model = "opus"\n' > "$R/docs/cadence.toml"
+[ "$(get review-model)" = opus ] && [ "$(get review-model --first)" = opus ] && ok "15c a single value is unchanged" || bad "15c"
+[ "$(CADENCE_REVIEW_MODEL='sonnet,fable' get review-model)" = "sonnet, fable" ] \
+  && [ "$(CADENCE_REVIEW_MODEL='sonnet,fable' get fact-check-model)" = sonnet ] \
+  && ok "15d CADENCE_REVIEW_MODEL takes a list" || bad "15d"
+printf 'review-model = "opus"\nfact-check-model = "gemini/gemini-2.5-flash"\ndesign-rounds = 3\ndesign-rounds-wide = "5"\n' > "$AGENT_CADENCE_REG_DIR/cadence.toml"
+[ "$(get fact-check-model)" = gemini/gemini-2.5-flash ] && [ "$(get design-rounds)" = 3 ] && [ "$(get design-rounds-wide)" = 5 ] \
+  && [ "$(CADENCE_FACT_CHECK_MODEL=haiku get fact-check-model)" = haiku ] \
+  && ok "15e fact-check-model as <adapter>/<model>, and both caps, from a file; the env wins" || bad "15e $(cat "$TMP/err")"
+rm -f "$AGENT_CADENCE_REG_DIR/cadence.toml"
+f15f=0
+for bad_line in 'review-model = "sonnet,"' 'review-model = ",sonnet"' 'review-model = "sonnet,,fable"' 'review-model = "son net"' \
+                'fact-check-model = "a/b/c"' 'fact-check-model = "sonnet, fable"' 'fact-check-model = "/x"' 'fact-check-model = "gemini/ x"'; do
+    k=${bad_line%% *}
+    echo "$bad_line" > "$R/docs/cadence.toml"
+    out=$(python3 "$SCRIPT" --repo "$R" --check); rc=$?
+    get "$k" >/dev/null; grc=$?
+    [ "$rc" = 1 ] && grep -q "docs/cadence.toml: $k must be" <<< "$out" && [ "$grc" = 2 ] && grep -q "$k must be" "$TMP/err" \
+      || { bad "15f $bad_line: check rc=$rc get rc=$grc $out"; f15f=1; }
+done
+[ "$f15f" = 0 ] && ok "15f a malformed list or fact-check model: --check and get both name the key"
+for badv in 0 '"x"' 1.5; do
+    printf 'design-rounds = %s\ndesign-rounds-wide = %s\n' "$badv" "$badv" > "$R/docs/cadence.toml"
+    out=$(python3 "$SCRIPT" --repo "$R" --check); rc=$?
+    [ "$rc" = 1 ] && grep -q "design-rounds must be a whole number" <<< "$out" && grep -q "design-rounds-wide must be a whole number" <<< "$out" \
+      || bad "15g $badv: rc=$rc $out"
+done
+rm -f "$R/docs/cadence.toml"
+(cd "$R" && python3 "$SCRIPT" get sweep-model --first >/dev/null 2>&1); [ $? = 2 ] && ok "15h --first with any key but review-model is a usage error" || bad "15h"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
