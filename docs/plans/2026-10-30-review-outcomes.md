@@ -46,7 +46,7 @@ The rows are recorded **whatever the key (3) says**: data not written when the r
 - `ledger_next_id.py` prints the question once when it hands out an id in a repo with the key on (every new entry takes its id there, §2.10);
 - a repo whose front end hands out ids (shiftlead's `ao td next`) asks it the same way: a shiftlead entry.
 
-No reminder to run `review-stats`: it prints, itself, how many plans with a Review record are newer than its last run, and the decided ADR already says to rerun the trial after about ten plans.
+No reminder to run `review-stats`: each run prints how many plans carry a Review record, and the decided ADR already says to rerun the trial after about ten plans.
 
 **4. `review-stats`** (`files/scripts/review_stats.py`, stdlib only), run on demand, never by a hook or a sweep. **It is mechanical and keeps no state:** every run rebuilds everything from the repos' files as they are now, with no model, no agent and no judgement, so an `Escaped from:` added since the last run (a defect found months after its design) is counted the next time anyone runs it, with nothing to update in between.
 - **Age:** a design's defects keep arriving long after it is built, so every figure carries each design's age (days since its plan's Decision date, or its first commit where it has none). The trial and the aggregates count escapes only for designs older than an `--aged DAYS` threshold (default 14), and print the young ones separately, so a young design's zero escapes is not read as a clean design.
