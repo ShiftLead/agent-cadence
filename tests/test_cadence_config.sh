@@ -240,7 +240,7 @@ printf 'review-model = "opus"\nfact-check-model = "gemini/gemini-2.5-flash"\ndes
 rm -f "$AGENT_CADENCE_REG_DIR/cadence.toml"
 f15f=0
 for bad_line in 'review-model = "sonnet,"' 'review-model = ",sonnet"' 'review-model = "sonnet,,fable"' 'review-model = "son net"' \
-                'fact-check-model = "a/b/c"' 'fact-check-model = "sonnet, fable"' 'fact-check-model = "/x"'; do
+                'fact-check-model = "a/b/c"' 'fact-check-model = "sonnet, fable"' 'fact-check-model = "/x"' 'fact-check-model = "gemini/ x"'; do
     k=${bad_line%% *}
     echo "$bad_line" > "$R/docs/cadence.toml"
     out=$(python3 "$SCRIPT" --repo "$R" --check); rc=$?
