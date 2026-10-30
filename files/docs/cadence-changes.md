@@ -12,6 +12,9 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-29 — `adopt` sets a new repo's memory path
+Do: nothing by hand for `autoMemoryDirectory` on a new repo — adopt merges the clone root's `docs/claude-memory` into `.claude/settings.local.json`, and names a value, a file or a symlink it leaves alone; on another machine's clone, run adopt again.
+See: cadence.md Adoption checklist step 2; TD-168.
 ## 2026-10-29 — `adopt` writes a new repo's `.gitignore` lines
 Do: nothing by hand for `.gitignore` on a new repo — adopt appends `.claude/worktrees/`, `.claude/settings.local.json`, `docs/session_index.md`, `*.code-workspace` (and a set `worktree-root`) where missing; `autoMemoryDirectory` is still by hand.
 See: cadence.md Adoption checklist step 2; TD-168.

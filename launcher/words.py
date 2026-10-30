@@ -784,6 +784,49 @@ def _gitignore(dest):
             print(f"  conf  {ign} added to .gitignore")
 
 
+def _memory_dir(root):
+    """TD-168, the retired copy's step 2 (tests/fixtures/legacy_sync.sh): the clone root's absolute
+    docs/claude-memory, merged into its machine-local .claude/settings.local.json as autoMemoryDirectory
+    (§7.2; a worktree gets its own from hydrate_worktree.sh). A value already there, a file that does not
+    parse or is not an object, and a symlink are each said and left untouched; the write is one rename."""
+    import json
+    path = os.path.join(root, ".claude", "settings.local.json")
+    memdir = os.path.join(root, "docs", "claude-memory")
+    if os.path.islink(path):
+        print(f"  WARN  {path} is a symlink — left untouched (a rewrite would replace the link with a plain file); "
+              f"set autoMemoryDirectory to {memdir} at its real target")
+        return
+    data = {}
+    if os.path.lexists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError("top level is not an object")
+        except (ValueError, OSError, RecursionError) as e:
+            print(f"  WARN  {path} exists but could not be parsed ({e}) — left untouched; set autoMemoryDirectory "
+                  f"to {memdir} by hand")
+            return
+    cur = data.get("autoMemoryDirectory")
+    if cur == memdir:
+        print("  conf  autoMemoryDirectory already set (settings.local.json)")
+    elif "autoMemoryDirectory" not in data:
+        data["autoMemoryDirectory"] = memdir
+        tmp = f"{path}.adopt-{os.getpid()}"
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+                f.write("\n")
+            os.replace(tmp, path)
+        except OSError as e:
+            print(f"  WARN  {path} not written ({e.strerror or e}): set autoMemoryDirectory to {memdir} by hand")
+            return
+        print(f"  conf  autoMemoryDirectory = {memdir} (settings.local.json)")
+    else:
+        print(f"  WARN  autoMemoryDirectory is {json.dumps(cur)} (expected {memdir}) — left alone")
+
+
 def _seed_warnings(dest, bodies, skip, migrate):
     """TD-168: the retired copy's two detectors (tests/fixtures/legacy_sync.sh, the hook-wiring and
     Gemini-map ones), for a SEED the repo already had, which adopt keeps. Warn, never rewrite, never
@@ -1142,7 +1185,8 @@ def w_adopt(args):
         os.replace(tmp, toml_path)
         print(f"  pin   [agent-cadence] ref = {ref}" + (f" ({tag})" if tag else "") + " (docs/cadence.toml)")
     if not migrate:
-        _gitignore(dest)   # a synced repo's were written by its first sync
+        _gitignore(dest)   # a synced repo's were written by its first sync, and its memory path too
+        _memory_dir(root)
     # the TD-055 shims, by the tree's own installer. Pinned, each runs `agent-cadence hook`; until the
     # main checkout pins (a migration's PR not yet merged) each runs the main checkout's copy, which a
     # consumer keeps in scripts/git-hooks — so that is the layout the shims name, wherever this tree is
@@ -1211,8 +1255,8 @@ Next, in {dest}:
      PR also carries the moves listed above)
   2. install the launcher on every machine that works this repo (once per machine):
      {INSTALL_LINE}""" + ("" if migrate else """
-  3. the per-clone steps adopt does not do (cadence.md Adoption checklist, TD-168):
-     autoMemoryDirectory, and the repo settings (squash-only, auto-delete heads)"""))
+  3. the per-clone step adopt does not do (cadence.md Adoption checklist): the repo settings
+     (squash-only, auto-delete heads)"""))
     return 0
 
 WORDS = {"words": w_words, "run": w_run, "path": w_path, "hook": w_hook, "gc": w_gc, "bump": w_bump,
