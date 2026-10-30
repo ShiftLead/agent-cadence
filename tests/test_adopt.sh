@@ -139,6 +139,9 @@ out=$(adopt "$TMP/t10-wt"); rc=$?
 git -C "$CL" update-index --no-assume-unchanged files/AGENTS.md; cp "$TMP/agents.orig" "$CL/files/AGENTS.md"
 [ $rc -eq 0 ] && cmp -s "$T/AGENTS.md" "$TMP/agents.orig" && ok "a seed is the pinned commit's file, not the clone's edited copy" || bad "seed source rc=$rc: $out"
 [ -e "$T/docs/cadence.toml" ] && [ ! -e "$TMP/t10-wt/docs/cadence.toml" ] && ok "a linked worktree named: its main checkout is adopted" || bad "worktree target: $out"
+[ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["autoMemoryDirectory"])' "$T/.claude/settings.local.json")" = "$(realpath "$T")/docs/claude-memory" ] \
+    && [ ! -e "$TMP/t10-wt/.claude/settings.local.json" ] \
+    && ok "a linked worktree named: the memory path is the main checkout's (TD-168)" || bad "worktree memdir: $(cat "$T/.claude/settings.local.json" 2>&1)"
 
 # --- 6) a temp-dir repo is never written to a roster outside the temp roots (TD-068)
 T="$TMP/fx/t7"; mkdir -p "$TMP/fx"; newrepo "$T"

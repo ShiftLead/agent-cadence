@@ -820,6 +820,8 @@ def _memory_dir(root):
                 f.write("\n")
             os.replace(tmp, path)
         except OSError as e:
+            if os.path.lexists(tmp):
+                os.unlink(tmp)   # a part-written copy (a full disk) is no file to leave untracked
             print(f"  WARN  {path} not written ({e.strerror or e}): set autoMemoryDirectory to {memdir} by hand")
             return
         print(f"  conf  autoMemoryDirectory = {memdir} (settings.local.json)")
