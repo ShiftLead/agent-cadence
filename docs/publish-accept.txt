@@ -17,6 +17,7 @@ docs/briefs/* a name your publish-names lists (Paul)
 docs/claude-memory/* a name your publish-names lists (Paul)
 docs/user_attention.md a name your publish-names lists (Paul)
 docs/plans/* a name your publish-names lists (Paul)
+docs/review-data/* a name your publish-names lists (Paul)
 * a name your publish-names lists (Paul) :: *decision (Paul)*
 
 # A board item and a sweep stamp name the machine they were written on, as the board's format says;

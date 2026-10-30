@@ -105,9 +105,12 @@
   "post_build_note": "not built yet as of 2026-10-30 (TD-197..202, ledgerboard TD-005); no post-build data",
   "sources": [
    "~/agent-cadence/docs/plans/2026-10-29-ledger-writer-in-ledgerboard.md",
-   "transcript <a session transcript>"
+   "Claude Code session transcripts"
   ],
-  "class": "wide"
+  "class": "wide",
+  "mode": "rounds",
+  "source_kind": "adr",
+  "batch": "first pass"
  },
  {
   "repo": "dev-cadence",
@@ -151,10 +154,13 @@
   ],
   "sources": [
    "~/dev-cadence/docs/plans/2026-10-25-pinned-not-synced.md",
-   "~/shiftlead/docs/decisions/2026-10-25-shiftlead-requires-dev-cadence.md"
+   "ShiftLead's docs/decisions (an ADR)"
   ],
   "note": "R1 sonnet 5 BLOCK 7 FIX; R2 fable 4 FIX; R3 sonnet 1 FIX; R4 fable READY. Round numbering there counts single reviews, so 4 reviews = 2 rounds of two models.",
-  "class": "wide"
+  "class": "wide",
+  "mode": "rounds",
+  "source_kind": "adr",
+  "batch": "first pass"
  },
  {
   "repo": "dev-cadence",
@@ -174,18 +180,70 @@
    "~/dev-cadence/docs/plans/2026-10-26-public-scrub.md"
   ],
   "note": "\"five review rounds alternating Fable and Sonnet, the last two READY with nits\"; no per-review detail; cut-over just done, post-build not yet assessable",
-  "class": "wide"
+  "class": "wide",
+  "mode": "rounds",
+  "source_kind": "adr",
+  "batch": "first pass"
  },
  {
   "repo": "dev-cadence",
   "plan": "2026-10-22-ledger-ids (TD-124)",
   "date": "2026-10-22",
   "class_reason": "a counter branch on origin plus shiftlead wrapper (cross-repo protocol)",
-  "models": null,
+  "models": [
+   "sonnet",
+   "fable"
+  ],
   "reviews": 5,
-  "rounds": null,
-  "stop": "other",
-  "reviews_detail": null,
+  "rounds": 2.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 80061,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 92380,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 72776,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 87820,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 61793,
+    "total_findings": null
+   }
+  ],
   "post_build_defects": [
    {
     "where": "dev-cadence TD-145, TD-150, then TD-188 (2026-10-26..28)",
@@ -196,8 +254,11 @@
   "sources": [
    "~/dev-cadence/docs/plans/2026-10-22-ledger-ids.md"
   ],
-  "note": "\"reviewed in five rounds\": models and review/round split not stated",
-  "class": "wide"
+  "note": "\"reviewed in five rounds\": the transcripts show five single reviews, Sonnet 1,3,5 and Fable 2,4, so 2.5 rounds. Models and split settled in the 2026-10-30 extension.",
+  "class": "wide",
+  "mode": "rounds",
+  "source_kind": "adr",
+  "batch": "first pass"
  },
  {
   "repo": "agent-cadence",
@@ -208,20 +269,60 @@
    "fable",
    "sonnet"
   ],
-  "reviews": null,
-  "rounds": null,
+  "reviews": 4,
+  "rounds": 2,
   "stop": "converged",
-  "reviews_detail": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 157578,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 219662,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 139604,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 50429,
+    "total_findings": null
+   }
+  ],
   "post_build_defects": [],
   "sources": [
    "~/agent-cadence/docs/plans/2026-10-29-hard-rename.md"
   ],
-  "note": "\"four review rounds, Fable and Sonnet, converged READY\": unclear whether 4 reviews or 4 pairs; excluded from aggregates; not yet assessable post-build",
-  "class": "wide"
+  "note": "\"four review rounds, Fable and Sonnet, converged READY\": the transcripts show 4 single reviews (Fable r1, Sonnet r2, Fable r3, Sonnet r4; the plan numbers single reviews), so 4 reviews = 2 rounds. Count settled in the 2026-10-30 extension.",
+  "class": "wide",
+  "mode": "rounds",
+  "source_kind": "adr",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
-  "plan": "decisions/2026-10-12-ledgerboard-dev-cadence-shiftlead (ledgerboard split)",
+  "plan": "ShiftLead ADR 2026-10-12",
   "date": "2026-10-12",
   "class_reason": "creates the vendored ledgerboard format and splits it from dev-cadence",
   "models": [
@@ -234,10 +335,13 @@
   "reviews_detail": null,
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/decisions/2026-10-12-ledgerboard-dev-cadence-shiftlead.md"
+   "ShiftLead's docs/decisions (an ADR)"
   ],
   "note": "\"four Fable rounds and four Sonnet rounds reached READY\" = 8 reviews, 4 pairs",
-  "class": "wide"
+  "class": "wide",
+  "mode": "rounds",
+  "source_kind": "adr",
+  "batch": "first pass"
  },
  {
   "repo": "dev-cadence",
@@ -260,7 +364,10 @@
    "~/dev-cadence/docs/plans/2026-10-27-ledger-per-entry.md"
   ],
   "note": "review count not recorded: excluded from aggregates, listed because the post-build defects are informative",
-  "class": "wide"
+  "class": "wide",
+  "mode": "rounds",
+  "source_kind": "adr",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -449,11 +556,14 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-978.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-978.md"
   ],
   "stop_note": "history says \"the loop ends\" at 19 with Fable still NOT READY on a follow-on; Sonnet had said READY at 16 and 18",
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -561,10 +671,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1222.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1222.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -681,10 +794,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1022.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1022.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -834,10 +950,13 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-947.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-947.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -927,10 +1046,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-999.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-999.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1002,10 +1124,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-991.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-991.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1203,10 +1328,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-941.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-941.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1269,10 +1397,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1239.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1239.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1353,10 +1484,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1143.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1143.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1435,12 +1569,21 @@
     "total_findings": 1
    }
   ],
-  "post_build_defects": [],
-  "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1129.md"
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-871, TD-959 (2026-10-17..22)",
+    "what": "(questionable) see the entry in ShiftLead's ledger",
+    "would_more_rounds_catch": null
+   }
   ],
-  "class": "wide"
+  "sources": [
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1129.md"
+  ],
+  "class": "wide",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1521,10 +1664,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1048.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1048.md"
   ],
-  "class": "wide"
+  "class": "wide",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1614,10 +1760,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-966.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-966.md"
   ],
-  "class": "wide"
+  "class": "wide",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1689,10 +1838,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-998.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-998.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1755,10 +1907,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1066.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1066.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1821,10 +1976,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1203.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1203.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1914,10 +2072,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1187.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1187.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -1980,10 +2141,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1150.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1150.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -2100,10 +2264,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-975.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-975.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -2184,10 +2351,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-964.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-964.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -2304,10 +2474,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-927.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-927.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -2367,10 +2540,13 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-931.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-931.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -2451,10 +2627,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-926.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-926.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -2535,10 +2714,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-924.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-924.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -2688,10 +2870,13 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-909.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-909.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -2747,14 +2932,17 @@
    {
     "where": "shiftlead TD-1240 (2026-10-29)",
     "what": "(questionable) see the entry in ShiftLead's ledger",
-    "would_more_rounds_catch": null
+    "would_more_rounds_catch": "unclear: interaction of two designs a day apart"
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1189.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1189.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -2808,10 +2996,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-993.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-993.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -2946,10 +3137,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1108.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1108.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -3075,10 +3269,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-986.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-986.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -3132,10 +3329,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-1200.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-1200.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -3225,10 +3425,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-623.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-623.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -3327,10 +3530,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1119.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1119.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -3474,10 +3680,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1117.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1117.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -3549,10 +3758,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1240.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1240.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -3669,10 +3881,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-1149.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-1149.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -3798,10 +4013,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-1064.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-1064.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -3909,10 +4127,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-857.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-857.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -4029,10 +4250,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1061.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1061.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -4164,10 +4388,13 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1051.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1051.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -4248,10 +4475,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1116.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1116.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -4350,10 +4580,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1042.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1042.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -4458,10 +4691,13 @@
    }
   ],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-995.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-995.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -4533,10 +4769,13 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/archive/TD-1026.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1026.md"
   ],
-  "class": "in-repo"
+  "class": "in-repo",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
  },
  {
   "repo": "shiftlead",
@@ -4689,9 +4928,3597 @@
   ],
   "post_build_defects": [],
   "sources": [
-   "~/shiftlead/docs/design-history.md",
-   "~/shiftlead/docs/ledger/TD-1009.md"
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/TD-1009.md"
   ],
-  "class": "wide"
+  "class": "wide",
+  "mode": "rounds",
+  "source_kind": "design-history",
+  "batch": "first pass"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-112",
+  "date": "2026-10-16",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 14,
+  "rounds": 7.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 201098,
+    "total_findings": 17
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 176981,
+    "total_findings": 12
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 170719,
+    "total_findings": 6
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 158594,
+    "total_findings": 8
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 148095,
+    "total_findings": 2
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 129769,
+    "total_findings": 4
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 121289,
+    "total_findings": 4
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 102842,
+    "total_findings": 3
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 114156,
+    "total_findings": 3
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 71368,
+    "total_findings": 1
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 99863,
+    "total_findings": 1
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 63094,
+    "total_findings": 2
+   },
+   {
+    "n": 13,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 62735,
+    "total_findings": null
+   },
+   {
+    "n": 14,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 51921,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-112.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-781",
+  "date": "2026-10-16",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 12,
+  "rounds": 6.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 137968,
+    "total_findings": 10
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 78103,
+    "total_findings": 4
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 135941,
+    "total_findings": 5
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 105954,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 124187,
+    "total_findings": 2
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 65283,
+    "total_findings": 2
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 121554,
+    "total_findings": 3
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 77959,
+    "total_findings": 2
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 138183,
+    "total_findings": 1
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 112648,
+    "total_findings": 2
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 114168,
+    "total_findings": null
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 74983,
+    "total_findings": 0
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-781.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-748",
+  "date": "2026-10-16",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 9,
+  "rounds": 4.5,
+  "stop": "other",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 143296,
+    "total_findings": 15
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 99784,
+    "total_findings": 13
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 133978,
+    "total_findings": 12
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 124426,
+    "total_findings": 10
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 112412,
+    "total_findings": 5
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 86694,
+    "total_findings": 8
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 129953,
+    "total_findings": 2
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 97807,
+    "total_findings": 8
+   },
+   {
+    "n": 9,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 66142,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-748.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-730",
+  "date": "2026-10-16",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4.0,
+  "stop": "other",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 84591,
+    "total_findings": 10
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 70325,
+    "total_findings": 7
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 77277,
+    "total_findings": 10
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 76981,
+    "total_findings": 5
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 59318,
+    "total_findings": 2
+   },
+   {
+    "n": 6,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 65891,
+    "total_findings": 2
+   },
+   {
+    "n": 7,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 56196,
+    "total_findings": 2
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 53148,
+    "total_findings": 4
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-730.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-801",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4.0,
+  "stop": "other",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 83631,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 75106,
+    "total_findings": 4
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 97833,
+    "total_findings": 4
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 76126,
+    "total_findings": 0
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 86873,
+    "total_findings": 1
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 74726,
+    "total_findings": 7
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 48633,
+    "total_findings": null
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 50019,
+    "total_findings": 3
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-801.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-804",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4.0,
+  "stop": "other",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 105722,
+    "total_findings": 10
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 77002,
+    "total_findings": 3
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 99451,
+    "total_findings": 2
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 61274,
+    "total_findings": 8
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 83624,
+    "total_findings": 4
+   },
+   {
+    "n": 6,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 89474,
+    "total_findings": 4
+   },
+   {
+    "n": 7,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 57017,
+    "total_findings": 2
+   },
+   {
+    "n": 8,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 49341,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-1031 (2026-10-26)",
+    "what": "see the entry in ShiftLead's ledger",
+    "would_more_rounds_catch": "plausible: an ordering case inside the smoke design"
+   }
+  ],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-804.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-783",
+  "date": "2026-10-16",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 7,
+  "rounds": 3.5,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 111097,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 107811,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 72788,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 100786,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 68543,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 48771,
+    "total_findings": null
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 60046,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-783.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-806",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 7,
+  "rounds": 3.5,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 107649,
+    "total_findings": 12
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 78738,
+    "total_findings": 1
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 107806,
+    "total_findings": 6
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 59445,
+    "total_findings": 2
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 89857,
+    "total_findings": 4
+   },
+   {
+    "n": 6,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 86698,
+    "total_findings": 1
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 51180,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-806.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-734",
+  "date": "2026-10-15",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 7,
+  "rounds": 3.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 89081,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 77051,
+    "total_findings": 8
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 104144,
+    "total_findings": 1
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 70071,
+    "total_findings": 2
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 90914,
+    "total_findings": 6
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 65898,
+    "total_findings": 5
+   },
+   {
+    "n": 7,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 54008,
+    "total_findings": 0
+   }
+  ],
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-761 (2026-10-15)",
+    "what": "(questionable) see the entry in ShiftLead's ledger",
+    "would_more_rounds_catch": null
+   },
+   {
+    "where": "shiftlead TD-1222 (2026-10-29)",
+    "what": "(questionable) see the entry in ShiftLead's ledger",
+    "would_more_rounds_catch": null
+   }
+  ],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-734.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-693",
+  "date": "2026-10-15",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 6,
+  "rounds": 6.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 68193,
+    "total_findings": 7
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 106076,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 90749,
+    "total_findings": 3
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 101547,
+    "total_findings": 3
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 74956,
+    "total_findings": 0
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 113079,
+    "total_findings": 6
+   }
+  ],
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-966 (2026-10-22)",
+    "what": "(questionable) see the entry in ShiftLead's ledger",
+    "would_more_rounds_catch": null
+   }
+  ],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-693.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-761",
+  "date": "2026-10-16",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 5,
+  "rounds": 2.5,
+  "stop": "other",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 72533,
+    "total_findings": 9
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 75417,
+    "total_findings": 4
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 74704,
+    "total_findings": 4
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 66659,
+    "total_findings": 7
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 50473,
+    "total_findings": 3
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-761.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-702",
+  "date": "2026-10-15",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 5,
+  "rounds": 5.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 73518,
+    "total_findings": 3
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 86535,
+    "total_findings": 3
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 65473,
+    "total_findings": 2
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 51126,
+    "total_findings": 0
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 64892,
+    "total_findings": 5
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-702.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-810",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 5,
+  "rounds": 2.5,
+  "stop": "other",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 92176,
+    "total_findings": 5
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 59286,
+    "total_findings": 0
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 78779,
+    "total_findings": 2
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 72810,
+    "total_findings": 3
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 67322,
+    "total_findings": 0
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-810.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-681",
+  "date": "2026-10-14",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 4,
+  "rounds": 4.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 87471,
+    "total_findings": 9
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 73815,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 80684,
+    "total_findings": 1
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 61017,
+    "total_findings": 8
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-681.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-692",
+  "date": "2026-10-15",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 4,
+  "rounds": 4.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 66083,
+    "total_findings": 5
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 61978,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 64152,
+    "total_findings": 0
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 75373,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-692.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-731",
+  "date": "2026-10-15",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 4,
+  "rounds": 2.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 95551,
+    "total_findings": 9
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 93070,
+    "total_findings": 8
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 95053,
+    "total_findings": 1
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 65381,
+    "total_findings": 6
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-731.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-745",
+  "date": "2026-10-16",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 4,
+  "rounds": 2.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 89188,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 66791,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 92434,
+    "total_findings": 5
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 59007,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-745.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-845",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 4,
+  "rounds": 2.0,
+  "stop": "other",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 97564,
+    "total_findings": 9
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 75969,
+    "total_findings": 4
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 81258,
+    "total_findings": 5
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 62414,
+    "total_findings": 0
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-845.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-682",
+  "date": "2026-10-14",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 3,
+  "rounds": 3.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 76666,
+    "total_findings": 9
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 63832,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 61117,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-682.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-688",
+  "date": "2026-10-14",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 3,
+  "rounds": 3.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 64152,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 61507,
+    "total_findings": 3
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 63063,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-688.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-814",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 3,
+  "rounds": 1.5,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 71895,
+    "total_findings": 4
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 63420,
+    "total_findings": 3
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 66945,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-814.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-819",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 2,
+  "rounds": 1.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 91196,
+    "total_findings": 3
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 85345,
+    "total_findings": 0
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-819.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-820",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 2,
+  "rounds": 1.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 97693,
+    "total_findings": 1
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 83127,
+    "total_findings": 3
+   }
+  ],
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-854 (2026-10-17)",
+    "what": "see the entry in ShiftLead's ledger",
+    "would_more_rounds_catch": "plausible: a case enumeration"
+   }
+  ],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-820.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-821",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 2,
+  "rounds": 1.0,
+  "stop": "other",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 107912,
+    "total_findings": 2
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 78749,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-821.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-823",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 2,
+  "rounds": 1.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 81226,
+    "total_findings": 1
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 74387,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-823.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-816",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 2,
+  "rounds": 1.0,
+  "stop": "other",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 177456,
+    "total_findings": 1
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 97926,
+    "total_findings": 7
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-816.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-818",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 2,
+  "rounds": 1.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 165183,
+    "total_findings": 1
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 105514,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-818.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-818 (amendment)",
+  "date": "2026-10-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet",
+   "fable"
+  ],
+  "reviews": 6,
+  "rounds": 3.0,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 75191,
+    "total_findings": 4
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 90937,
+    "total_findings": 15
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 100165,
+    "total_findings": 14
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 58385,
+    "total_findings": 2
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 80024,
+    "total_findings": 2
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 67134,
+    "total_findings": 1
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-818.md"
+  ],
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-900",
+  "date": "2026-10-19",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet",
+   "opus"
+  ],
+  "reviews": 2,
+  "rounds": 1.0,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 133904,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "opus",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 199695,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts (Agent calls, task notifications)",
+   "ShiftLead's docs/ledger/archive/TD-900.md"
+  ],
+  "note": "two reviews by two models in one pass (Opus and Sonnet)",
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1025",
+  "date": "2026-10-26",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 30,
+  "rounds": 15.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 98877,
+    "total_findings": 5
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 78226,
+    "total_findings": 7
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 102226,
+    "total_findings": 4
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 81036,
+    "total_findings": 6
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 113245,
+    "total_findings": 5
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 71958,
+    "total_findings": 4
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 116463,
+    "total_findings": 3
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 85011,
+    "total_findings": 4
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 116494,
+    "total_findings": 4
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 74872,
+    "total_findings": 4
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 103132,
+    "total_findings": 3
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 83910,
+    "total_findings": 3
+   },
+   {
+    "n": 13,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 117365,
+    "total_findings": 3
+   },
+   {
+    "n": 14,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 79883,
+    "total_findings": 5
+   },
+   {
+    "n": 15,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 141538,
+    "total_findings": 3
+   },
+   {
+    "n": 16,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 71582,
+    "total_findings": 4
+   },
+   {
+    "n": 17,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 120986,
+    "total_findings": 3
+   },
+   {
+    "n": 18,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 68955,
+    "total_findings": 3
+   },
+   {
+    "n": 19,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 123027,
+    "total_findings": 3
+   },
+   {
+    "n": 20,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 108506,
+    "total_findings": 5
+   },
+   {
+    "n": 21,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 133613,
+    "total_findings": 2
+   },
+   {
+    "n": 22,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 68268,
+    "total_findings": 2
+   },
+   {
+    "n": 23,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 108431,
+    "total_findings": 1
+   },
+   {
+    "n": 24,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 90873,
+    "total_findings": 2
+   },
+   {
+    "n": 25,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 137833,
+    "total_findings": 1
+   },
+   {
+    "n": 26,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 95400,
+    "total_findings": 3
+   },
+   {
+    "n": 27,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 114530,
+    "total_findings": null
+   },
+   {
+    "n": 28,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 83106,
+    "total_findings": 1
+   },
+   {
+    "n": 29,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 84306,
+    "total_findings": 1
+   },
+   {
+    "n": 30,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 78652,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1025.md",
+   "Claude Code session transcripts (tokens)"
+  ],
+  "note": "first pass skipped this design-history TD",
+  "class": "in-repo",
+  "source_kind": "design-history",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1031",
+  "date": "2026-10-26",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 90047,
+    "total_findings": 5
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 74912,
+    "total_findings": 6
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 105351,
+    "total_findings": 5
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 63319,
+    "total_findings": 3
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 84874,
+    "total_findings": 4
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 81273,
+    "total_findings": 2
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 103608,
+    "total_findings": 2
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 65499,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1031.md",
+   "Claude Code session transcripts (tokens)"
+  ],
+  "note": "first pass skipped this design-history TD",
+  "class": "in-repo",
+  "source_kind": "design-history",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1033",
+  "date": "2026-10-26",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 124025,
+    "total_findings": 9
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 96509,
+    "total_findings": 9
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 137614,
+    "total_findings": 7
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 58645,
+    "total_findings": 5
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 75656,
+    "total_findings": 6
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 88623,
+    "total_findings": 5
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 107376,
+    "total_findings": 5
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": 65353,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "ShiftLead's docs/design-history.md",
+   "ShiftLead's docs/ledger/archive/TD-1033.md",
+   "Claude Code session transcripts (tokens)"
+  ],
+  "note": "first pass skipped this design-history TD",
+  "class": "in-repo",
+  "source_kind": "design-history",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-418",
+  "date": "2026-10-09",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 4,
+  "rounds": 4.0,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 134943,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 164839,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 112145,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 70837,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts",
+   "ShiftLead's docs/ledger/archive/TD-418.md"
+  ],
+  "note": "four Sonnet-only rounds; first pass skipped for unknown count",
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-646",
+  "date": "2026-10-14",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet",
+   "fable"
+  ],
+  "reviews": 12,
+  "rounds": 6.0,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 76025,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 75117,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 66506,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 48736,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 80429,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 81636,
+    "total_findings": null
+   },
+   {
+    "n": 7,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 60966,
+    "total_findings": null
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 46631,
+    "total_findings": null
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 98173,
+    "total_findings": null
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 58152,
+    "total_findings": null
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 89008,
+    "total_findings": null
+   },
+   {
+    "n": 12,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 73522,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts",
+   "ShiftLead's docs/ledger/archive/TD-646.md"
+  ],
+  "note": "one repo",
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-722 (amendment PR #1850)",
+  "date": "2026-10-15",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4.0,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 156965,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 169600,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 158558,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 205111,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 97745,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 155478,
+    "total_findings": null
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 203060,
+    "total_findings": null
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 170562,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts",
+   "ShiftLead's docs/ledger/archive/TD-722.md"
+  ],
+  "note": "first pass skipped for mixed formats; counted here from the Agent calls (Fable proposal review, then rounds on the amendment)",
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "ShiftLead ADR 2026-10-15",
+  "date": "2026-10-15",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4.0,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 113436,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 69095,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 80671,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 57408,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 63794,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 61068,
+    "total_findings": null
+   },
+   {
+    "n": 7,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 50273,
+    "total_findings": null
+   },
+   {
+    "n": 8,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 52225,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "ShiftLead's docs/decisions (an ADR)",
+   "Claude Code session transcripts"
+  ],
+  "note": "ADR says four Fable rounds + a final AGREE and three Sonnet rounds; transcripts show 4+1 Fable and 3 Sonnet = 8 reviews; earlier first pass could not settle 7 vs 8",
+  "class": "in-repo",
+  "source_kind": "adr",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "ShiftLead ADR 2026-10-19",
+  "date": "2026-10-19",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 7,
+  "rounds": 3.5,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 139391,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 110471,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 94054,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 132029,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 95102,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 137081,
+    "total_findings": null
+   },
+   {
+    "n": 7,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 65936,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "ShiftLead's docs/decisions (an ADR)",
+   "Claude Code session transcripts"
+  ],
+  "note": "ADR stage; TD-909 (already in the set) is the later design stage of the same card",
+  "class": "in-repo",
+  "source_kind": "adr",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-307",
+  "date": "2026-10-04",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable"
+  ],
+  "reviews": 5,
+  "rounds": 5.0,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 94261,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 76381,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 63004,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 74714,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 110836,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "Claude Code session transcripts",
+   "ShiftLead's docs/design-history.md"
+  ],
+  "note": "Fable-only; ended READY, then Paul asked for a rework",
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-307",
+  "date": "2026-10-04",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 17,
+  "rounds": 8.5,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 76572,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 62300,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 124748,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 92383,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 97212,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 87554,
+    "total_findings": null
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 45391,
+    "total_findings": null
+   },
+   {
+    "n": 8,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 102868,
+    "total_findings": null
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 89837,
+    "total_findings": null
+   },
+   {
+    "n": 10,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 59033,
+    "total_findings": null
+   },
+   {
+    "n": 11,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 76027,
+    "total_findings": null
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 88176,
+    "total_findings": null
+   },
+   {
+    "n": 13,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 53480,
+    "total_findings": null
+   },
+   {
+    "n": 14,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 116152,
+    "total_findings": null
+   },
+   {
+    "n": 15,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 59420,
+    "total_findings": null
+   },
+   {
+    "n": 16,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 17,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 66861,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-356 (2026-10-06)",
+    "what": "(questionable) see the entry in ShiftLead's ledger",
+    "would_more_rounds_catch": null
+   }
+  ],
+  "sources": [
+   "Claude Code session transcripts",
+   "ShiftLead's docs/design-history.md"
+  ],
+  "note": "restarted by Paul after v1; includes confirm rounds and one Sonnet pass he asked for; many reviews are confirmations of a narrow change",
+  "class": "in-repo",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension"
+ },
+ {
+  "repo": "dev-cadence",
+  "plan": "2026-10-28-ledger-id-provenance (formal Id take field; redesign of TD-124 ids)",
+  "date": "2026-10-29",
+  "class_reason": "changes the ledger id protocol shared by dev-cadence and ShiftLead (counter branch on origin, wrapper in ShiftLead, a field in every entry)",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 2,
+  "rounds": 1.0,
+  "stop": null,
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 108713,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": 65118,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/dev-cadence/docs/plans/2026-10-28-ledger-id-provenance.md",
+   "Claude Code session transcripts"
+  ],
+  "note": "one Fable+Sonnet pass on the design, another on the rewritten C-prime ADR; decided 2026-10-28; not yet assessable post-build",
+  "class": "wide",
+  "source_kind": "transcript",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-100",
+  "date": "2026-09-25",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 4,
+  "rounds": 4.0,
+  "stop": "converged",
+  "reviews_detail": null,
+  "post_build_defects": [],
+  "sources": [
+   "ShiftLead's docs/decisions (an ADR)",
+   "ShiftLead's docs/design-history.md"
+  ],
+  "note": "\"four Sonnet rounds to READY\"; Sonnet only",
+  "class": "in-repo",
+  "source_kind": "adr",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-103",
+  "date": "2026-09-22",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet",
+   "fable"
+  ],
+  "reviews": 9,
+  "rounds": 4.5,
+  "stop": "converged",
+  "reviews_detail": null,
+  "post_build_defects": [],
+  "sources": [
+   "ShiftLead's docs/ledger/archive/TD-103.md"
+  ],
+  "note": "\"eight Sonnet design-review rounds, every finding adopted, closed by Fable after round 8\": 9 reviews, 4.5 rounds by the definition though one model did eight of them",
+  "class": "in-repo",
+  "source_kind": "ledger",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-057",
+  "date": "2026-09-17",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable"
+  ],
+  "reviews": 2,
+  "rounds": 2.0,
+  "stop": "converged",
+  "reviews_detail": null,
+  "post_build_defects": [],
+  "sources": [
+   "ShiftLead's docs/design-history.md"
+  ],
+  "note": "\"after two Fable reviews and Paul's steer\"",
+  "class": "in-repo",
+  "source_kind": "design-history",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-069",
+  "date": "2026-09-19",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 1,
+  "rounds": 1.0,
+  "stop": "converged",
+  "reviews_detail": null,
+  "post_build_defects": [],
+  "sources": [
+   "ShiftLead's docs/design-history.md"
+  ],
+  "note": "\"Sonnet design review the same day\"; a single review",
+  "class": "in-repo",
+  "source_kind": "design-history",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-070",
+  "date": "2026-09-20",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 1,
+  "rounds": 1.0,
+  "stop": "converged",
+  "reviews_detail": null,
+  "post_build_defects": [],
+  "sources": [
+   "ShiftLead's docs/design-history.md"
+  ],
+  "note": "\"Sonnet design review the same day\"; a single review",
+  "class": "in-repo",
+  "source_kind": "design-history",
+  "mode": "rounds",
+  "batch": "2026-10-30 extension",
+  "post_build_note": "none found by citation in later ledger entries (a lower bound); designs reviewed from 2026-10-27 are too recent to assess"
+ },
+ {
+  "repo": "dev-cadence",
+  "plan": "2026-08-08-automation-and-sharing (dev-cadence P1-P5)",
+  "date": "2026-08-08",
+  "class_reason": "reaches every consumer through sync; parallel plan-review lenses, not rounds",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 3,
+  "rounds": null,
+  "stop": "converged",
+  "mode": "parallel",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "findings folded in",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "findings folded in",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "confirmed first-round findings resolved, added two pins",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/dev-cadence/docs/plans/2026-08-08-automation-and-sharing.md"
+  ],
+  "note": "two parallel Sonnet lenses (design-soundness, adversarial failure-modes) plus one verification pass by the adversarial reviewer; kept out of round aggregates",
+  "class": "wide",
+  "source_kind": "other",
+  "batch": "2026-10-30 extension"
+ },
+ {
+  "repo": "dev-cadence",
+  "plan": "2026-08-10-machine-scope-attention (dev-cadence P1-P3)",
+  "date": "2026-08-10",
+  "class_reason": "reaches every consumer through sync; parallel plan-review lenses, not rounds",
+  "models": [
+   "sonnet"
+  ],
+  "reviews": 3,
+  "rounds": null,
+  "stop": "converged",
+  "mode": "parallel",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "APPROVE-WITH-CHANGES",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "REVISE",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "APPROVED-FOR-USER-REVIEW",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/dev-cadence/docs/plans/2026-08-10-machine-scope-attention.md"
+  ],
+  "note": "two parallel Sonnet lenses (APPROVE-WITH-CHANGES, REVISE) plus a third verification agent (APPROVED-FOR-USER-REVIEW, 20/21 findings resolved); kept out of round aggregates",
+  "class": "wide",
+  "source_kind": "other",
+  "batch": "2026-10-30 extension"
  }
 ]
