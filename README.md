@@ -143,11 +143,12 @@ do not parse. Otherwise it
 - appends the `[agent-cadence]` pin to `docs/cadence.toml`;
 - installs the git hook shims in the target repo's `.git/hooks` (the main checkout's, shared by its worktrees);
 - adds the `.gitignore` lines the cadence needs (the worktree directory, the session index, local settings, `*.code-workspace`);
+- sets this clone's memory path for Claude Code (`autoMemoryDirectory` in `.claude/settings.local.json`);
 - registers the repo in this machine's *roster*, `~/.config/agent-cadence/repos.txt`, which the attention report
   and cross-repo `Blocked by` references read.
 
 It commits nothing: review the result and land it through a PR like any change. Then finish cadence.md's
-*Adoption checklist*: the memory path in `.claude/settings.local.json`, the map in `AGENTS.md`, the `precheck`
+*Adoption checklist*: the map in `AGENTS.md`, the `precheck`
 command in `docs/cadence.toml`, and the forge's merge settings (`agent-cadence run adopt_repo_settings.sh --check`
 shows the drift, `--apply` sets them).
 
@@ -163,12 +164,10 @@ Set up agent-cadence in this repo:
    <this repo's root>`. Heed any WARN lines. Then read the rules this repo
    now runs: `agent-cadence path cadence.md`.
 2. Do the Adoption checklist's one-time steps that adopt does not:
-   - for Claude Code, merge this clone's absolute docs/claude-memory path
-     into .claude/settings.local.json as autoMemoryDirectory;
    - for Claude Code, if .claude/settings.json already existed, add the ONE SessionStart line
      from agent-cadence's files/.claude/settings.json;
    - on each other machine's clone, run adopt again (it changes only what is
-     missing) and set the memory path there.
+     missing, the memory path among it).
 3. Fill in the AGENTS.md map that adopt seeded: a Session Hygiene section
    and doc-map rows for the rules, the ledger and the board. Codex reads
    AGENTS.md as is, and adopt's .gemini/settings.json points Gemini CLI at it;

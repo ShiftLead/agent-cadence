@@ -284,21 +284,17 @@ keep from going stale, N rows in `/attention` for what is one project. That is t
 because the work being tracked belongs to the *project*: an item parked in one sibling needs the
 user to act on the product, not on a repo.
 
-So: **run `sync.sh` against exactly one repo — the home — and install nothing in the siblings.**
-Each sibling carries only a committed `.claude/settings.json` whose SessionStart hooks point at
-the home's `scripts/` — and that is **not** the stock template `sync.sh` installs: the stock
-hooks say `"$CLAUDE_PROJECT_DIR/scripts/check_claude_memory.sh"`, which resolves to the
-*session's own repo*, i.e. to a `scripts/` directory the sibling deliberately does not have.
-Write the hop to the home explicitly, e.g.
-`"$CLAUDE_PROJECT_DIR/../<home-repo>/scripts/check_claude_memory.sh" --hook`, and set the
-sibling's `autoMemoryDirectory` in the same file by hand (step 2 of the checklist is a
-`sync.sh` side-effect the sibling never gets). The relative hop is brittle — it assumes every
-sibling is checked out beside the home, and a checkout laid out differently gets hooks that
-point at nothing. The board, the ledger, `cadence.md`, and the skills live in the home and
-nowhere else. §9's registry lists the home only, so the machine-wide report shows one row per
-project rather than one per repo. (Since TD-129's closing slice, 2026-10-28, the home is adopted
-with `agent-cadence adopt` rather than synced, and the hand-written hop is the sibling line of
-cadence.md §9.12, TD-147.)
+So: **adopt exactly one repo — the home (`agent-cadence -C <clone> adopt <home>`) — and install nothing in the siblings.**
+Each sibling carries only a committed `.claude/settings.json` whose one SessionStart command is
+the sibling line of cadence.md §9.12 (TD-147), which runs the home's runner — **not** the stock
+seed, whose line reads the session's own repo's pin, and a sibling has none: it would run nothing.
+Set the sibling's `autoMemoryDirectory` in the same file by hand (`adopt` sets it only in the
+repo it adopts). The relative hop to the home is brittle — it assumes every sibling is checked out
+inside or beside the home, and a checkout laid out differently gets hooks that point at nothing.
+The board, the ledger, `cadence.md`, and the skills live in the home and nowhere else. §9's
+registry lists the home only, so the machine-wide report shows one row per project rather than one
+per repo. (Until TD-129's closing slice, 2026-10-28, the home was synced with `sync.sh` and each
+sibling's hooks named the home's `scripts/` one by one.)
 
 ### §9.13 Choose the home
 
