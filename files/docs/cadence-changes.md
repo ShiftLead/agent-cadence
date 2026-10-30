@@ -12,6 +12,9 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-29 — text is LF: a `.gitattributes` seed with `* text=auto eol=lf`
+Do: a repo with no `.gitattributes` gets the seed at its next `adopt`; one that has its own adds `* text=auto eol=lf` by hand. A repo with CRLF in its index converts it once (`git add --renormalize .`, a PR of its own), never file by file.
+See: cadence.md §7.14; TD-187.
 ## 2026-10-29 — the tool is agent-cadence: command, pin table, dirs, variable and shim marker renamed, no aliases
 Do: run `agent-cadence` (was `dev-cadence`, `launcher/agent_cadence.py`); pin under `[agent-cadence]`; machine files in `~/.config/agent-cadence/` and `~/.cache/agent-cadence/`; set `AGENT_CADENCE_REG_DIR` (was `DEV_CADENCE_REG_DIR`). Swap a clone's old shims: `grep -lF 'dev-cadence hook shim (TD-055)' "$(git rev-parse --path-format=absolute --git-common-dir)"/hooks/* | xargs -r rm`, then `agent-cadence run install_git_hooks.sh`.
 See: the plan 2026-10-29-hard-rename; cadence.md §9.19; TD-193.
