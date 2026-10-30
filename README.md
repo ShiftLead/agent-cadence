@@ -22,8 +22,9 @@ Each rule comes with the tool that enforces it, or the check that notices when i
   in a worktree of its own, so concurrent sessions never edit the same files. `open_worktree.sh` makes one,
   `hydrate_worktree.sh` brings in what git does not track, and `reap_worktrees.sh` removes those whose work has
   landed.
-- **A ledger of deferred work** (§2). Every problem not fixed now gets an entry: one file per entry under
-  `docs/ledger/`, with a *Why*, a *Fix* and an optional `Blocked by`. `ledger_next_id.py` hands out ids from a
+- **A ledger of deferred work** (§2). Every problem not fixed now gets an entry in `docs/technical_debt.md`, with a
+  *Why*, a *Fix* and an optional `Blocked by`; `ledger.py --split` turns it into one file per entry under
+  `docs/ledger/` once it grows. `ledger_next_id.py` hands out ids from a
   counter on origin, so two sessions never take the same number. `ledger.py --pickable` lists what is ready to
   work.
 - **Never strand work** (§3). Anything that needs the person goes on an attention board,
@@ -31,12 +32,11 @@ Each rule comes with the tool that enforces it, or the check that notices when i
   sweep finds work left in worktrees, branches and stashes.
 - **Branch, PR, review, squash** (§4). Nothing goes straight to main: the pre-push hook blocks it. Every PR
   gets an independent review, and a local *precheck* (`precheck.py`, which runs the repo's own tests on the PR's
-  head in a clean worktree) records a `cadence/precheck` status. `/cadence` reads a PR against every rule and says which hold.
+  head in a clean worktree) records a `cadence/precheck` status. `/cadence` reads a PR against the §1–§5 rules and says which hold.
 - **Memory in the repo** (§7). A session's memory lives in the repo's `docs/claude-memory/` and goes through
   review like any other change, instead of sitting in one machine's home directory.
 - **Delivery.** All of this reaches a session through one SessionStart line in `.claude/settings.json` and
-  three git hook shims (`pre-push`, `post-merge`, `prepare-commit-msg`). The settings line and the shims both run
-  the main checkout's pin.
+  three git hook shims (`pre-push`, `post-merge`, `prepare-commit-msg`), which run the main checkout's pin.
 
 ## How it runs: pinned, not copied
 
@@ -52,7 +52,8 @@ The **launcher**, `agent-cadence`, is one Python file installed once per machine
 read-only cache (`~/.cache/agent-cadence/trees/<commit>`) and runs the scripts from there:
 `agent-cadence run ledger.py --pickable`, or `agent-cadence path cadence.md` to name a file. An upgrade is a
 bump: `agent-cadence bump` lists what is newer than the pin, and `agent-cadence bump <tag or commit>` moves the
-one `ref` line and prints what the PR body carries, the compare and the convention changes since the old pin.
+`ref` line, refreshes any skill pointer the repo has not edited, and prints what the PR body carries: the compare
+and the convention changes since the old pin.
 The repo reviews and merges that PR like any other. The rule is
 cadence.md §9.19.
 
@@ -65,7 +66,8 @@ tag in place of `main` once one exists:
 
 ```bash
 d=$(mktemp -d) && git clone -q --depth 1 --branch main https://github.com/ShiftLead/agent-cadence "$d" \
-  && install -Dm755 "$d/launcher/agent_cadence.py" ~/.local/bin/agent-cadence && rm -rf "$d"   # ~/.local/bin on PATH
+  && mkdir -p ~/.local/bin && install -m 755 "$d/launcher/agent_cadence.py" ~/.local/bin/agent-cadence \
+  && rm -rf "$d"   # ~/.local/bin must be on PATH
 ```
 
 **2. Evaluate before adopting.** Have a session in the candidate repo read the system and compare it with how
@@ -92,8 +94,8 @@ git clone https://github.com/ShiftLead/agent-cadence
 agent-cadence -C agent-cadence adopt /path/to/your-repo
 ```
 
-`adopt` pins the repo to the clone's HEAD, so that HEAD must be clean and on origin's default branch: the pin
-names a commit, and it must be one origin has. It writes the *seed* files the repo then owns (ledger, board,
+`adopt` pins the repo to the clone's HEAD, which must be clean and on origin's default branch (the pin names a
+commit origin has). It writes the *seed* files the repo then owns (ledger, board,
 memory index, `AGENTS.md`, settings), the skill pointers, the pin, the git hook shims, and this machine's
 *roster* line: `~/.config/agent-cadence/repos.txt`, the list of cadence repos that the attention report and
 cross-repo `Blocked by` read. It commits nothing. Then follow cadence.md's *Adoption checklist*: the
@@ -170,8 +172,8 @@ needs nothing extra. This repo's own team is defined in its `.shiftlead.yml`.
 
 ## Philosophy and non-goals
 
-- **A pinned tree, not a package.** Every upgrade is a reviewable one-line diff in the repo's own history, and
-  the scripts stay plain files a session can read. There is one vendored file: `files/scripts/ledgerboard.py`,
+- **A pinned tree, not a package.** Every upgrade is a reviewable diff in the repo's own history, the pin line and
+  nothing the repo edited, and the scripts stay plain files a session can read. There is one vendored file: `files/scripts/ledgerboard.py`,
   the ledger and board formats, copied from a tagged
   [ShiftLead/ledgerboard](https://github.com/ShiftLead/ledgerboard) release.
 - **The repo carries only what it owns**: its board, ledger, memory, settings and map. A repo shared with people
