@@ -12,7 +12,7 @@
   - build-changing labels exist for one design (TD-173's ledger writer);
   - tokens exist for 278 reviews, covering 43 of the 97 designs;
   - models are named loosely (letters F, S, O);
-  - the link from a design to a defect it later let through was found by reading which ledger entries cite the design: a lower bound: 7 firm ShiftLead pairs (one a doc leftover after the build), 3 dev-cadence designs with firm defects (the repo is archived), and 5 "(questionable)" designs carrying 6 defect entries.
+  - the link from a design to a defect it later let through was found by reading which ledger entries cite the design: a lower bound: 7 firm ShiftLead pairs (one a doc leftover after the build), 3 designs with firm defects in the private dev-cadence repo (archived), and 5 "(questionable)" designs carrying 6 defect entries.
 - **The trial** (`trial-rev18.md`) had to use total findings as a proxy for build-changing ones and could not test the link at all.
 - **Paul's direction:** "the real help is to be able to check against issues that arose after the designs"; "as tokens get cheaper and agents get stronger … people will want to rely on them more, and expand the number of allowed cycles"; "We might want to record the actual models involved." Stats are generated mechanically on demand, and more `Escaped from:` links will appear as time goes by; the backfill may need an agent, with the person's permission.
 
@@ -67,7 +67,7 @@
 - **This repo's backfill**, part of TD-204's build:
   - here, `docs/reviews/TD-203.md` (`Source: backfill`, real labels) copied from the rounds ADR's own *Review record*, whose body stays as it is. Its free-text `by` maps to `R<n>`: within a round, every fact-check row is one `fact-check` review (`fact-check` and `fact-check (sonnet)` alike; the last round's read as the closing fact-check), and each model's rows one `design` review, in the order the models ran in that table (sonnet, then fable), a review taking the position of its first row; a merged review's model is `sonnet?` when any of its rows names it, else `?`; a review the table does not show (round 5 has no fact-check row) is not written. agent-cadence has no escapes yet.
   - a ShiftLead PR: `docs/reviews/` records for TD-947, TD-995, TD-1051, TD-909, TD-804 and TD-820 from `docs/review-data/design-rounds.json` and ShiftLead's design history, and `Escaped from:` on TD-960, TD-1128, TD-1095, TD-1129, TD-1031 and TD-854. Left out: TD-935 ← TD-931 (a doc leftover after the build, a build miss by 2's test) and the five "(questionable)" designs.
-  - dev-cadence is archived, so its pairs stay in the frozen dataset only.
+  - the private dev-cadence repo is archived, so its pairs stay in the frozen dataset only.
 
 **6. Where it lives:**
 - cadence.md §4.8 *Design review rounds*: "the plan's findings table" becomes the design's record file (1), and the Reviews table is named; §2 gains the `Escaped from:` paragraph (2) and §2.12's list of fields the cadence defines names it; §9.18 lists `review-outcomes`.
