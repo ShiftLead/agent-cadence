@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-30 — `review-model` is an ordered list; `fact-check-model`; design review rounds are capped
+Do: take round one's reviewer from `cadence_config.py get review-model --first` (the setting may now be `"sonnet, fable"`: a round is one pass, one review at a time) and a fact-check's from `get fact-check-model`. Review a design plan in rounds capped by `design-rounds` (4) / `design-rounds-wide` (6), every finding labelled and in the plan's *Review record*, ending by the stop rule or the cap.
+See: cadence.md §4.8 *Design review rounds*, §9.18; adr-template.md; TD-203.
+
 ## 2026-10-30 — What waits on the person leads with one sentence; the cadence check warns on an entry with no Ask:
 Do: open a board line, a person-waiting ledger entry and an ask or steer to the person with one sentence stating the decision or task, then what each answer leads to, then the context. Read the `ledger` row's ⚠ (and `ledger.py --check`'s `no-ask` ℹ): an entry your PR adds or edits that waits on the person needs an `**Ask:**` line in its body.
 See: cadence.md §3.3, §2.3; TD-122.

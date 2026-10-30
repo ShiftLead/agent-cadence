@@ -36,16 +36,20 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    check skipped, a deleted head's check runs, a rate limit, a precheck required and not recorded on
    the head). Say so, never call it a pass; a CI still running is waited on as step 5 says.
 3. **`review` fails and no review has been done:** do it now — an independent agent on the
-   repo's review model (`python3 scripts/cadence_config.py get review-model`; default
-   `sonnet`, cadence §9.18), started however your tool starts another agent on a chosen
+   repo's review model (`python3 scripts/cadence_config.py get review-model --first`; default
+   `sonnet`, cadence §9.18; a doc-only PR's fact-check runs on `get fact-check-model`), started however your tool starts another agent on a chosen
    model (a subagent, or a separate session) and never the session that wrote the diff, reviews the diff for correctness (code) or fact-checks it
    against the repo (docs). **Where it reads, and what it re-derives (cadence §4.8, TD-136):** it reads
    refs (`git show`/`git diff` on the head commit) or its own detached worktree pinned to the head,
    never your tree or the anchor, and compares against the base in its own worktree, never by stash
    or checkout — and you leave its tree alone until it reports; the prompt names the change's
    load-bearing claims, marks which figures are unchecked, and asks for each to be re-derived and
-   its premise tested, not only the diff read; with more than one reviewer model, one round at a
-   time, cheaper first, each round's fixes committed before the next. **Its prompt names the verdict words:** *end your report with
+   its premise tested, not only the diff read; with more than one reviewer model (`get review-model`
+   prints the ordered list), each round is one pass through the list, one review at a time in its
+   order, each review's fixes committed before the next. **A design plan's rounds** (cadence §4.8
+   *Design review rounds*) ask for each round from the same list, the fact-checks from
+   `fact-check-model`, and stop by the stop rule or at the cap — `get design-rounds` for an in-repo
+   plan, `get design-rounds-wide` for a wide one — each finding a row of the plan's *Review record*. **Its prompt names the verdict words:** *end your report with
    `cadence-review: <SHIP|FIXED|BLOCK> · <your model> · <code|docs> · <n> findings` — SHIP,
    FIXED or BLOCK and no other word*. A reviewer asked in its own words writes its own
    (`CLEAN`), which the row never reads as a review: it fails naming the word, and the cure is a

@@ -8,8 +8,14 @@
 # prints every key with its value and source; `--check` names a key nothing reads.
 # To change a value, uncomment its line and edit the value (each is shown at its default).
 
-# The independent reviewer's model (§4.8): a cheaper model than the author's, never the same.
+# The independent reviewers' models (§4.8, TD-203): one model, or an ordered list in round order
+# ("sonnet, fable"), the cheaper first and never the author's own. A round is one pass through the
+# list; `cadence_config.py get review-model --first` prints round one's reviewer.
 # review-model = "sonnet"
+
+# The fact-checker's model (§4.8): one model, or <adapter>/<model> for a reviewer outside Claude
+# ("gemini/gemini-2.5-flash"). Unset, it is the first review-model.
+# fact-check-model = "sonnet"
 
 # The model the deep sweep's agents run on (/stranded-work deep).
 # sweep-model = "sonnet"
@@ -51,6 +57,12 @@
 # `/attention` shows every repo either way. A launcher's CADENCE_ATTENTION_SCOPE=own (an
 # unattended session) is the same line unfetched, with no open-PR line (TD-077's carry-over).
 # attention-scope = "own"
+
+# The most review rounds a design plan gets before the person is asked (§4.8 Design review rounds):
+# an in-repo plan, and a wide one (another repo, the payload, a published format, the irreversible).
+# Each a whole number of rounds; a round is one pass through review-model.
+# design-rounds = "4"
+# design-rounds-wide = "6"
 
 # --- this repo's own checks, run on a PR's head before the merge (TD-117, cadence.md §4.12):
 # read from this file only, never env or the machine's. The merge gate runs

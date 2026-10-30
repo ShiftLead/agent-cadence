@@ -214,8 +214,8 @@ tpl = read("files/docs/adr-template.md")
 rule = next((l for l in read("files/docs/cadence.md").splitlines() if "Architecture decisions get ADRs" in l), "")
 check("cadence.md §7 states the ADR rule", rule)
 heads = re.findall(r"^## (.+)$", tpl, re.M)
-check("adr-template.md has the five sections, in order",
-      heads == ["Context", "Options", "Decision", "Consequences", "Revisit triggers"], str(heads))
+check("adr-template.md has the five sections, in order, then the optional Review record (TD-203)",
+      heads == ["Context", "Options", "Decision", "Consequences", "Revisit triggers", "Review record"], str(heads))
 for h in heads:
     check(f"  ... and §7 names **{h}**", f"**{h}**" in rule, rule[:100])
 st = re.search(r"^\*\*Status:\*\* (.+)$", tpl, re.M)
