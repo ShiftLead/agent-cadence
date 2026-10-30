@@ -264,7 +264,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-978: Closing a session leaves its worktree behind, though the design says Close removes it, so a PR another session rebased cannot pass the merge",
+  "plan": "TD-978",
   "date": "2026-10-22",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -457,7 +457,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1222: *Working* and *waiting* overlap (a session with its own running work reads *waiting* when it has an ask out), and *unseen* competes with bot",
+  "plan": "TD-1222",
   "date": "2026-10-29",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -568,7 +568,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1022: ShiftLead's copy of dev-cadence's SessionStart line predates the pin, and two Repo page warnings name the sync dev-cadence is retiring",
+  "plan": "TD-1022",
   "date": "2026-10-26",
   "class_reason": "in-repo; parity with dev-cadence's pinned seed line; build edits only ShiftLead (classed in-repo)",
   "models": [
@@ -688,7 +688,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-947: A background subagent's permission shows *Needs you* on a session whose pane shows nothing to answer: only Allow / Deny can reach it, and th",
+  "plan": "TD-947",
   "date": "2026-10-21",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -829,7 +829,7 @@
   "post_build_defects": [
    {
     "where": "shiftlead TD-960 (found by TD-950 live check, 2026-10-22)",
-    "what": "tool's own SubagentStop for an id no SubagentStart announced zeroed the subagent count and ended a live permission waiter; record read idle while pane drew the dialog (TD-947's own symptom). Design had listed the stray-event class but not SubagentStop.",
+    "what": "see the entry in ShiftLead's ledger",
     "would_more_rounds_catch": "plausible: a stray-event enumeration gap; but 7 rounds had enumerated it for tool events; a live probe was what found it"
    }
   ],
@@ -841,7 +841,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-999: The wait guard in Gemini CLI: its `BeforeTool` hook refuses an unattended session's foreground CI watch, as Claude Code's `PreToolUse` does",
+  "plan": "TD-999",
   "date": "2026-10-24",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -934,7 +934,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-991: A member still waits on CI in its own turn — a foreground `timeout N gh pr checks --watch` — on a brief that says to run it in the backgroun",
+  "plan": "TD-991",
   "date": "2026-10-24",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -1009,7 +1009,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-941: A Gemini session at its own *Usage limit reached* dialog reads `working`: the title stays `✦ Working…` and an API-key home has no quota to r",
+  "plan": "TD-941",
   "date": "2026-10-21",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -1210,7 +1210,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1239: A push the forge refuses is reported as *origin could not be reached*, with only git's last line, so a refusal reads as an outage and hides ",
+  "plan": "TD-1239",
   "date": "2026-10-29",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -1276,7 +1276,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1143: ShiftLead reads only a one-file ledger: before any repo it watches splits into a ledger of one file per entry (ledgerboard v2), every reader",
+  "plan": "TD-1143",
   "date": "2026-10-27",
   "class_reason": "in-repo; reads ledgerboard v2 layout but changes only ShiftLead (classed in-repo)",
   "models": [
@@ -1360,7 +1360,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1129: A Queue card's tree joins `Blocked by:` edges in either direction, so a row's indent can mean *waits on its parent* or *its parent waits on ",
+  "plan": "TD-1129",
   "date": "2026-10-27",
   "class_reason": "adds `Part of:` to the vendored ledgerboard format (v2.1); ADR 2026-10-27-part-of",
   "models": [
@@ -1444,7 +1444,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1048: `ao td next` neither prints the `**Taken by:**` line a new entry must carry nor passes the asking session's branch to the counter's take",
+  "plan": "TD-1048",
   "date": "2026-10-26",
   "class_reason": "passes the branch to dev-cadence's counter take (cross-repo, dev-cadence TD-145)",
   "models": [
@@ -1528,7 +1528,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-966: `ao td next` and the home's `ids.json` become a front end over dev-cadence's ledger-id counter on origin, so there is one counter whether or",
+  "plan": "TD-966",
   "date": "2026-10-22",
   "class_reason": "wraps dev-cadence's ledger-id counter on origin (cross-repo)",
   "models": [
@@ -1621,7 +1621,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-998: `ao` is not on PATH inside a container node: sessions and shells there reach it only as `/shiftlead/venv/bin/ao`",
+  "plan": "TD-998",
   "date": "2026-10-24",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -1696,7 +1696,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1066: A Queue card's board item does not say what it asks: an `act` line reads as a Decide with Answer…, leads with its raw prefix, and stays aske",
+  "plan": "TD-1066",
   "date": "2026-10-30",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -1762,7 +1762,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1203: The Sessions rollup sums the page into four facets, so how one team or repo is doing means scrolling to its card",
+  "plan": "TD-1203",
   "date": "2026-10-28",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -1828,7 +1828,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1187: The top bar scrolls away with the page: once scrolled down, the tabs, + New and the counts are out of reach",
+  "plan": "TD-1187",
   "date": "2026-10-28",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -1921,7 +1921,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1150: A browser tab says nothing by its icon: no page has a favicon, so a Focus tab's state is read only from its title's words",
+  "plan": "TD-1150",
   "date": "2026-10-27",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -1987,7 +1987,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-975: Focus has no list of the person's prompts: a Prompts card on the side panel, each prompt a press that scrolls the terminal back to it",
+  "plan": "TD-975",
   "date": "2026-10-22",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2107,7 +2107,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-964: The end of a session on Focus, second round: the ending banner and the ending card (what the session cost), Hand back in Take over's place, ",
+  "plan": "TD-964",
   "date": "2026-10-21",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2191,7 +2191,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-927: Token counts on the Spend page, beside every figure — by team, Top sessions, a team's seats, the head's total, the bar's hover",
+  "plan": "TD-927",
   "date": "2026-10-20",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2311,7 +2311,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-931: The top bar's pages look like three different kinds of control, and its one number says nothing about where to go",
+  "plan": "TD-931",
   "date": "2026-10-20",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2362,7 +2362,7 @@
   "post_build_defects": [
    {
     "where": "shiftlead TD-935 (2026-10-21)",
-    "what": "design 4.5 still said Settings is a tab \"until TD-932 builds it\" after the build; stale sentence contradicts the code",
+    "what": "see the entry in ShiftLead's ledger",
     "would_more_rounds_catch": "minor: doc leftover after the build, not a design review matter"
    }
   ],
@@ -2374,7 +2374,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-926: Hovering a Queue card's header or row draws its ⋯ names inline, which narrows the title and reflows it under the pointer",
+  "plan": "TD-926",
   "date": "2026-10-20",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2458,7 +2458,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-924: The Sessions page's Agents count leaves out every session of a team that is not running, so a working or waiting session can be missing from",
+  "plan": "TD-924",
   "date": "2026-10-20",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2542,7 +2542,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-909: The Queue card — three wants (Decide, Do, Read), three verbs (Answer, Start session on the card's team, ⋯), a Waiting group, items that lead",
+  "plan": "TD-909",
   "date": "2026-10-19",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2683,7 +2683,7 @@
   "post_build_defects": [
    {
     "where": "shiftlead TD-1129 (2026-10-27)",
-    "what": "the Queue card tree joined Blocked by edges in either direction, so an indent was ambiguous; redesigned with Part of:",
+    "what": "see the entry in ShiftLead's ledger",
     "would_more_rounds_catch": "unclear: a model change (Part of is a new concept), not necessarily catchable"
    }
   ],
@@ -2695,7 +2695,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1189: A team card shows the repo's Technical debt only on the repo's line above it, and TDs in motion shows only what is held now, never what the ",
+  "plan": "TD-1189",
   "date": "2026-10-28",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2746,7 +2746,7 @@
   "post_build_defects": [
    {
     "where": "shiftlead TD-1240 (2026-10-29)",
-    "what": "(questionable) with every team card folded the repo line drew the whole Repo facet; needed a compact form (design also touched TD-1203)",
+    "what": "(questionable) see the entry in ShiftLead's ledger",
     "would_more_rounds_catch": null
    }
   ],
@@ -2758,7 +2758,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-993: **Told at start** leaves the Focus side panel: a row of the Session card, and the first entry of the Transcript",
+  "plan": "TD-993",
   "date": "2026-10-24",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2815,7 +2815,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1108: A file path on the Queue page or in the Inbox is plain text: it should open in the person's editor, as a path in the pane or a transcript do",
+  "plan": "TD-1108",
   "date": "2026-10-27",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2953,7 +2953,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-986: On a phone the Focus terminal cannot be scrolled reliably, and there is no Tab to accept a suggestion",
+  "plan": "TD-986",
   "date": "2026-10-23",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -3082,7 +3082,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1200: `ao td next` reads like a question but takes and records an id, so a session runs it as a probe and burns one: rename it `ao td reserve`",
+  "plan": "TD-1200",
   "date": "2026-10-28",
   "class_reason": "in-repo; rename also needs dev-cadence TD-182 (classed in-repo)",
   "models": [
@@ -3139,7 +3139,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-623: No document says how a repo gets its first ShiftLead team",
+  "plan": "TD-623",
   "date": "2026-10-21",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -3232,7 +3232,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1119: The design, briefs and docs still describe lanes and a manager seat the team no longer runs that way: sweep every doc against what runs",
+  "plan": "TD-1119",
   "date": "2026-10-29",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -3334,7 +3334,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1117: A session the person started cannot hold or decide an entry, so a directive to \"hold this design\" lasts only as long as the receiver's conte",
+  "plan": "TD-1117",
   "date": "2026-10-27",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -3481,7 +3481,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1240: With every team card folded, the repo's line draws the whole Repo facet; it should be one or two rows with Add entry…",
+  "plan": "TD-1240",
   "date": "2026-10-30",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -3556,7 +3556,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1149: New session's Team and Role picks fill only the package preset, never the team's member line, so a second grinder for a repo-defined team st",
+  "plan": "TD-1149",
   "date": "2026-10-27",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -3676,7 +3676,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1064: A session gets either the repo's tools or the org's reach, never both: Add entry starts it on the home, away from the repo's container, and ",
+  "plan": "TD-1064",
   "date": "2026-10-26",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -3805,7 +3805,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-857: Gemini's first job: the fact-check of a doc-only PR, read by a Gemini CLI session on the free tier instead of a Claude subagent, and its ver",
+  "plan": "TD-857",
   "date": "2026-10-29",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -3916,7 +3916,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1061: Nothing runs the stranded-work sweep on a schedule, so attention items sit overdue: a sweep seat, and a Settings switch that gives every tea",
+  "plan": "TD-1061",
   "date": "2026-10-26",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -4036,7 +4036,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1051: A steer's answer is lost when the techlead that relayed it closes: a wound-down member waits on it forever, and the team's stop, start and d",
+  "plan": "TD-1051",
   "date": "2026-10-26",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -4159,7 +4159,7 @@
   "post_build_defects": [
    {
     "where": "shiftlead TD-1095 (TD-1079 live check, 2026-10-27)",
-    "what": "a node on an older build refuses the home's `ring` and the refusal counted as a failed ring; \"the design names no verdict for a node that refuses the act\"",
+    "what": "see the entry in ShiftLead's ledger",
     "would_more_rounds_catch": "plausible: version-skew window during promote; a reviewer asking \"what if the peer is older\" could catch it; unknown"
    }
   ],
@@ -4171,7 +4171,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1116: A session the person started cannot steer another team's member, and its mail lands as `[other]`, which every brief tells a member to weigh,",
+  "plan": "TD-1116",
   "date": "2026-10-27",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -4255,7 +4255,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1042: Two of the person's own interactive sessions in different projects cannot mail each other, so the person relays between them by hand",
+  "plan": "TD-1042",
   "date": "2026-10-26",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -4357,7 +4357,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-995: A session cannot address another repo or team: names resolve only to sessions, so a request for another repo's ledger ends as a command prin",
+  "plan": "TD-995",
   "date": "2026-10-24",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -4453,7 +4453,7 @@
   "post_build_defects": [
    {
     "where": "shiftlead TD-1128 (2026-10-26/27)",
-    "what": "design contradicted itself: 6 rule 3 closes an idle seat and 4.10 says an ask fills a closed seat, but 4.10 address resolution required a non-closed seat, so `ao msg --repo` refused a repo whose techlead is closed between questions",
+    "what": "see the entry in ShiftLead's ledger",
     "would_more_rounds_catch": "plausible: a pure internal contradiction, the kind consistency reads find; unknown which rounds covered 4.10 vs 6"
    }
   ],
@@ -4465,7 +4465,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1026: Two team lessons from the memory harvest are not in the role briefs: a steer's default waits for its bound, and `--author @me` is not \"my PR",
+  "plan": "TD-1026",
   "date": "2026-10-26",
   "class_reason": "in-repo; declares where lessons go for dev-cadence harvest (classed in-repo)",
   "models": [
@@ -4540,7 +4540,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1009: ShiftLead requires dev-cadence, and the person's briefs, start prompts and preferences live in their dev-cadence layer repo",
+  "plan": "TD-1009",
   "date": "2026-10-25",
   "class_reason": "ShiftLead requires dev-cadence; layers and pins across repos",
   "models": [

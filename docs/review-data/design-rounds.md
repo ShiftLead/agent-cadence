@@ -1,6 +1,6 @@
 # Design-review rounds on this machine: data for the max-rounds defaults
 
-Gathered 2026-10-30 (read-only research, session `sl-tds`). Private repos are named consumer-a to consumer-e, as elsewhere in this repo. Machine-readable twin: `design-rounds.json` (same records; `build_changing`, `minor` and `tokens` are null where unknown).
+Gathered 2026-10-30 (read-only research, session `sl-tds`). Private repos are named consumer-a to consumer-e, as elsewhere in this repo. ShiftLead designs are named by TD number only: their titles and defect details are in ShiftLead's own ledger. Machine-readable twin: `design-rounds.json` (same records; `build_changing`, `minor` and `tokens` are null where unknown).
 
 **What counts.** A design review is one model reviewing a plan or design before the build (the per-PR pre-merge review is not counted). A **round** is one pass through the models in use; with Sonnet and Fable that is 2 reviews, so alternating 11 reviews = 5.5 rounds. Where a source numbers single reviews as "rounds" (ShiftLead's design-history numbers alternating reviews 1..N), rounds here = reviews / 2. Where it numbers pairs (TD-941, TD-947, TD-966, TD-623), rounds = the pair count. **Wide** = costly to fix after shipping (another repo, a vendored/published format, an irreversible step); else **in-repo**.
 
@@ -26,45 +26,45 @@ Review column legend: letter = model (F Fable, S Sonnet), number = total finding
 
 | repo | plan | date | class | reviews | rounds | stop | per-review (model+findings) | post-build defects |
 |---|---|---|---|---|---|---|---|---|
-| shiftlead | TD-909: The Queue card — three wants (Decide, Do, Read), three verbs ( | 2026-10-19 | in-repo | 14 (the history has no round 8) | 7 | other | F7 S5 F7 S6 F6 S6 F5 F4 S2 F2 S2 F1 S1 F2 | shiftlead TD-1129 |
-| shiftlead | TD-927: Token counts on the Spend page, beside every figure — by team, | 2026-10-20 | in-repo | 11 | 5.5 | converged | F5* S5 F5* S4 F4* S2 F4* S* F1 S* F1* | - |
-| shiftlead | TD-931: The top bar's pages look like three different kinds of control | 2026-10-20 | in-repo | 4 | 2 | converged | S17 F8 S8 F8* | shiftlead TD-935 |
-| shiftlead | TD-926: Hovering a Queue card's header or row draws its ⋯ names inline | 2026-10-20 | in-repo | 7 | 3.5 | converged | F5 S5 F3 S2 F3* S0* F2* | - |
-| shiftlead | TD-924: The Sessions page's Agents count leaves out every session of a | 2026-10-20 | in-repo | 7 | 3.5 | converged | F5 S8 F4 S4 F3* S1* F3* | - |
-| shiftlead | TD-947: A background subagent's permission shows *Needs you* on a sess | 2026-10-21 | in-repo | 14 | 7 | converged | F8 S7 F7 S8 F3 S5 F4 S* F4 S4 F6 S5 F1 S* | shiftlead TD-960 |
-| shiftlead | TD-941: A Gemini session at its own *Usage limit reached* dialog reads | 2026-10-21 | in-repo | 20 | 10 | converged | F7 S7 F3 S4 F4 S5 F5 S5 F3 S3 F3 S2 F3 S4 F3 S* F2 S4 F1 S* | - |
-| shiftlead | TD-964: The end of a session on Focus, second round: the ending banner | 2026-10-21 | in-repo | 7 | 3.5 | converged | S16 F11 S7 F8 S5 F3* S1* | - |
-| shiftlead | TD-623: No document says how a repo gets its first ShiftLead team | 2026-10-21 | in-repo | 8 | 4 | converged | F7 S6 F3 S6 F3 S5 F S* | - |
-| shiftlead | TD-978: Closing a session leaves its worktree behind, though the desig | 2026-10-22 | in-repo | 19 | 9.5 | other | F10 S13 F10 S9 F8 S1 F7 S12 F5 S1 F1 S* F1 S1 F1 S3* F1 S2 F1 | - |
-| shiftlead | TD-975: Focus has no list of the person's prompts: a Prompts card on t | 2026-10-22 | in-repo | 11 | 5.5 | converged | F9 S13 F8 S7 F5 S5 F6 S3* F2* S* F* | - |
-| shiftlead | TD-986: On a phone the Focus terminal cannot be scrolled reliably, and | 2026-10-23 | in-repo | 12 | 6 | converged | F9 S10 F5 S7 F4 S8 F3 S4 F2 S1 S2 S* | - |
-| shiftlead | TD-999: The wait guard in Gemini CLI: its `BeforeTool` hook refuses an | 2026-10-24 | in-repo | 8 | 4 | converged | F5 S5 F2* S5 F* S2 F* S* | - |
-| shiftlead | TD-991: A member still waits on CI in its own turn — a foreground `tim | 2026-10-24 | in-repo | 6 | 3 | converged | F7 S* F S2 F S* | - |
-| shiftlead | TD-998: `ao` is not on PATH inside a container node: sessions and shel | 2026-10-24 | in-repo | 6 | 3 | converged | F3 S7 F3 S4* F* S* | - |
-| shiftlead | TD-993: **Told at start** leaves the Focus side panel: a row of the Se | 2026-10-24 | in-repo | 4 | 2 | converged | F S* F S* | - |
-| shiftlead | TD-995: A session cannot address another repo or team: names resolve o | 2026-10-24 | in-repo | 9 | 4.5 | converged | F11 S6 F5 S5 F3 S5 F2* S0* F2 | shiftlead TD-1128 |
-| shiftlead | TD-1022: ShiftLead's copy of dev-cadence's SessionStart line predates  | 2026-10-26 | in-repo | 11 | 5.5 | converged | F7 S7 F6 S5 F* S7 F* S5 F* S2 S0* | - |
-| shiftlead | TD-1064: A session gets either the repo's tools or the org's reach, ne | 2026-10-26 | in-repo | 12 | 6 | converged | F9 S3 F4 S6 F4 S4 F5 S2 F3 S2 F* S* | - |
-| shiftlead | TD-1061: Nothing runs the stranded-work sweep on a schedule, so attent | 2026-10-26 | in-repo | 11 | 5.5 | converged | F9 S9 F3 S4 F3 S2 F2 S1 F* S1 S* | - |
-| shiftlead | TD-1051: A steer's answer is lost when the techlead that relayed it cl | 2026-10-26 | in-repo | 12 | 6 | converged | F8 S5 F6 S7 F5 S3 F6 S7 F5 S3 F* S* | shiftlead TD-1095 |
-| shiftlead | TD-1042: Two of the person's own interactive sessions in different pro | 2026-10-26 | in-repo | 9 | 4.5 | converged | F6 S6 F6 S6 F3* S3 F3* S3* F2* | - |
-| shiftlead | TD-1026: Two team lessons from the memory harvest are not in the role  | 2026-10-26 | in-repo | 6 | 3 | converged | F6 S5 F S4 F S0* | - |
-| shiftlead | TD-1143: ShiftLead reads only a one-file ledger: before any repo it wa | 2026-10-27 | in-repo | 7 | 3.5 | converged | F8 S7 F4 S6 F2 S6 S* | - |
-| shiftlead | TD-1150: A browser tab says nothing by its icon: no page has a favicon | 2026-10-27 | in-repo | 5 | 2.5 | converged | F7 S3 F1 S* F0* | - |
-| shiftlead | TD-1108: A file path on the Queue page or in the Inbox is plain text:  | 2026-10-27 | in-repo | 13 | 6.5 | converged | F8 S6 F3 S4 F5 S9 F4 S2 F3 S* F3 S0* F* | - |
-| shiftlead | TD-1117: A session the person started cannot hold or decide an entry,  | 2026-10-27 | in-repo | 14 | 7 | converged | F8 S6 F6 S3 F4 S5 F3 S6 F3 S4 S1 F3 S1 S0* | - |
-| shiftlead | TD-1149: New session's Team and Role picks fill only the package prese | 2026-10-27 | in-repo | 11 | 5.5 | converged | F6 S5 F4 S6 F5 S4 F5 S1 F3 S* F* | - |
-| shiftlead | TD-1116: A session the person started cannot steer another team's memb | 2026-10-27 | in-repo | 7 | 3.5 | converged | F4 S8 F3 S4 F2* S* F2* | - |
-| shiftlead | TD-1203: The Sessions rollup sums the page into four facets, so how on | 2026-10-28 | in-repo | 5 | 2.5 | converged | S17 F8 S3 F* S* | - |
-| shiftlead | TD-1187: The top bar scrolls away with the page: once scrolled down, t | 2026-10-28 | in-repo | 8 | 4 | converged | F6 S5 F3 S4 F2 S3 F S* | - |
-| shiftlead | TD-1189: A team card shows the repo's Technical debt only on the repo' | 2026-10-28 | in-repo | 4 | 2 | converged | S7 F2 S* F* | shiftlead TD-1240 (questionable: a new design request that cites TD-1189 once) |
-| shiftlead | TD-1200: `ao td next` reads like a question but takes and records an i | 2026-10-28 | in-repo | 4 | 2 | converged | F4 S6 F1 S* | - |
-| shiftlead | TD-1222: *Working* and *waiting* overlap (a session with its own runni | 2026-10-29 | in-repo | 10 | 5 | converged | F7 S6 F6 S5 F4 S5 F4 S4 F3* S* | - |
-| shiftlead | TD-1239: A push the forge refuses is reported as *origin could not be  | 2026-10-29 | in-repo | 5 | 2.5 | converged | F4 S* F2 S0* F* | - |
-| shiftlead | TD-1119: The design, briefs and docs still describe lanes and a manage | 2026-10-29 | in-repo | 9 | 4.5 | converged | F7 S7 F5 S4 F4 S3 F3 S1* F0* | - |
-| shiftlead | TD-857: Gemini's first job: the fact-check of a doc-only PR, read by a | 2026-10-29 | in-repo | 10 | 5 | converged | F5 S5 F2 S3 F5 S4 F4 S3 F3 S* | - |
-| shiftlead | TD-1066: A Queue card's board item does not say what it asks: an `act` | 2026-10-30 | in-repo | 5 | 2.5 | converged | F3 S4 F2 S* F* | - |
-| shiftlead | TD-1240: With every team card folded, the repo's line draws the whole  | 2026-10-30 | in-repo | 6 | 3 | converged | F3 S2 F2 S1 F* S* | - |
+| shiftlead | TD-909 | 2026-10-19 | in-repo | 14 (the history has no round 8) | 7 | other | F7 S5 F7 S6 F6 S6 F5 F4 S2 F2 S2 F1 S1 F2 | shiftlead TD-1129 |
+| shiftlead | TD-927 | 2026-10-20 | in-repo | 11 | 5.5 | converged | F5* S5 F5* S4 F4* S2 F4* S* F1 S* F1* | - |
+| shiftlead | TD-931 | 2026-10-20 | in-repo | 4 | 2 | converged | S17 F8 S8 F8* | shiftlead TD-935 |
+| shiftlead | TD-926 | 2026-10-20 | in-repo | 7 | 3.5 | converged | F5 S5 F3 S2 F3* S0* F2* | - |
+| shiftlead | TD-924 | 2026-10-20 | in-repo | 7 | 3.5 | converged | F5 S8 F4 S4 F3* S1* F3* | - |
+| shiftlead | TD-947 | 2026-10-21 | in-repo | 14 | 7 | converged | F8 S7 F7 S8 F3 S5 F4 S* F4 S4 F6 S5 F1 S* | shiftlead TD-960 |
+| shiftlead | TD-941 | 2026-10-21 | in-repo | 20 | 10 | converged | F7 S7 F3 S4 F4 S5 F5 S5 F3 S3 F3 S2 F3 S4 F3 S* F2 S4 F1 S* | - |
+| shiftlead | TD-964 | 2026-10-21 | in-repo | 7 | 3.5 | converged | S16 F11 S7 F8 S5 F3* S1* | - |
+| shiftlead | TD-623 | 2026-10-21 | in-repo | 8 | 4 | converged | F7 S6 F3 S6 F3 S5 F S* | - |
+| shiftlead | TD-978 | 2026-10-22 | in-repo | 19 | 9.5 | other | F10 S13 F10 S9 F8 S1 F7 S12 F5 S1 F1 S* F1 S1 F1 S3* F1 S2 F1 | - |
+| shiftlead | TD-975 | 2026-10-22 | in-repo | 11 | 5.5 | converged | F9 S13 F8 S7 F5 S5 F6 S3* F2* S* F* | - |
+| shiftlead | TD-986 | 2026-10-23 | in-repo | 12 | 6 | converged | F9 S10 F5 S7 F4 S8 F3 S4 F2 S1 S2 S* | - |
+| shiftlead | TD-999 | 2026-10-24 | in-repo | 8 | 4 | converged | F5 S5 F2* S5 F* S2 F* S* | - |
+| shiftlead | TD-991 | 2026-10-24 | in-repo | 6 | 3 | converged | F7 S* F S2 F S* | - |
+| shiftlead | TD-998 | 2026-10-24 | in-repo | 6 | 3 | converged | F3 S7 F3 S4* F* S* | - |
+| shiftlead | TD-993 | 2026-10-24 | in-repo | 4 | 2 | converged | F S* F S* | - |
+| shiftlead | TD-995 | 2026-10-24 | in-repo | 9 | 4.5 | converged | F11 S6 F5 S5 F3 S5 F2* S0* F2 | shiftlead TD-1128 |
+| shiftlead | TD-1022 | 2026-10-26 | in-repo | 11 | 5.5 | converged | F7 S7 F6 S5 F* S7 F* S5 F* S2 S0* | - |
+| shiftlead | TD-1064 | 2026-10-26 | in-repo | 12 | 6 | converged | F9 S3 F4 S6 F4 S4 F5 S2 F3 S2 F* S* | - |
+| shiftlead | TD-1061 | 2026-10-26 | in-repo | 11 | 5.5 | converged | F9 S9 F3 S4 F3 S2 F2 S1 F* S1 S* | - |
+| shiftlead | TD-1051 | 2026-10-26 | in-repo | 12 | 6 | converged | F8 S5 F6 S7 F5 S3 F6 S7 F5 S3 F* S* | shiftlead TD-1095 |
+| shiftlead | TD-1042 | 2026-10-26 | in-repo | 9 | 4.5 | converged | F6 S6 F6 S6 F3* S3 F3* S3* F2* | - |
+| shiftlead | TD-1026 | 2026-10-26 | in-repo | 6 | 3 | converged | F6 S5 F S4 F S0* | - |
+| shiftlead | TD-1143 | 2026-10-27 | in-repo | 7 | 3.5 | converged | F8 S7 F4 S6 F2 S6 S* | - |
+| shiftlead | TD-1150 | 2026-10-27 | in-repo | 5 | 2.5 | converged | F7 S3 F1 S* F0* | - |
+| shiftlead | TD-1108 | 2026-10-27 | in-repo | 13 | 6.5 | converged | F8 S6 F3 S4 F5 S9 F4 S2 F3 S* F3 S0* F* | - |
+| shiftlead | TD-1117 | 2026-10-27 | in-repo | 14 | 7 | converged | F8 S6 F6 S3 F4 S5 F3 S6 F3 S4 S1 F3 S1 S0* | - |
+| shiftlead | TD-1149 | 2026-10-27 | in-repo | 11 | 5.5 | converged | F6 S5 F4 S6 F5 S4 F5 S1 F3 S* F* | - |
+| shiftlead | TD-1116 | 2026-10-27 | in-repo | 7 | 3.5 | converged | F4 S8 F3 S4 F2* S* F2* | - |
+| shiftlead | TD-1203 | 2026-10-28 | in-repo | 5 | 2.5 | converged | S17 F8 S3 F* S* | - |
+| shiftlead | TD-1187 | 2026-10-28 | in-repo | 8 | 4 | converged | F6 S5 F3 S4 F2 S3 F S* | - |
+| shiftlead | TD-1189 | 2026-10-28 | in-repo | 4 | 2 | converged | S7 F2 S* F* | shiftlead TD-1240 (questionable: a new design request that cites TD-1189 once) |
+| shiftlead | TD-1200 | 2026-10-28 | in-repo | 4 | 2 | converged | F4 S6 F1 S* | - |
+| shiftlead | TD-1222 | 2026-10-29 | in-repo | 10 | 5 | converged | F7 S6 F6 S5 F4 S5 F4 S4 F3* S* | - |
+| shiftlead | TD-1239 | 2026-10-29 | in-repo | 5 | 2.5 | converged | F4 S* F2 S0* F* | - |
+| shiftlead | TD-1119 | 2026-10-29 | in-repo | 9 | 4.5 | converged | F7 S7 F5 S4 F4 S3 F3 S1* F0* | - |
+| shiftlead | TD-857 | 2026-10-29 | in-repo | 10 | 5 | converged | F5 S5 F2 S3 F5 S4 F4 S3 F3 S* | - |
+| shiftlead | TD-1066 | 2026-10-30 | in-repo | 5 | 2.5 | converged | F3 S4 F2 S* F* | - |
+| shiftlead | TD-1240 | 2026-10-30 | in-repo | 6 | 3 | converged | F3 S2 F2 S1 F* S* | - |
 | agent-cadence | 2026-10-29-ledger-writer-in-ledgerboard (TD-173 writer in ledgerboard  | 2026-10-29 | wide | 11 | 5.5 | converged | see json (build-changing known) | - |
 | agent-cadence | 2026-10-29-hard-rename | 2026-10-29 | wide | ? | ? | converged |  | - |
 | dev-cadence | 2026-10-22-ledger-ids (TD-124) | 2026-10-22 | wide | 5 | ? | other |  | dev-cadence TD-145, TD-150, then TD-188 |
@@ -72,10 +72,10 @@ Review column legend: letter = model (F Fable, S Sonnet), number = total finding
 | dev-cadence | 2026-10-27-ledger-per-entry (TD-160) | 2026-10-27 | wide | ? | ? | None |  | dev-cadence TD-170, TD-176, TD-183, TD-185 |
 | dev-cadence | 2026-10-26-public-scrub (amendment 2026-10-28: cut over to agent-caden | 2026-10-28 | wide | 5 | 2.5 | converged |  | - |
 | shiftlead | decisions/2026-10-12-ledgerboard-dev-cadence-shiftlead (ledgerboard sp | 2026-10-12 | wide | 8 | 4 | converged |  | - |
-| shiftlead | TD-966: `ao td next` and the home's `ids.json` become a front end over | 2026-10-22 | wide | 8 | 4 | converged | F6 S2 F2 S* F2 S2 F1 S* | - |
-| shiftlead | TD-1009: ShiftLead requires dev-cadence, and the person's briefs, star | 2026-10-25 | wide | 15 | 7.5 | converged | F6 S6 F2 S7 F3 S3 F1 S2 F1 S4 F* S* F S1 S* | - |
-| shiftlead | TD-1048: `ao td next` neither prints the `**Taken by:**` line a new en | 2026-10-26 | wide | 7 | 3.5 | converged | F6 S5 F* S4 F* S1 S* | - |
-| shiftlead | TD-1129: A Queue card's tree joins `Blocked by:` edges in either direc | 2026-10-27 | wide | 7 | 3.5 | converged | F6 S8 F2 S4 F7 S* F1* | - |
+| shiftlead | TD-966 | 2026-10-22 | wide | 8 | 4 | converged | F6 S2 F2 S* F2 S2 F1 S* | - |
+| shiftlead | TD-1009 | 2026-10-25 | wide | 15 | 7.5 | converged | F6 S6 F2 S7 F3 S3 F1 S2 F1 S4 F* S* F S1 S* | - |
+| shiftlead | TD-1048 | 2026-10-26 | wide | 7 | 3.5 | converged | F6 S5 F* S4 F* S1 S* | - |
+| shiftlead | TD-1129 | 2026-10-27 | wide | 7 | 3.5 | converged | F6 S8 F2 S4 F7 S* F1* | - |
 
 Ledger-writer tokens per review (Sonnet 1, Fable 2, ...): 83k, 131k, 111k, 127k, 79k, 82k, 72k, 94k, 62k, 93k, 46k = about 980k total (Fable 5 reviews 527k, Sonnet 6 reviews 453k); about 89k per review average. No other design has token data (not mined).
 
