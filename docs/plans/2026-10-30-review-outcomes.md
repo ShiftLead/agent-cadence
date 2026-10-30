@@ -39,7 +39,7 @@ The rows are recorded **whatever the key (3) says**: data not written when the r
 - **Form:** `**Escaped from:** <design>` in the entry's header block (cadence.md §2.12: the first word is the value, the rest a free comment). The value is a design's entry, `TD-NNN` or `<repo>#TD-NNN` (§2.2's form), or a plan's path (`docs/plans/<file>.md`, or `<repo>:docs/plans/<file>.md` for another repo's). One value per entry.
 - **Meaning:** a design review of that design should have caught this. A defect the design got right and the build got wrong gets no field.
 - **Who sets it:** the session filing the defect, which asks one question: *did the design miss this, or the build?* A later session may add or remove the field like any other edit, with a word why in the PR.
-- **Parsing:** it is a field the cadence defines, so it joins ledgerboard's `CADENCE_FIELDS` as a free-valued field, in a ledgerboard minor release, vendored here by `vendor_ledgerboard.sh`; ShiftLead's copy is held byte-equal to its agent-cadence pin, so it arrives by an `agent-cadence bump` there. Without that, a ledger with a `Fields:` line (ShiftLead's) flags it `undeclared-field`, an error under `--check --since` and so in the cadence check's `ledger` row, and a `Fields:` line cannot declare a free-valued field. `review-stats` (4) resolves each value from the raw field text, split and stripped as ledgerboard's `first_word` does (`WORD_RE`; surrounding `*_` and backticks, a trailing `.` or `:`) but not lowercased and reports one it cannot resolve; `ledger.py --check` does not resolve it.
+- **Parsing:** it is a field the cadence defines, so it joins ledgerboard's `CADENCE_FIELDS` as a free-valued field, in a ledgerboard minor release, vendored here by `vendor_ledgerboard.sh`; ShiftLead's copy is held byte-equal to its agent-cadence pin, so it arrives by an `agent-cadence bump` PR there that also runs ShiftLead's own `vendor_ledgerboard.sh <tag>` (its fixture test fails otherwise). Without that, a ledger with a `Fields:` line (ShiftLead's) flags it `undeclared-field`, an error under `--check --since` and so in the cadence check's `ledger` row, and a `Fields:` line cannot declare a free-valued field. `review-stats` (4) resolves each value from the raw field text, split and stripped as ledgerboard's `first_word` does (`WORD_RE`; surrounding `*_` and backticks, a trailing `.` or `:`) but not lowercased and reports one it cannot resolve; `ledger.py --check` does not resolve it.
 - An archived entry may take the field (the backfill edits closed defects).
 
 **3. The key `review-outcomes`** (`off` | `on`, default `off`, in `cadence_config.py`'s `KEYS`, §9.18). It turns on **only the filing question** of 2:
@@ -64,7 +64,7 @@ No reminder to run `review-stats`: each run prints how many plans carry a Review
 
 **6. Where it lives:**
 - cadence.md §2 gains the `Escaped from:` paragraph (2); §2.12's list of fields the cadence defines names it; §4.8's *Design review rounds* paragraph (TD-203) names the Reviews table; §9.18 lists `review-outcomes`.
-- ledgerboard (ShiftLead/ledgerboard): a minor release adding `escaped from` to `CADENCE_FIELDS` and to `SPEC.md`'s list of spec fields, vendored here, and reaching ShiftLead by its agent-cadence bump before the backfill PR.
+- ledgerboard (ShiftLead/ledgerboard): a minor release adding `escaped from` to `CADENCE_FIELDS` and to `SPEC.md`'s list of spec fields, vendored here, and reaching ShiftLead by its agent-cadence bump PR (with its `vendor_ledgerboard.sh <tag>`) before the backfill PR.
 - the seed `files/docs/technical_debt.md`'s entry template gains an optional `**Escaped from:**` line beside `Part of` (`tests/test_parity.sh` holds that template and §2.12's list to `CADENCE_FIELDS`); `ledger.py --fields` then reports it `defined_by: cadence`.
 - `files/docs/adr-template.md`'s *Review record* (TD-203) gains the Reviews table and `R<n>` in `by`.
 - `files/scripts/review_stats.py` (new, SYNC: `sync.sh`'s `SYNC_FILES` and README's file-class table).
@@ -109,6 +109,7 @@ Pending the review rounds and Paul's go (his §2.4 layer rule: TD-204 stays `Blo
 |---|---|---|---|---|---|---|
 | R1 | 1 | fact-check | claude-sonnet-5-5 | 100982 | 2026-10-30 | F1–F7 |
 | R2 | 1 | fact-check | claude-sonnet-5-5 | 69466 | 2026-10-30 | F8–F13 |
+| R3 | 1 | fact-check | claude-sonnet-5-5 | 51287 | 2026-10-30 | F14 |
 
 | id | round | by | topic | finding | class | status |
 |---|---|---|---|---|---|---|
@@ -125,3 +126,4 @@ Pending the review rounds and Paul's go (his §2.4 layer rule: TD-204 stays `Blo
 | F11 | 1 | R2 | `Escaped from:` parsing | ShiftLead's ledgerboard is a byte-equal copy of its agent-cadence pin, so it arrives by a bump, not a separate vendoring | minor | applied (2, 6) |
 | F12 | 1 | R2 | the filing question | exit 3 (unreserved ids) unstated; `--json` with the key off; the docstring's Output line | minor | reopens F2 (applied: 3) |
 | F13 | 1 | R2 | `Escaped from:` parsing | `Taken by` is a non-spec field with the same problem (`ledger_next_id.py:338`, its `"taken by" in LB.CADENCE_FIELDS` false today); add it in the same release | minor | rejected: out of this plan's scope; raised with Paul as its own entry |
+| F14 | 1 | R3 | `Escaped from:` parsing | a bare bump leaves ShiftLead's fixture test red: its bump PR must also run its `vendor_ledgerboard.sh <tag>` | minor | applied (2, 6) |
