@@ -746,10 +746,11 @@ SIBLING_CALL_RE = re.compile(rb"\.\./(?:[^/\s\"'`]+/)?scripts/")   # ../scripts/
 
 def _seed_warnings(dest, bodies, skip, migrate):
     """TD-168: the retired copy's two detectors (tests/fixtures/legacy_sync.sh, the hook-wiring and
-    Gemini-map ones), for a SEED the repo already had, which adopt keeps. Warn, never rewrite. The
-    SessionStart line is checked on a new repo only: a migration's is `_session_line`'s, which rewrites
-    or says why it could not."""
+    Gemini-map ones), for a SEED the repo already had, which adopt keeps. Warn, never rewrite, never
+    raise: a file nothing can read is said, and adopt goes on. On a migration a cadence line that differs
+    is `_session_line`'s, which rewrites it or says why not; a missing one is warned here either way."""
     import json
+    unreadable = (OSError, ValueError, AttributeError, TypeError, RecursionError)   # deep nesting: RecursionError
 
     def commands(raw):
         return [str(h.get("command", "")) for g in json.loads(raw).get("hooks", {}).get("SessionStart", [])
@@ -758,18 +759,19 @@ def _seed_warnings(dest, bodies, skip, migrate):
     out = []
     rel = ".claude/settings.json"
     path = os.path.join(dest, rel)
-    if not migrate and rel not in skip and rel in bodies and os.path.isfile(path):
+    if rel not in skip and rel in bodies and os.path.isfile(path):
         want = next((c for c in commands(bodies[rel]) if "cadence_hooks.sh" in c), None)
         try:
             with open(path, "rb") as f:
                 cmds = commands(f.read())
-        except (OSError, ValueError, AttributeError, TypeError):
-            out.append(f"  WARN  {rel}: not readable as JSON; cannot check the SessionStart hook line")
+        except unreadable:
+            out.append(f"  WARN  {rel}: not readable as settings JSON; cannot check the SessionStart hook line")
         else:
             if want is not None and want not in cmds:
                 if any("cadence_hooks.sh" in c or "agent-cadence hook" in c for c in cmds):
-                    out.append(f"  WARN  {rel}: the cadence SessionStart line differs from the seed — make it "
-                               "byte-identical to files/.claude/settings.json's (cadence §3)")
+                    if not migrate:
+                        out.append(f"  WARN  {rel}: the cadence SessionStart line differs from the seed — make it "
+                                   "byte-identical to files/.claude/settings.json's (cadence §3)")
                 else:
                     out.append(f"  WARN  {rel}: SessionStart lacks the cadence line, so no cadence hook runs at "
                                "session start — add the one line from files/.claude/settings.json (cadence §3)")
@@ -779,8 +781,8 @@ def _seed_warnings(dest, bodies, skip, migrate):
         try:
             with open(path, "rb") as f:
                 names = (json.loads(f.read()).get("context") or {}).get("fileName")
-        except (OSError, ValueError, AttributeError):
-            out.append(f"  WARN  {rel}: not readable as JSON; cannot check that Gemini CLI reads AGENTS.md")
+        except unreadable:
+            out.append(f"  WARN  {rel}: not readable as settings JSON; cannot check that Gemini CLI reads AGENTS.md")
         else:
             if "AGENTS.md" not in (names if isinstance(names, list) else [names]):
                 out.append(f"  WARN  {rel}: context.fileName does not name AGENTS.md, so a Gemini CLI session gets "

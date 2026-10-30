@@ -184,10 +184,20 @@ out=$(adopt "$T"); rc=$?
     && ! grep -q "context.fileName" <<< "$out" \
     && ok "an older cadence line: 'differs' warned; a Gemini map naming AGENTS.md: silent" || bad "differs rc=$rc: $out"
 T="$TMP/t6f"; newrepo "$T"; mkdir -p "$T/.claude" "$T/.gemini" "$T/docs"
-printf '{not json\n' > "$T/.claude/settings.json"; printf '[1]\n' > "$T/.gemini/settings.json"
+printf '{not json\n' > "$T/.claude/settings.json"; python3 -c 'print("[" * 100000)' > "$T/.gemini/settings.json"
 out=$(adopt "$T"); rc=$?
-[ $rc -eq 0 ] && grep -qF ".claude/settings.json: not readable as JSON" <<< "$out" && grep -qF ".gemini/settings.json: not readable as JSON" <<< "$out" \
-    && ok "unreadable settings: said, adopt goes on" || bad "unreadable rc=$rc: $out"
+[ $rc -eq 0 ] && grep -qF ".claude/settings.json: not readable as settings JSON" <<< "$out" \
+    && grep -qF ".gemini/settings.json: not readable as settings JSON" <<< "$out" && grep -q "^Next, in" <<< "$out" \
+    && ok "unreadable settings (bad JSON, nesting deep enough to raise RecursionError): said, adopt runs to its end" || bad "unreadable rc=$rc: $out"
+# a migration: a cadence line that differs is _session_line's (no second WARN), a missing one is warned
+W=$(cd "$DC/launcher" && python3 - "$TMP/t6e" "$TMP/t6d" "$DC/files/.claude/settings.json" <<'PY'
+import sys, words
+seed = {".claude/settings.json": open(sys.argv[3], "rb").read()}
+for d in sys.argv[1:3]:
+    print(len(words._seed_warnings(d, seed, {}, True)), *[w.split(":")[1].strip()[:14] for w in words._seed_warnings(d, seed, {}, True)])
+PY
+)
+[ "$W" = $'0\n2 SessionStart l context.fileNa' ] && ok "--migrate: a differing line left to _session_line, a missing one still warned" || bad "migrate warns: [$W]"
 T="$TMP/t6g"; newrepo "$T"; mkdir -p "$T/.gemini" "$T/docs"
 printf '{}\n' > "$T/.gemini/settings.json"; printf '[skip-seed]\n".gemini/settings.json" = "docs/plans/no-gemini.md"\n' > "$T/docs/cadence.toml"
 out=$(adopt "$T"); rc=$?
