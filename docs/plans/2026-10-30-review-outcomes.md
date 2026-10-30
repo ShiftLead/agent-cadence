@@ -1,6 +1,6 @@
 # ADR 2026-10-30: a design's review record is its own file, `docs/reviews/TD-NNN.md`, with each review's model and tokens; a defect a design missed names it in `Escaped from:`; `review-stats` rebuilds the data on demand
 
-**Status:** proposed (shape agreed with Paul 2026-10-30, revised after round 1's design review; rounds under way). Class: **wide** (cap 6): it moves where the payload's design-rounds rule keeps its table, adds a ledger field (a ledgerboard release) and a key to what consumers run, a payload script, and its backfill writes into ShiftLead.
+**Status:** proposed (shape agreed with Paul 2026-10-30, revised after round 1's design review; rounds under way: round 1 done, round 2 next). Class: **wide** (cap 6): it moves where the payload's design-rounds rule keeps its table, adds a ledger field (a ledgerboard release) and a key to what consumers run, a payload script, and its backfill writes into ShiftLead.
 **Date:** 2026-10-30
 **Related:** TD-204 (the build); ADR `2026-10-30-design-review-rounds.md` and TD-203 (built, PR #29), whose findings table this moves and extends; `docs/review-data/` (the 97-design dataset and `trial-rev18.md`); shiftlead TD-857 (the Gemini fact-checker, a model this must name). This plan's own record: `docs/reviews/TD-204.md`.
 
@@ -18,7 +18,7 @@
 
 ## Design
 
-**1. A design's review record is one file, `docs/reviews/TD-NNN.md`,** named by the design's entry (the TD whose rounds they are), in the repo that holds that entry. It replaces the plan's *Review record* section: the design text stays wherever the repo keeps designs (an ADR, a living design doc), and nothing is renamed. The file is:
+**1. A design's review record is one file, `docs/reviews/TD-NNN.md`,** named by the design's entry (the TD whose rounds they are), in the repo that holds that entry. A design that runs rounds has its entry before round 1 (its design-first entry); a design without one is filed one first, or gets no record and nothing can escape from it. It replaces the plan's *Review record* section: the design text stays wherever the repo keeps designs (an ADR, a living design doc), and nothing is renamed. The file is:
 
 ```
 # Review record: TD-204
@@ -37,8 +37,8 @@
 | F1 | 1 | R1 | `Escaped from:` parsing | ... | build-changing | applied |
 ```
 
-- **Header:** `Design:` where the design text is (a path; for a living-doc design, the doc and its section); `Class:` `in-repo` | `wide` (§4.8); `Decided:` the date of the person's go, or `pending`; `Source:` `rounds` (written as the reviews ran) or `backfill` (5).
-- **Reviews table,** one row per review that completed, fact-checks included (each repeat of a fix-then-check fact-check is a row): `R<n>` in the order run; round (the closing fact-check under the last round); role `fact-check` | `design`; the exact model id the runner reports (`claude-sonnet-5-5`, or `<adapter>/<model>` for a non-Claude seat; in Claude Code the Agent result's `resolvedModel`), else the alias given with `?` (`sonnet?`), never a guessed id; tokens, the total the runner returns (in Claude Code the completion notification's `subagent_tokens`, one total), else `?`; date. A review that was aborted, killed or discarded gets no row.
+- **Header:** `Design:` where the design text is: a path, and for a living-doc design the doc and its section (`docs/design/4.2-state-feed.md §4.2 Permissions`). `Class:` `in-repo` | `wide` (§4.8); the plan's Status line still states it (rule 2), and the record is what `review-stats` reads, the two kept in step (§7). `Decided:` the date the rounds ended for the build: the `Go` answer's date when an item was raised, else the closing fact-check's date; `pending` until then, and while a `Hold` stands; written by the PR that records the answer or files the builds (rule 9's PR). `Source:` `rounds` (written as the reviews ran) or `backfill` (5).
+- **Reviews table,** one row per review that completed, fact-checks included (each repeat of a fix-then-check fact-check is a row): `R<n>` in the order run; round (the closing fact-check under the last round; it never restarts in a record, so a `Hold` revision's rounds carry on the numbering, and its own count against the cap is the session's); role `fact-check` | `design`; the exact model id the runner reports (`claude-sonnet-5-5`, or `<adapter>/<model>` for a non-Claude seat; in Claude Code the Agent result's `resolvedModel`), else the alias given with `?` (`sonnet?`), never a guessed id; tokens, the total the runner returns (in Claude Code the completion notification's `subagent_tokens`, one total), else `?`; date. A review that was aborted, killed or discarded gets no row.
 - **Findings table,** TD-203's, with `by` naming the review (`R2`). A review's findings are the rows whose `by` names it; a review with none is clean. A `backfill` record whose source gives only a count writes that many rows with topic `?`, finding `(not recorded)` and class `unlabelled`, a class only a `backfill` record may use.
 - **The Reviews table is written whatever the key (3) says:** one row costs a few dozen tokens against a review's tens of thousands, and data not written when the review runs cannot be filled in later.
 
@@ -46,39 +46,41 @@
 - **Form:** `**Escaped from:** <design entry>` in the entry's header block (cadence.md §2.12: the first word is the value, the rest a free comment): `TD-NNN` or `<repo>#TD-NNN` (§2.2's form), the entry whose `docs/reviews/TD-NNN.md` holds the design's record. One value: the design that should first have caught it; any other goes in the free comment.
 - **Meaning:** a design review of that design should have caught this. A defect the design got right and the build got wrong gets no field.
 - **Who sets it:** the session filing the defect, which asks one question (3): *did a design miss this, or the build?* A later session may add or remove the field like any other edit, with a word why in the PR.
-- **ledgerboard:** it joins `CADENCE_FIELDS` as a free-valued field, in a ledgerboard minor release (with `taken by`, which has the same problem today: its own TD). Without it, a ledger with a `Fields:` line (ShiftLead's) flags the field `undeclared-field`, an error under `--check --since` and so in the cadence check's `ledger` row, and a `Fields:` line cannot declare a free-valued field. The release is vendored here by `vendor_ledgerboard.sh`; ShiftLead's copy is held byte-equal to its agent-cadence pin, so it arrives by an `agent-cadence bump` PR that also runs ShiftLead's own `vendor_ledgerboard.sh <tag>`.
+- **ledgerboard:** it joins `CADENCE_FIELDS` as a free-valued field, in a ledgerboard minor release (which may also carry TD-205's `taken by`; its effects are TD-205's, not this plan's). `check()` reads live entries only, so the release is what future live defects need; the backfill's fields, on archived entries, would pass without it. Without it, a ledger with a `Fields:` line (ShiftLead's) flags the field `undeclared-field`, an error under `--check --since` and so in the cadence check's `ledger` row, and a `Fields:` line cannot declare a free-valued field. The release is vendored here by `vendor_ledgerboard.sh`; ShiftLead's copy is held byte-equal to its agent-cadence pin, so it arrives by an `agent-cadence bump` PR that also runs ShiftLead's own `vendor_ledgerboard.sh <tag>`.
 - An archived entry may take the field (the backfill edits closed defects).
 
 **3. The key `review-outcomes`** (`off` | `on`, default `off`, in `cadence_config.py`'s `KEYS`, §9.18), for a repo that wants design efficacy and its defects tracked; off is the cheapest way to work. It turns on:
-- **the filing question:** `ledger_next_id.py` prints one fixed line on stderr (stdout stays the ids) whenever it prints ids, exit 3's unreserved ones included, and not on `--claim` or exit 2: *if this entry is a defect, did a design miss it? then `**Escaped from:** <design TD>`*. A repo whose front end hands out ids (shiftlead's `ao td next`) prints the same line: a shiftlead entry.
+- **the filing question:** `ledger_next_id.py` prints one fixed line on stderr (stdout stays the ids) whenever it hands out ids, exit 3's unreserved ones and `--json` included, and not on `--claim` or exit 2: *if this entry is a defect, did a design miss it? then `**Escaped from:** <design TD>`*. A repo whose front end hands out ids prints the same line: shiftlead's `ao td reserve` wraps `ledger_next_id.py` with its stderr piped (`src/sessionorc/agent_ids.py`), so it reads the key and reprints the line itself: a shiftlead entry.
 - **the backfill (5),** offered once when the key is turned on, never run unasked.
 
 **4. `review-stats`** (`files/scripts/review_stats.py`, stdlib only), run on demand, never by a hook or a sweep. **It is mechanical and keeps no state:** every run rebuilds everything from the repos' files as they are, with no model, no agent and no judgement, so an `Escaped from:` added since the last run is counted the next time anyone runs it.
-- **Reads** only `docs/reviews/TD-*.md` and each ledger's `Escaped from:` fields (through `ledger.py`/ledgerboard, §2.12, from the raw field text, split and stripped as `first_word` does but not lowercased).
+- **Reads** the roster, each repo's `docs/reviews/TD-*.md`, its `design-rounds` and `design-rounds-wide` (`cadence_config.py`), and the `Escaped from:` fields of its live **and archived** entries (`ledgerboard.entries()` over both texts; the backfill's six defects are all archived, and `--list` and `check()` read live entries only), from the raw field text, split and stripped as `first_word` does but not lowercased. Nothing else: no design text, no transcript.
 - **Scope:** every repo on the machine's roster (cadence.md §9; `$AGENT_CADENCE_REG_DIR` honoured), or `--repo PATH`. `<repo>` in a value is a roster path's basename. A value is **resolved** (its record file exists), **out of scope** (its repo is not on the roster, its basename is ambiguous, or it is outside `--repo`) or **unresolved** (in scope, no record file). Out-of-scope and unresolved escapes are listed and left out of every rate. Results follow the roster, so two machines can differ.
 - **Age:** escapes keep arriving after a build, so only designs whose `Decided:` is more than `--aged DAYS` (default 14) ago count toward escape rates; younger and `pending` ones count for rounds and tokens only, and are listed apart.
 - **Writes** to `review-stats/` beside the roster, never into a repo: per design one row (repo, TD, class, source, reviews, rounds, tokens by model, build-changing per round from reviews and from fact-checks, age, escapes resolved), the aggregates, and the trial. Publishing a scrubbed copy, as `docs/review-data/` was, is a separate deliberate step.
 - **The trial:** reruns the decided rounds ADR's rules over the rebuilt data against each repo's `design-rounds` and `design-rounds-wide`, real labels where a record has them and the total-findings proxy for `unlabelled` rows. Ported from `docs/review-data/trial_rules.py` and `aggregate.py`, which stay frozen, reproducing the published dataset.
-- **`--candidates [--since DATE]`:** the backfill's mechanical half. It lists ledger entries since the date that cite a design entry (any citation, listed with where it appears: a header field, the Why, the Fix) and carry no `Escaped from:`, and design TDs named in `Escaped from:` with no record file. It judges nothing.
+- **`--candidates [--since DATE]`:** the backfill's mechanical half. A design entry is a TD with a record file. It lists ledger entries, live and archived, since the date that cite one (any citation, listed with where it appears: a header field, the Why, the Fix) and carry no `Escaped from:`, and TDs named in `Escaped from:` with no record file. It judges nothing. A repo with no records yet gets nothing from it: its first backfill seeds its design records by hand from its history (as 5 does from the dataset), and later passes find the rest.
 
 **5. Backfill: it writes the missing record files and fields,** so `review-stats` stays one reader.
 - **The pass:** after `review-stats --candidates`, a session judges each candidate with 2's question and writes, for each design with an escape and no record, a `docs/reviews/TD-NNN.md` with `Source: backfill` from what the repo holds (its design history, ADR or plan text; a transcript only where it is on the machine), reviews and counts it cannot find written `?`. Mining and judging need judgement: the session may hand them to an agent **only if the person, asked first, agrees**, since they can cost many tokens. One PR per repo.
 - **This repo's backfill**, part of TD-204's build:
-  - here, `docs/reviews/TD-203.md` from the rounds ADR's own *Review record*, which then points at it; agent-cadence has no escapes yet.
+  - here, `docs/reviews/TD-203.md` (`Source: backfill`, real labels) copied from the rounds ADR's own *Review record*, whose body stays as it is. Its free-text `by` maps to `R<n>`: within a round, each distinct `by` is one review, fact-checks first, then `review-model`'s order, repeats of one fact-check collapsing into one row. agent-cadence has no escapes yet.
   - a ShiftLead PR: `docs/reviews/` records for TD-947, TD-995, TD-1051, TD-909, TD-804 and TD-820 from `docs/review-data/design-rounds.json` and ShiftLead's design history, and `Escaped from:` on TD-960, TD-1128, TD-1095, TD-1129, TD-1031 and TD-854. Left out: TD-935 ← TD-931 (a doc leftover after the build, a build miss by 2's test) and the five "(questionable)" designs.
   - dev-cadence is archived, so its pairs stay in the frozen dataset only.
 
 **6. Where it lives:**
 - cadence.md §4.8 *Design review rounds*: "the plan's findings table" becomes the design's record file (1), and the Reviews table is named; §2 gains the `Escaped from:` paragraph (2) and §2.12's list of fields the cadence defines names it; §9.18 lists `review-outcomes`.
-- The rounds ADR's rules 6 and 10 (where the table lives) are superseded by this ADR when it is decided: its Status line names this one for those rules, the only edit §7.5 allows, and its own record moves to `docs/reviews/TD-203.md` (5).
+- The rounds ADR's rules 6 and 10 (where the table lives) are superseded by this ADR when it is decided: its Status line gains one clause, `rules 6 and 10 superseded by ADR 2026-10-30-review-outcomes.md`, and its body is left byte for byte; `docs/reviews/TD-203.md` is a copy (5). §7.5 gains that partial `superseded` clause as an allowed Status edit, and its list of the ADR's sections loses the *Review record*, now the record file.
+- This repo's CLAUDE.md (the layout and decisions lines) and the techlead primer (`docs/briefs/`, `tests/test_briefs_primer.sh`) name `docs/reviews/`; cadence.md §9 names `review-stats/` beside the roster as output, not state.
 - `files/docs/adr-template.md`'s *Review record* becomes one line pointing at `docs/reviews/`; a seed `files/docs/reviews/README.md` holds the record's template (SEED in `sync.sh` and README's file-class table).
 - `files/docs/procedures/cadence.md` step 3: each finding a row of the design's record file.
 - `files/scripts/review_stats.py` (new, SYNC: `sync.sh`'s `SYNC_FILES` and README's file-class table).
 - `cadence_config.py`: the key, with an `off`|`on` validator; the seed `files/docs/cadence.toml` gains its commented line.
 - `ledger_next_id.py`: the filing question when the key is on; its docstring says so.
-- ledgerboard (ShiftLead/ledgerboard): the minor release adding `escaped from` and `taken by` to `CADENCE_FIELDS` and `SPEC.md`'s list of spec fields; the seed `files/docs/technical_debt.md`'s entry template gains an optional `**Escaped from:**` line beside `Part of` (`tests/test_parity.sh` holds that template and §2.12's list to `CADENCE_FIELDS`).
+- ledgerboard (ShiftLead/ledgerboard): the minor release adding `escaped from` to `CADENCE_FIELDS` and `SPEC.md`'s list of spec fields; the seed `files/docs/technical_debt.md`'s entry template gains an optional `**Escaped from:**` line beside `Part of` (`tests/test_parity.sh` holds that template and §2.12's list to `CADENCE_FIELDS`).
 - `files/docs/cadence-changes.md`: one entry.
-- ShiftLead: an entry for `ao td next`'s line and its `review-outcomes` reader, and the backfill PR (5).
+- ShiftLead: an entry for `ao td reserve`'s line and its `review-outcomes` reader, and the backfill PR (5).
+- **The order:** (1) the ledgerboard minor release; (2) this repo's payload PR, vendoring it; (3) here, the TD-203 record copy (5); (4) ShiftLead's `agent-cadence bump` PR, running its `vendor_ledgerboard.sh <tag>`, with the `ao td reserve` line; (5) ShiftLead's backfill PR.
 
 **7. Tests:**
 - `tests/test_cadence_config.sh`: the key's default, a repo value, a bad value as a `--check` error, and the seed parity.
@@ -90,6 +92,7 @@
 
 - **The table stays in the plan, with a `Plan:` field on the design TD:** most of ShiftLead's designs have no plan file to hold it, so the backfill would have to create and name plan files; one more ledger field. Not chosen (Paul, 2026-10-30).
 - **Standardize where designs are written:** ShiftLead's living design would have to be split per TD. Not chosen.
+- **Run the frozen `trial_rules.py` and `aggregate.py` in place of a port** (R5): `docs/review-data/` is this repo's, not the payload, so a pinned consumer has no copy to run. Not chosen.
 - **`review-stats` also reads the frozen dataset's json:** a second input format kept for good; the backfill writing record files keeps one reader. Not chosen (Paul).
 - **Two more columns in the findings table** (TD-204's first draft): a clean review leaves no row. Not chosen.
 - **The key also gates the Reviews table:** it saves a few dozen tokens a review and loses the cost data for good. Not chosen (Paul).
@@ -104,7 +107,7 @@ Pending the review rounds and Paul's go (his §2.4 layer rule: TD-204 stays `Blo
 
 - Every design's cost becomes visible per review and per model, and "would a cheaper model or one more round have caught it?" becomes answerable as records and escapes accumulate.
 - A repo with the key off still records the Reviews table, so turning the key on later loses only the filing question's past answers, which the backfill recovers.
-- `backfill` records are lower-grade (counts, not labelled findings); the trial says how many of its designs are `backfill`.
+- `backfill` records may be lower-grade (counts, not labelled findings; TD-203's is fully labelled); the trial says how many of its designs are `backfill`.
 
 ## Open questions for the rounds
 
