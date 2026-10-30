@@ -12,7 +12,7 @@ How the rounds ran (revision 19): Class: in-repo (cap 4), set before round 1; un
 - **Design review rounds** are reviews of a plan before anything is built. They are separate from the review every PR gets before merge (cadence.md §4.8, which keeps its one-round default for a change that adds no mechanism, TD-123). Today cadence.md says how iterated rounds are ordered ("one at a time, cheaper first", §4.8) but not how many to run, when to stop, or what to do when they don't converge. The practice so far is "iterate until READY", uncapped.
 - **The data** is `docs/review-data/design-rounds.md` and `.json` (PR #25), gathered 2026-10-30 from 50 designs on this machine, most from ShiftLead's `docs/design-history.md`:
   - **In-repo (39 designs, all uncapped):** the median was 4 rounds (range 2–10); 12 finished within 3 rounds, 20 within 4 and 33 within 6. The median last review with 3 or more findings was review 6 (round 3); later reviews mostly held 1–3 findings, labelled "follow-ons of the last adoption". 6 had a later design gap filed (one of them questionable). None is shown to be catchable by another round; three (TD-947, TD-1051, TD-995) look catchable by a careful enumeration of cases. So under a cap of 4, about half of in-repo designs would reach the cap: the at-cap path is a common one, and must cost the person little.
-  - **Wide (11 records; 9 with a review count, 8 with a round count):** the median was about 3.75 rounds. The one built after 2 rounds (the predecessor repo's pinned-not-synced plan, kept in the private dev-cadence repo) needed 4 fixes within days; ledger-ids (5 reviews, rounds not recorded) was later redesigned (TD-188), though the data marks that as driven by use. TD-173's ledger writer ran 11 reviews (5.5 rounds); its build-changing findings were 0, ~6, 3, 3, 2, 2, 1–2, 1, 1, 1, 0 per review, and review 10's (the edit actions' output form) would have cost a ledgerboard re-release had it been missed. This rests on about three designs. None of the 6 in-repo gaps is shown to be catchable by the cap or the stop rule (round 5, Sonnet; three look catchable by a careful enumeration), and the wide cap of 6 is a guess (and the data's wide class predates round 5's widening to payload changes, F83, so its medians were not re-cut): the wide failures came from short runs, and a cap is a ceiling, not a floor.
+  - **Wide (11 records; 9 with a review count, 8 with a round count):** the median was about 3.75 rounds. The one built after 2 rounds (the predecessor repo's pinned-not-synced plan, kept in the private dev-cadence repo) needed 4 fixes within days; ledger-ids (5 reviews, rounds not recorded) was later redesigned (TD-188), though the data marks that as driven by use. TD-173's ledger writer ran 11 reviews (5.5 rounds); its build-changing findings were 0, ~6, 3, 3, 2, 2, 1–2, 1, 1, 1, 0 per review, and review 10's (the edit actions' output form) would, by the 2026-10-30 post-mortem's judgement, have needed a ledgerboard re-release had it been missed (the tool's own writes would have failed its gate). This rests on about three designs. None of the 6 in-repo gaps is shown to be catchable by the cap or the stop rule (round 5, Sonnet; three look catchable by a careful enumeration), and the wide cap of 6 is a guess (and the data's wide class predates round 5's widening to payload changes, F83, so its medians were not re-cut): the wide failures came from short runs, and a cap is a ceiling, not a floor.
 - **A pattern Paul has seen:** rounds that keep going back and forth on one point, which turned out to mean the design was wrong. TD-173 had a mild case: by the round reports (session `sl-tds`, not the plan's summarised record), the archived `Resolved` form came back in reviews 3, 7, 8 and 9 (header or body; a second line after reopen; a header field; reopen destroying it), each fix correct, each spawning the next.
 - **The trial (2026-10-30, after round 6)** replayed revision 18's rules over 86 designs of a 97-design extension of the data (`docs/review-data/`, `trial-rev18.md`), with total findings standing in for build-changing ones, which overcounts. In-repo with a cap of 4: the stop rule ends 49% (27% on the strict proxy), the person is asked on 36% (53%), and 29% (22%) of reviews are saved, almost all in a few long loops; a cap of 5 asks on 22%, 6 on 12%. The cap-4 item would have reached 4 of the 7 in-repo designs that later broke (two or three plausibly surfaceable); a wide cap of 6 never binds on this history. On this machine Paul's layer rule asks him on every plan regardless.
 
@@ -67,9 +67,22 @@ The plan's Status says how the rounds ended, the trend and any answers.
 
 **11. Tests:** in `tests/test_cadence_config.sh`, both keys `get` their defaults and a repo file's value; a non-integer or zero value is a `--check` error naming the key; the parity check covers the seed's two new lines. The rules in 1–9 are prose for sessions; nothing in this plan is enforced by a check.
 
+## Options
+
+- **Uncapped, "iterate until READY"** (the practice the data records): no limit on cost, and nothing tells a session a design is not converging.
+- **One cap for every design:** simpler, but a cross-repo or payload change costs far more to fix after it ships (TD-173's writer is vendored by two repos), and the data's wide designs that stopped early needed follow-up fixes.
+- **A sticking point that ends the rounds** (revisions 6–16): it cost about ten patch findings in this plan's own run, never ended a round alone, and the one outside case it would have caught (TD-173's `Resolved` form) was a design that was right. Kept only as a named recurring topic.
+- **An end-of-rounds item at every end** (revisions 8–16): a new person-facing gate on every design in every repo; replaced by the item only when needed (F84).
+
 ## Decision
 
 Paul, 2026-10-30, after the end-of-rounds item: `Go`, with the defaults 4 (in-repo) and 6 (wide). The findings record now labels every finding, so new plans produce real build-changing counts: rerun `docs/review-data/trial_rules.py` against them after about ten plans and retune the defaults.
+
+## Consequences
+
+- Every design plan carries a findings table, so later data passes need no parsing and the build-changing labels the trial lacked accumulate.
+- Most in-repo plans end by the stop rule without asking anyone; the cap sends the rest to the person. On a machine whose own rules require a go on every plan (Paul's), the person still sees every plan.
+- **Revisit** the defaults after about ten plans run under these rules (rerun `trial_rules.py` with real labels), and the wide cap once a wide design reaches it.
 
 ## Open questions for the rounds
 
@@ -179,7 +192,7 @@ Each review gets this table and names an earlier finding it reopens by its id ("
 | F93 | 5 | fable | findings record | the round column took `closing` | minor | applied (6) |
 | F94 | 5 | fable | sticking point | TD-173's `Resolved` form would have been a false-positive round-ender | minor | applied (with F86) |
 | F95 | 5 | fable | the label | `withdraws` and the author-disagreement path were never used | minor | applied (5, 6: cut) |
-| F97 | 6 | fable | the end-of-rounds item | a convergence in the cap's last round both converged and capped (8 of 39 in-repo designs ended at round 4) | build-changing | applied (7) |
+| F97 | 6 | fable | the end-of-rounds item | a convergence in the cap's last round both converged and capped (8 of 39 in-repo designs ended in their fourth round, at 3.5 or 4 rounds) | build-changing | applied (7) |
 | F98 | 6 | fable | closing fact-check | 3 still sent closing findings to an item that may not exist | minor | applied (3) |
 | F99 | 6 | fable | the no-item path | no actor files the builds; Status stated twice | minor | applied (9) |
 | F100 | 6 | fable | recurring topic | "since the last answer" hid a topic that returned in a bought round | minor | applied (8: cut) |
