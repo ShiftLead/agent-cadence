@@ -27,8 +27,9 @@ Each rule ships with the tool that enforces it, or the check that notices when i
 
 - **One session per checkout** (cadence.md §1). The first session in a checkout keeps it (the *anchor*); every
   other concurrent session works in a git worktree, so no two sessions share a HEAD, index or working files. A
-  SessionStart hook, `check_anchor.py`, reads the live sessions of every tool the repo lists in its `agents`
-  setting and warns a second session into a worktree.
+  SessionStart hook, `check_anchor.py`, reads the live sessions of every tool it can see (Claude Code, Codex,
+  Gemini CLI), says so when a tool the repo lists in its `agents` setting cannot be seen, and warns a second
+  session into a worktree.
   `hydrate_worktree.sh` completes a worktree with what git does not track, `reap_worktrees.sh` removes those
   whose work has landed, and `check_base.py` tells a resumed session when its branch has already merged.
 - **A ledger of deferred work** (§2). Anything found and not fixed gets a `TD-NNN` (technical debt) entry, with a *Why* and a
