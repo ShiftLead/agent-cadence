@@ -98,8 +98,8 @@ agent-cadence -C agent-cadence adopt /path/to/your-repo
 commit origin has). It writes the *seed* files the repo then owns (ledger, board,
 memory index, `AGENTS.md`, settings), the skill pointers, the pin, the git hook shims, and this machine's
 *roster* line: `~/.config/agent-cadence/repos.txt`, the list of cadence repos that the attention report and
-cross-repo `Blocked by` read. It commits nothing. Then follow cadence.md's *Adoption checklist*: the
-memory path, `.gitignore`, the map in `AGENTS.md`, and the GitHub settings.
+cross-repo `Blocked by` read, and the `.gitignore` lines it needs. It commits nothing. Then follow cadence.md's
+*Adoption checklist*: the memory path, the map in `AGENTS.md`, and the GitHub settings.
 
 <details>
 <summary>Or have a session do the setup: a prompt to paste</summary>
@@ -115,7 +115,6 @@ Set up agent-cadence in this repo:
 2. Do the Adoption checklist's one-time steps that adopt does not:
    - merge this clone's absolute docs/claude-memory path into
      .claude/settings.local.json as autoMemoryDirectory;
-   - add .claude/worktrees/ and .claude/settings.local.json to .gitignore;
    - if .claude/settings.json already existed, add the ONE SessionStart line
      from agent-cadence's files/.claude/settings.json;
    - on each other machine's clone, run adopt again (it changes only what is

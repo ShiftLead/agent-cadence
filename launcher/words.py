@@ -744,6 +744,41 @@ def _session_line(dest, ref):
 SIBLING_CALL_RE = re.compile(rb"\.\./(?:[^/\s\"'`]+/)?scripts/")   # ../scripts/, ../<home>/scripts/
 
 
+def _gitignore(dest):
+    """TD-168, the retired copy's step 3 (tests/fixtures/legacy_sync.sh): the lines a new repo's own .gitignore
+    needs — the literal line, not the effective ignore status, since a machine's global gitignore does not
+    protect a collaborator's clone. `.claude/worktrees/` sits inside the checkout, so without it every worktree
+    is untracked noise a stray `git add -A` reaches into; `*.code-workspace` is generated per topic (§1); a
+    `worktree-root` other than the default is ignored too, and `.claude/worktrees/` stays, for `claude
+    --worktree`. Appends what is missing, after a final newline the file lacked; never through a symlink."""
+    import subprocess
+    lines = ["docs/session_index.md", ".claude/settings.local.json", ".claude/worktrees/", "*.code-workspace"]
+    p = subprocess.run([sys.executable, os.path.join(PAYLOAD, "scripts", "cadence_config.py"), "get", "worktree-root",
+                        "--repo", dest], capture_output=True, text=True, check=False, stdin=subprocess.DEVNULL)
+    root = p.stdout.strip() if p.returncode == 0 else ""
+    if root and root != ".claude/worktrees":
+        lines.append(root.rstrip("/") + "/")
+    path = os.path.join(dest, ".gitignore")
+    if os.path.islink(path):
+        print("  WARN  .gitignore is a symlink — not written through: add by hand " + ", ".join(lines))
+        return
+    try:
+        with open(path, "rb") as f:
+            have = f.read()
+    except FileNotFoundError:
+        have = b""
+    present = set(have.decode("utf-8", "surrogateescape").splitlines())
+    add = [ign for ign in lines if ign not in present]
+    for ign in lines:
+        if ign in present:
+            print(f"  conf  {ign} already in .gitignore")
+    if add:
+        with open(path, "ab") as f:
+            f.write((b"\n" if have and not have.endswith(b"\n") else b"") + "".join(i + "\n" for i in add).encode())
+        for ign in add:
+            print(f"  conf  {ign} added to .gitignore")
+
+
 def _seed_warnings(dest, bodies, skip, migrate):
     """TD-168: the retired copy's two detectors (tests/fixtures/legacy_sync.sh, the hook-wiring and
     Gemini-map ones), for a SEED the repo already had, which adopt keeps. Warn, never rewrite, never
@@ -1101,6 +1136,8 @@ def w_adopt(args):
             f.write(after)
         os.replace(tmp, toml_path)
         print(f"  pin   [agent-cadence] ref = {ref}" + (f" ({tag})" if tag else "") + " (docs/cadence.toml)")
+    if not migrate:
+        _gitignore(dest)   # a synced repo's were written by its first sync
     # the TD-055 shims, by the tree's own installer. Pinned, each runs `agent-cadence hook`; until the
     # main checkout pins (a migration's PR not yet merged) each runs the main checkout's copy, which a
     # consumer keeps in scripts/git-hooks — so that is the layout the shims name, wherever this tree is
@@ -1169,8 +1206,8 @@ Next, in {dest}:
      PR also carries the moves listed above)
   2. install the launcher on every machine that works this repo (once per machine):
      {INSTALL_LINE}""" + ("" if migrate else """
-  3. the per-clone steps adopt does not do (cadence.md Adoption checklist, TD-168): the
-     .gitignore entries, autoMemoryDirectory, and the repo settings (squash-only, auto-delete heads)"""))
+  3. the per-clone steps adopt does not do (cadence.md Adoption checklist, TD-168):
+     autoMemoryDirectory, and the repo settings (squash-only, auto-delete heads)"""))
     return 0
 
 WORDS = {"words": w_words, "run": w_run, "path": w_path, "hook": w_hook, "gc": w_gc, "bump": w_bump,

@@ -12,6 +12,9 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-29 — `adopt` writes a new repo's `.gitignore` lines
+Do: nothing by hand for `.gitignore` on a new repo — adopt appends `.claude/worktrees/`, `.claude/settings.local.json`, `docs/session_index.md`, `*.code-workspace` (and a set `worktree-root`) where missing; `autoMemoryDirectory` is still by hand.
+See: cadence.md Adoption checklist step 2; TD-168.
 ## 2026-10-29 — a take's `by` is hashed: no raw session id or email on the ledger-id counter
 Do: take ids with no `--by` (it now writes the sha256 of the session id, else of `user.email`, first 12 hex) and copy the `**Taken by:**` it prints; never pass a UUID or an address to `--by` — the check warns `id-by-unhashed`.
 See: cadence.md §2.10; TD-195.
