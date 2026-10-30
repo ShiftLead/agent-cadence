@@ -1,0 +1,4670 @@
+[
+ {
+  "repo": "agent-cadence",
+  "plan": "2026-10-29-ledger-writer-in-ledgerboard (TD-173 writer in ledgerboard v2.2)",
+  "date": "2026-10-29",
+  "class_reason": "new writer and canonical form in ledgerboard, a format vendored byte for byte by two repos; minor release",
+  "models": [
+   "sonnet",
+   "fable"
+  ],
+  "reviews": 11,
+  "rounds": 5.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "no false claims; 4 gaps",
+    "build_changing": 0,
+    "minor": null,
+    "tokens": 83226
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": "sound with changes",
+    "build_changing": 6,
+    "minor": null,
+    "tokens": 130647
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "3 false + 4 partly wrong",
+    "build_changing": 3,
+    "minor": null,
+    "tokens": 110692
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": "not converged",
+    "build_changing": 3,
+    "minor": null,
+    "tokens": 127332
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": "4 errors, 2 contradictions",
+    "build_changing": 2,
+    "minor": null,
+    "tokens": 78550
+   },
+   {
+    "n": 6,
+    "model": "fable",
+    "verdict": "not converged narrowly",
+    "build_changing": 2,
+    "minor": null,
+    "tokens": 82219
+   },
+   {
+    "n": 7,
+    "model": "sonnet",
+    "verdict": "1 gap, 1 miscount, 5 consistency",
+    "build_changing": 1.5,
+    "minor": null,
+    "tokens": 72233
+   },
+   {
+    "n": 8,
+    "model": "fable",
+    "verdict": "not converged narrowly",
+    "build_changing": 1,
+    "minor": null,
+    "tokens": 93970
+   },
+   {
+    "n": 9,
+    "model": "sonnet",
+    "verdict": "nothing false; 1 gap, 3 wording",
+    "build_changing": 1,
+    "minor": null,
+    "tokens": 62437
+   },
+   {
+    "n": 10,
+    "model": "fable",
+    "verdict": "not converged narrowly (1 definition)",
+    "build_changing": 1,
+    "minor": null,
+    "tokens": 93010
+   },
+   {
+    "n": 11,
+    "model": "sonnet",
+    "verdict": "0; one clarification",
+    "build_changing": 0,
+    "minor": null,
+    "tokens": 46003
+   }
+  ],
+  "post_build_defects": [],
+  "post_build_note": "not built yet as of 2026-10-30 (TD-197..202, ledgerboard TD-005); no post-build data",
+  "sources": [
+   "~/agent-cadence/docs/plans/2026-10-29-ledger-writer-in-ledgerboard.md",
+   "transcript <a session transcript>"
+  ],
+  "class": "wide"
+ },
+ {
+  "repo": "dev-cadence",
+  "plan": "2026-10-25-pinned-not-synced (TD-129; shiftlead ADR 2026-10-25-shiftlead-requires-dev-cadence records the same 4 reviews)",
+  "date": "2026-10-25",
+  "class_reason": "every consumer repo's layout changes; irreversible-ish migration of 6 repos",
+  "models": [
+   "sonnet",
+   "fable"
+  ],
+  "reviews": 4,
+  "rounds": 2,
+  "stop": "converged",
+  "reviews_detail": null,
+  "post_build_defects": [
+   {
+    "where": "dev-cadence TD-147 (2026-10-26)",
+    "what": "a constellation home cannot be pinned: sibling hooks call the home's scripts/ that the pin removes",
+    "would_more_rounds_catch": "plausible (migration case enumeration)"
+   },
+   {
+    "where": "dev-cadence TD-149 (2026-10-26)",
+    "what": "sync.sh --pin kept old SessionStart line calling the deleted cadence_hooks.sh; every session start ran no hook",
+    "would_more_rounds_catch": "plausible"
+   },
+   {
+    "where": "dev-cadence TD-168 (2026-10-28)",
+    "what": "adopt skipped five things the retired first-sync did (format check, .gitignore, autoMemoryDirectory, two warnings)",
+    "would_more_rounds_catch": "plausible (inventory of what the old path did)"
+   },
+   {
+    "where": "dev-cadence TD-174 (2026-10-28)",
+    "what": "bump runs the old pin's code, so a fix to bump reaches a repo one bump late",
+    "would_more_rounds_catch": "unclear"
+   },
+   {
+    "where": "dev-cadence TD-164, TD-158 (2026-10-26/27)",
+    "what": "hook hint named a cache path; attention skill pointer invalid YAML never refreshed by a seeded pointer",
+    "would_more_rounds_catch": "unlikely (build/detail)"
+   }
+  ],
+  "sources": [
+   "~/dev-cadence/docs/plans/2026-10-25-pinned-not-synced.md",
+   "~/shiftlead/docs/decisions/2026-10-25-shiftlead-requires-dev-cadence.md"
+  ],
+  "note": "R1 sonnet 5 BLOCK 7 FIX; R2 fable 4 FIX; R3 sonnet 1 FIX; R4 fable READY. Round numbering there counts single reviews, so 4 reviews = 2 rounds of two models.",
+  "class": "wide"
+ },
+ {
+  "repo": "dev-cadence",
+  "plan": "2026-10-26-public-scrub (amendment 2026-10-28: cut over to agent-cadence)",
+  "date": "2026-10-28",
+  "class_reason": "publishes a public repo, cut-over of every consumer; irreversible once public",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 5,
+  "rounds": 2.5,
+  "stop": "converged",
+  "reviews_detail": null,
+  "post_build_defects": [],
+  "sources": [
+   "~/dev-cadence/docs/plans/2026-10-26-public-scrub.md"
+  ],
+  "note": "\"five review rounds alternating Fable and Sonnet, the last two READY with nits\"; no per-review detail; cut-over just done, post-build not yet assessable",
+  "class": "wide"
+ },
+ {
+  "repo": "dev-cadence",
+  "plan": "2026-10-22-ledger-ids (TD-124)",
+  "date": "2026-10-22",
+  "class_reason": "a counter branch on origin plus shiftlead wrapper (cross-repo protocol)",
+  "models": null,
+  "reviews": 5,
+  "rounds": null,
+  "stop": "other",
+  "reviews_detail": null,
+  "post_build_defects": [
+   {
+    "where": "dev-cadence TD-145, TD-150, then TD-188 (2026-10-26..28)",
+    "what": "hand-numbered ids only warned; required `Taken by` found to be an overloaded, unstable name; replaced by a formal `Id take` field (ADR 2026-10-28-ledger-id-provenance)",
+    "would_more_rounds_catch": "unclear; later redesign driven by use"
+   }
+  ],
+  "sources": [
+   "~/dev-cadence/docs/plans/2026-10-22-ledger-ids.md"
+  ],
+  "note": "\"reviewed in five rounds\": models and review/round split not stated",
+  "class": "wide"
+ },
+ {
+  "repo": "agent-cadence",
+  "plan": "2026-10-29-hard-rename",
+  "date": "2026-10-29",
+  "class_reason": "renames the tool across repos in one sitting, no aliases",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": null,
+  "rounds": null,
+  "stop": "converged",
+  "reviews_detail": null,
+  "post_build_defects": [],
+  "sources": [
+   "~/agent-cadence/docs/plans/2026-10-29-hard-rename.md"
+  ],
+  "note": "\"four review rounds, Fable and Sonnet, converged READY\": unclear whether 4 reviews or 4 pairs; excluded from aggregates; not yet assessable post-build",
+  "class": "wide"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "decisions/2026-10-12-ledgerboard-dev-cadence-shiftlead (ledgerboard split)",
+  "date": "2026-10-12",
+  "class_reason": "creates the vendored ledgerboard format and splits it from dev-cadence",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4,
+  "stop": "converged",
+  "reviews_detail": null,
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/decisions/2026-10-12-ledgerboard-dev-cadence-shiftlead.md"
+  ],
+  "note": "\"four Fable rounds and four Sonnet rounds reached READY\" = 8 reviews, 4 pairs",
+  "class": "wide"
+ },
+ {
+  "repo": "dev-cadence",
+  "plan": "2026-10-27-ledger-per-entry (TD-160)",
+  "date": "2026-10-27",
+  "class_reason": "new ledger layout in ledgerboard SPEC, migrated across consumers",
+  "models": null,
+  "reviews": null,
+  "rounds": null,
+  "stop": null,
+  "reviews_detail": null,
+  "post_build_defects": [
+   {
+    "where": "dev-cadence TD-170, TD-176, TD-183, TD-185 (2026-10-28)",
+    "what": "split left dead relative links, v1 anchor links, stale preamble, and the archive Summary table unsupported; consumer-a could not split",
+    "would_more_rounds_catch": "plausible (inventory of what a split moves)"
+   }
+  ],
+  "sources": [
+   "~/dev-cadence/docs/plans/2026-10-27-ledger-per-entry.md"
+  ],
+  "note": "review count not recorded: excluded from aggregates, listed because the post-build defects are informative",
+  "class": "wide"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-978: Closing a session leaves its worktree behind, though the design says Close removes it, so a PR another session rebased cannot pass the merge",
+  "date": "2026-10-22",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 19,
+  "rounds": 9.5,
+  "stop": "other",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 10
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 13
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 10
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 9
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 12
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 13,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 14,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 15,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 16,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 17,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 18,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 19,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-978.md"
+  ],
+  "stop_note": "history says \"the loop ends\" at 19 with Fable still NOT READY on a follow-on; Sonnet had said READY at 16 and 18",
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1222: *Working* and *waiting* overlap (a session with its own running work reads *waiting* when it has an ask out), and *unseen* competes with bot",
+  "date": "2026-10-29",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 10,
+  "rounds": 5.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1222.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1022: ShiftLead's copy of dev-cadence's SessionStart line predates the pin, and two Repo page warnings name the sync dev-cadence is retiring",
+  "date": "2026-10-26",
+  "class_reason": "in-repo; parity with dev-cadence's pinned seed line; build edits only ShiftLead (classed in-repo)",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 11,
+  "rounds": 5.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 11,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 0
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1022.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-947: A background subagent's permission shows *Needs you* on a session whose pane shows nothing to answer: only Allow / Deny can reach it, and th",
+  "date": "2026-10-21",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 14,
+  "rounds": 7,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 13,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 14,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-960 (found by TD-950 live check, 2026-10-22)",
+    "what": "tool's own SubagentStop for an id no SubagentStart announced zeroed the subagent count and ended a live permission waiter; record read idle while pane drew the dialog (TD-947's own symptom). Design had listed the stray-event class but not SubagentStop.",
+    "would_more_rounds_catch": "plausible: a stray-event enumeration gap; but 7 rounds had enumerated it for tool events; a live probe was what found it"
+   }
+  ],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-947.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-999: The wait guard in Gemini CLI: its `BeforeTool` hook refuses an unattended session's foreground CI watch, as Claude Code's `PreToolUse` does",
+  "date": "2026-10-24",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/TD-999.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-991: A member still waits on CI in its own turn \u2014 a foreground `timeout N gh pr checks --watch` \u2014 on a brief that says to run it in the backgroun",
+  "date": "2026-10-24",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 6,
+  "rounds": 3.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "no findings",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "no findings",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-991.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-941: A Gemini session at its own *Usage limit reached* dialog reads `working`: the title stays `\u2726 Working\u2026` and an API-key home has no quota to r",
+  "date": "2026-10-21",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 20,
+  "rounds": 10,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 13,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 14,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 15,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 16,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 17,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 18,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 19,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 20,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-941.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1239: A push the forge refuses is reported as *origin could not be reached*, with only git's last line, so a refusal reads as an outage and hides ",
+  "date": "2026-10-29",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 5,
+  "rounds": 2.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 0
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1239.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1143: ShiftLead reads only a one-file ledger: before any repo it watches splits into a ledger of one file per entry (ledgerboard v2), every reader",
+  "date": "2026-10-27",
+  "class_reason": "in-repo; reads ledgerboard v2 layout but changes only ShiftLead (classed in-repo)",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 7,
+  "rounds": 3.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 7,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1143.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1129: A Queue card's tree joins `Blocked by:` edges in either direction, so a row's indent can mean *waits on its parent* or *its parent waits on ",
+  "date": "2026-10-27",
+  "class_reason": "adds `Part of:` to the vendored ledgerboard format (v2.1); ADR 2026-10-27-part-of",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 7,
+  "rounds": 3.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1129.md"
+  ],
+  "class": "wide"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1048: `ao td next` neither prints the `**Taken by:**` line a new entry must carry nor passes the asking session's branch to the counter's take",
+  "date": "2026-10-26",
+  "class_reason": "passes the branch to dev-cadence's counter take (cross-repo, dev-cadence TD-145)",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 7,
+  "rounds": 3.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 7,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1048.md"
+  ],
+  "class": "wide"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-966: `ao td next` and the home's `ids.json` become a front end over dev-cadence's ledger-id counter on origin, so there is one counter whether or",
+  "date": "2026-10-22",
+  "class_reason": "wraps dev-cadence's ledger-id counter on origin (cross-repo)",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-966.md"
+  ],
+  "class": "wide"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-998: `ao` is not on PATH inside a container node: sessions and shells there reach it only as `/shiftlead/venv/bin/ao`",
+  "date": "2026-10-24",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 5,
+  "rounds": 2.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/TD-998.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1066: A Queue card's board item does not say what it asks: an `act` line reads as a Decide with Answer\u2026, leads with its raw prefix, and stays aske",
+  "date": "2026-10-30",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 5,
+  "rounds": 2.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1066.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1203: The Sessions rollup sums the page into four facets, so how one team or repo is doing means scrolling to its card",
+  "date": "2026-10-28",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 5,
+  "rounds": 2.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 17
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1203.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1187: The top bar scrolls away with the page: once scrolled down, the tabs, + New and the counts are out of reach",
+  "date": "2026-10-28",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1187.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1150: A browser tab says nothing by its icon: no page has a favicon, so a Focus tab's state is read only from its title's words",
+  "date": "2026-10-27",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 5,
+  "rounds": 2.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 0
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1150.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-975: Focus has no list of the person's prompts: a Prompts card on the side panel, each prompt a press that scrolls the terminal back to it",
+  "date": "2026-10-22",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 11,
+  "rounds": 5.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 9
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 13
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-975.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-964: The end of a session on Focus, second round: the ending banner and the ending card (what the session cost), Hand back in Take over's place, ",
+  "date": "2026-10-21",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 7,
+  "rounds": 3.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 16
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 11
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 5,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 6,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 7,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/TD-964.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-927: Token counts on the Spend page, beside every figure \u2014 by team, Top sessions, a team's seats, the head's total, the bar's hover",
+  "date": "2026-10-20",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 11,
+  "rounds": 5.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-927.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-931: The top bar's pages look like three different kinds of control, and its one number says nothing about where to go",
+  "date": "2026-10-20",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 4,
+  "rounds": 2.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 17
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   }
+  ],
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-935 (2026-10-21)",
+    "what": "design 4.5 still said Settings is a tab \"until TD-932 builds it\" after the build; stale sentence contradicts the code",
+    "would_more_rounds_catch": "minor: doc leftover after the build, not a design review matter"
+   }
+  ],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-931.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-926: Hovering a Queue card's header or row draws its \u22ef names inline, which narrows the title and reflows it under the pointer",
+  "date": "2026-10-20",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 6,
+  "rounds": 3.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-926.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-924: The Sessions page's Agents count leaves out every session of a team that is not running, so a working or waiting session can be missing from",
+  "date": "2026-10-20",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 7,
+  "rounds": 3.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-924.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-909: The Queue card \u2014 three wants (Decide, Do, Read), three verbs (Answer, Start session on the card's team, \u22ef), a Waiting group, items that lead",
+  "date": "2026-10-19",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 14,
+  "rounds": 7.0,
+  "stop": "other",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 8,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 9,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 10,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 11,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 12,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 13,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 14,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-1129 (2026-10-27)",
+    "what": "the Queue card tree joined Blocked by edges in either direction, so an indent was ambiguous; redesigned with Part of:",
+    "would_more_rounds_catch": "unclear: a model change (Part of is a new concept), not necessarily catchable"
+   }
+  ],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-909.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1189: A team card shows the repo's Technical debt only on the repo's line above it, and TDs in motion shows only what is held now, never what the ",
+  "date": "2026-10-28",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 4,
+  "rounds": 2.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 2,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 3,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-1240 (2026-10-29)",
+    "what": "with every team card folded the repo line drew the whole Repo facet; needed a compact form (design also touched TD-1203)",
+    "would_more_rounds_catch": "unclear: interaction of two designs a day apart"
+   }
+  ],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1189.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-993: **Told at start** leaves the Focus side panel: a row of the Session card, and the first entry of the Transcript",
+  "date": "2026-10-24",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 4,
+  "rounds": 2.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "no findings",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-993.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1108: A file path on the Queue page or in the Inbox is plain text: it should open in the person's editor, as a path in the pane or a transcript do",
+  "date": "2026-10-27",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 13,
+  "rounds": 6.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 9
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 0
+   },
+   {
+    "n": 13,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1108.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-986: On a phone the Focus terminal cannot be scrolled reliably, and there is no Tab to accept a suggestion",
+  "date": "2026-10-23",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 12,
+  "rounds": 6.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 9
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 10
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 11,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-986.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1200: `ao td next` reads like a question but takes and records an id, so a session runs it as a probe and burns one: rename it `ao td reserve`",
+  "date": "2026-10-28",
+  "class_reason": "in-repo; rename also needs dev-cadence TD-182 (classed in-repo)",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 4,
+  "rounds": 2.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/TD-1200.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-623: No document says how a repo gets its first ShiftLead team",
+  "date": "2026-10-21",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-623.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1119: The design, briefs and docs still describe lanes and a manager seat the team no longer runs that way: sweep every doc against what runs",
+  "date": "2026-10-29",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 9,
+  "rounds": 4.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 0
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1119.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1117: A session the person started cannot hold or decide an entry, so a directive to \"hold this design\" lasts only as long as the receiver's conte",
+  "date": "2026-10-27",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 14,
+  "rounds": 7.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 11,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 12,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 13,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 14,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 0
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1117.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1240: With every team card folded, the repo's line draws the whole Repo facet; it should be one or two rows with Add entry\u2026",
+  "date": "2026-10-30",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 6,
+  "rounds": 3.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1240.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1149: New session's Team and Role picks fill only the package preset, never the team's member line, so a second grinder for a repo-defined team st",
+  "date": "2026-10-27",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 11,
+  "rounds": 5.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/TD-1149.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1064: A session gets either the repo's tools or the org's reach, never both: Add entry starts it on the home, away from the repo's container, and ",
+  "date": "2026-10-26",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 12,
+  "rounds": 6.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 9
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/TD-1064.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-857: Gemini's first job: the fact-check of a doc-only PR, read by a Gemini CLI session on the free tier instead of a Claude subagent, and its ver",
+  "date": "2026-10-29",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 10,
+  "rounds": 5.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/TD-857.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1061: Nothing runs the stranded-work sweep on a schedule, so attention items sit overdue: a sweep seat, and a Settings switch that gives every tea",
+  "date": "2026-10-26",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 11,
+  "rounds": 5.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 9
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 9
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 11,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1061.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1051: A steer's answer is lost when the techlead that relayed it closes: a wound-down member waits on it forever, and the team's stop, start and d",
+  "date": "2026-10-26",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 12,
+  "rounds": 6.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-1095 (TD-1079 live check, 2026-10-27)",
+    "what": "a node on an older build refuses the home's `ring` and the refusal counted as a failed ring; \"the design names no verdict for a node that refuses the act\"",
+    "would_more_rounds_catch": "plausible: version-skew window during promote; a reviewer asking \"what if the peer is older\" could catch it; unknown"
+   }
+  ],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1051.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1116: A session the person started cannot steer another team's member, and its mail lands as `[other]`, which every brief tells a member to weigh,",
+  "date": "2026-10-27",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 7,
+  "rounds": 3.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 8
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1116.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1042: Two of the person's own interactive sessions in different projects cannot mail each other, so the person relays between them by hand",
+  "date": "2026-10-26",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 9,
+  "rounds": 4.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1042.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-995: A session cannot address another repo or team: names resolve only to sessions, so a request for another repo's ledger ends as a command prin",
+  "date": "2026-10-24",
+  "class_reason": "changes only ShiftLead",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 8,
+  "rounds": 4.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   }
+  ],
+  "post_build_defects": [
+   {
+    "where": "shiftlead TD-1128 (2026-10-26/27)",
+    "what": "design contradicted itself: 6 rule 3 closes an idle seat and 4.10 says an ask fills a closed seat, but 4.10 address resolution required a non-closed seat, so `ao msg --repo` refused a repo whose techlead is closed between questions",
+    "would_more_rounds_catch": "plausible: a pure internal contradiction, the kind consistency reads find; unknown which rounds covered 4.10 vs 6"
+   }
+  ],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/TD-995.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1026: Two team lessons from the memory harvest are not in the role briefs: a steer's default waits for its bound, and `--author @me` is not \"my PR",
+  "date": "2026-10-26",
+  "class_reason": "in-repo; declares where lessons go for dev-cadence harvest (classed in-repo)",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 6,
+  "rounds": 3.0,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 5
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 0
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/archive/TD-1026.md"
+  ],
+  "class": "in-repo"
+ },
+ {
+  "repo": "shiftlead",
+  "plan": "TD-1009: ShiftLead requires dev-cadence, and the person's briefs, start prompts and preferences live in their dev-cadence layer repo",
+  "date": "2026-10-25",
+  "class_reason": "ShiftLead requires dev-cadence; layers and pins across repos",
+  "models": [
+   "fable",
+   "sonnet"
+  ],
+  "reviews": 15,
+  "rounds": 7.5,
+  "stop": "converged",
+  "reviews_detail": [
+   {
+    "n": 1,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 2,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 6
+   },
+   {
+    "n": 3,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 4,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 7
+   },
+   {
+    "n": 5,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 3
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 8,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 2
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 10,
+    "model": "sonnet",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 4
+   },
+   {
+    "n": 11,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 12,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 13,
+    "model": "fable",
+    "verdict": "NOT READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   },
+   {
+    "n": 14,
+    "model": "sonnet",
+    "verdict": null,
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 1
+   },
+   {
+    "n": 15,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
+   }
+  ],
+  "post_build_defects": [],
+  "sources": [
+   "~/shiftlead/docs/design-history.md",
+   "~/shiftlead/docs/ledger/TD-1009.md"
+  ],
+  "class": "wide"
+ }
+]
