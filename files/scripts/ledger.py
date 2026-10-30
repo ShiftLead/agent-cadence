@@ -439,7 +439,7 @@ def ask_missing(ledger: str, archive: str = "") -> dict[str, str]:
         owner = LB.first_word(e["fields"].get("owner"))
         who = LB.parse_blocked(e["blocked_raw"] or "")[1]
         why = (f"Owner: {owner}" if owner in people else f"decision ({who[0]})" if who
-               else None)
+               else "Answers:" if ANSWERS_RE.search(body) or "answers" in e["fields"] else None)
         if why is None:
             continue
         head = re.split(r"\n[ \t\r]*\n", body.lstrip("\n"), maxsplit=1)
