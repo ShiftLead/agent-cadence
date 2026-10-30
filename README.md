@@ -7,8 +7,8 @@ ledger survived when a session closed, and anything left in chat was lost. The r
 the default.
 
 The scripts are plain bash and stdlib-only Python, so a session can read, run and patch any of them on the spot.
-A repo runs them from a **pin**, a commit of this repo named in its own config. Nothing is installed into the
-repo, and there is no package. It works with Claude Code directly. Codex and Gemini CLI read the same rules
+A repo runs them from a **pin**, a commit of this repo named in its own config. None of the system's files are
+copied into the repo, and there is no package. It works with Claude Code directly. Codex and Gemini CLI read the same rules
 through `AGENTS.md` and `.agents/skills/`.
 
 **The rules themselves are [`files/docs/cadence.md`](files/docs/cadence.md).** Everything below is how to get
@@ -18,7 +18,7 @@ them into a repo.
 
 Each rule comes with the tool that enforces it, or the check that notices when it is broken.
 
-- **Worktrees, and one anchor** (cadence.md §1). One session keeps the main checkout; every other session works
+- **Worktrees, and one anchor** (cadence.md §1). One session, the *anchor*, keeps the main checkout; every other session works
   in a worktree of its own, so concurrent sessions never edit the same files. `open_worktree.sh` makes one,
   `hydrate_worktree.sh` brings in what git does not track, and `reap_worktrees.sh` removes those whose work has
   landed.
@@ -30,12 +30,13 @@ Each rule comes with the tool that enforces it, or the check that notices when i
   `docs/user_attention.md`, with a due date. A session-start hook prints what is due. The `/stranded-work`
   sweep finds work left in worktrees, branches and stashes.
 - **Branch, PR, review, squash** (§4). Nothing goes straight to main: the pre-push hook blocks it. Every PR
-  gets an independent review, and a local `precheck` (the repo's own tests, run on the PR's head in a clean
-  worktree) records a `cadence/precheck` status. `/cadence` reads a PR against every rule and says which hold.
+  gets an independent review, and a local *precheck* (`precheck.py`, which runs the repo's own tests on the PR's
+  head in a clean worktree) records a `cadence/precheck` status. `/cadence` reads a PR against every rule and says which hold.
 - **Memory in the repo** (§7). A session's memory lives in the repo's `docs/claude-memory/` and goes through
   review like any other change, instead of sitting in one machine's home directory.
 - **Delivery.** All of this reaches a session through one SessionStart line in `.claude/settings.json` and
-  three git hook shims (`pre-push`, `post-merge`, `prepare-commit-msg`). Both run the pinned tree.
+  three git hook shims (`pre-push`, `post-merge`, `prepare-commit-msg`). The settings line and the shims both run
+  the main checkout's pin.
 
 ## How it runs: pinned, not copied
 
@@ -49,17 +50,21 @@ ref = "<a full commit>"
 
 The **launcher**, `agent-cadence`, is one Python file installed once per machine. It fetches that commit into a
 read-only cache (`~/.cache/agent-cadence/trees/<commit>`) and runs the scripts from there:
-`agent-cadence run ledger.py --pickable`, or `agent-cadence path cadence.md` to name a file. An upgrade is
-`agent-cadence bump`: it lists what is newer than the pin, moves `ref` by one line, and prints the compare and
-the convention changes since the old pin. The repo reviews and merges that PR like any other. The rule is
+`agent-cadence run ledger.py --pickable`, or `agent-cadence path cadence.md` to name a file. An upgrade is a
+bump: `agent-cadence bump` lists what is newer than the pin, and `agent-cadence bump <tag or commit>` moves the
+one `ref` line and prints what the PR body carries, the compare and the convention changes since the old pin.
+The repo reviews and merges that PR like any other. The rule is
 cadence.md §9.19.
 
 ## Quick start
 
-**1. Install the launcher**, once per machine or in a cloud environment's setup script:
+You need git and Python 3.11 or later. The PR checks use `gh` (GitHub) or `glab` (GitLab).
+
+**1. Install the launcher**, once per machine or in a cloud environment's setup script. Use the latest release
+tag in place of `main` once one exists:
 
 ```bash
-d=$(mktemp -d) && git clone -q --depth 1 --branch <tag> https://github.com/ShiftLead/agent-cadence "$d" \
+d=$(mktemp -d) && git clone -q --depth 1 --branch main https://github.com/ShiftLead/agent-cadence "$d" \
   && install -Dm755 "$d/launcher/agent_cadence.py" ~/.local/bin/agent-cadence && rm -rf "$d"   # ~/.local/bin on PATH
 ```
 
@@ -77,8 +82,8 @@ agent-cadence if you can open them. No silent local adaptations. Don't
 install anything yet.
 ```
 
-Both directions have paid off. An evaluation caught a path bug that only showed in repos with `_` in their
-name, and several of the system's guards came from lessons sent upstream this way.
+Both directions have paid off: evaluations have caught bugs before they were adopted, and several of the
+system's guards came from lessons sent upstream this way.
 
 **3. Adopt the repo:**
 
@@ -87,9 +92,11 @@ git clone https://github.com/ShiftLead/agent-cadence
 agent-cadence -C agent-cadence adopt /path/to/your-repo
 ```
 
-`adopt` runs from the clone's HEAD, which must be clean and on origin's default branch, and pins the repo to it.
-It writes the seed files the repo will own (ledger, board, memory index, `AGENTS.md`, settings), the pin, the git
-hook shims and this machine's roster line. It commits nothing. Then follow cadence.md's *Adoption checklist*: the
+`adopt` pins the repo to the clone's HEAD, so that HEAD must be clean and on origin's default branch: the pin
+names a commit, and it must be one origin has. It writes the *seed* files the repo then owns (ledger, board,
+memory index, `AGENTS.md`, settings), the skill pointers, the pin, the git hook shims, and this machine's
+*roster* line: `~/.config/agent-cadence/repos.txt`, the list of cadence repos that the attention report and
+cross-repo `Blocked by` read. It commits nothing. Then follow cadence.md's *Adoption checklist*: the
 memory path, `.gitignore`, the map in `AGENTS.md`, and the GitHub settings.
 
 <details>
@@ -111,8 +118,9 @@ Set up agent-cadence in this repo:
      from agent-cadence's files/.claude/settings.json;
    - on each other machine's clone, run adopt again (it changes only what is
      missing) and set the memory path there.
-3. Fill in the AGENTS.md map that adopt seeded: a "Never strand work" section
-   and doc-map rows for the rules, the ledger and the board.
+3. Fill in the AGENTS.md map that adopt seeded: a Session Hygiene section
+   and doc-map rows for the rules, the ledger and the board; make CLAUDE.md
+   the one line `@AGENTS.md`.
 4. Propose, without applying, the GitHub settings from cadence.md §4:
    squash-merge only, delete branches on merge, and a 0-approval PR-required
    ruleset if the plan allows one (`agent-cadence run adopt_repo_settings.sh`
@@ -136,7 +144,7 @@ Set up agent-cadence in this repo:
 |---|---|
 | Is this PR ready to merge? | `/cadence` (or `agent-cadence run check_cadence.py --pr N`) |
 | Run the merge gate | `agent-cadence run precheck.py --pr N --expect <sha>` |
-| What needs me? | `/attention` (`nudge_user_attention.py --report`) |
+| What needs me? | `/attention` (or `agent-cadence run nudge_user_attention.py --report`) |
 | Has any work been left behind? | `/stranded-work` |
 | What can be worked next? | `agent-cadence run ledger.py --pickable` |
 | A new ledger id | `agent-cadence run ledger_next_id.py` |
@@ -149,16 +157,16 @@ Set up agent-cadence in this repo:
 - **A repo's settings** live in its `docs/cadence.toml`: its `precheck` command, its opt-outs, and thresholds
   such as when an overdue board item is escalated (cadence.md §9.18).
 - **A person's own rules** live in a *layer*: a markdown file of rules keyed to the § they change, such as
-  `§4.11 override: …`, named in the machine's `~/.config/agent-cadence/cadence.toml`. Every session start prints
-  it, after the repo's own `AGENTS.md` and before `cadence.md`. A layer is prose, so it cannot switch off a gate.
+  `§4.11 override: …`, named in the machine's `~/.config/agent-cadence/cadence.toml`. The session-start hook prints
+  it. When rules conflict, the repo's `AGENTS.md` wins, then the layers (a later one over an earlier), then
+  `cadence.md`. A layer is prose, so it cannot switch off a gate.
   `agent-cadence run cadence_layer.py --effective` shows what each rule does.
 
 ## With ShiftLead (optional)
 
 [ShiftLead](https://github.com/ShiftLead/shiftlead) runs teams of unattended sessions: a manager, a techlead and
 grinders that pick ledger entries and take them to review. It reads the same pin, ledger and board, so a repo
-needs nothing extra. This repo's own team, `ac-grind`, is defined in its `.shiftlead.yml`, and its briefs are in
-`docs/briefs/`.
+needs nothing extra. This repo's own team is defined in its `.shiftlead.yml`.
 
 ## Philosophy and non-goals
 
@@ -197,4 +205,4 @@ canonical path here. A repo that still carries the old synced copies moves to a 
 
 ## License
 
-MIT; see [LICENSE](LICENSE). The history before the cut-over to this repo is kept privately.
+MIT; see [LICENSE](LICENSE). The history before the cut-over to this repo is not published.
