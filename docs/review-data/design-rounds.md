@@ -1,8 +1,10 @@
 # Design-review rounds on this machine: data for the max-rounds defaults
 
-Gathered 2026-10-30 (read-only research, session `sl-tds`). Private repos are named consumer-a to consumer-d, as elsewhere in this repo. Machine-readable twin: `design-rounds.json` (same records; `build_changing`, `minor` and `tokens` are null where unknown).
+Gathered 2026-10-30 (read-only research, session `sl-tds`). Private repos are named consumer-a to consumer-e, as elsewhere in this repo. Machine-readable twin: `design-rounds.json` (same records; `build_changing`, `minor` and `tokens` are null where unknown).
 
 **What counts.** A design review is one model reviewing a plan or design before the build (the per-PR pre-merge review is not counted). A **round** is one pass through the models in use; with Sonnet and Fable that is 2 reviews, so alternating 11 reviews = 5.5 rounds. Where a source numbers single reviews as "rounds" (ShiftLead's design-history numbers alternating reviews 1..N), rounds here = reviews / 2. Where it numbers pairs (TD-941, TD-947, TD-966, TD-623), rounds = the pair count. **Wide** = costly to fix after shipping (another repo, a vendored/published format, an irreversible step); else **in-repo**.
+
+**Corrected 2026-10-30** after PR #25's fact-check: a history line carrying two reviews ("round 5, …; round 6, …") had been counted once, so TD-926, TD-995 and TD-998 each gained a review. An independent parse agrees with the other 40 ShiftLead designs. The aggregates below are recomputed; the medians did not move.
 
 **How to regenerate.** Sources: `~/shiftlead/docs/design-history.md` (lines `- DATE (TD-n's review, round k, Fable|Sonnet, ...)`, regex on TD id, round, model, "NOT READY"/"READY", "n findings"); ADR Status/Review sections in `~/dev-cadence/docs/plans/`, `~/agent-cadence/docs/plans/`, `~/shiftlead/docs/decisions/`; post-build defects by grepping every other ledger entry (`docs/ledger/`, `archive/`) that cites each design's TD id, then reading the ones that read as defects; tokens from `<subagent_tokens>` in transcript task notifications. The generator was a throwaway script (not kept); the JSON is the record.
 
@@ -13,10 +15,10 @@ Gathered 2026-10-30 (read-only research, session `sl-tds`). Private repos are na
 | in-repo | 39 (all ShiftLead, Oct 15-30) | 8 / 20 / 4 | 4.0 / 10 / 2 |
 | wide | 9 (4 ShiftLead TDs, ledger-writer (rounds counted from reviews), pinned-not-synced, public-scrub, ledger-ids [rounds unknown], ledgerboard-split ADR) | 7 / 15 / 4 | 3.75 (8 values) / 7.5 / 2 |
 
-- **Distribution of in-repo rounds** (39): 2.0 x4, 2.5 x5, 3.0 x4, 3.5 x4, 4.0 x4, 4.5 x2, 5.0 x2, 5.5 x5, 6.0 x3, 6.5, 7.0 x3, 9.5, 10. So 3 rounds or fewer: 13 of 39; 6 or fewer: 33 of 39 (counting 6.5 as above 6).
+- **Distribution of in-repo rounds** (39): 2.0 x4, 2.5 x4, 3.0 x4, 3.5 x5, 4.0 x3, 4.5 x3, 5.0 x2, 5.5 x5, 6.0 x3, 6.5, 7.0 x3, 9.5, 10. So 3 rounds or fewer: 12 of 39; 4 or fewer: 20 of 39; 6 or fewer: 33 of 39 (counting 6.5 as above 6).
 - **When findings stopped (in-repo, ShiftLead).** Counts are *total findings per review*, not build-changing (not classified; every finding was "adopted"). Review index of the last review with 3+ findings: median 6 (reviews, = round 3), range 0-18. The designs end a median 2 reviews after their last 3+-finding review, i.e. the READY streak is short: the loop stopped when findings dropped to follow-ons. Reviews 1-2 usually carry 5-17 findings; reviews 7+ mostly carry 1-3, labelled "follow-ons of the last adoption".
 - **Wide, build-changing counts exist for one design only** (ledger-writer, table in json): 0, ~6, 3, 3, 2, 2, 1-2, 1, 1, 1 (important), 0 -> last 2+ at review 6 (round 3), last 1+ at review 10 (round 5). ShiftLead's 4 wide TDs have only total findings: TD-1129 last 3+ at review 5 (of 7); TD-1009 at 10 (of 15); TD-966 at 1 (of 8); TD-1048 at 4 (of 7).
-- **Post-build defects.** In-repo: 6 of 39 designs had a later ledger entry I judged to record a design-level gap or contradiction (TD-947, 1051, 995, 909, 1189, 931 [931 is a stale sentence, minor]); the other 33 had no such entry found, but that search was by citation and not exhaustive. Of the 6, 3 (TD-947, 1051, 995) look like things a more careful enumeration might have caught (stray-event class, older-peer verdict, internal contradiction); none of the 6 is shown to be catchable by an extra round. Wide: of the 4 wide designs that were built and have a review count, dev-cadence's pinned-not-synced (4 reviews) is followed by 4-5 migration/adopt gaps within 3 days (TD-147, 149, 168, 174); ledger-ids (5 reviews) by a redesign (TD-188); ledger-per-entry (review count unknown) by 4 split defects in 1-2 days; ledger-writer and public-scrub/hard-rename are not yet assessable. So: wide designs built after few rounds (4-5 reviews) show visible follow-up defects; the one wide design that went to 11 reviews has no post-build data.
+- **Post-build defects.** In-repo: 6 of 39 designs had a later ledger entry I judged to record a design-level gap or contradiction (TD-947, 1051, 995, 909, 1189, 931 [931 is a stale sentence, minor; 1189's TD-1240 is questionable, a new design request that cites it once]); the other 33 had no such entry found, but that search was by citation and not exhaustive. Of the 6, 3 (TD-947, 1051, 995) look like things a more careful enumeration might have caught (stray-event class, older-peer verdict, internal contradiction); none of the 6 is shown to be catchable by an extra round. Wide: of the 4 wide designs that were built and have a review count, dev-cadence's pinned-not-synced (4 reviews) is followed by 4-5 migration/adopt gaps within 3 days (TD-147, 149, 168, 174); ledger-ids (5 reviews) by a redesign (TD-188); ledger-per-entry (review count unknown) by 4 split defects in 1-2 days; ledger-writer and public-scrub/hard-rename are not yet assessable. So: wide designs built after few rounds (4-5 reviews) show visible follow-up defects; the one wide design that went to 11 reviews has no post-build data.
 
 ## Per-design table
 
@@ -24,10 +26,10 @@ Review column legend: letter = model (F Fable, S Sonnet), number = total finding
 
 | repo | plan | date | class | reviews | rounds | stop | per-review (model+findings) | post-build defects |
 |---|---|---|---|---|---|---|---|---|
-| shiftlead | TD-909: The Queue card — three wants (Decide, Do, Read), three verbs ( | 2026-10-19 | in-repo | 14 | 7 | other | F7 S5 F7 S6 F6 S6 F5 F4 S2 F2 S2 F1 S1 F2 | shiftlead TD-1129 |
+| shiftlead | TD-909: The Queue card — three wants (Decide, Do, Read), three verbs ( | 2026-10-19 | in-repo | 14 (the history has no round 8) | 7 | other | F7 S5 F7 S6 F6 S6 F5 F4 S2 F2 S2 F1 S1 F2 | shiftlead TD-1129 |
 | shiftlead | TD-927: Token counts on the Spend page, beside every figure — by team, | 2026-10-20 | in-repo | 11 | 5.5 | converged | F5* S5 F5* S4 F4* S2 F4* S* F1 S* F1* | - |
 | shiftlead | TD-931: The top bar's pages look like three different kinds of control | 2026-10-20 | in-repo | 4 | 2 | converged | S17 F8 S8 F8* | shiftlead TD-935 |
-| shiftlead | TD-926: Hovering a Queue card's header or row draws its ⋯ names inline | 2026-10-20 | in-repo | 6 | 3 | converged | F5 S5 F3 S2 F3* S2* | - |
+| shiftlead | TD-926: Hovering a Queue card's header or row draws its ⋯ names inline | 2026-10-20 | in-repo | 7 | 3.5 | converged | F5 S5 F3 S2 F3* S0* F* | - |
 | shiftlead | TD-924: The Sessions page's Agents count leaves out every session of a | 2026-10-20 | in-repo | 7 | 3.5 | converged | F5 S8 F4 S4 F3* S1* F3* | - |
 | shiftlead | TD-947: A background subagent's permission shows *Needs you* on a sess | 2026-10-21 | in-repo | 14 | 7 | converged | F8 S7 F7 S8 F3 S5 F4 S* F4 S4 F6 S5 F1 S* | shiftlead TD-960 |
 | shiftlead | TD-941: A Gemini session at its own *Usage limit reached* dialog reads | 2026-10-21 | in-repo | 20 | 10 | converged | F7 S7 F3 S4 F4 S5 F5 S5 F3 S3 F3 S2 F3 S4 F3 S* F2 S4 F1 S* | - |
@@ -38,9 +40,9 @@ Review column legend: letter = model (F Fable, S Sonnet), number = total finding
 | shiftlead | TD-986: On a phone the Focus terminal cannot be scrolled reliably, and | 2026-10-23 | in-repo | 12 | 6 | converged | F9 S10 F5 S7 F4 S8 F3 S4 F2 S1 S2 S* | - |
 | shiftlead | TD-999: The wait guard in Gemini CLI: its `BeforeTool` hook refuses an | 2026-10-24 | in-repo | 8 | 4 | converged | F5 S5 F2* S5 F* S2 F* S* | - |
 | shiftlead | TD-991: A member still waits on CI in its own turn — a foreground `tim | 2026-10-24 | in-repo | 6 | 3 | converged | F7 S* F S2 F S* | - |
-| shiftlead | TD-998: `ao` is not on PATH inside a container node: sessions and shel | 2026-10-24 | in-repo | 5 | 2.5 | converged | F3 S7 F S4* F* | - |
+| shiftlead | TD-998: `ao` is not on PATH inside a container node: sessions and shel | 2026-10-24 | in-repo | 6 | 3 | converged | F3 S7 F3 S4* F* S* | - |
 | shiftlead | TD-993: **Told at start** leaves the Focus side panel: a row of the Se | 2026-10-24 | in-repo | 4 | 2 | converged | F S* F S* | - |
-| shiftlead | TD-995: A session cannot address another repo or team: names resolve o | 2026-10-24 | in-repo | 8 | 4 | converged | F S F1 S5 F1 S4 F2* S2* | shiftlead TD-1128 |
+| shiftlead | TD-995: A session cannot address another repo or team: names resolve o | 2026-10-24 | in-repo | 9 | 4.5 | converged | F11 S6 F5 S5 F3 S5 F2* S0* F2 | shiftlead TD-1128 |
 | shiftlead | TD-1022: ShiftLead's copy of dev-cadence's SessionStart line predates  | 2026-10-26 | in-repo | 11 | 5.5 | converged | F7 S7 F6 S5 F* S7 F* S5 F* S2 S0* | - |
 | shiftlead | TD-1064: A session gets either the repo's tools or the org's reach, ne | 2026-10-26 | in-repo | 12 | 6 | converged | F9 S3 F4 S6 F4 S4 F5 S2 F3 S2 F* S* | - |
 | shiftlead | TD-1061: Nothing runs the stranded-work sweep on a schedule, so attent | 2026-10-26 | in-repo | 11 | 5.5 | converged | F9 S9 F3 S4 F3 S2 F2 S1 F* S1 S* | - |
@@ -55,7 +57,7 @@ Review column legend: letter = model (F Fable, S Sonnet), number = total finding
 | shiftlead | TD-1116: A session the person started cannot steer another team's memb | 2026-10-27 | in-repo | 7 | 3.5 | converged | F4 S8 F3 S4 F2* S* F2* | - |
 | shiftlead | TD-1203: The Sessions rollup sums the page into four facets, so how on | 2026-10-28 | in-repo | 5 | 2.5 | converged | S17 F8 S3 F* S* | - |
 | shiftlead | TD-1187: The top bar scrolls away with the page: once scrolled down, t | 2026-10-28 | in-repo | 8 | 4 | converged | F6 S5 F3 S4 F2 S3 F S* | - |
-| shiftlead | TD-1189: A team card shows the repo's Technical debt only on the repo' | 2026-10-28 | in-repo | 4 | 2 | converged | S7 F2 S* F* | shiftlead TD-1240 |
+| shiftlead | TD-1189: A team card shows the repo's Technical debt only on the repo' | 2026-10-28 | in-repo | 4 | 2 | converged | S7 F2 S* F* | shiftlead TD-1240 (questionable: a new design request that cites TD-1189 once) |
 | shiftlead | TD-1200: `ao td next` reads like a question but takes and records an i | 2026-10-28 | in-repo | 4 | 2 | converged | F4 S6 F1 S* | - |
 | shiftlead | TD-1222: *Working* and *waiting* overlap (a session with its own runni | 2026-10-29 | in-repo | 10 | 5 | converged | F7 S6 F6 S5 F4 S5 F4 S4 F3* S* | - |
 | shiftlead | TD-1239: A push the forge refuses is reported as *origin could not be  | 2026-10-29 | in-repo | 5 | 2.5 | converged | F4 S* F2 S0* F* | - |

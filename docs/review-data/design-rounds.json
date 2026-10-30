@@ -934,7 +934,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-991: A member still waits on CI in its own turn \u2014 a foreground `timeout N gh pr checks --watch` \u2014 on a brief that says to run it in the backgroun",
+  "plan": "TD-991: A member still waits on CI in its own turn — a foreground `timeout N gh pr checks --watch` — on a brief that says to run it in the backgroun",
   "date": "2026-10-24",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -1009,7 +1009,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-941: A Gemini session at its own *Usage limit reached* dialog reads `working`: the title stays `\u2726 Working\u2026` and an API-key home has no quota to r",
+  "plan": "TD-941: A Gemini session at its own *Usage limit reached* dialog reads `working`: the title stays `✦ Working…` and an API-key home has no quota to r",
   "date": "2026-10-21",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -1628,8 +1628,8 @@
    "fable",
    "sonnet"
   ],
-  "reviews": 5,
-  "rounds": 2.5,
+  "reviews": 6,
+  "rounds": 3.0,
   "stop": "converged",
   "reviews_detail": [
    {
@@ -1657,7 +1657,7 @@
     "build_changing": null,
     "minor": null,
     "tokens": null,
-    "total_findings": null
+    "total_findings": 3
    },
    {
     "n": 4,
@@ -1676,6 +1676,15 @@
     "minor": null,
     "tokens": null,
     "total_findings": null
+   },
+   {
+    "n": 6,
+    "model": "sonnet",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
    }
   ],
   "post_build_defects": [],
@@ -1687,7 +1696,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1066: A Queue card's board item does not say what it asks: an `act` line reads as a Decide with Answer\u2026, leads with its raw prefix, and stays aske",
+  "plan": "TD-1066: A Queue card's board item does not say what it asks: an `act` line reads as a Decide with Answer…, leads with its raw prefix, and stays aske",
   "date": "2026-10-30",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2182,7 +2191,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-927: Token counts on the Spend page, beside every figure \u2014 by team, Top sessions, a team's seats, the head's total, the bar's hover",
+  "plan": "TD-927: Token counts on the Spend page, beside every figure — by team, Top sessions, a team's seats, the head's total, the bar's hover",
   "date": "2026-10-20",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2365,15 +2374,15 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-926: Hovering a Queue card's header or row draws its \u22ef names inline, which narrows the title and reflows it under the pointer",
+  "plan": "TD-926: Hovering a Queue card's header or row draws its ⋯ names inline, which narrows the title and reflows it under the pointer",
   "date": "2026-10-20",
   "class_reason": "changes only ShiftLead",
   "models": [
    "fable",
    "sonnet"
   ],
-  "reviews": 6,
-  "rounds": 3.0,
+  "reviews": 7,
+  "rounds": 3.5,
   "stop": "converged",
   "reviews_detail": [
    {
@@ -2428,7 +2437,16 @@
     "build_changing": null,
     "minor": null,
     "tokens": null,
-    "total_findings": 2
+    "total_findings": 0
+   },
+   {
+    "n": 7,
+    "model": "fable",
+    "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": null
    }
   ],
   "post_build_defects": [],
@@ -2524,7 +2542,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-909: The Queue card \u2014 three wants (Decide, Do, Read), three verbs (Answer, Start session on the card's team, \u22ef), a Waiting group, items that lead",
+  "plan": "TD-909: The Queue card — three wants (Decide, Do, Read), three verbs (Answer, Start session on the card's team, ⋯), a Waiting group, items that lead",
   "date": "2026-10-19",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -2728,8 +2746,8 @@
   "post_build_defects": [
    {
     "where": "shiftlead TD-1240 (2026-10-29)",
-    "what": "with every team card folded the repo line drew the whole Repo facet; needed a compact form (design also touched TD-1203)",
-    "would_more_rounds_catch": "unclear: interaction of two designs a day apart"
+    "what": "(questionable) with every team card folded the repo line drew the whole Repo facet; needed a compact form (design also touched TD-1203)",
+    "would_more_rounds_catch": null
    }
   ],
   "sources": [
@@ -3463,7 +3481,7 @@
  },
  {
   "repo": "shiftlead",
-  "plan": "TD-1240: With every team card folded, the repo's line draws the whole Repo facet; it should be one or two rows with Add entry\u2026",
+  "plan": "TD-1240: With every team card folded, the repo's line draws the whole Repo facet; it should be one or two rows with Add entry…",
   "date": "2026-10-30",
   "class_reason": "changes only ShiftLead",
   "models": [
@@ -4346,8 +4364,8 @@
    "fable",
    "sonnet"
   ],
-  "reviews": 8,
-  "rounds": 4.0,
+  "reviews": 9,
+  "rounds": 4.5,
   "stop": "converged",
   "reviews_detail": [
    {
@@ -4357,7 +4375,7 @@
     "build_changing": null,
     "minor": null,
     "tokens": null,
-    "total_findings": null
+    "total_findings": 11
    },
    {
     "n": 2,
@@ -4366,7 +4384,7 @@
     "build_changing": null,
     "minor": null,
     "tokens": null,
-    "total_findings": null
+    "total_findings": 6
    },
    {
     "n": 3,
@@ -4375,7 +4393,7 @@
     "build_changing": null,
     "minor": null,
     "tokens": null,
-    "total_findings": 1
+    "total_findings": 5
    },
    {
     "n": 4,
@@ -4393,7 +4411,7 @@
     "build_changing": null,
     "minor": null,
     "tokens": null,
-    "total_findings": 1
+    "total_findings": 3
    },
    {
     "n": 6,
@@ -4402,7 +4420,7 @@
     "build_changing": null,
     "minor": null,
     "tokens": null,
-    "total_findings": 4
+    "total_findings": 5
    },
    {
     "n": 7,
@@ -4417,6 +4435,15 @@
     "n": 8,
     "model": "sonnet",
     "verdict": "READY",
+    "build_changing": null,
+    "minor": null,
+    "tokens": null,
+    "total_findings": 0
+   },
+   {
+    "n": 9,
+    "model": "fable",
+    "verdict": null,
     "build_changing": null,
     "minor": null,
     "tokens": null,
