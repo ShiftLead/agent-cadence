@@ -426,7 +426,7 @@ def _bodies(text: str) -> dict[str, str]:
 
 
 def ask_missing(ledger: str, archive: str = "") -> dict[str, str]:
-    """id -> why the entry waits on the person (``Owner: paul``, ``decision (paul)``, ``Answers:``), for
+    """id -> why the entry waits on the person (``Owner: person``, ``decision (<who>)``, ``Answers:``), for
     each one with no ``**Ask:**`` line below its header block; the why ends ``; its Ask: is in the header``
     when that is where it is."""
     people = {"person"}
@@ -439,7 +439,7 @@ def ask_missing(ledger: str, archive: str = "") -> dict[str, str]:
         owner = LB.first_word(e["fields"].get("owner"))
         who = LB.parse_blocked(e["blocked_raw"] or "")[1]
         why = (f"Owner: {owner}" if owner in people else f"decision ({who[0]})" if who
-               else "Answers:" if ANSWERS_RE.search(body) or "answers" in e["fields"] else None)
+               else None)
         if why is None:
             continue
         head = re.split(r"\n[ \t\r]*\n", body.lstrip("\n"), maxsplit=1)
