@@ -48,7 +48,8 @@ The rows are recorded **whatever the key (3) says**: data not written when the r
 
 No reminder to run `review-stats`: it prints, itself, how many plans with a Review record are newer than its last run, and the decided ADR already says to rerun the trial after about ten plans.
 
-**4. `review-stats`** (`files/scripts/review_stats.py`, stdlib only), run on demand, never by a hook or a sweep:
+**4. `review-stats`** (`files/scripts/review_stats.py`, stdlib only), run on demand, never by a hook or a sweep. **It is mechanical and keeps no state:** every run rebuilds everything from the repos' files as they are now, with no model, no agent and no judgement, so an `Escaped from:` added since the last run (a defect found months after its design) is counted the next time anyone runs it, with nothing to update in between.
+- **Age:** a design's defects keep arriving long after it is built, so every figure carries each design's age (days since its plan's Decision date, or its first commit where it has none). The trial and the aggregates count escapes only for designs older than an `--aged DAYS` threshold (default 14), and print the young ones separately, so a young design's zero escapes is not read as a clean design.
 - **Scope:** every repo on the machine's roster (cadence.md §9; `$AGENT_CADENCE_REG_DIR` honoured); `--repo PATH` for one.
 - **Reads:** each repo's tracked `.md` files holding a *Review record* (the two tables of 1 and the ADR's rule 6), and its ledger's `Escaped from:` fields through `ledger.py`/ledgerboard (never a hand regex, §2.12).
 - **Writes:** the rebuilt dataset (json, and the md's tables) to `review-stats/` beside the roster, never into a repo. Publishing a scrubbed copy, as `docs/review-data/` was, is a separate deliberate step.
@@ -56,7 +57,7 @@ No reminder to run `review-stats`: it prints, itself, how many plans with a Revi
 - **`--candidates [--since DATE]`:** the backfill pass (5). It lists defect entries (`Type: debt`, ledgerboard's default) since the date that cite a design entry or plan and carry no `Escaped from:`. It judges nothing.
 
 **5. Backfill.**
-- **Any repo** turning the key on later runs `review-stats --candidates --since <date>`. A session judges each candidate with 2's question and adds the field in one PR.
+- **Any repo** turning the key on later runs `review-stats --candidates --since <date>`, which is mechanical (4). Judging each candidate with 2's question is the one step that needs judgement: the session does it, and **may hand it to an agent only if the person, asked first, agrees**, because judging many candidates can cost many tokens. The session adds the fields in one PR. After that, `review-stats` counts them like any others.
 - **This repo's backfill**, part of TD-204's build, is a ShiftLead PR adding `Escaped from:` to the six firm pairs: TD-960 ← TD-947, TD-1128 ← TD-995, TD-1095 ← TD-1051, TD-1129 ← TD-909, TD-1031 ← TD-804, TD-854 ← TD-820.
   - Left out: TD-935 ← TD-931 (the data marks it a doc leftover after the build, so a build miss by 2's test) and the five "(questionable)" pairs.
   - dev-cadence is archived, so its pairs stay in the dataset only. agent-cadence has none yet.
@@ -73,7 +74,7 @@ No reminder to run `review-stats`: it prints, itself, how many plans with a Revi
 **7. Tests:**
 - `tests/test_cadence_config.sh`: the key's default, a repo value, a bad value as a `--check` error, and the seed parity.
 - `ledger_next_id.py` prints the question with the key on and stays silent with it off.
-- A new `tests/test_review_stats.sh`, over fixture repos on a temporary roster: both tables are read, `Escaped from:` resolves (including `<repo>#TD-NNN` and a plan path), an unresolvable value is reported, `--candidates` lists a citing defect without the field and skips one with it, the output lands beside the roster and nothing is written into a repo, and `--repo` limits the scope.
+- A new `tests/test_review_stats.sh`, over fixture repos on a temporary roster: both tables are read, `Escaped from:` resolves (including `<repo>#TD-NNN` and a plan path), an unresolvable value is reported, `--candidates` lists a citing defect without the field and skips one with it, the output lands beside the roster and nothing is written into a repo, and `--repo` limits the scope. An `Escaped from:` added to a fixture after a first run is counted by the second, and a design younger than `--aged` is listed apart and not counted as clean.
 
 ## Options
 
