@@ -1,6 +1,6 @@
 # ADR 2026-10-30: a design's review record is its own file, `docs/reviews/TD-NNN.md`, with each review's model and tokens; a defect a design missed names it in `Escaped from:`; `review-stats` rebuilds the data on demand
 
-**Status:** decided 2026-10-30 by Paul (`Go`; the rounds ended by the stop rule after round 4 (in a cap of 6); build-changing findings per round from reviews 10, 6, 3, 0, from fact-checks 4, 0, 0, 0 and the closing fact-check 0; 15 reviews, 1,300,069 tokens; recurring topic: the design-to-build link, F43–F45 and F54). Class: **wide** (cap 6): it moves where the payload's design-rounds rule keeps its table, adds a ledger field (a ledgerboard release) and a key to what consumers run, a payload script, and its backfill writes into ShiftLead.
+**Status:** decided 2026-10-30 by Paul (`Go`; the rounds ended by the stop rule after round 4 (in a cap of 6); build-changing findings per round from reviews 10, 6, 3, 0, from fact-checks 4, 0, 0, 0 and the closing fact-check 0; 15 reviews, 1,200,412 tokens; recurring topic: the design-to-build link, F43–F45 and F54). Class: **wide** (cap 6): it moves where the payload's design-rounds rule keeps its table, adds a ledger field (a ledgerboard release) and a key to what consumers run, a payload script, and its backfill writes into ShiftLead.
 **Date:** 2026-10-30
 **Related:** TD-204 (the build); ADR `2026-10-30-design-review-rounds.md` and TD-203 (built, PR #29), whose findings table this moves and extends; `docs/review-data/` (the 97-design dataset and `trial-rev18.md`); shiftlead TD-857 (the Gemini fact-checker, a model this must name). This plan's own record: `docs/reviews/TD-204.md`.
 
@@ -12,7 +12,7 @@
   - build-changing labels exist for one design (TD-173's ledger writer);
   - tokens exist for 278 reviews, covering 43 of the 97 designs;
   - models are named loosely (letters F, S, O);
-  - the link from a design to a defect it later let through was found by reading which ledger entries cite the design: a lower bound: 7 firm ShiftLead pairs (one a doc leftover after the build), 3 designs with firm defects in the private dev-cadence repo (archived), and 5 "(questionable)" designs carrying 6 defect entries.
+  - the link from a design to a defect it later let through was found by reading which ledger entries cite the design: a lower bound: 7 firm ShiftLead pairs (one a doc leftover after the build), 3 designs with firm defects in the private dev-cadence repo (archived), and 5 "(questionable)" designs carrying 6 rows that name 7 defect entries.
 - **The trial** (`trial-rev18.md`) had to use total findings as a proxy for build-changing ones and could not test the link at all.
 - **Paul's direction:** "the real help is to be able to check against issues that arose after the designs"; "as tokens get cheaper and agents get stronger … people will want to rely on them more, and expand the number of allowed cycles"; "We might want to record the actual models involved." Stats are generated mechanically on demand, and more `Escaped from:` links will appear as time goes by; the backfill may need an agent, with the person's permission.
 
