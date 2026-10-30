@@ -34,15 +34,17 @@ an open PR whose ledger does is named in ``unread`` — its ids are not seen. Wh
 after the read) is left to the cadence check's ``ledger`` row, the backstop for every unreserved id.
 
 The commit's subject is the id or the range (``TD-967..TD-968``) then ``[skip ci]``; its body says
-``by`` (``--by``, else the Claude Code session's own id, ``CLAUDE_CODE_SESSION_ID``, the id its
-transcript carries as ``sessionId``, else ``git config user.email`` — the same for every session on a machine — else unknown), ``branch`` (``--branch``, else the current
+``by`` (``--by``, verbatim; else the first 12 hex digits of the sha256 of the Claude Code session's own id,
+``CLAUDE_CODE_SESSION_ID``, the id its transcript carries as ``sessionId``, else of ``git config user.email`` —
+the same for every session on a machine — else unknown: TD-195, the counter is public with its repo, so a
+take never writes the id or the address itself), ``branch`` (``--branch``, else the current
 branch; left out when detached), ``take`` (a nonce, so no two takes are ever one commit) and ``host`` (left out in a cloud session or a container, and when the repo's ``docs/cadence.toml``
 says ``ledger-ids-host = "off"``). The cadence check's ``ledger`` row and ``ledger.py --check --since`` decide on
 them through ``judge()`` (TD-145):
 ``read_takes()`` maps each id to the take that gave it; a new id in a PR that no take gave fails, one
 whose entry's ``**Taken by:**`` is not its take's ``by`` fails naming the ``by``, one with no
-``**Taken by:**`` warns, and one whose take names a branch that is neither the default nor the PR's
-warns. A reserved take prints the line to write in each entry's header: ``**Taken by:** <by>``.
+``**Taken by:**`` warns, one whose take names a branch that is neither the default nor the PR's
+warns, and one whose take's ``by`` is a bare session id (a UUID) or an email address warns (TD-195). A reserved take prints the line to write in each entry's header: ``**Taken by:** <by>``.
 
 ``--claim TD-N`` takes exactly that id, for one the fallback printed and could not reserve: the same
 push, refused with exit 2 when a take already gave TD-N or main holds it. ``LAST`` becomes the
@@ -58,6 +60,7 @@ on the counter; 3 printed but not reserved (the fallback); 2 refused, nothing pr
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -286,6 +289,22 @@ def counter_takes(root: Path) -> tuple[dict[int, dict] | None, str]:
     return takes, ""
 
 
+UNHASHED_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[^\s@]+@[^\s@]+\.[^\s@]+",
+                         re.IGNORECASE)
+
+
+def default_by(root: Path) -> str:
+    """TD-195: the take's ``by`` when no ``--by`` is given: the first 12 hex digits of the sha256 of the
+    session's id, else of ``git config user.email``, else ``unknown``. One session's takes still share
+    a ``by``, so an entry's ``**Taken by:**`` matches its take, and hashing an id again says locally
+    whether a session made a take; the id and the address themselves never reach the counter."""
+    for raw in (os.environ.get("CLAUDE_CODE_SESSION_ID", "").strip(),
+                git(root, "config", "user.email").stdout.strip()):
+        if raw:
+            return hashlib.sha256(raw.encode()).hexdigest()[:12]
+    return "unknown"
+
+
 def judge(new: set[int], takes: dict[int, dict], texts: list[str], branch: str, default: str
           ) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """TD-145: new ids against the counter's takes, for the cadence check's ``ledger`` row and
@@ -297,7 +316,8 @@ def judge(new: set[int], takes: dict[int, dict], texts: list[str], branch: str, 
     session was later handed); none warns, except where the ledger declares a ``Fields:`` vocabulary,
     whose check would refuse a field the format does not define yet; a take naming a branch neither
     the default nor ``branch`` warns — a session may take an id on one branch for an entry it files in
-    another PR."""
+    another PR; a take whose ``by`` is a bare UUID or an email address warns (TD-195: it publishes
+    what ``default_by()`` hashes)."""
     LB = L.LB
     fails: list[tuple[str, str]] = []
     warns: list[tuple[str, str]] = []
@@ -316,9 +336,11 @@ def judge(new: set[int], takes: dict[int, dict], texts: list[str], branch: str, 
         for e in LB.entries(t):
             taker.setdefault(int(e["id"][3:]), e["fields"].get("taken by"))
     writable = "taken by" in LB.CADENCE_FIELDS or not LB.declared(texts[0] if texts else "")[0]
-    mismatch, missing, elsewhere = [], [], []
+    mismatch, missing, elsewhere, unhashed = [], [], [], []
     for n in sorted(n for n in new if n in takes):
         by = (takes[n].get("by") or "").strip()
+        if UNHASHED_RE.search(by):
+            unhashed.append(tid(n))
         if n in taker:
             if not LB.first_word(taker[n]):   # absent, or a value of only marks
                 if writable and by:
@@ -336,6 +358,9 @@ def judge(new: set[int], takes: dict[int, dict], texts: list[str], branch: str, 
                       "header (cadence §2.10)"))
     if elsewhere:
         warns.append(("id-branch", f"taken for another branch: {', '.join(elsewhere)}"))
+    if unhashed:
+        warns.append(("id-by-unhashed", f"{', '.join(unhashed)} taken by a bare session id or an email "
+                      "address, which the counter publishes — take ids with no --by, which hashes it (TD-195)"))
     return fails, warns
 
 
@@ -404,8 +429,7 @@ def take(root: Path, a: argparse.Namespace) -> tuple[int, dict]:
     warnings = res["warnings"]
     default = L.N.default_branch(root)
     main_ref = f"refs/remotes/origin/{default}"
-    by = (a.by or os.environ.get("CLAUDE_CODE_SESSION_ID", "").strip()
-          or git(root, "config", "user.email").stdout.strip() or "unknown")
+    by = a.by or default_by(root)
     branch = getattr(a, "branch", None) or git(root, "branch", "--show-current").stdout.strip() or None
     start = time.monotonic()
     written: set[str] = set()   # this run's own take commits: a push that timed out but landed
@@ -496,7 +520,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--count", type=int, default=1, help=f"how many ids, 1 to {MAX_COUNT}")
     ap.add_argument("--by", help="who takes them (a front end passes its caller's name); default the "
-                                       "Claude Code session's id, else git config user.email")
+                                       "sha256 of the Claude Code session's id, else of git config user.email, "
+                                       "first 12 hex digits")
     ap.add_argument("--branch", help="the branch the ids are for, when not the current one")
     ap.add_argument("--floor", type=int, help="a front end's own last-given id: every id is above it")
     ap.add_argument("--prs", action="store_true", help="read the open PRs on a later take too")

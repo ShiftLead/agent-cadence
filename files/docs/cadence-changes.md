@@ -12,6 +12,9 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-29 — a take's `by` is hashed: no raw session id or email on the ledger-id counter
+Do: take ids with no `--by` (it now writes the sha256 of the session id, else of `user.email`, first 12 hex) and copy the `**Taken by:**` it prints; never pass a UUID or an address to `--by` — the check warns `id-by-unhashed`.
+See: cadence.md §2.10; TD-195.
 ## 2026-10-29 — text is LF: a `.gitattributes` seed with `* text=auto eol=lf`
 Do: a repo with no `.gitattributes` gets the seed at its next `adopt`; one that has its own adds `* text=auto eol=lf` by hand. A repo with CRLF in its index converts it once (`git add --renormalize .`, a PR of its own), never file by file.
 See: cadence.md §7.14; TD-187.

@@ -50,9 +50,10 @@ out=$(take "$W"); rc=$?
   && ok "1 first take: TD-125 reserved, a root commit by the fixed identity, LAST 125" \
   || bad "1 rc=$rc out='$out' last=$(last "$O") $(cat "$TMP/err")"
 b=$(body "$O")
-grep -qx "by: t@t" <<< "$b" && grep -qx "branch: main" <<< "$b" \
+h=$(printf %s t@t | sha256sum | cut -c1-12)
+grep -qx "by: $h" <<< "$b" && ! grep -q "t@t" <<< "$b" && grep -qx "branch: main" <<< "$b" \
   && { [ "$CONTAINER" = 1 ] || grep -qx "host: $(python3 -c 'import socket; print(socket.gethostname())')" <<< "$b"; } \
-  && ok "1b the body names by (user.email), branch and host" || bad "1b body='$b'"
+  && ok "1b the body names by (user.email's hash, never the address: TD-195), branch and host" || bad "1b body='$b'"
 git -C "$W" show-ref --verify -q refs/heads/cadence/ledger-ids \
   && bad "1c a local branch was made" || ok "1c no local branch: the counter is only origin's (and its tracking ref)"
 
@@ -403,13 +404,30 @@ mkrepo "$O" "$W"; git -C "$W" checkout -q -b td140
 entry 140 a; out=$(chk); rc=$?; reset
 [ "$rc" = 0 ] && ! grep -q "TD-140" <<< "$out" && ok "18h a repo with no counter: ids not judged" || bad "18h rc=$rc $out"
 
-# 19. TD-145 (e): with no --by, a Claude Code session's take names the session, not the machine's shared git email
+# 19. TD-145 (e): with no --by, a Claude Code session's take names the session, not the machine's shared git email;
+#     TD-195: by its id's hash (first 12 hex of the sha256), so the public counter never carries the id
 mkrepo "$O" "$W"
-out=$(CLAUDE_CODE_SESSION_ID=5e55-a take "$W" --json); rc=$?
-[ "$rc" = 0 ] && grep -qx "by: 5e55-a" <<< "$(body "$O")" && grep -q '"taken_by": "5e55-a"' <<< "$out" \
-  && ok "19 no --by in a Claude Code session: by is its session id" || bad "19 rc=$rc $out $(body "$O")"
-CLAUDE_CODE_SESSION_ID=5e55-a take "$W" --by grinder-z >/dev/null
-grep -qx "by: grinder-z" <<< "$(body "$O")" && ok "19b --by still wins over the session id" || bad "19b $(body "$O")"
+sid=0f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f9; h=$(printf %s "$sid" | sha256sum | cut -c1-12)
+out=$(CLAUDE_CODE_SESSION_ID=$sid take "$W" --json); rc=$?
+[ "$rc" = 0 ] && grep -qx "by: $h" <<< "$(body "$O")" && grep -q "\"taken_by\": \"$h\"" <<< "$out" \
+  && ! grep -q "$sid" <<< "$(body "$O") $out" \
+  && ok "19 no --by in a Claude Code session: by is its session id's hash, never the id (TD-195)" || bad "19 rc=$rc $out $(body "$O")"
+CLAUDE_CODE_SESSION_ID=$sid take "$W" --by grinder-z >/dev/null
+grep -qx "by: grinder-z" <<< "$(body "$O")" && ok "19b --by still wins over the session id, verbatim" || bad "19b $(body "$O")"
+CLAUDE_CODE_SESSION_ID=$sid take "$W" >/dev/null
+grep -qF "write \`**Taken by:** $h\`" "$TMP/err" && ok "19c the Taken by line it prints is the hash" || bad "19c $(cat "$TMP/err")"
+
+# 20. TD-195: a take whose by is a bare session id or an address warns (id-by-unhashed); a hash or a name does not
+mkrepo "$O" "$W"
+take "$W" --by "$sid" >/dev/null 2>&1                                          # TD-125 by a bare UUID
+take "$W" --by t@t.example >/dev/null 2>&1                                      # TD-126 by an address
+take "$W" --by "$h" >/dev/null 2>&1                                             # TD-127 by a hash
+git -C "$W" checkout -q -b td125-x
+entry 125 "$sid"; entry 126 t@t.example; entry 127 "$h"; out=$(chk --json); rc=$?; reset
+kinds=$(python3 -c 'import json,sys; print(",".join(f["kind"] for f in json.loads(sys.argv[1])["flags"] if f["kind"].startswith("id-")))' "$out")
+[ "$rc" = 0 ] && [ "$kinds" = id-by-unhashed ] && grep -q "TD-125, TD-126 taken by a bare session id" <<< "$out" \
+  && ! grep -q "TD-127 taken by" <<< "$out" \
+  && ok "20 a by that is a UUID or an address: an ℹ line keyed id-by-unhashed, naming those ids alone" || bad "20 rc=$rc kinds=$kinds $out"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
