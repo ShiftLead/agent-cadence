@@ -104,13 +104,22 @@ as ``new`` does — a flag the edit brings that the gate fails, a prose wait on 
 blocker ``set`` adds whose roster repo lacks it — and an entry ``canonical()`` refuses, with its hand fix;
 an archived entry is not edited. Exit 0 written; 1 refused; 2 a usage error, an unknown id, or a v1 ledger.
 
+``archive`` and ``reopen`` (TD-200) move one entry between the ledger and ``archive/``: ``edit_entry()``'s
+archived or reopened form, ``relink()`` for the other directory, then ``git mv`` (a rename for a file git
+does not track); a parent with an open part is refused. ``renumber TD-old [TD-new]`` takes the new id from
+the counter (``TD-new``: one a take gave, else ``--claim``ed), moves the file, rewrites every Blocked by and
+Part of naming it and its rank line, and lists the references in prose — here, and as ``<repo>#TD-old`` in
+the roster's other repos — for the session to judge; an archived entry is not renumbered (the gate's
+archive-loss), and a file ``canonical()`` refuses stops it before any take. Each refuses as ``new`` does, and
+commits nothing.
+
 The ledger is a v1 file or a v2 directory (ledgerboard SPEC *The ledger as a directory*, TD-160), and
 every read goes through ledgerboard's ``load()``: here with the file system, at a revision (``--since``,
 a roster repo's ``origin/<default>``) with ``git_io()`` — one ``ls-tree``, one ``cat-file --batch`` per
 directory. A v2 ledger that ``v2_problems()`` faults is not read (exit 2). Defaults: ``docs/ledger/``
 when that directory exists, else ``docs/technical_debt.md`` and ``docs/technical_debt_archive.md``, at
 the top of the git work tree the command runs in; ``--archive`` applies to a v1 ledger only. Read-only but
-for ``--split`` and the writers ``fmt``, ``new`` (which also takes from the counter), ``set``, ``note``, ``edit``, and offline except where ``--check --since``'s edit
+for ``--split`` and the writers ``fmt``, ``new`` and ``renumber`` (which also take from the counter), ``set``, ``note``, ``edit``, ``archive``, ``reopen``, and offline except where ``--check --since``'s edit
 adds an id: then it asks origin for the counter (``git ls-remote``, and a fetch of its tracking ref). Exit 0 (``--check``: 1 on an error);
 2 when the ledger, or ``--since``'s ref, cannot be read or the arguments are unusable, or the
 ledger or archive declares a newer major of the format than ``ledgerboard.py`` reads
@@ -881,20 +890,6 @@ NEW_FIELDS = (("priority", "Priority"), ("type", "Type"), ("added", "Added"), ("
               ("status", "Status"), ("blocked_by", "Blocked by"), ("part_of", "Part of"), ("location", "Location"))
 
 
-def _with_entry(io: tuple[LB.Ls, LB.Read], ledger: Path, name: str, text: str) -> tuple[LB.Ls, LB.Read]:
-    """``io`` with ``text`` as the file ``ledger/name``, beside what the directory holds."""
-    ls, read = io
-    d, path = os.path.normpath(str(ledger)), os.path.normpath(str(ledger / name))
-
-    def ls2(p: str) -> list[str] | None:
-        names = ls(p)
-        return sorted({*names, name}) if names is not None and os.path.normpath(p) == d else names
-
-    def read2(p: str) -> str | None:
-        return text if os.path.normpath(p) == path else read(p)
-    return ls2, read2
-
-
 def _gate_flags(ledger: Path, io: tuple[LB.Ls, LB.Read], ref: str, then: tuple[str, str] | None,
                 roster: Roster, ids: bool) -> list[dict]:
     """``--check --since ref``'s flags (and prose waits) on the ledger ``io`` reads; ``ids``: the id flags too."""
@@ -967,9 +962,13 @@ class _Writer:
     def refused(self, tid: str, name: str, entry: str, with_ids: bool = True, notes: bool = True) -> bool:
         """Whether ``entry``, written as ``name``, brings a flag the gate fails (or a prose wait on itself);
         each refusal said, and with ``notes`` each new ℹ line."""
+        return self.refused_changes(tid, {self.ledger / name: entry}, with_ids, notes)
+
+    def refused_changes(self, tid: str, changes: Mapping[Path, str | None], with_ids: bool = True,
+                        notes: bool = True) -> bool:
+        """``refused()`` for several files at once, each written with its text or removed (None) — a move."""
         before = _gate_flags(self.ledger, self.io, self.ref, self.then, self.roster, with_ids)
-        after = _gate_flags(self.ledger, _with_entry(self.io, self.ledger, name, entry), self.ref, self.then,
-                            self.roster, with_ids)
+        after = _gate_flags(self.ledger, _overlay(self.io, changes), self.ref, self.then, self.roster, with_ids)
         refuse, info = _introduced(before, after, tid)
         for r in info if notes else []:
             self.say(self.cmd, f"note — {r['text']}", 0)
@@ -1161,6 +1160,228 @@ def edit(cmd: str, argv: list[str]) -> int:
     return 0
 
 
+def _overlay(io: tuple[LB.Ls, LB.Read], changes: Mapping[Path, str | None]) -> tuple[LB.Ls, LB.Read]:
+    """``io`` with each path in ``changes`` holding its text, or gone for None (TD-200: a move is both)."""
+    ls, read = io
+    ch = {os.path.normpath(str(p)): t for p, t in changes.items()}
+
+    def ls2(p: str) -> list[str] | None:
+        d = os.path.normpath(p)
+        mine = {os.path.basename(q): t for q, t in ch.items() if os.path.dirname(q) == d}
+        names = ls(p)
+        if not mine:
+            return names
+        kept = set(names or ()) | {n for n, t in mine.items() if t is not None}
+        return sorted(kept - {n for n, t in mine.items() if t is None})
+
+    def read2(p: str) -> str | None:
+        q = os.path.normpath(p)
+        return ch[q] if q in ch else read(p)
+    return ls2, read2
+
+
+def _git_mv(root: Path, src: Path, dst: Path) -> None:
+    """``git mv`` a tracked file, so the move is staged as one; a file git does not track is renamed."""
+    if _git(root, "ls-files", "--error-unmatch", "--", str(src)) is not None:
+        r = subprocess.run(["git", "-C", str(root), "mv", "--", str(src), str(dst)], capture_output=True,
+                           text=True, timeout=60, check=False)
+        if r.returncode == 0:
+            return
+    os.replace(src, dst)
+
+
+def _write(path: Path, text: str) -> None:
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(text)
+
+
+def _entry_file(w: "_Writer", cmd: str, tid: str) -> tuple[Path | None, bool, str]:
+    """(the entry's file, whether it is archived, its text); the file None (said, exit 2) when it is in neither."""
+    found = LB.entry_path(str(w.ledger), tid, w.io[0])
+    if found is None:
+        w.say(cmd, f"{tid} is in neither {w.ledger} nor its archive", 2)
+        return None, False, ""
+    path = Path(found)
+    with open(path, encoding="utf-8", newline="") as f:
+        return path, path.parent.name == LB.LEDGER_ARCHIVE and path.parent != w.ledger, f.read()
+
+
+def move(cmd: str, argv: list[str]) -> int:
+    """``ledger.py archive|reopen TD-n``: the entry's edit through ``edit_entry()``, its relative links
+    rewritten for the other directory, and the file moved there (TD-200). Commits nothing."""
+    ap = argparse.ArgumentParser(prog=f"ledger.py {cmd}", description={
+        "archive": "archive an open entry: its archived form (cadence.md §2.8), then the file moved to archive/",
+        "reopen": "reopen an archived entry: its Status reopened, then the file moved back"}[cmd])
+    ap.add_argument("id", metavar="TD-n")
+    ap.add_argument("--why", required=True, help="one line: what resolved it (archive) or why it is open again (reopen)")
+    if cmd == "archive":
+        ap.add_argument("--pr", type=int, help="the PR that resolved it, as the forge numbered it")
+        ap.add_argument("--pointer", help="where the lasting content now lives (a doc, test or code)")
+        ap.add_argument("--as-is", action="store_true", help="keep the Fix, with the Resolved line after it")
+        ap.add_argument("--superseded-by", metavar="TD-n", help="archive as superseded by that entry, Why and Fix kept")
+    ap.add_argument("--ledger", help="a v2 directory; default: docs/ledger/ at the work tree's top")
+    a = ap.parse_args(argv)
+    if not ID_ITEM_RE.match(a.id):
+        ap.error(f"an entry's id is TD-n, not {a.id!r}")
+    w = _Writer.open(cmd, a.ledger)
+    if isinstance(w, int):
+        return w
+    path, archived, text = _entry_file(w, cmd, a.id)
+    if path is None:
+        return 2
+    if cmd == "archive" and archived:
+        return w.say(cmd, f"{a.id} is archived already ({path})", 2)
+    if cmd == "reopen" and not archived:
+        return w.say(cmd, f"{a.id} is open ({path}) — only an archived entry is reopened", 2)
+    dst_dir = w.ledger / LB.LEDGER_ARCHIVE if cmd == "archive" else w.ledger
+    dst = dst_dir / path.name
+    if dst.exists():
+        return w.say(cmd, f"{dst} exists — nothing was written", 2)
+    today = datetime.now().astimezone().date().isoformat()
+    kw = ({"pr": a.pr, "pointer": a.pointer, "as_is": a.as_is or None, "superseded_by": a.superseded_by}
+          if cmd == "archive" else {})
+    try:
+        out = LB.edit_entry(text, cmd, today=today, why=a.why, **{k: v for k, v in kw.items() if v is not None})
+    except LB.Refused as e:
+        return w.say(cmd, f"refused — {e}", 1)
+    out, warns = relink(out, path.parent, dst_dir, {})
+    tid = LB.entries(out)[0]["id"]
+    after = _overlay(w.io, {path: None, dst: out})
+    led_after, _ = read_pair(str(w.ledger), None, after)
+    left = LB._left_with_open_parts(w.text or "", led_after or "")  # judged against the working tree, not only REF
+    for r in left:
+        w.say(cmd, f"refused — {r['text']}", 1)
+    if left or w.refused_changes(tid, {path: None, dst: out}):
+        return w.say(cmd, f"nothing was written to {path}", 1)
+    for warn in warns:
+        w.say(cmd, f"note — a link left dead: {warn}", 0)
+    _write(path, out)
+    _git_mv(w.root, path, dst)
+    print(dst)
+    if cmd == "reopen":
+        w.say(cmd, f"next: `ledger.py edit {tid} --section Fix --from -` with what is left to do", 0)
+    return 0
+
+
+def _ref_rx(tid: str, repo: str | None = None) -> str:
+    """An extended regex (``git grep -E``) for ``tid`` in prose — ``TD-7`` is ``TD-007`` — or for ``<repo>#tid``."""
+    n = _num(tid)
+    if repo:
+        return rf"{re.escape(repo)}#TD-0*{n}([^0-9]|$)"
+    return rf"(^|[^A-Za-z0-9_#/.-])TD-0*{n}([^0-9]|$)"
+
+
+def _grep(root: Path, rx: str, icase: bool = False) -> list[str]:
+    out = _git(root, "grep", "-n", "-I", "-E", *(["-i"] if icase else []), "-e", rx)
+    return [ln for ln in (out or "").splitlines() if ln.strip()]
+
+
+def renumber(argv: list[str]) -> int:
+    """``ledger.py renumber TD-old [TD-new]``: the entry renamed, its new id from the counter, and every
+    Blocked by and Part of naming it rewritten, as is its line in the rank file (TD-200). Commits nothing."""
+    ap = argparse.ArgumentParser(prog="ledger.py renumber",
+                                 description="give an entry another id: the file, its heading, the fields that name it and the rank file")
+    ap.add_argument("old", metavar="TD-old")
+    ap.add_argument("new", metavar="TD-new", nargs="?",
+                    help="an id already taken from the counter, or one to claim there; default: the counter's next")
+    ap.add_argument("--by", help="the take's by (ledger_next_id.py --by), for a front end renumbering for its caller")
+    ap.add_argument("--ledger", help="a v2 directory; default: docs/ledger/ at the work tree's top")
+    a = ap.parse_args(argv)
+    for x in filter(None, (a.old, a.new)):
+        if not ID_ITEM_RE.match(x):
+            ap.error(f"an entry's id is TD-n, not {x!r}")
+    w = _Writer.open("renumber", a.ledger)
+    if isinstance(w, int):
+        return w
+    path, _, text = _entry_file(w, "renumber", a.old)
+    if path is None:
+        return 2
+    old = LB.entries(text)[0]["id"] if LB.entries(text) else a.old
+    known = LB.heading_nums(w.text) | LB.heading_nums(w.arch)
+    import ledger_next_id as X  # sibling SYNC script: the counter (it imports this one)
+
+    def plan(tid: str, taken_by: str | None) -> dict[Path, str | None] | None:
+        """Every file the renumber writes (None: removed), or None when one is refused (said)."""
+        changes: dict[Path, str | None] = {}
+        try:
+            out = LB.edit_entry(text, "renumber", new=tid)
+            if taken_by:
+                out = LB.edit_entry(out, "set", fields={"Taken by": taken_by})
+        except LB.Refused as e:
+            w.say("renumber", f"refused — {path.name}: {e}", 1)
+            return None
+        changes[path] = None
+        changes[path.with_name(f"{tid}.md")] = out
+        for d in (w.ledger, w.ledger / LB.LEDGER_ARCHIVE):
+            for f in sorted(d.glob("TD-*.md")) if d.is_dir() else ():
+                if f == path:
+                    continue
+                t = f.read_text(encoding="utf-8")
+                fields = LB.entries(t)[0]["fields"] if LB.entries(t) else {}
+                if not any(LB._rename(fields.get(k) or "", old, tid) != (fields.get(k) or "") for k in ("blocked by", "part of")):
+                    continue
+                try:
+                    changes[f] = LB.edit_entry(t, "rename_ref", old=old, new=tid)
+                except LB.Refused as e:
+                    w.say("renumber", f"refused — {f.name} names {old}, and {e}", 1)
+                    return None
+        rank_file = Path(LB.rank_path(str(w.ledger)))
+        rank_text = w.io[1](str(rank_file))
+        key = LB.rank(rank_text)[0].get(old) if rank_text else None
+        if key is not None:
+            try:
+                changes[rank_file] = LB.set_rank(rank_text, {old: None, tid: key})
+            except LB.Refused as e:
+                w.say("renumber", f"refused — {rank_file.name}: {e}", 1)
+                return None
+        return changes
+
+    # Everything but the take is judged first, under a provisional id, so a refusal spends no take.
+    provisional = a.new or f"TD-{max(known, default=0) + 1}"
+    if a.new and _num(a.new) in known:
+        return w.say("renumber", f"{a.new} is in the ledger or its archive already", 2)
+    changes = plan(provisional, None)
+    if changes is None or w.refused_changes(provisional, changes, with_ids=False, notes=False):
+        return w.say("renumber", "no id was taken and nothing was written", 1)
+
+    takes, why = X.counter_takes(w.root)
+    if a.new and takes and _num(a.new) in takes:
+        tid, taken_by = X.tid(_num(a.new)), takes[_num(a.new)].get("by")
+    else:
+        cmd = [sys.executable, str(Path(__file__).with_name("ledger_next_id.py")), "--json", "--ledger", w.rel]
+        cmd += (["--claim", a.new] if a.new else []) + (["--by", a.by] if a.by else [])
+        r = subprocess.run(cmd, cwd=w.root, capture_output=True, text=True, timeout=120, check=False)
+        try:
+            res = json.loads(r.stdout)
+        except ValueError:
+            res = {"ids": [], "why": (r.stderr.strip() or f"exit {r.returncode}")}
+        if r.returncode != 0 or not res.get("ids"):
+            return w.say("renumber", f"no id was taken — {res.get('why') or why}; nothing was written", 2)
+        tid, taken_by = res["ids"][0], res.get("taken_by")
+    changes = plan(tid, taken_by)
+    if changes is None or w.refused_changes(tid, changes):
+        return w.say("renumber", f"{tid} is taken and nothing was written — fix the above, then run again "
+                                 f"with {old} {tid}", 1)
+    dst = path.with_name(f"{tid}.md")
+    _git_mv(w.root, path, dst)
+    for f, t in changes.items():
+        if t is not None:
+            _write(f, t)
+    print(dst)
+    for f in changes:
+        if f not in (path, dst):
+            print(f)
+    # What no field holds is the session's to judge: prose here, and <repo>#old in the roster's other repos.
+    for ln in _grep(w.root, _ref_rx(old)):
+        w.say("renumber", f"check — names {old} in prose: {ln[:200]}", 0)
+    me = w.root.resolve().name
+    for other in N.read_registry() or []:
+        if other.resolve() != w.root.resolve() and other.is_dir():
+            for ln in _grep(other, _ref_rx(old, me), icase=True):
+                w.say("renumber", f"check — {other.name} names {me}#{old}: {ln[:200]}", 0)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["fmt"]:
@@ -1169,6 +1390,10 @@ def main(argv: list[str] | None = None) -> int:
         return new(argv[1:])
     if argv[:1] in (["set"], ["note"], ["edit"]):
         return edit(argv[0], argv[1:])
+    if argv[:1] in (["archive"], ["reopen"]):
+        return move(argv[0], argv[1:])
+    if argv[:1] == ["renumber"]:
+        return renumber(argv[1:])
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--pickable", nargs="?", const=True, default=None, metavar="yes|no",
                     help="alone: print the pick order, the blocked entries and the flags; "

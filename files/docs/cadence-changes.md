@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-30 — Archive, reopen and renumber with `ledger.py archive`, `reopen` and `renumber`
+Do: in a split ledger, `ledger.py archive TD-n --why "…" --pr N` in place of a hand `git mv` and Status edit; `ledger.py reopen TD-n --why "…"` for the reverse; `ledger.py renumber TD-old` (its dependents' fields and the rank file follow; prose it names is yours to fix).
+See: cadence.md §2.6, §2.12; `ledger.py`'s docstring; TD-200.
+
 ## 2026-10-30 — Change a ledger entry with `ledger.py set`, `note` and `edit`
 Do: in a split ledger, `ledger.py set TD-n --blocked-by …` (any header field; empty removes), `ledger.py note TD-n "…"` (a dated Status line), `ledger.py edit TD-n --section Fix --from FILE|-` — each refuses what the cadence check would fail and a wait written in prose.
 See: cadence.md §2.12; `ledger.py`'s docstring; TD-199.
