@@ -66,12 +66,13 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    - ...
    MSG
    )
+
    $sig"
    ```
 
-   (GitLab: `glab mr note <n> -m "…"`, the same body.) First line exactly in that shape — `SHIP` (nothing to change), `FIXED` (findings fixed
+   (GitLab: `glab mr note <n> -m "…"`, the same body, `$sig` included.) First line exactly in that shape — `SHIP` (nothing to change), `FIXED` (findings fixed
    before merge), or `BLOCK` (do not merge) — then `<reviewer model>` (the model that actually reviewed), `<code|docs>`,
-   `<n> findings`, separated by ` · `. Findings in prose below, and the comment's last line signs it (cadence §4.9, TD-211): `— <AGENT_NAME> (<adapter>/<model>)`, the model the first line of `$AGENT_MODEL_FILE` else `$AGENT_MODEL` (§9.9), or `— <user.name>` from a person's shell — the forge shows only the shared account. A late evidence comment is signed the same way. **Never edit the comment
+   `<n> findings`, separated by ` · `. Findings in prose below, and the comment's last line signs it (cadence §4.9, TD-211): `— <AGENT_NAME> (<adapter>/<model>)`, the model the first line of `$AGENT_MODEL_FILE` else `$AGENT_MODEL` (§9.9's sources, without its checks), or `— <user.name>` from a person's shell — the forge shows only the shared account. A late evidence comment is signed the same way. **Never edit the comment
    afterwards** (an edit after the merge fails the row: the forge stamps `updated_at`). Post a
    new comment if there is more to say. The script's `REVIEW_RE` reads this line — the two
    are a parity pair (cadence §7): change the shape in both or in neither. It reads it on
