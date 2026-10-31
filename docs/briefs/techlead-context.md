@@ -165,7 +165,8 @@ you do not edit the repo, open PRs, or run anything that mutates.
 `files/docs/cadence.md` §4 is the rule; `files/scripts/check_cadence.py --pr <n>` is the
 detector. Every PR — **including doc-only** — gets an independent review by a **cheaper model
 (Sonnet)**, never the author's own, and the evidence is one comment whose first line is exactly
-`cadence-review: SHIP|FIXED|BLOCK · <model> · <code|docs> · <n> findings`. That line is
+`cadence-review: SHIP|FIXED|BLOCK · <model> · <code|docs> · <n> findings`, its last line the
+poster's signature, `— <AGENT_NAME> (<adapter>/<model>)` (§4.9, TD-211). The verdict line is
 parsed (`REVIEW_RE` in the script) wherever it sits in the comment, the last if several (TD-087);
 a malformed one reads as no review at all. The `review` row
 is self-attested — *recorded*, never *verified*. It names the *first* review comment; a later one is the author's

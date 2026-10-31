@@ -165,6 +165,11 @@ comments 1 "$(c 'Findings:\n1. none\n\ncadence-review: SHIP · sonnet · code ·
 out=$(run --pr 1); [ "$(rowstat "$out" review)" = PASS ] && echo "$out" | grep -q "review    SHIP · sonnet · code · 0 findings" && ok "a verdict on the comment's last line passes" || bad "last-line verdict: $out"
 comments 1 "$(c 'cadence-review: BLOCK · sonnet · code · 1 finding\nfixed it:\n  cadence-review: FIXED · sonnet · code · 1 finding' "$BEFORE" "$BEFORE")"
 out=$(run --pr 1); [ "$(rowstat "$out" review)" = PASS ] && echo "$out" | grep -q "review    FIXED · sonnet · code · 1 finding" && ok "of two verdict lines in one comment, the last is read" || bad "two verdict lines: $out"
+# TD-211: the evidence comment's signature line (cadence §4.9) is no verdict and names no reviewer
+comments 1 "$(c 'cadence-review: FIXED · sonnet · code · 1 finding\n- fixed\n\n— ac-grinder (claude-code/claude-opus-5-5)' "$BEFORE" "$BEFORE")"
+out=$(run --pr 1); line=$(echo "$out" | awk '$2=="review"')
+[ "$(rowstat "$out" review)" = PASS ] && echo "$line" | grep -q "review    FIXED · sonnet · code · 1 finding" && ! echo "$line" | grep -q "ac-grinder" \
+  && ok "a signed evidence comment reads as its verdict line alone" || bad "signed comment: $line"
 comments 1 "$(c 'the reviewer will post cadence-review: SHIP · sonnet · code · 0 here' "$BEFORE" "$BEFORE")"
 out=$(run --pr 1); [ "$(rowstat "$out" review)" = FAIL ] && ok "a verdict mentioned mid-line is not a review" || bad "mid-line verdict: $out"
 comments 1 "$(c 'cadence-review: SHIP · sonnet · code · 0 findings' "$BEFORE" "$BEFORE")"
