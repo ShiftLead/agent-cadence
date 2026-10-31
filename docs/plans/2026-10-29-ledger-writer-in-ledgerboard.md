@@ -120,7 +120,7 @@ Review record (revision 11):
 
 ## ShiftLead
 
-After vendoring v2.2, ShiftLead writes through ledgerboard directly or calls `ledger.py`, its choice. agent-cadence's TD-202 files that as a new shiftlead entry (its id from ShiftLead's own counter); TD-202 itself is the agent-cadence entry for the rule.
+After vendoring v2.2, ShiftLead writes through ledgerboard directly or calls `ledger.py`, its choice. *(Superseded 2026-10-30 by Paul: ShiftLead's code calls `ledger.py` and `board.py` for every ledger or board edit, never ledgerboard's writers directly; shiftlead#TD-1286, TD-206.)* agent-cadence's TD-202 files that as a new shiftlead entry (its id from ShiftLead's own counter); TD-202 itself is the agent-cadence entry for the rule.
 
 **Note:** ShiftLead's ledger declares `Fields:`. Today an undeclared `Taken by` is an error there under `--since`, which is why `Id take` ships as a cadence field in v2.2. Until agent-cadence's `new` writes `Id take` (TD-188's consumer side), it writes `Taken by`, so in ShiftLead `new` would refuse its own entry: ShiftLead declares `Taken by` or waits for that before using `new`. The shiftlead entry TD-202 files says so.
 
