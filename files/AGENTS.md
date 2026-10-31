@@ -30,7 +30,7 @@ it could not resolve the pin (it says why); tell the user, since the hooks did n
 
 The working rules are `docs/cadence.md` (in a pinned repo, the file `agent-cadence path cadence.md`
 prints; with no launcher, `files/docs/cadence.md` in the `[agent-cadence]` `source` at its `ref`) — worktrees (§1), the ledger `docs/technical_debt.md`
-(or, split, `docs/ledger/`; §2), the attention board `docs/user_attention.md` (§3), and the review and merge loop (§4).
+(or, split, `docs/ledger/`, written only through `scripts/ledger.py`; §2, §2.12), the attention board `docs/user_attention.md` (§3), and the review and merge loop (§4).
 In a pinned repo the procedures below are in the pinned tree too
 (`agent-cadence path procedures/cadence.md`).
 Four procedures run on top of them, each a doc any agent follows (Claude Code, Codex and
