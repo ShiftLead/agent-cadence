@@ -98,11 +98,11 @@ without a PR. The rule is cadence.md §9.19.
 
 ## Install the launcher
 
-Once per machine, or in a cloud environment's setup script. Use the latest release tag in place of `main` once
-one exists:
+Once per machine, or in a cloud environment's setup script. The line installs release `v0.1.0`; when a newer
+tag exists, change the tag in the line:
 
 ```bash
-d=$(mktemp -d) && git clone -q --depth 1 --branch main https://github.com/ShiftLead/agent-cadence "$d" \
+d=$(mktemp -d) && git clone -q --depth 1 --branch v0.1.0 https://github.com/ShiftLead/agent-cadence "$d" \
   && mkdir -p ~/.local/bin && install -m 755 "$d/launcher/agent_cadence.py" ~/.local/bin/agent-cadence \
   && rm -rf "$d"   # ~/.local/bin must be on PATH
 ```
