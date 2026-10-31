@@ -150,7 +150,7 @@ judgement made is kept, and the rest comes back next run.
 ## 6. Back in the source repos
 
 Changing another repo is that repo's session's work (§3.7); this procedure edits nothing there
-itself. Per source repo, per run, write **one follow-up ledger entry** listing: memories to trim to
+itself. Per source repo, per run, write **one follow-up ledger entry** (in a split ledger, `ledger.py new`, cadence §2.12) listing: memories to trim to
 a pointer (`Now cadence §N.M` for a rule that went upstream; for one only in the person's layer,
 only in a repo the person alone works in — elsewhere the memory is still the repo's rule for
 everyone else, §7.13; ask the person, per repo, whether anyone else works in it); memories to delete (**covered-wrong**, or a pointer not worth keeping); and

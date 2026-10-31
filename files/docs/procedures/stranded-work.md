@@ -74,7 +74,7 @@ Find work that was identified, approved, or partially completed in a past sessio
 
 Group as: **STRANDED** (high confidence, with evidence: file:line, PR/commit, session id if known) / **AWAITING THE USER** (the `docs/user_attention.md` items with age and session id) / **AWAITING REVIEW** (open PRs past a day with no `cadence-review:` comment — number, author, age) / **STALE STATUS** (work done, ledger/memory line needs updating — offer to fix these inline) / **CLEARED** (checked, fine — brief). End with a one-line recommendation per STRANDED item: resume, or explicitly close as deprioritized (a decision, either way — never leave it dangling again).
 
-Fix STALE STATUS items directly when trivial (status lines, memory text). Never start the stranded work itself without the user's go-ahead — surfacing it IS the deliverable.
+Fix STALE STATUS items directly when trivial (status lines, memory text) — in a split ledger with `ledger.py note` or `set` (cadence §2.12), never by hand. Never start the stranded work itself without the user's go-ahead — surfacing it IS the deliverable.
 
 ## Stamp the sweep (final step, TD-12/TD-13)
 

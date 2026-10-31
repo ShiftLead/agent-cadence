@@ -1,6 +1,6 @@
 # Technical Debt
 
-Known issues, compromises, and deferred work. Add an entry any time a problem is identified but not immediately fixed — no exceptions, however small (see [`cadence.md`](cadence.md) §2).
+Known issues, compromises, and deferred work. Add an entry any time a problem is identified but not immediately fixed — no exceptions, however small (see [`cadence.md`](cadence.md) §2). Once this file is split into `docs/ledger/` (`scripts/ledger.py --split`), every entry is written with `scripts/ledger.py` — `new`, `set`, `note`, `edit`, `archive`, `reopen`, `renumber` — never by hand (§2.12).
 
 **This file holds open work only.** The summary table below lists exactly the entries that have a body in this file — one row each, no history. When an entry is fully resolved, move the whole body to [`technical_debt_archive.md`](technical_debt_archive.md), delete its summary row, and replace **Fix** with the resolution date plus a pointer to whichever doc/code now carries the lasting content. An entry that is only *partly* resolved stays here, with what shipped and what remains spelled out in its **Status**.
 
