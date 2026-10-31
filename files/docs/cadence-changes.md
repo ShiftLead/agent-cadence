@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-30 — A ledger entry your PR changes must be in canonical form
+Do: write entries with `ledger.py new`/`set`/`note`/`edit`/`archive`; after a hand edit run `ledger.py fmt TD-n` — the cadence check's `ledger` row (and `ledger.py --check --since`) now fails a changed entry out of form.
+See: cadence.md §2.12; TD-201.
+
 ## 2026-10-30 — Archive, reopen and renumber with `ledger.py archive`, `reopen` and `renumber`
 Do: in a split ledger, `ledger.py archive TD-n --why "…" --pr N` in place of a hand `git mv` and Status edit; `ledger.py reopen TD-n --why "…"` for the reverse; `ledger.py renumber TD-old` (its dependents' fields and the rank file follow; prose it names is yours to fix).
 See: cadence.md §2.6, §2.12; `ledger.py`'s docstring; TD-200.
