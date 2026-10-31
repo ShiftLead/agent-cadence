@@ -8,18 +8,16 @@ tests/one_name_allow.txt *
 
 # Frozen or historical files, kept whole: the append-only change log, the ledger's records (their
 # `dev-cadence#TD-NNN` refs name ids archived in the private repo), the plan, the vendored ledgerboard
-# release (byte-frozen until a release renames it, ledgerboard#TD-004) and the retired copy mode.
+# release's fixtures (a commit-subject case names the old repo; v2.2 renamed the module, ledgerboard#TD-004)
+# and the retired copy mode.
 files/docs/cadence-changes.md *
 docs/ledger/TD-*.md *
 docs/ledger/archive/TD-*.md *
 docs/plans/2026-10-29-hard-rename.md *
 # The review data records designs by the repo they were made in, the private predecessor among them.
 docs/review-data/* *
-files/scripts/ledgerboard.py *
 tests/ledgerboard/* *
 tests/fixtures/legacy_sync.sh *
-# The provenance test reads that release's own SYNCED FILE line.
-tests/test_sync_provenance.sh *(vendored by dev-cadence as files/*
 
 # The two prose forms that name the private predecessor repo, on any path.
 * *dev-cadence's private plan*

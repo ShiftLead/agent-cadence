@@ -163,7 +163,11 @@ check("cadence.md §2.12 names exactly CADENCE_FIELDS", m and [LG.field_key(x) f
       m.group(1) if m else "no §2.12 'The cadence defines `…`' phrase")
 g = re.search(r"^.*<!-- Entry template:\n\n## TD-001:[^\n]*\n\n(.*?)\n\n", tmpl, re.S | re.M)
 fields = LG.header_block(g.group(1)) if g else {}
-check("the seed template's header block reads as exactly CADENCE_FIELDS", sorted(fields) == sorted(LG.CADENCE_FIELDS), sorted(fields))
+# v2.2's two fields are written only where they apply (a defect's design, TD-204; a take's nonce, TD-188),
+# so a new entry's template leaves them out
+OPTIONAL = {"escaped from", "id take"}
+check("the seed template's header block reads as exactly CADENCE_FIELDS but the optional two",
+      sorted(fields) == sorted(set(LG.CADENCE_FIELDS) - OPTIONAL) and OPTIONAL <= set(LG.CADENCE_FIELDS), sorted(fields))
 m = re.search(r"`(Fields: [^`]+)`", tmpl)
 vocab, bad = LG.declared(m.group(1) + "\n") if m else ({}, ["no example"])
 check("the seed template's Fields: example parses", vocab and not bad, (vocab, bad))
