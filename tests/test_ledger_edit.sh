@@ -89,6 +89,12 @@ O2="$TMP/o2"; R2="$TMP/other"; mkrepo "$O2" "$R2"; echo "$R2" > "$AGENT_CADENCE_
 lp set TD-003 --blocked-by "other#TD-099" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'other has no TD-099' "$TMP/err" && grep -q fetch "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
   && ok "set refuses a cross-repo blocker its roster repo lacks, saying to fetch" || bad "xrepo (rc=$rc): $(cat "$TMP/err")"
+lp set TD-003 --field "blocked-BY=other#TD-099" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'other has no TD-099' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
+  && ok "the cross-repo check reads Blocked by however --field spells it" || bad "xrepo --field (rc=$rc): $(cat "$TMP/err")"
+lp set TD-003 --priority High --field "priority=Low" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 2 ] && grep -q 'given twice: priority' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
+  && ok "a field given twice, in any spelling, is a usage error" || bad "dup field (rc=$rc): $(cat "$TMP/err")"
 lp set TD-003 --blocked-by "other#TD-001" >/dev/null 2>"$TMP/err" && grep -qx '\*\*Blocked by:\*\* other#TD-001' "$L/TD-003.md" \
   && ok "set writes a cross-repo blocker its repo holds" || bad "xrepo present: $(cat "$TMP/err")"
 : > "$AGENT_CADENCE_REG_DIR/repos.txt"

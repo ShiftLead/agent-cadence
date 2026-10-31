@@ -986,14 +986,24 @@ def _field_flags(ap: argparse.ArgumentParser, helps: Mapping[str, str]) -> None:
 
 
 def _fields_given(ap: argparse.ArgumentParser, a: argparse.Namespace) -> list[tuple[str, str]]:
-    """(name, value) for each field flag given, in NEW_FIELDS order, then the --field ones."""
+    """(name, value) for each field flag given, in NEW_FIELDS order, then the --field ones; a field
+    named twice, in any spelling (``field_key``), is a usage error."""
     out = [(name, getattr(a, dest)) for dest, name in NEW_FIELDS if getattr(a, dest) is not None]
     for f in a.field:
         k, eq, v = f.partition("=")
         if not eq or not k.strip():
             ap.error(f"--field takes NAME=VALUE, not {f!r}")
         out.append((k.strip(), v))
+    keys = [field_key(n) for n, _ in out]
+    dup = sorted({k for k in keys if keys.count(k) > 1})
+    if dup:
+        ap.error(f"a field is given twice: {', '.join(dup)}")
     return out
+
+
+def _field_value(fields: list[tuple[str, str]], key: str) -> str | None:
+    """The value given for the field ``key`` (a ``field_key``), whatever its spelling, or None."""
+    return next((v for n, v in fields if field_key(n) == key), None)
 
 
 def _read_body(ap: argparse.ArgumentParser, flag: str, src: str) -> str:
@@ -1038,7 +1048,7 @@ def new(argv: list[str]) -> int:
     if isinstance(w, int):
         return w
     known = LB.heading_nums(w.text) | LB.heading_nums(w.arch)
-    if w.xrepo_refused(a.blocked_by):
+    if w.xrepo_refused(_field_value(fields, "blocked by")):
         return 1
 
     def render(tid: str, taken_by: str | None) -> str | None:
@@ -1115,7 +1125,7 @@ def edit(cmd: str, argv: list[str]) -> int:
         ap.error(f"an entry's id is TD-n, not {a.id!r}")
     kw: dict = {}
     if cmd == "set":
-        kw["fields"] = dict(_fields_given(ap, a))
+        kw["fields"] = dict(given := _fields_given(ap, a))
         if not kw["fields"]:
             ap.error("give at least one field to set")
     elif cmd == "note":
@@ -1142,7 +1152,7 @@ def edit(cmd: str, argv: list[str]) -> int:
         return w.say(cmd, f"refused — {e}", 1)
     tid = LB.entries(out)[0]["id"]
     was = (LB.entries(text)[0]["fields"].get("blocked by") or "") if cmd == "set" else ""
-    if (cmd == "set" and w.xrepo_refused(kw["fields"].get("Blocked by"), was)) or w.refused(tid, path.name, out):
+    if (cmd == "set" and w.xrepo_refused(_field_value(given, "blocked by"), was)) or w.refused(tid, path.name, out):
         return w.say(cmd, f"nothing was written to {path}", 1)
     if out != text:
         with open(path, "w", encoding="utf-8", newline="") as f:
