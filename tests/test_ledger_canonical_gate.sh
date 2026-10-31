@@ -4,7 +4,7 @@
 # fails, naming `ledger.py fmt TD-n`; the same edit after `fmt` passes; an untouched non-canonical
 # entry is never flagged; a body-only edit is judged; a file new in archive/ is judged; an entry
 # canonical() refuses fails naming the hand fix; a branch whose main moved on judges only its own
-# changes (from the merge-base).
+# changes (from the merge-base); the row does not judge a merged PR's form.
 # Offline: origin is a local bare repo; HOME/XDG and the roster are temp dirs.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -48,6 +48,11 @@ c=$(lp --check --since origin/main 2>&1); rc=$?
 r=$(row docs/ledger/TD-001.md)
 grep -q 'TD-001: .*ledger.py fmt TD-001' <<<"$r" && ! grep -q TD-002 <<<"$r" \
   && ok "the cadence check's ledger row fails it too" || bad "row hand: $r"
+m=$(cd "$DC/files/scripts" && python3 -c "
+import sys; import check_cadence as K
+errs, note = K.ledger_edit_check({'state': 'merged', 'merge_sha': sys.argv[2], 'files': ['docs/ledger/TD-001.md']}, sys.argv[1])
+print('\n'.join(errs))" "$W" "$(git -C "$W" rev-parse HEAD)")
+[ -z "$m" ] && ok "a merged PR is not judged on form (the sweep never fails one merged before the rule)" || bad "merged: $m"
 
 # --- the same edit after fmt passes.
 lp fmt TD-001 >/dev/null; commit fmt

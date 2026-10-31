@@ -93,8 +93,9 @@ never a fake pass):
               its merge-base with the default branch (merged: the merge commit against
               its parent). A bad field in an entry THIS PR changed or added fails the
               row with the flag's text; a ledger that was never clean does not; and
-              a v2 entry file THIS PR changed that is not in canonical form fails it,
-              naming `ledger.py fmt TD-n` (TD-201). A
+              a v2 entry file an OPEN PR changed that is not in canonical form fails
+              it, naming `ledger.py fmt TD-n` (TD-201; a merged one is not judged on
+              form, so the --since sweep does not fail PRs merged before the rule). A
               `<repo>#TD-NNN` this machine cannot resolve is named, never a fail (it is
               a fact about the machine's roster). Commits not in this clone, or no
               `ledger.py` beside this script: not checked, and the row says so.
@@ -1023,7 +1024,9 @@ def ledger_edit_check(pr, root):
     except L.N.FormatTooNew as e:
         return [], f"ledger fields not checked: {e}"
     recs = L.check(text, arch, before)
-    if not lp.endswith(".md"):   # TD-201: a v2 entry the PR changed, judged by its file's form
+    # TD-201: a v2 entry an open PR changed, judged by its file's form — a merged one is not: the
+    # sweep would fail every PR merged before the rule, which nobody can now amend
+    if not lp.endswith(".md") and pr["state"] != "merged":
         from pathlib import Path
         now_io, then_io = L.git_io(Path(root), new, "docs"), L.git_io(Path(root), old, "docs")
         if now_io is not None and then_io is not None:

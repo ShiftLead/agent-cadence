@@ -1545,7 +1545,9 @@ def main(argv: list[str] | None = None) -> int:
             recs += archive_loss_flags(text, arch, *(was or then))
             if v2 and root:   # judged against where the edit started, as the archive is (TD-201)
                 at = (lambda p: io[0](str(root / p))), (lambda p: io[1](str(root / p)))
-                recs += canonical_flags(_rel(ledger)[1], at, git_io(root, (fork or a.since).strip()))
+                start = git_io(root, (fork or a.since).strip())
+                if start is not None:   # unlisted: not judged, rather than every entry judged new
+                    recs += canonical_flags(_rel(ledger)[1], at, start)
             try:
                 recs += id_flags(ledger, archive, text, arch, a.since)
             except N.FormatTooNew as e:
