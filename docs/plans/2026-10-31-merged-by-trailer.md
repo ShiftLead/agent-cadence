@@ -8,7 +8,7 @@
 
 - **Authorship traces; the merge does not.** §9.9's `prepare-commit-msg` hook writes `Co-Authored-By: <AGENT_NAME> <…>` and `Agent-Model: <adapter>/<model>` (TD-181) on every agent commit. §4.2's squash keeps the commit messages in the body.
 - **The forge writes the squash commit.** Its committer is `GitHub <noreply@github.com>`. Who pressed merge lives only in the forge's PR data, under an account that sessions and the person share.
-  - On 2026-10-28 dev-cadence #429 was held for Paul's merge under his §4.11 rule, and it read as merged by that account. git could not say whether Paul or a session had merged it.
+  - On 2026-10-28 #429 in the private dev-cadence repo was held for Paul's merge under his §4.11 rule, and it read as merged by that account. git could not say whether Paul or a session had merged it.
 - **What GitHub's squash body holds today** (this repo's #55, `git log -1 origin/main` on 2026-10-31):
   - each commit's message as `* <subject>`, then its body, with that commit's own trailer paragraph;
   - then a `---------` line;
