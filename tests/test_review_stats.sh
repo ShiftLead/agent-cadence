@@ -60,6 +60,11 @@ rec "$A/docs/reviews/TD-003.md" in-repo "$RECENT" backfill <<'EOF'
 | F2 | 1 | R1 | ? | (not recorded) | unlabelled | ? |
 | F3 | 1 | R1 | ? | (not recorded) | unlabelled | ? |
 EOF
+rec "$A/docs/reviews/TD-004.md" in-repo "$OLD" backfill <<'EOF'
+| review | round | role | model | tokens | date |
+|---|---|---|---|---|---|
+| R1 | 1 | design | sonnet? | ? | x |
+EOF
 rec "$B/docs/reviews/TD-005.md" wide "$OLD" rounds <<'EOF'
 | review | round | role | model | tokens | date |
 |---|---|---|---|---|---|
@@ -89,10 +94,12 @@ ent() {  # $1 id, $2 added, then extra header lines and body on stdin
   ent TD-016 "$TODAY" <<< $'**Part of:** TD-001\n\n**Why:** a build.'
   ent TD-017 "$OLD" <<< $'**Status:** Open.\n\n**Why:** an old one citing TD-001.'
   ent TD-018 "$TODAY" <<< $'**Escaped from:** nonsense!\n\n**Why:** broke.'
+  ent TD-019 "$TODAY" <<< $'**Escaped from:** TD-004\n\n**Why:** broke.'
 } > "$A/docs/technical_debt.md"
 printf '# archive\n' > "$A/docs/technical_debt_archive.md"
-printf '# ledger\n' > "$B/docs/technical_debt.md"
-{ printf '# archive\n'; ent TD-020 "$TODAY" <<< $'**Escaped from:** alpha#TD-002\n**Resolved:** '"$TODAY"$'\n\n**Why:** broke.'; } > "$B/docs/technical_debt_archive.md"
+mkdir -p "$B/docs/ledger/archive"   # beta's ledger is v2: one file per entry
+printf '# ledger\n' > "$B/docs/ledger/README.md"
+ent TD-020 "$TODAY" <<< $'**Escaped from:** alpha#TD-002\n**Resolved:** '"$TODAY"$'\n\n**Why:** broke.' | sed '1d' > "$B/docs/ledger/archive/TD-020.md"
 
 snap() { find "$TMP/repos" -type f -exec sha256sum {} + | sort; }
 before=$(snap)
@@ -104,7 +111,7 @@ q() { python3 -c "import json,sys; D=json.load(open(sys.argv[1])); R={(r['repo']
 out=$(python3 "$RS" 2>&1); rc=$?
 [ "$rc" = 0 ] && [ -f "$J" ] && [ -f "$OUT/design-rounds.md" ] && [ -f "$OUT/trial.md" ] && [ "$(snap)" = "$before" ] \
   && ok "1 output lands in review-stats/ beside the roster; no repo file changes" || bad "1 rc=$rc $out"
-[ "$(q 'len(D)')" = 4 ] && ok "1b one row per record over both repos" || bad "1b $(q 'len(D)')"
+[ "$(q 'len(D)')" = 5 ] && ok "1b one row per record over both repos" || bad "1b $(q 'len(D)')"
 
 # 2. a record's tables: design reviews, fact-checks apart, a clean review, build-changing per round
 [ "$(q "R['alpha','TD-001']['reviews'], R['alpha','TD-001']['fact_checks'], R['alpha','TD-001']['rounds']")" = "4 2 2" ] \
@@ -135,11 +142,11 @@ grep -qF '| alpha#TD-011 | `TD-009` | unresolved |' "$md" && grep -qF '| alpha#T
   && ok "5b an unresolved, an unreadable and an out-of-scope value are each listed" || bad "5b"
 [ "$(q "[d['where'] for d in R['alpha','TD-001']['post_build_defects']], [d['where'] for d in R['beta','TD-005']['post_build_defects']], [d['where'] for d in R['alpha','TD-002']['post_build_defects']]")" \
   = "['alpha#TD-010'] ['alpha#TD-013'] ['beta#TD-020']" ] \
-  && ok "5c only resolved escapes attach to designs, archived defects included" || bad "5c"
+  && ok "5c only resolved escapes attach to designs, archived defects in a v2 ledger included" || bad "5c"
 
 # 6. escape rates: aged rounds designs only; pending/young and backfill listed apart
-grep -qF '| in-repo | 1 | 1 | 1/1 (100%) | 0 | 1 |' "$md" && grep -qF '| wide | 1 | 1 | 1/1 (100%) | 1 | 0 |' "$md" \
-  && ok "6 escape rate over aged rounds designs; a pending design and a backfill record are not rated" || bad "6 $(grep -A4 '^## Escapes' "$md")"
+grep -qF '| in-repo | 1 | 1 | 1/1 (100%) | 0 | 2 |' "$md" && grep -qF '| wide | 1 | 1 | 1/1 (100%) | 1 | 0 |' "$md" \
+  && ok "6 escape rate over aged rounds designs; a pending design and an aged backfill record with an escape are not rated" || bad "6 $(grep -A4 '^## Escapes' "$md")"
 
 # 7. --candidates: a citing defect, the Part of: hop, a design with no record; --since compares Added:
 c=$(python3 "$RS" --candidates --json)
@@ -147,17 +154,20 @@ cq() { python3 -c "import json,sys; c=json.loads(sys.argv[1]); print($1)" "$c"; 
 [ "$(cq "sorted((x['id'], x['design'], x['where'], x['via']) for x in c['cites'] if x['id'] in ('TD-014', 'TD-015'))")" \
   = "[('TD-014', 'alpha#TD-001', 'Why', None), ('TD-015', 'alpha#TD-001', 'Why', 'TD-016 (Part of: TD-001)')]" ] \
   && ok "7 a defect citing a design, and one citing a build whose Part of: names it (the hop shown)" || bad "7 $(cq "c['cites']")"
+[ "$(cq "[(x['id'], x['where']) for x in c['cites'] if x['id'] == 'TD-016']")" = "[('TD-016', 'Part of')]" ] \
+  && ok "7a a citation in a header field names the field" || bad "7a"
 [ "$(cq "[x['id'] for x in c['cites'] if x['id'] in ('TD-010', 'TD-013')]")" = "[]" ] \
   && ok "7b an entry already carrying Escaped from: is no candidate" || bad "7b"
 [ "$(cq "[(x['id'], x['design']) for x in c['designs_without_record']]")" = "[('TD-011', 'alpha#TD-009')]" ] \
   && ok "7c an Escaped from: design with no record file is listed" || bad "7c $(cq "c['designs_without_record']")"
-c=$(python3 "$RS" --candidates --since "$(day 5)" --json)
+c=$(python3 "$RS" --candidates --since "$(day 29)" --json)
 [ "$(cq "'TD-017' in [x['id'] for x in c['cites']], 'TD-014' in [x['id'] for x in c['cites']]")" = "False True" ] \
-  && ok "7d --since keeps entries Added on or after the date" || bad "7d"
+  && c=$(python3 "$RS" --candidates --since "$OLD" --json) && [ "$(cq "'TD-017' in [x['id'] for x in c['cites']]")" = True ] \
+  && ok "7d --since keeps entries Added on or after the date, the day itself included" || bad "7d"
 
 # 8. --repo limits the scope
 python3 "$RS" --repo "$A" >/dev/null 2>&1
-[ "$(q 'len(D)')" = 3 ] && grep -qF '| alpha#TD-013 | `BETA#td-5` | out of scope |' "$md" \
+[ "$(q 'len(D)')" = 4 ] && grep -qF '| alpha#TD-013 | `BETA#td-5` | out of scope |' "$md" \
   && ok "8 --repo reads one repo; another repo's design is out of scope" || bad "8 $(q 'len(D)')"
 
 # 9. stateless: an Escaped from: added after a run is counted by the next
@@ -180,7 +190,7 @@ cp "$J" "$F/design-rounds.json"
 (cd "$F" && python3 aggregate.py >/dev/null && python3 trial_rules.py >/dev/null) || bad "10 the frozen scripts did not run"
 agg() { grep -E '^\| (in-repo|wide) \| [0-9]+ \| [^|]+ / [^|]+ / [^|]+ \| [^|]+ / [^|]+ / [^|]+ \|$|^- \*\*(Distribution of|In-repo rounds within|Wide rounds within)' "$1"; }
 l3()  { grep '^- \*\*Median last review' "$1" | sed 's/.*): in-repo/in-repo/'; }
-[ -n "$(agg "$md")" ] && [ "$(agg "$md")" = "$(agg "$F/design-rounds.md" | head -n "$(agg "$md" | wc -l)")" ] \
+[ -n "$(agg "$md")" ] && [ "$(agg "$md")" = "$(agg "$F/design-rounds.md")" ] \
   && [ "$(l3 "$md")" = "$(l3 "$F/design-rounds.md")" ] \
   && ok "10 the aggregates match aggregate.py's" || bad "10 port:
 $(agg "$md"; l3 "$md")
@@ -195,6 +205,39 @@ $p
 frozen:
 $f"
 done
+
+# 10c. Age is strictly more than --aged days (TD-001 was Decided 30 days ago)
+python3 "$RS" --aged 30 >/dev/null 2>&1; a30=$(q "R['alpha','TD-001']['aged']")
+python3 "$RS" --aged 29 >/dev/null 2>&1; a29=$(q "R['alpha','TD-001']['aged']")
+[ "$a30 $a29" = "False True" ] && ok "10c a design Decided exactly --aged days ago is not aged yet" || bad "10c $a30 $a29"
+
+# 10d. each repo's caps: beta's design-rounds-wide 1 ends TD-005 at the cap; alpha keeps the defaults
+printf 'design-rounds-wide = 1\ndesign-rounds = "x"\n' > "$B/docs/cadence.toml"
+python3 "$RS" >/dev/null 2>&1
+[ "$(q "R['beta','TD-005']['caps'], R['alpha','TD-001']['caps']")" = "{'in-repo': 4, 'wide': 1} {'in-repo': 4, 'wide': 6}" ] \
+  && grep -qE '^\| wide \| TD-005 [^|]*\| 2 \| 1 \| 2 \| cap \| 1 \|' "$OUT/trial.md" \
+  && ok "10d the trial runs each design at its repo's caps; a bad key falls back alone" || bad "10d $(q "R['beta','TD-005']['caps']") $(grep TD-005 "$OUT/trial.md")"
+rm "$B/docs/cadence.toml"
+
+# 10e. bad input is reported, never a crash: a Decided that is no date, a round 0 row, a repeated
+# review id, an unreadable record an escape names; and --repo resolves its own <repo># off the roster
+X="$TMP/repos/delta"; mkdir -p "$X/docs/reviews"
+rec "$X/docs/reviews/TD-001.md" in-repo 2026-13-45 rounds <<'EOF'
+| review | round | role | model | tokens | date |
+|---|---|---|---|---|---|
+| R1 | 0 | design | m | 5 | x |
+| R2 | 1 | design | m | 7 | x |
+| R2 | 1 | design | m | 1000 | x |
+EOF
+printf '# Review record\n\n**Class:**\n' > "$X/docs/reviews/TD-002.md"
+{ printf '# ledger\n'; ent TD-010 "$TODAY" <<< $'**Escaped from:** delta#TD-1'; ent TD-011 "$TODAY" <<< $'**Escaped from:** TD-002'; } > "$X/docs/technical_debt.md"
+out=$(python3 "$RS" --repo "$X" 2>&1); rc=$?
+[ "$rc" = 0 ] && [ "$(q "R['delta','TD-001']['decided'], R['delta','TD-001']['reviews'], R['delta','TD-001']['tokens_by_model']")" = "pending 1 {'m': 7}" ] \
+  && grep -q "is no date" "$OUT/design-rounds.md" && grep -q "twice" "$OUT/design-rounds.md" && grep -q "R1 | 0 |" "$OUT/design-rounds.md" \
+  && ok "10e a bad date, a round 0 and a repeated review id are reported, the rest read" || bad "10e rc=$rc $out"
+grep -qF '| delta#TD-010 | `delta#TD-1` | resolved | delta#TD-001 |' "$OUT/design-rounds.md" \
+  && grep -qF '| delta#TD-011 | `TD-002` | unresolved |' "$OUT/design-rounds.md" \
+  && ok "10f --repo resolves its own <repo># off the roster; an escape naming an unreadable record is unresolved" || bad "10f $(grep '^| delta' "$OUT/design-rounds.md")"
 
 # 11. usage: no roster, a --repo that is no directory
 AGENT_CADENCE_REG_DIR="$TMP/none" python3 "$RS" >/dev/null 2>&1; rc1=$?

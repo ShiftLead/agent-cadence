@@ -83,6 +83,7 @@ LABEL_RE = re.compile(r"^\*\*([A-Za-z][^*:\n]*?)(?::\*\*|\*\*)", re.M)  # **Why:
 CLASSES = ("in-repo", "wide")
 FINDING_CLASSES = ("build-changing", "minor", "unlabelled")
 VARIANTS = ("primary", "strict")
+MAX_ROUND = 99  # a round cell past this is a typo (a date), not a round
 
 
 # ---------------------------------------------------------------- reading
@@ -128,10 +129,19 @@ def read_record(path: Path, repo: str, td: int) -> tuple[dict | None, list[str]]
         source = "rounds"
     dm = DATE_RE.match(head.get("decided") or "")
     decided = dm.group(0) if dm else "pending"
+    if dm:
+        try:
+            dt.date.fromisoformat(decided)
+        except ValueError:
+            probs.append(f"{path}: Decided {decided!r} is no date (read as pending)")
+            decided = "pending"
     reviews: dict[str, dict] = {}
     for c in table_rows(text, "review"):
-        if len(c) < 6 or not re.fullmatch(r"R\d+", c[0]) or not c[1].isdigit():
+        if len(c) < 6 or not re.fullmatch(r"R\d+", c[0]) or not c[1].isdigit() or not 1 <= int(c[1]) <= MAX_ROUND:
             probs.append(f"{path}: Reviews row {' | '.join(c)!r} not read")
+            continue
+        if c[0] in reviews:
+            probs.append(f"{path}: {c[0]} is in the Reviews table twice (the first row read)")
             continue
         role = c[2].lower()
         if role not in ("design", "fact-check"):
@@ -222,7 +232,8 @@ class Scope:
             norm = f"{x.group(1)}#TD-{x.group(2)}"
             if not LB.XREPO_ITEM_RE.match(norm):
                 return "unresolved", None, None, f"cannot read {value!r}"
-            found, why = self.roster._find(x.group(1))
+            mine = [r for r in self.roots if r.name.lower() == x.group(1).lower()] if "/" not in x.group(1) else []
+            found, why = (mine[0], "") if len(mine) == 1 else self.roster._find(x.group(1))
             if found is None:
                 return "out of scope", None, int(x.group(2)), why
             root, n = found.resolve(), int(x.group(2))
@@ -254,6 +265,8 @@ def build_rows(scope: Scope, aged_days: int, today: dt.date) -> tuple[list[dict]
                 continue
             value = raw_word(raw)
             state, droot, dn, why = scope.resolve(root, value)
+            if state == "resolved" and (str(droot), dn) not in rows:
+                state, why = "unresolved", f"its record {scope.records[(str(droot), dn)]} could not be read (see Not read as written)"
             esc = {"repo": root.name, "id": e["id"], "title": e["title"], "archived": e["archived"], "value": value,
                    "state": state, "why": why, "design": f"{Path(droot).name}#TD-{dn:03d}" if droot and dn is not None else None}
             escapes.append(esc)
@@ -308,10 +321,13 @@ def repo_caps(root: str) -> dict:
     """{in-repo: design-rounds, wide: design-rounds-wide} as cadence_config resolves them for ``root``."""
     if root not in _CAPS:
         files = C.sources(root)
-        try:
-            _CAPS[root] = {"in-repo": int(C.resolve("design-rounds", files)[0]), "wide": int(C.resolve("design-rounds-wide", files)[0])}
-        except (C.ConfigError, TypeError, ValueError):
-            _CAPS[root] = {"in-repo": int(C.KEYS["design-rounds"][0]), "wide": int(C.KEYS["design-rounds-wide"][0])}
+        caps = {}
+        for cls, key in (("in-repo", "design-rounds"), ("wide", "design-rounds-wide")):
+            try:
+                caps[cls] = int(C.resolve(key, files)[0])
+            except (C.ConfigError, TypeError, ValueError):   # a bad value: that key's default, the other kept
+                caps[cls] = int(C.KEYS[key][0])
+        _CAPS[root] = caps
     return _CAPS[root]
 
 
