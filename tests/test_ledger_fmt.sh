@@ -138,6 +138,17 @@ else
   bad "fmt TD-3 (rc=$rc): $out"
 fi
 
+# --- 5b) A file that is not UTF-8 is refused by name, not a traceback; the rest are still formatted.
+printf '## TD-006: bad byte \xff\n**Priority:** Low\n' > "$L/TD-006.md"; cp "$L/TD-006.md" "$TMP/td6.before"
+out=$(fmt 2>"$TMP/err"); rc=$?
+if [ $rc -eq 1 ] && grep -q 'TD-006.md: refused, left alone — not UTF-8' "$TMP/err" && ! grep -q Traceback "$TMP/err" \
+   && cmp -s "$L/TD-006.md" "$TMP/td6.before" && [ "$(sed -n 2p "$L/TD-001.md")" = '' ]; then
+  ok "a file that is not UTF-8 is refused by name and left alone; the others are formatted"
+else
+  bad "fmt on a non-UTF-8 file (rc=$rc): $(cat "$TMP/err")"
+fi
+rm "$L/TD-006.md"
+
 # --- 6) Unknown id, a bad id, and a v1 ledger: exit 2, nothing written.
 before=$(sums)
 fmt TD-99 >/dev/null 2>"$TMP/err"; rc=$?

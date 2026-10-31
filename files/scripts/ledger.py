@@ -827,10 +827,15 @@ def fmt(argv: list[str]) -> int:
                  for n in LB._entry_names(io[0](str(ledger / d)) or [])]
     changed, refused = [], 0
     for p in paths:
-        with open(p, encoding="utf-8", newline="") as f:  # newline="": a CRLF file is one fmt changes
-            text = f.read()
         try:
+            with open(p, encoding="utf-8", newline="") as f:  # newline="": a CRLF file is one fmt changes
+                text = f.read()
             out = LB.canonical(text)
+        except UnicodeDecodeError as e:
+            print(f"ledger: fmt: {p}: refused, left alone — not UTF-8 ({e.reason} at byte {e.start}): fix it by hand",
+                  file=sys.stderr)
+            refused += 1
+            continue
         except LB.Refused as e:
             print(f"ledger: fmt: {p}: refused, left alone — {e}", file=sys.stderr)
             refused += 1
