@@ -65,7 +65,9 @@ undeclared-field, rank (a rank file line), prose-wait (TD-166: a header field th
 while its Blocked by does not), no-ask (TD-122: an entry waiting on the person — Owner: person or a
 decision holder's name, decision (<who>), an **Answers:** line — with no **Ask:** line in its body), and the ids' id-untaken, id-taken-by, id-before-counter,
 id-no-taken-by, id-branch, id-counter; with ``--since``, archive-loss (an id archived at REF that is now in
-neither the ledger nor the archive, TD-179) and archive-reopened (ℹ: one back in the ledger). ``check_cadence.py``'s ``ledger`` row runs the same field check on a PR's ledger edit.
+neither the ledger nor the archive, TD-179), archive-reopened (ℹ: one back in the ledger) and, in a v2
+ledger, not-canonical (TD-201: an entry file that differs from the merge-base's, or is new, and is not in
+ledgerboard's canonical form — it names ``ledger.py fmt TD-n``, or the hand fix for one ``canonical()`` refuses). ``check_cadence.py``'s ``ledger`` row runs the same field check on a PR's ledger edit.
 
 ``--summary`` prints the summary table a v2 ledger does not store (TD-160): one row per entry in
 pick order, its state derived (pickable, or what blocks it). ``--split`` migrates a v1 ledger to v2:
@@ -501,6 +503,33 @@ def ask_flags(ledger: str, archive: str, old: str | None = None) -> list[dict]:
              "text": f"ℹ {tid} waits on the person ({why}) with no **Ask:** line in its body — one sentence a cold "
                      "reader can decide from (cadence.md §2.3)"}
             for tid, why in ask_missing(ledger, archive).items()]
+
+
+def canonical_flags(rel: str, now: tuple[LB.Ls, LB.Read], then: tuple[LB.Ls, LB.Read] | None) -> list[dict]:
+    """TD-201: an error for each entry file of the v2 ledger ``rel`` that ``now`` holds and ``then`` (the
+    ref the edit started at) does not hold the same — new, a file new in ``archive/`` included — and
+    that is not in canonical form, naming the command that writes it; a file ``canonical()`` refuses is
+    an error naming its hand fix. Changed means the file, not its header block, so a body edit is
+    judged; an entry the edit did not touch never is. Line endings are not judged here: both readers
+    give ``\\n`` (TD-187)."""
+    recs = []
+    for d in (rel, f"{rel}/{LB.LEDGER_ARCHIVE}"):
+        for name in LB._entry_names(now[0](d) or []):
+            p = f"{d}/{name}"
+            text = now[1](p)
+            if text is None or (then is not None and then[1](p) == text):
+                continue
+            tid = name[:-3]
+            try:
+                ok, why = LB.canonical(text) == text, ""
+            except LB.Refused as e:
+                ok, why = False, f"{e}; fix it by hand, then `ledger.py fmt {tid}`"
+            if not ok:
+                recs.append({"level": "error", "id": tid, "field": None, "kind": "not-canonical", "standing": False,
+                             "text": f"⚠ {tid}: " + (why or f"{p} is not in canonical form — `ledger.py fmt {tid}` "
+                                                     "writes it; a change made with `ledger.py set`, `note` or "
+                                                     "`edit` is written so (cadence.md §2.12)")})
+    return recs
 
 
 def archive_loss_flags(ledger: str, archive: str, old_ledger: str | None, old_archive: str | None) -> list[dict]:
@@ -1514,6 +1543,9 @@ def main(argv: list[str] | None = None) -> int:
             fork = _git(root, "merge-base", a.since, "HEAD") if root else None
             was, _ = _at_ref(ledger, fork.strip(), None if v2 else archive) if fork else (None, "")
             recs += archive_loss_flags(text, arch, *(was or then))
+            if v2 and root:   # judged against where the edit started, as the archive is (TD-201)
+                at = (lambda p: io[0](str(root / p))), (lambda p: io[1](str(root / p)))
+                recs += canonical_flags(_rel(ledger)[1], at, git_io(root, (fork or a.since).strip()))
             try:
                 recs += id_flags(ledger, archive, text, arch, a.since)
             except N.FormatTooNew as e:
