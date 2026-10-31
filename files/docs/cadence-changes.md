@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-30 — An entry has one canonical form; `ledger.py fmt` writes it
+Do: after editing a ledger entry by hand, run `ledger.py fmt TD-n` (header fields in SPEC's order: Priority, Type, Added, Owner, Kind, Status, Taken by, Id take, Blocked by, Waits, Part of, Location, then any other); archive in SPEC's form (Status `Resolved YYYY-MM-DD: why`, Fix → `**Resolved:** YYYY-MM-DD (PR #n) — <pointer>`).
+See: cadence.md §2.8 and §2.12; ledgerboard SPEC *Ledger entries and their edits* (v2.2); TD-197.
+
 ## 2026-10-30 — A design's review record is its own file, `docs/reviews/TD-NNN.md`
 Do: when a plan runs design review rounds, keep its record in `docs/reviews/TD-<design's TD>.md`, never in the plan: header `Design:`, `Class:`, `Decided:` (date or `pending`), `Source: rounds`, then a Reviews table (`review | round | role | model | tokens | date`, every completed review with its exact model id and token total, or `?` where the runner gives none) and the findings table with `by` naming the review (`R2`). Until TD-204 is built, this overrides §4.8's and adr-template.md's in-plan *Review record*.
 See: ADR docs/plans/2026-10-30-review-outcomes.md (agent-cadence; example docs/reviews/TD-204.md); TD-204.

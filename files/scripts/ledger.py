@@ -5,6 +5,7 @@
 
     ledger.py --pickable [--ledger PATH] [--archive PATH] [--json]
     ledger.py --summary | --split
+    ledger.py fmt [TD-n …] [--check]
 
 An entry may carry one optional field, between **Status:** and **Location:** (cadence.md §2):
 
@@ -73,12 +74,20 @@ Its links are rewritten for their new place (TD-176), entry anchors into the v1 
 entries' files there and in the repo's other Markdown, and the archive's summary kept frozen (TD-185).
 Commit the result as its own PR.
 
+``fmt`` (TD-197) writes each entry of a v2 ledger — the ones named, else every one in the ledger and
+its archive — in ledgerboard's canonical form (``canonical()``, SPEC *Ledger entries and their edits*):
+the heading, the header block in its field order, the body byte for byte, LF line endings. An entry
+``canonical()`` refuses is named with its hand fix and left alone. ``--check`` prints the entries that
+would change and writes nothing. Exit 1 when an entry was refused, or under ``--check`` would change;
+2 for a v1 ledger (split first), an id in neither directory, or a ledger ``v2_problems()`` faults.
+
 The ledger is a v1 file or a v2 directory (ledgerboard SPEC *The ledger as a directory*, TD-160), and
 every read goes through ledgerboard's ``load()``: here with the file system, at a revision (``--since``,
 a roster repo's ``origin/<default>``) with ``git_io()`` — one ``ls-tree``, one ``cat-file --batch`` per
 directory. A v2 ledger that ``v2_problems()`` faults is not read (exit 2). Defaults: ``docs/ledger/``
 when that directory exists, else ``docs/technical_debt.md`` and ``docs/technical_debt_archive.md``, at
-the top of the git work tree the command runs in; ``--archive`` applies to a v1 ledger only. Read-only, and offline except where ``--check --since``'s edit
+the top of the git work tree the command runs in; ``--archive`` applies to a v1 ledger only. Read-only but
+for ``--split`` and ``fmt``, and offline except where ``--check --since``'s edit
 adds an id: then it asks origin for the counter (``git ls-remote``, and a fetch of its tracking ref). Exit 0 (``--check``: 1 on an error);
 2 when the ledger, or ``--since``'s ref, cannot be read or the arguments are unusable, or the
 ledger or archive declares a newer major of the format than ``ledgerboard.py`` reads
@@ -785,7 +794,63 @@ def split(ledger: Path, archive: Path, v2: bool) -> int:
     return 0
 
 
+def fmt(argv: list[str]) -> int:
+    """``ledger.py fmt``: put entries in canonical form (ledgerboard's ``canonical()``, TD-197)."""
+    ap = argparse.ArgumentParser(prog="ledger.py fmt",
+                                 description="write each entry of a v2 ledger in canonical form (ledgerboard SPEC)")
+    ap.add_argument("ids", nargs="*", metavar="TD-n", help="the entries to format; default: every entry, open and archived")
+    ap.add_argument("--check", action="store_true", help="print the entries that would change and exit 1; write nothing")
+    ap.add_argument("--ledger", help="a v2 directory; default: docs/ledger/ at the work tree's top")
+    a = ap.parse_args(argv)
+    for t in a.ids:
+        if not ID_ITEM_RE.match(t):
+            ap.error(f"an entry's id is TD-n, not {t!r}")
+    ledger = Path(a.ledger) if a.ledger else _toplevel() / LEDGER_DIR_REL
+    io = fs_io()
+    if io[0](str(ledger)) is None:
+        print(f"ledger: fmt: {ledger} is not a v2 directory — a v1 ledger: `ledger.py --split` first", file=sys.stderr)
+        return 2
+    why = v2_unread(str(ledger), io)
+    if why:
+        print(f"ledger: fmt: not read — {ledger}: {why}", file=sys.stderr)
+        return 2
+    if a.ids:
+        paths = []
+        for t in a.ids:
+            p = LB.entry_path(str(ledger), t, io[0])
+            if p is None:
+                print(f"ledger: fmt: {t} is in neither {ledger} nor its archive", file=sys.stderr)
+                return 2
+            paths.append(Path(p))
+    else:
+        paths = [ledger / d / n for d in ("", LB.LEDGER_ARCHIVE)
+                 for n in LB._entry_names(io[0](str(ledger / d)) or [])]
+    changed, refused = [], 0
+    for p in paths:
+        with open(p, encoding="utf-8", newline="") as f:  # newline="": a CRLF file is one fmt changes
+            text = f.read()
+        try:
+            out = LB.canonical(text)
+        except LB.Refused as e:
+            print(f"ledger: fmt: {p}: refused, left alone — {e}", file=sys.stderr)
+            refused += 1
+            continue
+        if out != text:
+            changed.append(p)
+            if not a.check:
+                with open(p, "w", encoding="utf-8", newline="") as f:
+                    f.write(out)
+    for p in changed:
+        print(f"{'would change' if a.check else 'formatted'}: {p}")
+    print(f"ledger fmt: {len(paths)} entr{'y' if len(paths) == 1 else 'ies'}, {len(changed)} "
+          f"{'would change' if a.check else 'formatted'}, {refused} refused")
+    return 1 if refused or (a.check and changed) else 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["fmt"]:
+        return fmt(argv[1:])
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--pickable", nargs="?", const=True, default=None, metavar="yes|no",
                     help="alone: print the pick order, the blocked entries and the flags; "
