@@ -98,8 +98,8 @@ without a PR. The rule is cadence.md §9.19.
 
 ## Install the launcher
 
-Once per machine, or in a cloud environment's setup script. The line installs from the latest release tag
-(`v0.1.0` today); use a newer tag when there is one:
+Once per machine, or in a cloud environment's setup script. The line installs release `v0.1.0`; when a newer
+tag exists, change the tag in the line:
 
 ```bash
 d=$(mktemp -d) && git clone -q --depth 1 --branch v0.1.0 https://github.com/ShiftLead/agent-cadence "$d" \
