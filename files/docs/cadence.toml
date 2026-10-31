@@ -64,6 +64,11 @@
 # design-rounds = "4"
 # design-rounds-wide = "6"
 
+# Whether this repo tracks what its design reviews missed (§2.13, TD-204): "on" makes
+# ledger_next_id.py ask, each time it hands out ids, whether a design missed the defect being filed
+# (then `**Escaped from:** <design TD>`); turning it on, run the backfill once (§2.13). Off is cheapest.
+# review-outcomes = "off"
+
 # --- this repo's own checks, run on a PR's head before the merge (TD-117, cadence.md §4.12):
 # read from this file only, never env or the machine's. The merge gate runs
 # `scripts/precheck.py --pr <n>`: this command, from the root of a clean worktree at the PR's

@@ -163,10 +163,10 @@ check("cadence.md §2.12 names exactly CADENCE_FIELDS", m and [LG.field_key(x) f
       m.group(1) if m else "no §2.12 'The cadence defines `…`' phrase")
 g = re.search(r"^.*<!-- Entry template:\n\n## TD-001:[^\n]*\n\n(.*?)\n\n", tmpl, re.S | re.M)
 fields = LG.header_block(g.group(1)) if g else {}
-# v2.2's two fields are written only where they apply (a defect's design, TD-204; a take's nonce, TD-188),
-# so a new entry's template leaves them out
-OPTIONAL = {"escaped from", "id take"}
-check("the seed template's header block reads as exactly CADENCE_FIELDS but the optional two",
+# Id take is written only by the counter's take (TD-188), so a new entry's template leaves it out;
+# Escaped from (TD-204) is in it, marked optional
+OPTIONAL = {"id take"}
+check("the seed template's header block reads as exactly CADENCE_FIELDS but Id take",
       sorted(fields) == sorted(set(LG.CADENCE_FIELDS) - OPTIONAL) and OPTIONAL <= set(LG.CADENCE_FIELDS), sorted(fields))
 m = re.search(r"`(Fields: [^`]+)`", tmpl)
 vocab, bad = LG.declared(m.group(1) + "\n") if m else ({}, ["no example"])

@@ -30,6 +30,7 @@ An entry's fields are the `**Name:** value` lines right under its heading, up to
 **Blocked by:** (optional) TD-NNN or <repo>#TD-NNN, … then decision (<who>) and a pointer — omit when nothing blocks it; pickable is derived (cadence.md §2)
 **Part of:** (optional) TD-NNN — the one parent in this ledger (a design, for its builds); the parent waits on its open parts, so it never lists them in its Blocked by (cadence.md §2.4)
 **Location:** `path/to/file.py` (function/section)
+**Escaped from:** (optional, a defect only) TD-NNN or <repo>#TD-NNN — the design whose review should have caught it; omit when the build, not the design, got it wrong (cadence.md §2.13); after Location, where `ledger.py fmt` keeps it
 
 **Why:** what's wrong, how it was found, and the reasoning — future sessions need the why, not just the symptom.
 

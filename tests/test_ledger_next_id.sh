@@ -429,5 +429,35 @@ kinds=$(python3 -c 'import json,sys; print(",".join(f["kind"] for f in json.load
   && ! grep -q "TD-127 taken by" <<< "$out" \
   && ok "20 a by that is a UUID or an address: an ℹ line keyed id-by-unhashed, naming those ids alone" || bad "20 rc=$rc kinds=$kinds $out"
 
+# 21. TD-204: review-outcomes on asks the filing question, last on stderr, on every hand-out of ids
+# (exit 0 and 3, --json too) and never on --claim or a refusal; stdout stays the ids
+Q="ledger_next_id: if this entry is a defect, did a design miss it? then \`**Escaped from:** <design TD>\` (cadence §2.13)"
+mkrepo "$O" "$W"
+out=$(take "$W"); rc=$?
+[ "$rc" = 0 ] && ! grep -qF "did a design miss it" "$TMP/err" && ok "21 review-outcomes unset (off): no question" || bad "21 rc=$rc $(cat "$TMP/err")"
+mkdir -p "$W/docs"; printf 'review-outcomes = "on"\n' > "$W/docs/cadence.toml"
+out=$(take "$W"); rc=$?
+[ "$rc" = 0 ] && [ "$out" = TD-126 ] && [ "$(tail -n1 "$TMP/err")" = "$Q" ] && [ "$(grep -cF "did a design miss it" "$TMP/err")" = 1 ] \
+  && ok "21b on: the id on stdout, the question once and last on stderr" || bad "21b rc=$rc '$out' $(cat "$TMP/err")"
+out=$(take "$W" --json); rc=$?
+[ "$rc" = 0 ] && python3 -c 'import json,sys; assert json.loads(sys.argv[1])["ids"] == ["TD-127"]' "$out" && [ "$(tail -n1 "$TMP/err")" = "$Q" ] \
+  && ok "21c on, --json: stdout is the object alone, the question last on stderr" || bad "21c rc=$rc '$out' $(cat "$TMP/err")"
+printf '#!/bin/sh\necho "branch protected" >&2\nexit 1\n' > "$O/hooks/pre-receive"; chmod +x "$O/hooks/pre-receive"
+out=$(take "$W"); rc=$?
+[ "$rc" = 3 ] && [ "$out" = TD-128 ] && [ "$(tail -n1 "$TMP/err")" = "$Q" ] && grep -q "NOT reserved" "$TMP/err" \
+  && ok "21d on, exit 3 (printed, not reserved): the question still last" || bad "21d rc=$rc '$out' $(cat "$TMP/err")"
+rm -f "$O/hooks/pre-receive"
+out=$(take "$W" --claim TD-140); rc=$?
+[ "$rc" = 0 ] && [ "$out" = TD-140 ] && ! grep -qF "did a design miss it" "$TMP/err" \
+  && ok "21e on, --claim: no question (the id was already handed out)" || bad "21e rc=$rc '$out' $(cat "$TMP/err")"
+git -C "$W" remote set-url origin "$TMP/nowhere"
+out=$(take "$W"); rc=$?
+[ "$rc" = 2 ] && [ -z "$out" ] && ! grep -qF "did a design miss it" "$TMP/err" \
+  && ok "21f on, refused (exit 2): no question" || bad "21f rc=$rc '$out' $(cat "$TMP/err")"
+git -C "$W" remote set-url origin "$O"
+printf 'review-outcomes = "maybe"\n' > "$W/docs/cadence.toml"
+out=$(take "$W"); rc=$?
+[ "$rc" = 0 ] && ! grep -qF "did a design miss it" "$TMP/err" && ok "21g a value that is not on or off: no question" || bad "21g rc=$rc $(cat "$TMP/err")"
+
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
