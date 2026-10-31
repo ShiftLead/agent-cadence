@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-30 — File a ledger entry with `ledger.py new`
+Do: in a split ledger, file with `ledger.py new --title … --priority … --why FILE|- [--fix …] [--blocked-by …] …` — it takes the ID from the counter, writes `Taken by`, and refuses what the cadence check would fail before taking one; `--id TD-n` for an ID already taken.
+See: cadence.md §2.10 and §2.12; `ledger.py`'s docstring; TD-198.
+
 ## 2026-10-30 — An entry has one canonical form; `ledger.py fmt` writes it
 Do: after editing a ledger entry by hand, run `ledger.py fmt TD-n` (header fields in SPEC's order: Priority, Type, Added, Owner, Kind, Status, Taken by, Id take, Blocked by, Waits, Part of, Location, then any other); archive in SPEC's form (Status `Resolved YYYY-MM-DD: why`, Fix → `**Resolved:** YYYY-MM-DD (PR #n) — <pointer>`).
 See: cadence.md §2.8 and §2.12; ledgerboard SPEC *Ledger entries and their edits* (v2.2); TD-197.
