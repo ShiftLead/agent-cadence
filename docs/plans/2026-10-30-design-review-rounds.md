@@ -1,6 +1,6 @@
 # ADR 2026-10-30: design review rounds have a cap per class, a stop rule, a findings record and one end-of-rounds item when needed
 
-**Status:** decided 2026-10-30 by Paul ("go"; six rounds of review, Sonnet and Fable, the record below)
+**Status:** decided 2026-10-30 by Paul ("go"; six rounds of review, Sonnet and Fable, the record below); rule 6 and rule 10's adr-template line superseded by ADR 2026-10-30-review-outcomes.md
 **Date:** 2026-10-30
 **Related:** TD-203 (the build), TD-123, TD-136, TD-173 (the 11-review run this learns from); `docs/review-data/` (the data and the trial)
 

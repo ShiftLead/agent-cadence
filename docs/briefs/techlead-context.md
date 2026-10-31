@@ -42,6 +42,7 @@ anything about a path:
 | `docs/ledger/`, `docs/user_attention.md` | this repo's **live** ledger (one `TD-<NNN>.md` per entry, TD-160) and board |
 | `docs/ledger/archive/` | resolved entries — the richest record of *why* |
 | `docs/plans/` | this repo's design decisions; there is no `docs/decisions/` |
+| `docs/reviews/` | each design's review record, one file per design entry: its reviews (model, tokens) and findings (TD-204, cadence.md §4.8) |
 | `tests/`, `ruff.toml`, `sync.sh`, `launcher/` | tooling; `sync.sh` holds the payload's file lists and `--pin` (the migration) |
 
 A pinned consumer carries no synced copies, so there is no drift to verify: its convention
