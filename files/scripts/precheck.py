@@ -26,7 +26,8 @@ from the root of a detached worktree at the head commit, fetched from origin as 
 serves it — with --commit, origin's default branch is fetched and the
 commit must be on it (an ancestor of its tip, or the tip), stdin closed, its output streamed; that worktree is
 removed afterwards, also when the precheck is stopped by SIGTERM or SIGHUP (`timeout`, a stopped background
-task), which then exits 128 + the signal and records nothing (TD-210). A fresh worktree has no installed dependencies, so the command sets up
+task; one the caller ignores, as under `nohup`, stays ignored), which then kills the command's process group,
+exits 128 + the signal and records nothing (TD-210). A fresh worktree has no installed dependencies, so the command sets up
 what it needs (`pdm install && pdm run test`).
 
 The head is the forge's, and the forge sees a push seconds after it (TD-186): a precheck started
@@ -284,8 +285,12 @@ def main(argv: list[str] | None = None) -> int:
             elif paths is None:
                 print(f"precheck: cannot read PR {a.pr}'s changed files — the full `precheck` runs")
 
-    for sig in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(sig, _stopped)
+    # TD-210: a stop becomes an exit, so the `finally` below removes the worktree; a signal the caller
+    # already ignores (`nohup`) stays ignored, and each is restored as it was once the worktree is gone
+    saved = {sig: signal.getsignal(sig) for sig in (signal.SIGTERM, signal.SIGHUP)}
+    for sig, was in saved.items():
+        if was is not signal.SIG_IGN:
+            signal.signal(sig, _stopped)
     tmp = tempfile.mkdtemp(prefix=f"precheck-{a.pr if a.commit is None else sha[:7]}-")
     wt = Path(tmp) / "head"
     try:
@@ -298,16 +303,29 @@ def main(argv: list[str] | None = None) -> int:
         # the launcher's CADENCE_REPO_ROOT names the checkout this ran from, not the clean worktree: a
         # suite that inherits it reads the live checkout in place of its fixtures (agent-cadence's own did)
         env = {k: v for k, v in os.environ.items() if k != "CADENCE_REPO_ROOT"}
-        rc = subprocess.run(["bash", "-c", cmd], cwd=wt, env=env, stdin=subprocess.DEVNULL, check=False).returncode
+        # its own session, so a stop takes the command's whole process group with it, never leaving a
+        # grandchild (the suite, a `sleep`) running in a worktree that is about to be removed
+        p = subprocess.Popen(["bash", "-c", cmd], cwd=wt, env=env, stdin=subprocess.DEVNULL, start_new_session=True)
+        try:
+            rc = p.wait()
+        except BaseException:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            p.wait()
+            raise
         took = time.monotonic() - t0
     finally:
-        for sig in (signal.SIGTERM, signal.SIGHUP):   # a second signal must not cut the cleanup short
+        for sig in saved:   # a second signal must not cut the cleanup short
             signal.signal(sig, signal.SIG_IGN)
         if wt.exists():
             git("worktree", "remove", "--force", str(wt), cwd=root)
+        else:   # stopped inside `git worktree add`: drop the half-registered entry
+            git("worktree", "prune", cwd=root)
         shutil.rmtree(tmp, ignore_errors=True)
-        for sig in (signal.SIGTERM, signal.SIGHUP):
-            signal.signal(sig, signal.SIG_DFL)
+        for sig, was in saved.items():
+            signal.signal(sig, was)
 
     ok = rc == 0
     verdict = "passed" if ok else f"failed (exit {rc})"
