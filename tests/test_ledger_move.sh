@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # TD-200: `ledger.py archive`, `reopen` and `renumber` move an entry, or rename one, as one command.
 # Asserts: archive writes the archived form (Status, the Fix replaced by **Resolved:**) and git-mvs the
-# file to archive/, its relative links rewritten one level down; reopen moves it back, links one level up;
+# file to archive/ (staged; the archive/ made when none exists), its relative links rewritten one level
+# down, a link to it from another file named; reopen moves it back, links one level up;
 # archiving again leaves one **Resolved:** section; --superseded-by keeps the Fix; a parent with an open
 # part is refused, as is an archived entry archived again or an open one reopened; renumber takes its id
-# from the counter, moves the file, rewrites its dependents' Blocked by and Part of and the rank file,
+# from the counter, moves the file, rewrites its dependents' Blocked by and Part of (in ledger/ and
+# archive/) and the rank file,
 # writes the take's Taken by, and names a reference in prose; an entry canonical() refuses stops it
 # before any take, writing nothing; an archived entry is not renumbered; none of the three commits.
 # Offline: origin is a local bare repo, the roster a temp dir; HOME/XDG are temp dirs.
@@ -34,7 +36,9 @@ mkrepo() {  # $1 origin dir, $2 clone dir
   printf '## TD-001: one\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** see [four](TD-004.md) and [the plan](../plans/p.md).\n\n**Fix:** do it.\n\n**Done when** done.\n' > "$L/TD-001.md"
   printf '## TD-002: archived\n\n**Priority:** Low\n**Status:** Resolved %s: done\n\n**Why:** a fixture.\n\n**Resolved:** %s\n' \
     "$TODAY" "$TODAY" > "$L/archive/TD-002.md"
-  printf '## TD-003: parent\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** a parent.\n' > "$L/TD-003.md"
+  printf '## TD-003: parent\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** a parent, after [one](TD-001.md).\n' > "$L/TD-003.md"
+  printf '## TD-007: archived part\n\n**Priority:** Low\n**Status:** Resolved %s: done\n**Part of:** TD-003\n\n**Why:** a fixture.\n\n**Resolved:** %s\n' \
+    "$TODAY" "$TODAY" > "$L/archive/TD-007.md"
   printf '## TD-004: part\n\n**Priority:** Low\n**Status:** Open\n**Blocked by:** TD-001\n**Part of:** TD-003\n\n**Why:** a part.\n' > "$L/TD-004.md"
   printf '## TD-005: five\n\n**Priority:** Low\n**Priority:** High\n**Blocked by:** TD-003\n\n**Why:** twice.\n' > "$L/TD-005.md"
   printf '# rank\nTD-001: m\nTD-004: n\n' > "$L/rank.yml"
@@ -54,10 +58,11 @@ if [ $rc -eq 0 ] && [ "$out" = "$f" ] && [ ! -e "$L/TD-001.md" ] \
    && grep -qx "\*\*Status:\*\* Resolved $TODAY: built it" "$f" \
    && grep -qx "\*\*Resolved:\*\* $TODAY (PR #7) — tests/x.sh" "$f" && ! grep -q '^\*\*Fix' "$f" \
    && grep -q '(\.\./TD-004\.md)' "$f" && grep -q '(\.\./\.\./plans/p\.md)' "$f" \
-   && git -C "$W" status --porcelain | grep -q '^R. docs/ledger/TD-001.md -> docs/ledger/archive/TD-001.md'; then
-  ok "archive writes the archived form, rewrites its links for archive/ and git-mvs the file"
+   && git -C "$W" diff --quiet && [ "$(git -C "$W" diff --cached --name-only --no-renames | sort | tr '\n' ' ')" = "docs/ledger/TD-001.md docs/ledger/archive/TD-001.md " ] \
+   && grep -q 'check — a link to the moved file.*TD-003.md' "$TMP/err"; then
+  ok "archive writes the archived form, rewrites its links for archive/, git-mvs the file staged, and names a link to it"
 else
-  bad "archive (rc=$rc) out=$out: $(cat "$TMP/err") $(cat "$f" 2>/dev/null) $(git -C "$W" status --porcelain)"
+  bad "archive (rc=$rc) out=$out: $(cat "$TMP/err") $(cat "$f" 2>/dev/null) [$(git -C "$W" status --porcelain)]"
 fi
 head_is && ok "archive commits nothing" || bad "archive committed"
 lp archive TD-001 --why x >/dev/null 2>"$TMP/err"; rc=$?
@@ -106,12 +111,13 @@ printf '## TD-005: five\n\n**Priority:** High\n**Blocked by:** TD-003\n\n**Why:*
 printf 'TD-003 is the parent.\n' > "$W/docs/plans/q.md"
 git -C "$W" add -A; git -C "$W" commit -qm fixed; git -C "$W" push -q origin HEAD:main
 out=$(lp renumber TD-003 2>"$TMP/err"); rc=$?
-n="$L/TD-006.md"
+n="$L/TD-008.md"
 if [ $rc -eq 0 ] && [ "$(head -1 <<<"$out")" = "$n" ] && [ ! -e "$L/TD-003.md" ] \
-   && head -1 "$n" | grep -qx '## TD-006: parent' && grep -qx "\*\*Taken by:\*\* $BY" "$n" \
-   && grep -qx '\*\*Part of:\*\* TD-006' "$L/TD-004.md" && grep -qx '\*\*Blocked by:\*\* TD-006' "$L/TD-005.md" \
+   && head -1 "$n" | grep -qx '## TD-008: parent' && grep -qx "\*\*Taken by:\*\* $BY" "$n" \
+   && grep -qx '\*\*Part of:\*\* TD-008' "$L/TD-004.md" && grep -qx '\*\*Blocked by:\*\* TD-008' "$L/TD-005.md" \
+   && grep -qx '\*\*Part of:\*\* TD-008' "$L/archive/TD-007.md" \
    && grep -q 'plans/q.md' "$TMP/err"; then
-  ok "renumber takes the counter's id, moves the file, writes its Taken by, rewrites Part of and Blocked by, names prose"
+  ok "renumber takes the counter's id, moves the file, writes its Taken by, rewrites Part of and Blocked by in ledger/ and archive/, names prose"
 else
   bad "renumber (rc=$rc) out=$out: $(cat "$TMP/err") $(ls "$L")"
 fi
@@ -131,6 +137,16 @@ lp renumber TD-001 >/dev/null 2>"$TMP/err"; rc=$?
   && ok "an archived entry is not renumbered: the gate's archive-loss refuses it" || bad "archived renumber (rc=$rc): $(cat "$TMP/err")"
 lp renumber TD-005 TD-002 >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 2 ] && grep -q 'already' "$TMP/err" && ok "renumbering onto an id the ledger holds is refused" || bad "onto held (rc=$rc): $(cat "$TMP/err")"
+
+# --- 6) A ledger with nothing archived has no archive/ in git: archive makes it.
+rm -rf "$TMP/o3" "$TMP/w3" "$TMP/seed"; git init -q --bare -b main "$TMP/o3"; git init -q -b main "$TMP/seed"
+mkdir -p "$TMP/seed/docs/ledger"; printf '# Ledger\n\nLedgerboard: 2\n' > "$TMP/seed/docs/ledger/README.md"
+printf '## TD-001: one\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** a fixture.\n' > "$TMP/seed/docs/ledger/TD-001.md"
+git -C "$TMP/seed" add -A; git -C "$TMP/seed" commit -qm seed; git -C "$TMP/seed" push -q "$TMP/o3" main; git clone -q "$TMP/o3" "$TMP/w3"
+out=$( (cd "$TMP/w3" && python3 "$LEDGER_PY" archive TD-001 --why done) 2>"$TMP/err"); rc=$?
+[ $rc -eq 0 ] && [ -e "$TMP/w3/docs/ledger/archive/TD-001.md" ] && [ ! -e "$TMP/w3/docs/ledger/TD-001.md" ] \
+  && grep -q '^\*\*Status:\*\* Resolved' "$TMP/w3/docs/ledger/archive/TD-001.md" \
+  && ok "archive makes the archive/ a ledger with nothing archived lacks" || bad "no archive/ (rc=$rc): $(cat "$TMP/err")"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

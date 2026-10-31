@@ -106,7 +106,8 @@ an archived entry is not edited. Exit 0 written; 1 refused; 2 a usage error, an 
 
 ``archive`` and ``reopen`` (TD-200) move one entry between the ledger and ``archive/``: ``edit_entry()``'s
 archived or reopened form, ``relink()`` for the other directory, then ``git mv`` (a rename for a file git
-does not track); a parent with an open part is refused. ``renumber TD-old [TD-new]`` takes the new id from
+does not track), the move and its edit staged; a parent with an open part is refused; a link to the moved file
+from another file is named, never rewritten. ``renumber TD-old [TD-new]`` takes the new id from
 the counter (``TD-new``: one a take gave, else ``--claim``ed), moves the file, rewrites every Blocked by and
 Part of naming it and its rank line, and lists the references in prose — here, and as ``<repo>#TD-old`` in
 the roster's other repos — for the session to judge; an archived entry is not renumbered (the gate's
@@ -1180,14 +1181,26 @@ def _overlay(io: tuple[LB.Ls, LB.Read], changes: Mapping[Path, str | None]) -> t
     return ls2, read2
 
 
-def _git_mv(root: Path, src: Path, dst: Path) -> None:
-    """``git mv`` a tracked file, so the move is staged as one; a file git does not track is renamed."""
+def _git_mv(root: Path, src: Path, dst: Path) -> bool:
+    """``git mv`` a tracked file, so the move is staged as one; a file git does not track is renamed.
+    Whether git tracks it now (so its edit is staged too, with ``_stage``)."""
+    dst.parent.mkdir(exist_ok=True)  # an archive/ git never saw: a directory with nothing archived yet
     if _git(root, "ls-files", "--error-unmatch", "--", str(src)) is not None:
         r = subprocess.run(["git", "-C", str(root), "mv", "--", str(src), str(dst)], capture_output=True,
                            text=True, timeout=60, check=False)
         if r.returncode == 0:
-            return
+            return True
     os.replace(src, dst)
+    return False
+
+
+def _stage(root: Path, path: Path) -> None:
+    _git(root, "add", "--", str(path))
+
+
+def _links_to(root: Path, name: str) -> list[str]:
+    """The lines under ``root`` holding a relative link to a file named ``name`` — dead once it moves."""
+    return _grep(root, rf"\]\(([^)]*/)?{re.escape(name)}([#)\s]|$)")
 
 
 def _write(path: Path, text: str) -> None:
@@ -1255,9 +1268,14 @@ def move(cmd: str, argv: list[str]) -> int:
         return w.say(cmd, f"nothing was written to {path}", 1)
     for warn in warns:
         w.say(cmd, f"note — a link left dead: {warn}", 0)
-    _write(path, out)
-    _git_mv(w.root, path, dst)
+    tracked = _git_mv(w.root, path, dst)
+    _write(dst, out)
+    if tracked:
+        _stage(w.root, dst)
     print(dst)
+    for ln in _links_to(w.root, path.name):
+        if not ln.startswith(f"{dst.relative_to(w.root).as_posix()}:"):
+            w.say(cmd, f"check — a link to the moved file, left as it was: {ln[:200]}", 0)
     if cmd == "reopen":
         w.say(cmd, f"next: `ledger.py edit {tid} --section Fix --from -` with what is left to do", 0)
     return 0
@@ -1363,10 +1381,12 @@ def renumber(argv: list[str]) -> int:
         return w.say("renumber", f"{tid} is taken and nothing was written — fix the above, then run again "
                                  f"with {old} {tid}", 1)
     dst = path.with_name(f"{tid}.md")
-    _git_mv(w.root, path, dst)
+    tracked = _git_mv(w.root, path, dst)
     for f, t in changes.items():
         if t is not None:
             _write(f, t)
+    if tracked:
+        _stage(w.root, dst)  # the move and its edit staged as one; the dependents' edits are left as set's are
     print(dst)
     for f in changes:
         if f not in (path, dst):
