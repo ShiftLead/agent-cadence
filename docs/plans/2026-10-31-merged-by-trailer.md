@@ -1,6 +1,6 @@
 # ADR 2026-10-31: a cadence merge writes its own squash body, ending in one trailer paragraph that names who wrote, reviewed, checked and merged the change
 
-**Status:** proposed. Class: **wide** (cap `design-rounds-wide`, 6). The reason: it changes how every consumer merges (cadence.md §4.2, the procedure's step 5, a payload script), and ShiftLead's briefs merge through it. The shape is the Fix of 2026-10-28. Paul's go of 2026-10-30 was on the `Merged-by:` trailer, and it lifted the entry's block. The board line's close says *the Fix's shape stands; its design rounds run before the build*, and the entry's Status leaves the rest of the shape to these rounds: the merge command, `Reviewed-by:`/`Precheck:` and the signed comments. Review rounds: see `docs/reviews/TD-177.md`.
+**Status:** proposed. Class: **wide** (cap `design-rounds-wide`, 6). The reason: it changes how every consumer merges (cadence.md §4.2, the procedure's step 5, a payload script), and ShiftLead's briefs merge through it. The shape is the Fix of 2026-10-28. Paul's go of 2026-10-30 was on the `Merged-by:` trailer, and it lifted the entry's block. The board line's close says *the Fix's shape stands; its design rounds run before the build*, and the entry's Status leaves the rest of the shape to these rounds: the merge command, `Review:`/`Precheck:` and the signed comments. Review rounds: see `docs/reviews/TD-177.md`.
 **Date:** 2026-10-31
 **Related:** TD-177 (this design and its build); TD-067 (§4.2's squash keeps the trailers); TD-181 (the `Agent-Model:` commit trailer, built: cadence.md §9.9 and the hook name it, and its entry is not in this repo's ledger); shiftlead#TD-645 (the same trailer on ShiftLead's side); TD-117 and TD-148 (the precheck the gate reads); cadence.md §4.9 (the evidence comment).
 
@@ -21,51 +21,56 @@
 1. **The gate hands the merge what it saw: `check_cadence.py --pr <n> --trailers FILE`** (`--pr` only; with `--branch` or `--since` it is a usage error). Every run first empties FILE. On exit 0, and only then, it writes FILE whole (to a temporary name, then renamed):
    - `pr <n>`;
    - `expect <sha>` — the head commit its rows judged, taken from the one read of the PR the rows used, never re-read;
-   - then one `Reviewed-by:` line for each `cadence-review:` comment the `review` row lists, in the order posted, as `Reviewed-by: <model> (<verdict>)`. `<model>` is the text between the first and second `·` of `REVIEW_RE`'s `rest`, stripped. It is `unknown` where that text is empty or absent, or is `code` or `docs` (a comment that skipped the model field). A BLOCK then FIXED gives two lines, `(BLOCK)` then `(FIXED)`. A review comment is not bound to a head, so a `Reviewed-by:` may name a review of an earlier head; `Precheck:` is bound to this one.
+   - then one `Review:` line for each `cadence-review:` comment the `review` row lists, in the order posted, as `Review: <model> (<verdict>)`. `<model>` is the text before the first `·` of the review's `rest` as `row_review` strips it (`strip(" ·-")`). It is `unknown` where that text is empty, or is `code` or `docs` (a comment that skipped the model field). The key is `Review:`, not git's `Reviewed-by:`, because a BLOCK is a review and not an approval. §4.2 says what the verdict in parentheses means. A BLOCK then FIXED gives two lines, `(BLOCK)` then `(FIXED)`. A review comment is not bound to a head, so a `Review:` may name a review of an earlier head; `Precheck:` is bound to this one.
    - then `Precheck: <sha>` when the repo sets `precheck` and the head's `cadence/precheck` commit status reads `success`, as the `ci` row's precheck reader sees it (the status itself, not the row's verdict, which can also pass on check runs). That sha is the same head.
+
+   - **The data comes from the code, not the row's text.** `row_review` and `check_pr` return what they read: each listed comment's model and verdict, and the PR's `head_sha` from its one read. `--trailers` writes from those fields and never re-parses a rendered row.
+   - **On a non-zero exit** the gate writes FILE as `pr <n>`, `expect <sha>` and `unverified <exit code> <the failing rows>`, with no `Review:` or `Precheck:`. That is the deliberate path for a merge the procedure allows on a non-pass: step 5's *an unknown that will not clear*, a late review, the person's own call. It is refused unless the merge says why (2).
 
    **These trailers are attested, not verified**, like the review row they come from (§4.9): a hand-written file would put its own lines in the squash, and §4.2 says so. The procedure makes FILE with `mktemp`.
 
    The gate stays a reader. It merges nothing, and with no `--trailers` it behaves as today. The review and precheck logic stays where it is (`row_review`, the `ci` row in `check_cadence.py`), and `forge.py`, which `check_cadence.py` imports, learns no cadence rows.
 
 2. **One merge command: `forge.py merge <n> --gate FILE`** (a new subcommand of `files/scripts/forge.py`, the forge layer). It merges the PR as a squash, with a message it composes, and decides nothing. FILE is required, with its `pr` line naming this PR and its `expect` line: no gate file, another PR's, or one without the head, and nothing is merged.
+   - A file marked `unverified` is merged only with `--unverified "<why>"`, which writes `Merge-override: <exit code> <why>` into the trailer paragraph. A merge the gate did not pass then still carries `Merged-by:`, and says what it overrode and why.
    - **The commits** are read through a new `forge.py` method, `pr_commits(n)`, oldest first:
-     - GitHub: `gh api repos/<o>/<r>/pulls/<n>/commits --paginate`, which never returns more than 250. The list's length is compared with the PR's own `commits` count (`GET pulls/<n>`), and a mismatch refuses, so a longer PR is never squashed with part of its trailers;
+     - GitHub: `gh api repos/<o>/<r>/pulls/<n>/commits --paginate`, whose concatenated pages are read through `forge.py`'s `_pages()` as its other paginated reads are, and which never returns more than 250. The list's length is compared with the PR's own `commits` count (`GET pulls/<n>`), and a mismatch refuses, so a longer PR is never squashed with part of its trailers;
      - GitLab: `glab api projects/<id>/merge_requests/<n>/commits --paginate`, newest first, reversed;
      - GitLab's list is compared with the MR's own count in the same way;
      - none, or a list that cannot be read, refuses. A squash with no trailers is never written.
-   - The forge is asked to merge only while the PR's head is that sha: `gh pr merge <n> --squash --match-head-commit <sha> --subject … --body …`, and `glab mr merge <n> --squash --sha <sha> --squash-message …` (one string: the subject, a blank line, the body). A push between the gate and the merge is refused, and the command exits non-zero saying so. On any non-zero exit from the forge it reads the PR's state again through the backend's `pr(n)` (`gh pr view --json state`, GitLab's MR state, compared case-insensitively; §1.4): merged means the merge landed and the error came after, so it exits 0 and says so; anything else is the failure, reported.
+   - The forge is asked to merge only while the PR's head is that sha: `gh pr merge <n> --squash --match-head-commit <sha> --subject … --body …`, and `glab mr merge <n> --squash --sha <sha> --squash-message …` (one string: the subject, a blank line, the body). A push between the gate and the merge is refused, and the command exits non-zero saying so. On any non-zero exit from the forge it reads the PR's state again through the backend's `pr(n)` (`gh pr view --json state`, GitLab's MR state, compared case-insensitively; §1.4). Merged, with a merge commit whose `Merged-by:` is this command's, means the merge landed and the error came after: it exits 0 and says so. Merged without it means someone else merged the PR in between: it exits 1 and says so. Anything else is the failure, reported.
    - It never passes `--delete-branch`, so the §1.4 caution holds.
    - **The procedure's step 5** becomes `python3 scripts/check_cadence.py --pr <n> --trailers <tmp> && python3 scripts/forge.py merge <n> --gate <tmp>`, replacing `gh pr merge <n> --squash`.
    - **Subject:** the command writes it as `<PR title> (#<n>)` (GitLab: `<MR title> (!<n>)`, §4.2's template). With `--subject` given, `gh` uses the text verbatim, so the number is the command's to add.
    - **Body:**
-     - From each commit's trailer paragraph the five keys the composed paragraph carries are lifted out, matched case-insensitively as git does. `Co-Authored-By:` and `Agent-Model:` are carried into it. `Reviewed-by:`, `Precheck:` and `Merged-by:` written in a commit are dropped, so only the gate file and the command write those. Any other trailer (`Signed-off-by:`, `Fixes:`) stays where it was in that commit's text, and a paragraph left empty is dropped.
+     - Each commit's trailer paragraph is the one `git interpret-trailers --parse` finds in its message (git's own rule: the last paragraph, at least a quarter of it trailers or one git knows, with folded lines joined), and nothing else is read as a trailer. From it the five keys the composed paragraph carries are lifted out, matched case-insensitively as git does. `Co-Authored-By:` and `Agent-Model:` are carried into it. `Review:`, `Precheck:` and `Merged-by:` written in a commit are dropped, so only the gate file and the command write those. Any other trailer (`Signed-off-by:`, `Fixes:`) stays where it was in that commit's text, and a paragraph left empty is dropped.
      - A PR of **one commit** gets that commit's body, as GitHub writes a one-commit squash (#57: the title, then the plain body).
      - A PR of **several commits** gets each commit, oldest first, as `* <subject>`, then its body, the commits separated by blank lines (#55's form).
      - Then one blank line and the **trailer paragraph**, the message's last, so `git interpret-trailers --parse` reads every line of it. No `---------` line is written, and no paragraph after it.
-   - **What GitHub does with a given body** is an assumption until the build shows it. §4.2 already says that a written body drops GitHub's own `Co-authored-by:` paragraph, which suggests GitHub then appends nothing. The build's first real merge through the command, in this repo, reads its squash commit back (`git log -1 --format='%(trailers)'`). If anything follows the composed paragraph, the build stops there, and that becomes a finding on this design.
+   - **What GitHub does with a given body** is an assumption until the build shows it. §4.2 already says that a written body drops GitHub's own `Co-authored-by:` paragraph, which suggests GitHub then appends nothing. The build's own PR is the last one merged here the old way. The first PR after it merges through the command and reads its squash commit back (`git log -1 --format='%(trailers)'`). If anything follows the composed paragraph, that is a defect entry with `Escaped from: TD-177` (§2.13), and the command is not used again until it is fixed.
 
 3. **The trailer paragraph,** in this order:
    - **`Co-Authored-By:`** — every value from the commits' own trailer paragraphs, deduplicated on the email address with case ignored, first spelling kept. Then every commit's author, `<name> <email>` from git, whose email is not already listed (case ignored). GitHub's own paragraph found its names in the commit authors, so a person's commit with no hook trailer, or a rebased commit by another author, keeps its credit. Unlike GitHub, this does not leave out the PR's author: the forge gives a login, and git has a name and email, so there is nothing to compare them by. A line naming the squash commit's own author is redundant, never wrong.
    - **`Agent-Model:`** — every distinct value from the commits, in first-seen order. A PR worked under two models names both.
-   - **`Reviewed-by:`** and **`Precheck:`** — the gate file's lines, as written.
-   - **`Merged-by:`** — `<AGENT_NAME> (<model>)`, where `<model>` is the value the hook writes as `Agent-Model:` (`<adapter>/<model>`, one string; no adapter is read apart from it). With no model it is `Merged-by: <AGENT_NAME>`, and with no `AGENT_NAME` (a person's shell) it is `Merged-by: <git config user.name>`. A session with no `AGENT_NAME` (a cloud session, a tool ShiftLead did not start) therefore reads as the person, and §4.2 says that a session's merge is traced only where `AGENT_NAME` is set. ShiftLead sets it for every session it starts.
+   - **`Review:`** and **`Precheck:`** — the gate file's lines, as written.
+   - **`Merged-by:`** — `<AGENT_NAME> (<model>)`, where `<model>` is the value the hook writes as `Agent-Model:` (`<adapter>/<model>`, one string; no adapter is read apart from it). With no model it is `Merged-by: <AGENT_NAME>`, and with no `AGENT_NAME` (a person's shell) it is `Merged-by: <git config user.name>`. An `AGENT_NAME` that is set but fails its check, or no `AGENT_NAME` and no `user.name`, refuses the merge, saying which: a merge that cannot say who made it is not made, and a bad name never falls through to the person's. A session with no `AGENT_NAME` at all (a cloud session, a tool ShiftLead did not start) reads as the person, and §4.2 says that a session's merge is traced only where `AGENT_NAME` is set. ShiftLead sets it for every session it starts.
 
    **The model and the name are read and checked exactly as the hook reads and checks them:**
    - the first line of `$AGENT_MODEL_FILE` when it is a regular, readable file (`-f`, `-r`), read like `read -r`, so an unterminated last line counts; else `$AGENT_MODEL`;
    - an empty first line, or an empty file, falls through to `$AGENT_MODEL` before anything is checked;
-   - leading and trailing whitespace stripped (spaces, tabs, a CR), then matched once against `^[[:graph:]]+( [[:graph:]]+)*$` under `LC_ALL=C` (printable ASCII, single spaces), at most 120 bytes;
+   - with `LC_ALL=C` set before anything is stripped, leading and trailing C-locale `[[:space:]]` (space, `\t`, `\n`, `\v`, `\f`, `\r`) stripped. Then the value is matched once against `^[[:graph:]]+( [[:graph:]]+)*$`, at most 120 bytes. In Python that is the bytes read, `strip(b" \t\n\v\f\r")`, then `[\x21-\x7e]+( [\x21-\x7e]+)*`. Invalid UTF-8, NUL or any other non-ASCII byte fails the match;
    - a value that fails is left out, with no fallback to `$AGENT_MODEL`;
    - the hook gains `LC_ALL=C` for that match (today it follows the session's locale, so a UTF-8 session accepts non-ASCII). That is a behaviour change to the hook, listed in 6;
    - `AGENT_NAME` only `[A-Za-z0-9._-]+`;
    - a value that fails is left out, as the hook leaves it out.
 
-   The hook is bash and `forge.py` is Python, so they cannot share a helper. They are a **parity pair** (§7.9): §9.9 states the reading once, and a test feeds the same environments to both (double spaces, a tab, non-ASCII, 121 characters, a CRLF file, an unterminated line) and compares the model each writes.
+   The hook is bash and `forge.py` is Python, so they cannot share a helper. They are a **parity pair** (§7.9): §9.9 states the reading once, and a test feeds the same environments to both (double spaces, a tab, `\v` at an edge, non-ASCII, invalid UTF-8, a NUL, 121 bytes, a CRLF file, an unterminated line, an empty first line) and compares the model each writes.
 
 4. **Everyone merges through the command, so its absence means a bypass.** The person merges with it too, from their shell (`Merged-by: <user.name>`). A squash commit on the default branch with no `Merged-by:` was merged around the command: in the forge's web UI, by a bare `gh pr merge`, or by a session on a pin older than this build. git cannot say which, and §4.2 says so plainly. It can say *that*, and the #429 event (a session merging what should have waited) is one of them.
    - **The detector:** `check_cadence.py --since <window>` (the weekly read) lists each merged PR whose squash commit carries no `Merged-by:`, *merged outside `forge.py merge`*. It is a detector, never a fail, because a person's web-UI merge is legitimate. A repo reads that list against its own §4.11 rule.
      - It is printed as a section after the rows, and as `merged_outside` (a list of PR numbers) in `--json`.
      - **Cutoff:** only merges after the repo's first squash commit carrying a `Merged-by:` are listed, found from `git log` on the default branch. A repo that has never merged through the command lists nothing, so the weeks before a bump read clean, not as a wall of false bypasses.
+     - **Tool merges:** a PR that `--since` already recognises as one of §4.5's carve-outs (a board edit's tool PR, squash-merged at once by `board_edit.py`, and the sweep stamp) is listed apart as *a tool merge*, not as a bypass. The tools keep their own merge call, because their PRs pass no gate.
      - **Unreadable:** a merge commit this clone cannot read (not fetched, no clone) is counted as *unreadable*, never listed as a bypass.
 
 5. **The evidence comments are signed.** A comment is not git and cannot carry a trailer. So each comment the cadence procedure has a session post, the §4.9 `cadence-review:` evidence comment and its late form (*a PR that merged with no review*), ends with one line `— <AGENT_NAME> (<model>)`, or `— <user.name>` from a person's shell, read as in 3. Comments a session posts for its own brief's reasons are that brief's to sign, ShiftLead's among them. `REVIEW_RE` reads the verdict on whichever line it is, and takes the last such line (§4.9, TD-087). The signature carries no `cadence-review:`, so it changes no reader.
@@ -102,9 +107,15 @@
      - it writes the lines and their order on a passing PR with a BLOCK then a FIXED;
      - a comment with no model gives `unknown`;
      - it is refused outside `--pr`;
-     - `--since` lists a squash commit with no `Merged-by:` after the cutoff, and not one that has the trailer, one before the cutoff, or an unreadable one (counted).
+     - `--since` lists a squash commit with no `Merged-by:` after the cutoff. It does not list one that has the trailer, one before the cutoff, an unreadable one (counted), or a board-edit carve-out PR (listed apart).
+     - On a failing PR `--trailers` writes an `unverified` file.
    - **`tests/test_forge.sh`, more `merge` cases:**
      - a gate file for another PR is refused;
+     - an `unverified` file is refused without `--unverified`, and with it writes `Merge-override:`;
+     - a bad `AGENT_NAME`, or no name at all, refuses;
+     - a PR merged by someone else in between exits 1;
+     - the trailer paragraph is the one `git interpret-trailers --parse` finds (a mixed last paragraph, a folded line);
+     - `pr_commits` reads concatenated pages through `_pages()`;
      - `pr_commits` is paginated and ordered, GitLab's reversed;
      - zero commits, or a list shorter than the PR's count, refuse;
      - after a forge error the state is re-read, and MERGED exits 0;
@@ -127,13 +138,13 @@ Proposed. The shape is the 2026-10-28 Fix, whose block Paul lifted on 2026-10-30
 - the command is `forge.py merge`, fed by `check_cadence.py --trailers`, not a gate step;
 - the gate file and its head sha are required;
 - GitHub's own trailer paragraph is replaced by the composed one;
-- `Reviewed-by:` and `Precheck:` are written.
+- `Review:` and `Precheck:` are written.
 
 The rounds run to the stop rule or the cap. The builds wait on Paul's go, as his layer's §2.4 rule holds a design's builds until its rounds converge and he says go.
 
 ## Consequences
 
-- `git log --format='%(trailers:key=Merged-by,valueonly)'` names the merger of every cadence merge from the build on. `%(trailers:key=Agent-Model)` names every model that worked a change, and `Reviewed-by:` and `Precheck:` say what the gate saw.
+- `git log --format='%(trailers:key=Merged-by,valueonly)'` names the merger of every cadence merge from the build on. `%(trailers:key=Agent-Model)` names every model that worked a change, and `Review:` and `Precheck:` say what the gate saw.
 - A squash body is no longer the forge's to write. If a forge changes how its default body looks, nothing here breaks, but a forge without a body option cannot use the command.
 - A merge through any other path is visible by what it lacks, and the weekly read (`check_cadence.py --since 7d`) lists it (4).
 - Every consumer's merge line changes on its next bump. Until then its sessions merge as today.
