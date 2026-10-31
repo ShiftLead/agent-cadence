@@ -684,34 +684,41 @@ def _fork_only_if(cond):
 def fork_only(text):
     """Whether every job of a workflow file has an `if:` that skips a same-repo pull_request — the
     fork-only form, which runs a fork's PR in the forge's sandbox and no other PR (TD-207). False
-    when it has no `jobs:` this can read, or a job with no such `if:` (a block scalar included)."""
-    lines = [_strip(x) for x in text.splitlines()]
+    when it has no `jobs:` this can read, or a job with no such `if:` — one that is a block scalar,
+    wraps onto another line or holds a `#` (a comment, or a string `_strip` would cut) included."""
+    lines = [x.rstrip() for x in text.splitlines()]
     try:
-        i = next(n for n, t in enumerate(lines) if re.fullmatch(r"jobs\s*:", t))
+        i = next(n for n, t in enumerate(lines) if re.fullmatch(r"jobs\s*:", _strip(t)))
     except StopIteration:
         return False
     body = []
     for t in lines[i + 1:]:
-        if t.strip() and not t[:1].isspace():
+        if not t.strip() or t.lstrip().startswith("#"):   # a comment at column 0 ends nothing
+            continue
+        if not t[:1].isspace():
             break
-        if t.strip():
-            body.append(t)
+        body.append(t)
     if not body:
         return False
     ind = len(body[0]) - len(body[0].lstrip())
-    jobs, key_ind = [], None
+    jobs, key_ind, in_if = [], None, False
     for t in body:
         d = len(t) - len(t.lstrip())
         if d < ind:
             return False
         if d == ind:
             jobs.append(None)
-            key_ind = None
+            key_ind, in_if = None, False
             continue
         if key_ind is None:
             key_ind = d
-        if d == key_ind and (m := re.match(r"""(?:if|"if"|'if')\s*:(.*)$""", t.strip())):
-            jobs[-1] = m.group(1)
+        if d > key_ind:
+            if in_if:   # the condition goes on below its key: unread
+                jobs[-1], in_if = None, False
+            continue
+        m = re.match(r"""(?:if|"if"|'if')\s*:(.*)$""", t.strip())
+        jobs[-1] = m.group(1) if m and "#" not in m.group(1) else (None if m else jobs[-1])
+        in_if = bool(m)
     return bool(jobs) and all(c is not None and _fork_only_if(c) for c in jobs)
 
 

@@ -274,7 +274,6 @@ def main(argv: list[str] | None = None) -> int:
             elif paths is None:
                 print(f"precheck: cannot read PR {a.pr}'s changed files — the full `precheck` runs")
 
-
     tmp = tempfile.mkdtemp(prefix=f"precheck-{a.pr if a.commit is None else sha[:7]}-")
     wt = Path(tmp) / "head"
     try:

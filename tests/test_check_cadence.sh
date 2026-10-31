@@ -418,9 +418,16 @@ for x in ("github.event_name == \"pull_request\" || github.event.pull_request.he
           "(github.event.pull_request.head.repo.full_name != github.repository) || true", "always()",
           "github.repository != github.event.pull_request.head.repo.full_name && github.actor != \"bot\"", "\"${{ github.event_name == '"'"'push'"'"' }}\""):
     print(c._fork_only_if(x))
-print(c.fork_only("on: pull_request\njobs:\n  a:\n    if: >\n      github.event.pull_request.head.repo.full_name != github.repository\n"))')
-[ "$got" = "$(printf '%s\n' False False False True True False)" ] \
-  && ok "ci (TD-207): the fork condition read by its terms — the event named, a parenthesis, a narrowing &&, a block scalar" || bad "ci fork-only shapes: $got"
+print(c.fork_only("on: pull_request\njobs:\n  a:\n    if: >\n      github.event.pull_request.head.repo.full_name != github.repository\n"))
+F = "github.event.pull_request.head.repo.full_name != github.repository"
+print(c.fork_only(f"on: pull_request\njobs:\n  a:\n    if: {F}\n# a section\n  b:\n    runs-on: x\n"))
+print(c.fork_only(f"on: pull_request\njobs:\n  a:\n    if: {F} &&\n      github.actor == x || true\n"))
+print(c.fork_only(f"on: pull_request\njobs:\n  a:\n    if: {F} && contains(github.event.pull_request.title, \" #x\") || true\n"))
+print(c.fork_only(f"on: pull_request\njobs:\n  a:\n    if: {F}\n# a section\n  b:\n    if: {F}\n    steps:\n      - if: always()\n"))')
+[ "$got" = "$(printf '%s\n' False False False True True False False False False True)" ] \
+  && ok "ci (TD-207): the fork condition read by its terms — the event named, a parenthesis, a narrowing &&, a block scalar, a job past a column-0 comment, a wrapped condition, a #" || bad "ci fork-only shapes: $got"
+printf '%s' "$FORKCI" | sed 's/^  pull_request:$/  pull_request_target:/' > "$R/.github/workflows/ci.yml"
+out=$(run --pr 31); ! cirow "$out" | grep -q "⚠" && ok "ci (TD-207): a fork-only pull_request_target workflow: no warning" || bad "ci fork-only target: $(cirow "$out")"
 git -C "$R" reset -q -- .github; rm -rf "$R/.github" "$FAKE/statuses_hhh2222.json"
 rm -f "$R/docs/cadence.toml"
 
@@ -494,6 +501,10 @@ xr true; out=$(run --pr 31); [ "$(rowstat "$out" ci)" = UNKNOWN ] && cirow "$out
   && ok "ci (TD-207): 403 and a fork-only workflow on a fork's PR: unknown — its jobs run there" || bad "ci 403 fork-only fork: $(cirow "$out")"
 xr unset; out=$(run --pr 31); [ "$(rowstat "$out" ci)" = UNKNOWN ] && cirow "$out" | grep -q "ci.yml may post" \
   && ok "ci (TD-207): 403, a fork-only workflow, and a forge that does not say: unknown" || bad "ci 403 fork-only unsaid: $(cirow "$out")"
+at "$(mkhead "$(printf '%s' "$FORKCI" | sed 's/^  pull_request:$/  pull_request_target:/')")"; sth cadence/precheck success
+xr false; out=$(run --pr 31); [ "$(rowstat "$out" ci)" = PASS ] \
+  && ok "ci (TD-207): 403 and a fork-only pull_request_target workflow on a same-repo PR: passes on the statuses" || bad "ci 403 fork-only target: $(cirow "$out")"
+xr unset
 # the amendment: a push filtered to the default branch alone cannot post on a PR's head on another
 # branch (a consumer's build-ci-image.yml shape) — exempt; any wider or looser filter still counts
 CM='on:
