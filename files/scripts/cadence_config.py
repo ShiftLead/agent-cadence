@@ -84,6 +84,7 @@ KEYS = {
     # The design review rounds' caps (TD-203, §4.8): a whole number of rounds, each one pass through review-model.
     "design-rounds": ("4", "the most review rounds for an in-repo design plan (§4.8)"),
     "design-rounds-wide": ("6", "the most review rounds for a wide design plan: another repo, the payload, a published format, the irreversible (§4.8)"),
+    "review-outcomes": ("off", "on | off: whether filing an entry asks if a design missed the defect (Escaped from:, §2.13) and the backfill is suggested (TD-204)"),
 }
 
 
@@ -124,6 +125,14 @@ def _scope(v: str) -> str:
     n = v.strip().lower()
     if n not in ("own", "machine"):
         raise ValueError(f"must be own or machine, not {v!r}")
+    return n
+
+
+def _onoff(v: str) -> str:
+    """review-outcomes (TD-204): on or off."""
+    n = v.strip().lower()
+    if n not in ("on", "off"):
+        raise ValueError(f"must be on or off, not {v!r}")
     return n
 
 
@@ -204,7 +213,7 @@ REPO_CHOICES = {"ledger-ids-host": ("on", "off"), "publish-gate": ("required", "
 
 # key -> a function returning the value to use, or raising ValueError naming what is wrong.
 # `get`, every importer through resolve(), and --check all go through it.
-VALIDATE = {"worktree-root": _rel_dir, "attention-scope": _scope, "review-model": _models, "fact-check-model": _model, "layers": _layers, "publish-names": _names, **{k: _count for k in COUNT_KEYS}}
+VALIDATE = {"worktree-root": _rel_dir, "attention-scope": _scope, "review-outcomes": _onoff, "review-model": _models, "fact-check-model": _model, "layers": _layers, "publish-names": _names, **{k: _count for k in COUNT_KEYS}}
 
 
 # The opt-outs (TD-072, moved here by TD-096): tables in the repo's file, never the machine's —

@@ -54,7 +54,11 @@ Output: the ids, one a line, and on stderr the ``**Taken by:**`` line when reser
 ``{ids, reserved, taken_by, why, unread, warnings}`` (``taken_by`` the take's ``by``, null when nothing was reserved). Exit 0 reserved
 on the counter; 3 printed but not reserved (the fallback); 2 refused, nothing printed (a fetch of
 ``origin/<default>`` failed, so main cannot be the floor; or 30 seconds of a moving tip) — with
-``--json`` the object still prints, its ``ids`` empty and ``why`` saying why. Stdlib only.
+``--json`` the object still prints, its ``ids`` empty and ``why`` saying why.
+
+With ``review-outcomes = "on"`` (cadence §2.13, §9.18, TD-204) every hand-out of ids — exit 0 or 3,
+``--json`` too, never ``--claim`` or exit 2 — ends with ``FILING_QUESTION`` as the last stderr line,
+and stdout stays the ids. Stdlib only.
 """
 
 from __future__ import annotations
@@ -516,6 +520,22 @@ def take(root: Path, a: argparse.Namespace) -> tuple[int, dict]:
         time.sleep(random.uniform(0.05, 0.5))
 
 
+# TD-204: the one question review-outcomes asks of a new entry; parity (cadence.md §7.9): ShiftLead's
+# `ao td reserve` reprints it, so a change here is a change there
+FILING_QUESTION = ("ledger_next_id: if this entry is a defect, did a design miss it? then "
+                   "`**Escaped from:** <design TD>` (cadence §2.13)")
+
+
+def asks_outcomes(root: Path) -> bool:
+    """Whether the repo at `root` sets review-outcomes on; a settings file that cannot be read
+    asks nothing (its error is the settings reader's to report)."""
+    try:
+        v, _ = C.resolve("review-outcomes", C.sources(str(root)))
+    except C.ConfigError:
+        return False
+    return v == "on"
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--count", type=int, default=1, help=f"how many ids, 1 to {MAX_COUNT}")
@@ -569,6 +589,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ledger_next_id: NOT reserved — {res['why']}", file=sys.stderr)
         elif rc == 2:
             print(f"ledger_next_id: refused — {res['why']}", file=sys.stderr)
+    if rc != 2 and a.claim is None and res["ids"] and asks_outcomes(Path(top.stdout.strip())):
+        print(FILING_QUESTION, file=sys.stderr)
     return rc
 
 

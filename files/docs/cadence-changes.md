@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-31 — A defect a design missed carries `Escaped from:`; `review-outcomes` asks
+Do: filing a defect, ask whether a design missed it, and if so write `**Escaped from:** <design TD>` in its header; set `review-outcomes = "on"` in `docs/cadence.toml` to have `ledger_next_id.py` ask every time (default off).
+See: cadence.md §2.13, §9.18; TD-204.
+
 ## 2026-10-30 — `precheck.py --pr` refuses a fork's PR; `--fork-ok` is the person's
 Do: never precheck a fork's PR yourself — it exits 2 without `--fork-ok`, which the person passes after reading the diff and seeing forge CI green; run forge CI on a fork's PR in the fork-only form (every job `if:` a head repo other than the base), which the `ci` row's ⚠ no longer counts.
 See: cadence.md §4.12; TD-207.

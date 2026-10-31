@@ -258,5 +258,17 @@ done
 rm -f "$R/docs/cadence.toml"
 (cd "$R" && python3 "$SCRIPT" get sweep-model --first >/dev/null 2>&1); [ $? = 2 ] && ok "15h --first with any key but review-model is a usage error" || bad "15h"
 
+# 16. TD-204: review-outcomes, on | off, default off
+rm -f "$R/docs/cadence.toml" "$AGENT_CADENCE_REG_DIR/cadence.toml"
+[ "$(get review-outcomes)" = off ] && ok "16 review-outcomes unset: off" || bad "16 '$(get review-outcomes)'"
+printf 'review-outcomes = "ON"\n' > "$R/docs/cadence.toml"
+[ "$(get review-outcomes)" = on ] && python3 "$SCRIPT" --repo "$R" --check >/dev/null \
+  && ok "16b the repo's on (any case) reads as on, and --check is clean" || bad "16b '$(get review-outcomes)'"
+printf 'review-outcomes = "yes"\n' > "$R/docs/cadence.toml"
+out=$(python3 "$SCRIPT" --repo "$R" --check); rc=$?
+[ "$rc" != 0 ] && grep -q "review-outcomes" <<< "$out" && grep -q "must be on or off" <<< "$out" \
+  && ok "16c a value that is not on or off: --check names it and fails" || bad "16c rc=$rc '$out'"
+rm -f "$R/docs/cadence.toml"
+
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
