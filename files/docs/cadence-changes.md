@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-31 — `review_stats.py` rebuilds design-review outcomes; `--candidates` finds the backfill's
+Do: run `review_stats.py` by hand for escape rates, build-changing per round and tokens by model across the roster (written to `review-stats/` beside it, never into a repo); turning `review-outcomes` on, run `review_stats.py --candidates --since <date>` once and judge each candidate.
+See: cadence.md §2.13, §9.4; TD-204.
+
 ## 2026-10-31 — A defect a design missed carries `Escaped from:`; `review-outcomes` asks
 Do: filing a defect, ask whether a design missed it, and if so write `**Escaped from:** <design TD>` in its header; set `review-outcomes = "on"` in `docs/cadence.toml` to have `ledger_next_id.py` ask every time (default off).
 See: cadence.md §2.13, §9.18; TD-204.
