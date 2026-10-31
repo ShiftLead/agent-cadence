@@ -1,11 +1,19 @@
 name: ci
-# By hand only (TD-148): GitHub Actions minutes are one pool across the account's repos, so the
-# merge gate is the local precheck (docs/cadence.toml, `files/scripts/precheck.py --pr <n>`).
+# The merge gate is the local precheck (docs/cadence.toml, `files/scripts/precheck.py --pr <n>`, TD-148).
+# This workflow runs on a PR from a fork, and by hand (TD-192). A fork's PR gets ruff and the suite in
+# GitHub's sandbox before anyone runs its code on a machine; the publish gate needs the machine's
+# publish-names, so it stays in the local precheck. A PR from this repo skips the job: the precheck
+# already runs the same suite, and with no required check here, a second run would gate it anyway.
 on:
+  pull_request:
   workflow_dispatch:
 jobs:
   suite:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
