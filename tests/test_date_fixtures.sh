@@ -16,8 +16,10 @@ den=$(TZ=America/Denver date -d '2026-10-31 00:30 -0600 2 days' +%F 2>/dev/null)
 utc=$(TZ=UTC date -d '2026-10-31 06:30 +0000 2 days' +%F)
 if [ "$den" = 2026-11-01 ]; then
   [ "$utc" = 2026-11-02 ] && ok "1 offset-anchored '2 days' is 48h: a day short across DST in Denver, two calendar days in UTC" || bad "1 utc=$utc"
+elif [ ! -e /usr/share/zoneinfo/America/Denver ]; then
+  [ "$utc" = 2026-11-02 ] && ok "1 (no Denver zone data here) UTC's '2 days' is two calendar days" || bad "1 utc=$utc"
 else
-  [ "$utc" = 2026-11-02 ] && ok "1 (no Denver zone data here: den='$den') UTC's '2 days' is two calendar days" || bad "1 utc=$utc"
+  bad "1 Denver's offset-anchored '2 days' read '$den', not the 48h 2026-11-01 this test pins"
 fi
 
 # 2. every test that does date -d arithmetic exports TZ=UTC before its first such line
