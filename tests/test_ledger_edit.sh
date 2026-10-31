@@ -82,7 +82,7 @@ lp set TD-003 --type nonsense >/dev/null 2>"$TMP/err"; rc=$?
 lp note TD-003 "waits on TD-001 now" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused — .*waits on TD-001' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
   && ok "note refuses a wait written in prose (TD-166)" || bad "prose note (rc=$rc): $(cat "$TMP/err")"
-lp set TD-003 --blocked-by "decision (paul) — after TD-001 lands" >/dev/null 2>"$TMP/err"; rc=$?
+lp set TD-003 --blocked-by "decision (owner) — after TD-001 lands" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused — .*decision pointer names TD-001' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
   && ok "set refuses an id in a decision's pointer (TD-172)" || bad "pointer (rc=$rc): $(cat "$TMP/err")"
 O2="$TMP/o2"; R2="$TMP/other"; mkrepo "$O2" "$R2"; echo "$R2" > "$AGENT_CADENCE_REG_DIR/repos.txt"
