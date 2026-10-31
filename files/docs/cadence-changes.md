@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-30 — Change a ledger entry with `ledger.py set`, `note` and `edit`
+Do: in a split ledger, `ledger.py set TD-n --blocked-by …` (any header field; empty removes), `ledger.py note TD-n "…"` (a dated Status line), `ledger.py edit TD-n --section Fix --from FILE|-` — each refuses what the cadence check would fail and a wait written in prose.
+See: cadence.md §2.12; `ledger.py`'s docstring; TD-199.
+
 ## 2026-10-30 — File a ledger entry with `ledger.py new`
 Do: in a split ledger, file with `ledger.py new --title … --priority … --why FILE|- [--fix …] [--blocked-by …] …` — it takes the ID from the counter, writes `Taken by`, and refuses what the cadence check would fail before taking one; `--id TD-n` for an ID already taken.
 See: cadence.md §2.10 and §2.12; `ledger.py`'s docstring; TD-198.

@@ -7,6 +7,7 @@
     ledger.py --summary | --split
     ledger.py fmt [TD-n …] [--check]
     ledger.py new --title T --priority P --why FILE|- [--fix FILE|-] [--done-when FILE|-] [--type …] [--id TD-n] …
+    ledger.py set TD-n --FIELD VALUE …  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|-
 
 An entry may carry one optional field, between **Status:** and **Location:** (cadence.md §2):
 
@@ -96,13 +97,20 @@ all judged once before the take, under a provisional id, so a refusal spends no 
 id flags. It prints the path and commits nothing. Exit 0 written; 1 refused; 2 a usage error, a v1
 ledger (split first), or no id taken (exit 3's unreserved id is printed with the ``--claim`` to run).
 
+``set``, ``note`` and ``edit`` (TD-199) change one open entry through ledgerboard's ``edit_entry()``, in
+canonical form: ``set`` takes ``new``'s field flags (an empty value removes the field), ``note`` appends
+`` <today>: words`` to Status, ``edit`` replaces one section (or adds it where SPEC puts it). Each refuses
+as ``new`` does — a flag the edit brings that the gate fails, a prose wait on the entry, a ``<repo>#TD-n``
+blocker ``set`` adds whose roster repo lacks it — and an entry ``canonical()`` refuses, with its hand fix;
+an archived entry is not edited. Exit 0 written; 1 refused; 2 a usage error, an unknown id, or a v1 ledger.
+
 The ledger is a v1 file or a v2 directory (ledgerboard SPEC *The ledger as a directory*, TD-160), and
 every read goes through ledgerboard's ``load()``: here with the file system, at a revision (``--since``,
 a roster repo's ``origin/<default>``) with ``git_io()`` — one ``ls-tree``, one ``cat-file --batch`` per
 directory. A v2 ledger that ``v2_problems()`` faults is not read (exit 2). Defaults: ``docs/ledger/``
 when that directory exists, else ``docs/technical_debt.md`` and ``docs/technical_debt_archive.md``, at
 the top of the git work tree the command runs in; ``--archive`` applies to a v1 ledger only. Read-only but
-for ``--split``, ``fmt`` and ``new`` (which also takes from the counter), and offline except where ``--check --since``'s edit
+for ``--split`` and the writers ``fmt``, ``new`` (which also takes from the counter), ``set``, ``note``, ``edit``, and offline except where ``--check --since``'s edit
 adds an id: then it asks origin for the counter (``git ls-remote``, and a fetch of its tracking ref). Exit 0 (``--check``: 1 on an error);
 2 when the ledger, or ``--since``'s ref, cannot be read or the arguments are unusable, or the
 ledger or archive declares a newer major of the format than ``ledgerboard.py`` reads
@@ -120,6 +128,7 @@ import re
 import subprocess
 import sys
 from collections import Counter
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
@@ -910,15 +919,96 @@ def _introduced(before: list[dict], after: list[dict], tid: str) -> tuple[list[d
     return refuse, [r for r in new if r not in refuse]
 
 
+class _Writer:
+    """One write command's ledger (TD-198, TD-199): the v2 directory, read as ``--check --since
+    origin/<default>`` reads it, and the refusals every writer shares."""
+
+    def __init__(self, cmd: str, ledger: Path, io: tuple[LB.Ls, LB.Read], root: Path, rel: str) -> None:
+        self.cmd, self.ledger, self.io, self.root, self.rel = cmd, ledger, io, root, rel
+        self.ref = f"origin/{N.default_branch(root)}"
+        self.then, _ = _at_ref(ledger, self.ref)  # None (no such ref): every entry counts as new, as in --check
+        self.text, self.arch = read_pair(str(ledger), None, io)
+        self.roster = Roster()
+
+    @classmethod
+    def open(cls, cmd: str, arg: str | None) -> "_Writer | int":
+        """The writer over ``arg`` (default docs/ledger/ at the work tree's top), or the exit code, said."""
+        ledger = Path(arg) if arg else _toplevel() / LEDGER_DIR_REL
+        io = fs_io()
+        if io[0](str(ledger)) is None:
+            return cls.say(cmd, f"{ledger} is not a v2 directory — a v1 ledger: `ledger.py --split` first", 2)
+        why = v2_unread(str(ledger), io)
+        if why:
+            return cls.say(cmd, f"not read — {ledger}: {why}", 2)
+        root, rel, why = _rel(ledger)
+        return cls.say(cmd, why, 2) if root is None else cls(cmd, ledger, io, root, rel)
+
+    @staticmethod
+    def say(cmd: str, text: str, code: int) -> int:
+        print(f"ledger: {cmd}: {text}", file=sys.stderr)
+        return code
+
+    def xrepo_refused(self, value: str | None, was: str = "") -> bool:
+        """A ``<repo>#TD-n`` this Blocked by value adds (not in ``was``) whose roster repo was read and has
+        no such entry (TD-153's missing) is refused, saying to fetch there."""
+        had = set(parse_blocked(was)[0])
+        for item in parse_blocked(value or "")[0]:
+            m = XREPO_ITEM_RE.match(item.strip())
+            if not m or item in had:
+                continue
+            repo_root, _ = self.roster._find(m.group(1))
+            st = self.roster.state(repo_root, m.group(2), m.group(1)) if repo_root else {"missing": False}
+            if st["missing"]:
+                self.say(self.cmd, f"refused — Blocked by {item}: {st['why']}; if it was filed since, "
+                                   f"`git -C {repo_root} fetch` and run again", 1)
+                return True
+        return False
+
+    def refused(self, tid: str, name: str, entry: str, with_ids: bool = True, notes: bool = True) -> bool:
+        """Whether ``entry``, written as ``name``, brings a flag the gate fails (or a prose wait on itself);
+        each refusal said, and with ``notes`` each new ℹ line."""
+        before = _gate_flags(self.ledger, self.io, self.ref, self.then, self.roster, with_ids)
+        after = _gate_flags(self.ledger, _with_entry(self.io, self.ledger, name, entry), self.ref, self.then,
+                            self.roster, with_ids)
+        refuse, info = _introduced(before, after, tid)
+        for r in info if notes else []:
+            self.say(self.cmd, f"note — {r['text']}", 0)
+        for r in refuse:
+            self.say(self.cmd, f"refused — {r['text']}", 1)
+        return bool(refuse)
+
+
+def _field_flags(ap: argparse.ArgumentParser, helps: Mapping[str, str]) -> None:
+    for dest, name in NEW_FIELDS:
+        ap.add_argument(f"--{dest.replace('_', '-')}", dest=dest, metavar=name.upper().replace(" ", "_"),
+                        help=helps.get(dest, f"the {name} field"))
+    ap.add_argument("--field", action="append", default=[], metavar="NAME=VALUE", help="a repo's own field; repeatable")
+
+
+def _fields_given(ap: argparse.ArgumentParser, a: argparse.Namespace) -> list[tuple[str, str]]:
+    """(name, value) for each field flag given, in NEW_FIELDS order, then the --field ones."""
+    out = [(name, getattr(a, dest)) for dest, name in NEW_FIELDS if getattr(a, dest) is not None]
+    for f in a.field:
+        k, eq, v = f.partition("=")
+        if not eq or not k.strip():
+            ap.error(f"--field takes NAME=VALUE, not {f!r}")
+        out.append((k.strip(), v))
+    return out
+
+
+def _read_body(ap: argparse.ArgumentParser, flag: str, src: str) -> str:
+    try:
+        return sys.stdin.read() if src == "-" else Path(src).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        ap.error(f"{flag}: cannot read {src} ({e.__class__.__name__})")
+
+
 def new(argv: list[str]) -> int:
     """``ledger.py new``: file one entry from flags, its id from the counter (TD-198)."""
     ap = argparse.ArgumentParser(prog="ledger.py new",
                                  description="file a new entry in a v2 ledger, in canonical form, its id from the counter")
     ap.add_argument("--title", required=True)
-    for dest, name in NEW_FIELDS:
-        ap.add_argument(f"--{dest.replace('_', '-')}", dest=dest, metavar=name.upper().replace(" ", "_"),
-                        help={"added": "default: today", "status": "default: Open"}.get(dest, f"the {name} field"))
-    ap.add_argument("--field", action="append", default=[], metavar="NAME=VALUE", help="a repo's own field; repeatable")
+    _field_flags(ap, {"added": "default: today", "status": "default: Open"})
     for s in ("why", "fix", "done-when"):
         ap.add_argument(f"--{s}", metavar="FILE", help=f"the {s.replace('-', ' ').capitalize()} section from a file, or - for stdin")
     ap.add_argument("--id", metavar="TD-n", help="file under an id already taken from the counter, instead of taking one")
@@ -935,56 +1025,21 @@ def new(argv: list[str]) -> int:
         ap.error(f"an entry's id is TD-n, not {a.id!r}")
     sections = []
     for name, src in (("Why", a.why), ("Fix", a.fix), ("Done when", a.done_when)):
-        if src is None:
-            continue
-        try:
-            body = sys.stdin.read() if src == "-" else Path(src).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as e:
-            ap.error(f"--{name.lower().replace(' ', '-')}: cannot read {src} ({e.__class__.__name__})")
+        body = _read_body(ap, f"--{name.lower().replace(' ', '-')}", src) if src is not None else ""
         if body.strip():
             sections.append((name, body.strip()))
     if not sections or sections[0][0] != "Why":
         ap.error("--why is empty: the Why is the point of an entry (cadence.md §2)")
-    fields = [(name, getattr(a, dest)) for dest, name in NEW_FIELDS]
-    fields = [(n, v if v is not None else {"Added": datetime.now().astimezone().date().isoformat(),
-                                           "Status": "Open"}.get(n)) for n, v in fields]
-    for f in a.field:
-        k, eq, v = f.partition("=")
-        if not eq or not k.strip():
-            ap.error(f"--field takes NAME=VALUE, not {f!r}")
-        fields.append((k.strip(), v))
+    a.added = a.added if a.added is not None else datetime.now().astimezone().date().isoformat()
+    a.status = a.status if a.status is not None else "Open"
+    fields = _fields_given(ap, a)
 
-    ledger = Path(a.ledger) if a.ledger else _toplevel() / LEDGER_DIR_REL
-    io = fs_io()
-    if io[0](str(ledger)) is None:
-        print(f"ledger: new: {ledger} is not a v2 directory — a v1 ledger: `ledger.py --split` first", file=sys.stderr)
-        return 2
-    why = v2_unread(str(ledger), io)
-    if why:
-        print(f"ledger: new: not read — {ledger}: {why}", file=sys.stderr)
-        return 2
-    root, rel, why = _rel(ledger)
-    if root is None:
-        print(f"ledger: new: {why}", file=sys.stderr)
-        return 2
-    ref = f"origin/{N.default_branch(root)}"
-    then, _ = _at_ref(ledger, ref)  # None (no such ref): every entry counts as new, as in --check
-    text, arch = read_pair(str(ledger), None, io)
-    known = LB.heading_nums(text) | LB.heading_nums(arch)
-    roster = Roster()
-
-    # A cross-repo blocker this entry introduces must name an entry its repo has (TD-153's missing).
-    ids, _, _ = parse_blocked(a.blocked_by or "")
-    for item in ids:
-        m = XREPO_ITEM_RE.match(item.strip())
-        if not m:
-            continue
-        repo_root, _ = roster._find(m.group(1))
-        st = roster.state(repo_root, m.group(2), m.group(1)) if repo_root else {"missing": False}
-        if st["missing"]:
-            print(f"ledger: new: refused — Blocked by {item}: {st['why']}; if it was filed since, "
-                  f"`git -C {repo_root} fetch` and run again", file=sys.stderr)
-            return 1
+    w = _Writer.open("new", a.ledger)
+    if isinstance(w, int):
+        return w
+    known = LB.heading_nums(w.text) | LB.heading_nums(w.arch)
+    if w.xrepo_refused(a.blocked_by):
+        return 1
 
     def render(tid: str, taken_by: str | None) -> str | None:
         try:
@@ -993,41 +1048,29 @@ def new(argv: list[str]) -> int:
                 raise LB.Refused("the entry would not be in canonical form")
             return out
         except LB.Refused as e:
-            print(f"ledger: new: refused — {e}", file=sys.stderr)
+            w.say("new", f"refused — {e}", 1)
             return None
-
-    def refused(tid: str, entry: str, with_ids: bool) -> bool:
-        before = _gate_flags(ledger, io, ref, then, roster, with_ids)
-        after = _gate_flags(ledger, _with_entry(io, ledger, f"{tid}.md", entry), ref, then, roster, with_ids)
-        refuse, notes = _introduced(before, after, tid)
-        for r in notes if with_ids else []:  # once, on the pass with the real id
-            print(f"ledger: new: note — {r['text']}", file=sys.stderr)
-        for r in refuse:
-            print(f"ledger: new: refused — {r['text']}", file=sys.stderr)
-        if refuse and not with_ids:
-            print(f"ledger: new: no id was taken and nothing was written ({tid} above is provisional)", file=sys.stderr)
-        return bool(refuse)
 
     # Everything but the id is judged first, under a provisional one, so a refusal spends no take.
     provisional = f"TD-{max(known, default=0) + 1}"
     entry = render(provisional, None)
-    if entry is None or refused(provisional, entry, False):
+    if entry is None:
         return 1
+    if w.refused(provisional, f"{provisional}.md", entry, with_ids=False, notes=False):  # notes once, below
+        return w.say("new", f"no id was taken and nothing was written ({provisional} above is provisional)", 1)
 
     import ledger_next_id as X  # sibling SYNC script: the counter (it imports this one)
     if a.id:
         tid = X.tid(_num(a.id))  # §2.2's width, as the counter writes it: TD-3 is TD-003
         if _num(tid) in known:
-            print(f"ledger: new: {tid} is in the ledger or its archive already", file=sys.stderr)
-            return 2
-        takes, why = X.counter_takes(root)
+            return w.say("new", f"{tid} is in the ledger or its archive already", 2)
+        takes, why = X.counter_takes(w.root)
         if takes is None:
-            print(f"ledger: new: refused — {why}, so {tid}'s take cannot be named", file=sys.stderr)
-            return 2
+            return w.say("new", f"refused — {why}, so {tid}'s take cannot be named", 2)
         taken_by = (takes.get(_num(tid)) or {}).get("by")
     else:
-        cmd = [sys.executable, str(Path(__file__).with_name("ledger_next_id.py")), "--json", "--ledger", rel]
-        r = subprocess.run(cmd + (["--by", a.by] if a.by else []), cwd=root, capture_output=True, text=True,
+        cmd = [sys.executable, str(Path(__file__).with_name("ledger_next_id.py")), "--json", "--ledger", w.rel]
+        r = subprocess.run(cmd + (["--by", a.by] if a.by else []), cwd=w.root, capture_output=True, text=True,
                            timeout=120, check=False)
         try:
             res = json.loads(r.stdout)
@@ -1035,24 +1078,75 @@ def new(argv: list[str]) -> int:
             res = {"ids": [], "why": (r.stderr.strip() or f"exit {r.returncode}")}
         if r.returncode == 3 and res.get("ids"):
             t = res["ids"][0]
-            print(f"ledger: new: {t} was printed but not reserved ({res.get('why')}) — nothing was written; reserve it "
-                  f"with `ledger_next_id.py --claim {t}`, then run again with --id {t}", file=sys.stderr)
-            return 2
+            return w.say("new", f"{t} was printed but not reserved ({res.get('why')}) — nothing was written; reserve it "
+                                f"with `ledger_next_id.py --claim {t}`, then run again with --id {t}", 2)
         if r.returncode != 0 or not res.get("ids"):
-            print(f"ledger: new: no id was taken — {res.get('why')}", file=sys.stderr)
-            return 2
+            return w.say("new", f"no id was taken — {res.get('why')}", 2)
         tid, taken_by = res["ids"][0], res.get("taken_by")
     entry = render(tid, taken_by)
-    if entry is None or refused(tid, entry, True):
-        print(f"ledger: new: {tid} is taken and nothing was written — fix the above, then run again with --id {tid}",
-              file=sys.stderr)
-        return 1
-    path = ledger / f"{tid}.md"
+    if entry is None or w.refused(tid, f"{tid}.md", entry):
+        return w.say("new", f"{tid} is taken and nothing was written — fix the above, then run again with --id {tid}", 1)
+    path = w.ledger / f"{tid}.md"
     if path.exists():
-        print(f"ledger: new: {path} exists — nothing was written", file=sys.stderr)
-        return 2
+        return w.say("new", f"{path} exists — nothing was written", 2)
     with open(path, "w", encoding="utf-8", newline="") as f:
         f.write(entry)
+    print(path)
+    return 0
+
+
+def edit(cmd: str, argv: list[str]) -> int:
+    """``ledger.py set|note|edit TD-n …``: one edit of an open entry through ``edit_entry()`` (TD-199)."""
+    ap = argparse.ArgumentParser(prog=f"ledger.py {cmd}", description={
+        "set": "set an open entry's header fields (an empty value removes one)",
+        "note": "append a dated line to an open entry's Status",
+        "edit": "replace one section of an open entry (or add it where SPEC puts it)"}[cmd])
+    ap.add_argument("id", metavar="TD-n")
+    if cmd == "set":
+        _field_flags(ap, {})
+    elif cmd == "note":
+        ap.add_argument("words", help="the note, one line")
+    else:
+        ap.add_argument("--section", required=True, help="the section's name: Why, Fix, Done when, …")
+        ap.add_argument("--from", dest="src", required=True, metavar="FILE", help="its new text from a file, or - for stdin")
+    ap.add_argument("--ledger", help="a v2 directory; default: docs/ledger/ at the work tree's top")
+    a = ap.parse_args(argv)
+    if not ID_ITEM_RE.match(a.id):
+        ap.error(f"an entry's id is TD-n, not {a.id!r}")
+    kw: dict = {}
+    if cmd == "set":
+        kw["fields"] = dict(_fields_given(ap, a))
+        if not kw["fields"]:
+            ap.error("give at least one field to set")
+    elif cmd == "note":
+        kw.update(words=a.words, today=datetime.now().astimezone().date().isoformat())
+    else:
+        kw.update(section=a.section, words=_read_body(ap, "--from", a.src).strip())
+        if not kw["words"]:
+            ap.error("--from is empty: a section is never emptied by edit")
+
+    w = _Writer.open(cmd, a.ledger)
+    if isinstance(w, int):
+        return w
+    found = LB.entry_path(str(w.ledger), a.id, w.io[0])
+    if found is None:
+        return w.say(cmd, f"{a.id} is in neither {w.ledger} nor its archive", 2)
+    path = Path(found)
+    if path.parent.name == LB.LEDGER_ARCHIVE and path.parent != w.ledger:
+        return w.say(cmd, f"{a.id} is archived ({found}) — it is edited only once reopened", 2)
+    with open(path, encoding="utf-8", newline="") as f:
+        text = f.read()
+    try:
+        out = LB.edit_entry(text, "set" if cmd == "set" else cmd, **kw)
+    except LB.Refused as e:
+        return w.say(cmd, f"refused — {e}", 1)
+    tid = LB.entries(out)[0]["id"]
+    was = (LB.entries(text)[0]["fields"].get("blocked by") or "") if cmd == "set" else ""
+    if (cmd == "set" and w.xrepo_refused(kw["fields"].get("Blocked by"), was)) or w.refused(tid, path.name, out):
+        return w.say(cmd, f"nothing was written to {path}", 1)
+    if out != text:
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(out)
     print(path)
     return 0
 
@@ -1063,6 +1157,8 @@ def main(argv: list[str] | None = None) -> int:
         return fmt(argv[1:])
     if argv[:1] == ["new"]:
         return new(argv[1:])
+    if argv[:1] in (["set"], ["note"], ["edit"]):
+        return edit(argv[0], argv[1:])
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--pickable", nargs="?", const=True, default=None, metavar="yes|no",
                     help="alone: print the pick order, the blocked entries and the flags; "
