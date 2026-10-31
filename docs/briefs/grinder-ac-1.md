@@ -27,7 +27,7 @@ ruff check files/scripts/
 **The lane: free-pick** from `docs/ledger/` as it stands on `origin/main`: pick from `python3 files/scripts/ledger.py --pickable`, which prints the pick order (the rank: highest **Priority** first, then id, unless the person has ranked the cards — cadence.md §2.4) and leaves out every entry with an open `**Blocked by:**` field (cadence.md §2, TD-064) — re-run before every pick; an entry filed an hour ago is as pickable as the rest. Each entry's Fix is a proposal; its **Why** is what you are resolving. **Never pick:**
 
 - An entry the reader lists as **Blocked** — `decision (Paul)` marks Paul's calls (the reader's Blocked section names them; never a copy here), and an entry blocked on another waits until that one is archived. Promoting an entry is a ledger edit that removes its field (`ledger.py set TD-n --blocked-by ""`); no brief edit, no restart.
-- Anything on `docs/user_attention.md` waiting for Paul, or whose Status says the decision is his but carries no field yet — then add `**Blocked by:** decision (Paul)` to it in your next PR.
+- Anything on `docs/user_attention.md` waiting for Paul, or whose Status says the decision is his but carries no field yet — then add `**Blocked by:** decision (Paul)` to it in your next PR (`ledger.py set TD-n --blocked-by "decision (Paul)"`).
 
 An entry whose fix needs a decision only Paul can make (a convention with two defensible shapes), or would touch what the standing rules forbid, is dropped with the reason on the record.
 
