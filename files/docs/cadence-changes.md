@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-30 — A design's review record is its own file, `docs/reviews/TD-NNN.md`
+Do: when a plan runs design review rounds, keep its record in `docs/reviews/TD-<design's TD>.md`, never in the plan: header `Design:`, `Class:`, `Decided:` (date or `pending`), `Source: rounds`, then a Reviews table (`review | round | role | model | tokens | date`, every completed review with its exact model id and token total, or `?` where the runner gives none) and the findings table with `by` naming the review (`R2`). Until TD-204 is built, this overrides §4.8's and adr-template.md's in-plan *Review record*.
+See: ADR docs/plans/2026-10-30-review-outcomes.md (agent-cadence; example docs/reviews/TD-204.md); TD-204.
+
 ## 2026-10-30 — `review-model` is an ordered list; `fact-check-model`; design review rounds are capped
 Do: take round one's reviewer from `cadence_config.py get review-model --first` (the setting may now be `"sonnet, fable"`: a round is one pass, one review at a time) and a fact-check's from `get fact-check-model`. Review a design plan in rounds capped by `design-rounds` (4) / `design-rounds-wide` (6), every finding labelled and in the plan's *Review record*, ending by the stop rule or the cap.
 See: cadence.md §4.8 *Design review rounds*, §9.18; adr-template.md; TD-203.
