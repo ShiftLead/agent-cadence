@@ -109,8 +109,9 @@ Verify each before relying on it — several were true when written and may not 
 - **The merge gate is the cadence/precheck status** (TD-148, cadence.md §4.12): `files/scripts/precheck.py --pr <n>`
   runs `docs/cadence.toml`'s `precheck` — ruff, then `./run_tests.sh` with `CI=true`, so a SKIP
   fails it — in a clean worktree at the PR's head and records the status the cadence check's `ci`
-  row requires; right after a push it takes `--expect "$(git rev-parse HEAD)"` (TD-186). GitHub Actions (`.github/workflows/ci.yml`, TD-047) is not the gate: the account's
-  minutes are one shared pool. Editing `.github/` is still Paul's, not a grinder's.
+  row requires; right after a push it takes `--expect "$(git rev-parse HEAD)"` (TD-186). GitHub Actions (`.github/workflows/ci.yml`, TD-047) is not the gate: it runs only on a
+  fork's PR (TD-192), in GitHub's sandbox. A fork's PR is Paul's: no session runs `files/scripts/precheck.py` on
+  it. Editing `.github/` is still Paul's, not a grinder's.
 - **`bash tests/*.sh` runs only the first file** — the rest become its `$@`. A tally read off the
   last file is not the suite.
 - **The cadence check exits 3 when any row is `unknown`** (TD-041, archived): 0 is the only

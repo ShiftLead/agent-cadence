@@ -43,8 +43,8 @@ and a link can be skipped:
   `python3 files/scripts/check_cadence.py --pr <n>` — `files/scripts/`, not `scripts/`.
 - **The gate is the bash suite and ruff:** `./run_tests.sh` and `ruff check files/scripts/`, run by
   hand before a PR and on its head by `files/scripts/precheck.py --pr <n>`, which records the
-  `cadence/precheck` status the `ci` row requires (`docs/cadence.toml`, TD-148) — not by GitHub
-  Actions, whose minutes are the account's shared pool. The SessionStart
+  `cadence/precheck` status the `ci` row requires (`docs/cadence.toml`, TD-148). GitHub Actions
+  runs only on a fork's PR (TD-192), and a session never prechecks one: that is Paul's. The SessionStart
   hooks (TD-038) are detectors, not the suite.
 - **Never run `sync.sh` (its `--pin`) or `agent-cadence adopt` outside a test fixture.** An ad-hoc run appends
   to the machine roster `~/.config/agent-cadence/repos.txt`; moving a consumer is Paul's. Tests
