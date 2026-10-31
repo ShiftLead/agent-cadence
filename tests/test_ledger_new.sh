@@ -117,6 +117,10 @@ t=$(cd "$W" && python3 "$NEXT" --by someone-else 2>/dev/null)
 out=$(lp new --id "$t" --title "by id" --priority Low --why "$TMP/why.md" 2>"$TMP/err"); rc=$?
 [ $rc -eq 0 ] && grep -qx '\*\*Taken by:\*\* someone-else' "$out" && grep -q "^## $t: by id" "$out" \
   && ok "--id files under an id already taken, its Taken by the take's by" || bad "--id taken (rc=$rc): $(cat "$TMP/err")"
+t2=$(cd "$W" && python3 "$NEXT" 2>/dev/null)
+out=$(lp new --id "TD-$((10#${t2#TD-}))" --title unpadded --priority Low --why "$TMP/why.md" 2>"$TMP/err"); rc=$?
+[ $rc -eq 0 ] && [ "$out" = "$W/docs/ledger/$t2.md" ] && grep -q "^## $t2: unpadded" "$out" \
+  && ok "--id TD-n is written at §2.2's width, as the counter gave it" || bad "--id unpadded (rc=$rc) out=$out: $(cat "$TMP/err")"
 lp new --id TD-90 --title untaken --priority Low --why "$TMP/why.md" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused' "$TMP/err" && [ ! -e "$W/docs/ledger/TD-90.md" ] \
   && ok "--id with an id no take gave is refused (the gate's id check)" || bad "--id untaken (rc=$rc): $(cat "$TMP/err")"
@@ -130,8 +134,9 @@ python3 "$LEDGER_PY" new --ledger "$TMP/technical_debt.md" --title x --priority 
 lp new --title x --priority Low --why - --fix - </dev/null >/dev/null 2>&1; r1=$?
 lp new --title x --why "$TMP/why.md" >/dev/null 2>&1; r2=$?
 lp new --title x --priority Low >/dev/null 2>&1; r3=$?
-[ $r1 -eq 2 ] && [ $r2 -eq 2 ] && [ $r3 -eq 2 ] && [ "$(last "$O")" = "$((10#${t#TD-}))" ] \
-  && ok "two stdin sections, no --priority and no --why are usage errors, before any take" || bad "usage: $r1 $r2 $r3"
+lp new --title x --priority Low --why - </dev/null >/dev/null 2>&1; r4=$?
+[ $r1 -eq 2 ] && [ $r2 -eq 2 ] && [ $r3 -eq 2 ] && [ $r4 -eq 2 ] && [ "$(last "$O")" = "$((10#${t2#TD-}))" ] \
+  && ok "two stdin sections, no --priority, no --why and an empty Why are usage errors, before any take" || bad "usage: $r1 $r2 $r3 $r4"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

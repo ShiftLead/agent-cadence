@@ -88,7 +88,8 @@ would change and writes nothing. Exit 1 when an entry was refused, or under ``--
 ``--part-of``, ``--location``; ``--field NAME=VALUE`` for a repo's own) and ``--why``, ``--fix``,
 ``--done-when`` each from a file or ``-`` for stdin. The id is a take from the counter
 (``ledger_next_id.py``, ``--by`` passed through) and ``Taken by`` its ``by``; ``--id TD-n`` files under an
-id already taken, ``Taken by`` that take's ``by``. It refuses the write on every flag the entry brings
+id already taken (written at §2.2's width, ``TD-3`` as ``TD-003``), ``Taken by`` that take's ``by`` — judged as
+the gate judges it, so in a repo whose counter has no take yet an id nobody took is not caught. It refuses the write on every flag the entry brings
 that ``--check --since origin/<default>`` counts as an error (``cross-repo`` a note), on a wait written in
 prose (``prose-wait``), and on a ``<repo>#TD-n`` blocker whose roster repo was read and has no such entry —
 all judged once before the take, under a provisional id, so a refusal spends no id, then again with the
@@ -942,6 +943,8 @@ def new(argv: list[str]) -> int:
             ap.error(f"--{name.lower().replace(' ', '-')}: cannot read {src} ({e.__class__.__name__})")
         if body.strip():
             sections.append((name, body.strip()))
+    if not sections or sections[0][0] != "Why":
+        ap.error("--why is empty: the Why is the point of an entry (cadence.md §2)")
     fields = [(name, getattr(a, dest)) for dest, name in NEW_FIELDS]
     fields = [(n, v if v is not None else {"Added": datetime.now().astimezone().date().isoformat(),
                                            "Status": "Open"}.get(n)) for n, v in fields]
@@ -997,7 +1000,7 @@ def new(argv: list[str]) -> int:
         before = _gate_flags(ledger, io, ref, then, roster, with_ids)
         after = _gate_flags(ledger, _with_entry(io, ledger, f"{tid}.md", entry), ref, then, roster, with_ids)
         refuse, notes = _introduced(before, after, tid)
-        for r in notes:
+        for r in notes if with_ids else []:  # once, on the pass with the real id
             print(f"ledger: new: note — {r['text']}", file=sys.stderr)
         for r in refuse:
             print(f"ledger: new: refused — {r['text']}", file=sys.stderr)
@@ -1013,7 +1016,7 @@ def new(argv: list[str]) -> int:
 
     import ledger_next_id as X  # sibling SYNC script: the counter (it imports this one)
     if a.id:
-        tid = a.id
+        tid = X.tid(_num(a.id))  # §2.2's width, as the counter writes it: TD-3 is TD-003
         if _num(tid) in known:
             print(f"ledger: new: {tid} is in the ledger or its archive already", file=sys.stderr)
             return 2
