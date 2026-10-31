@@ -391,6 +391,36 @@ for t in ("on: {pull_request: {paths: [a]}, push: {tags: [v1]}}", "on:\n  push:\
     print(c.gating_events(c.workflow_triggers(t) or {}, "main"))')
 [ "$got" = "$(printf '%s\n' '[]' '[]' "['push to main']" "['every pull_request', 'push to main']")" ] \
   && ok "ci: workflow triggers read in flow form, with a negated branch, past types:, and as a column-0 list" || bad "ci trigger shapes: $got"
+FORKCI='on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  suite:
+    if: github.event_name == '"'"'workflow_dispatch'"'"' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - if: always()
+        run: true
+  lint:
+    if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+    runs-on: ubuntu-latest
+'
+# TD-207: a pull_request workflow whose every job's `if:` needs a fork's head runs on no same-repo
+# PR (cadence.md §4.12's fork-only form): no ⚠. One job without it, or one that names the event, warns.
+printf '%s' "$FORKCI" > "$R/.github/workflows/ci.yml"
+out=$(run --pr 31); ! cirow "$out" | grep -q "⚠" && ok "ci (TD-207): a fork-only pull_request workflow: no warning" || bad "ci fork-only: $(cirow "$out")"
+printf '%s  other:\n    runs-on: ubuntu-latest\n' "$FORKCI" > "$R/.github/workflows/ci.yml"
+out=$(run --pr 31); cirow "$out" | grep -qF "⚠ .github/workflows/ci.yml runs on every pull_request" \
+  && ok "ci (TD-207): one job with no fork condition: the workflow still warns" || bad "ci fork-only one job: $(cirow "$out")"
+got=$(cd "$DC/files/scripts" && python3 -c '
+import check_cadence as c
+for x in ("github.event_name == \"pull_request\" || github.event.pull_request.head.repo.full_name != github.repository",
+          "(github.event.pull_request.head.repo.full_name != github.repository) || true", "always()",
+          "github.repository != github.event.pull_request.head.repo.full_name && github.actor != \"bot\"", "\"${{ github.event_name == '"'"'push'"'"' }}\""):
+    print(c._fork_only_if(x))
+print(c.fork_only("on: pull_request\njobs:\n  a:\n    if: >\n      github.event.pull_request.head.repo.full_name != github.repository\n"))')
+[ "$got" = "$(printf '%s\n' False False False True True False)" ] \
+  && ok "ci (TD-207): the fork condition read by its terms — the event named, a parenthesis, a narrowing &&, a block scalar" || bad "ci fork-only shapes: $got"
 git -C "$R" reset -q -- .github; rm -rf "$R/.github" "$FAKE/statuses_hhh2222.json"
 rm -f "$R/docs/cadence.toml"
 
@@ -451,6 +481,19 @@ at "$(mkhead 'name: no trigger this reads
 ')"; sth cadence/precheck success
 out=$(run --pr 31); [ "$(rowstat "$out" ci)" = UNKNOWN ] && cirow "$out" | grep -q "ci.yml may post" \
   && ok "ci: 403 and a workflow whose triggers cannot be read: unknown" || bad "ci 403 unreadable workflow: $(cirow "$out")"
+# TD-207: a fork-only pull_request workflow skips its jobs on a same-repo PR (a skipped check run
+# cannot fail it), so it stands in only when the forge says the PR is not a fork's
+xr() { python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); v=sys.argv[2]
+if v == "unset": d.pop("isCrossRepository", None)
+else: d["isCrossRepository"] = v == "true"
+json.dump(d, open(p, "w"), separators=(",", ":"))' "$FAKE/pr_31.json" "$1"; }
+at "$(mkhead "$FORKCI")"; sth cadence/precheck success
+xr false; out=$(run --pr 31); [ "$(rowstat "$out" ci)" = PASS ] && cirow "$out" | grep -q "judged on commit statuses" \
+  && ok "ci (TD-207): 403 and a fork-only workflow on a same-repo PR: passes on the statuses" || bad "ci 403 fork-only same repo: $(cirow "$out")"
+xr true; out=$(run --pr 31); [ "$(rowstat "$out" ci)" = UNKNOWN ] && cirow "$out" | grep -q "ci.yml may post" \
+  && ok "ci (TD-207): 403 and a fork-only workflow on a fork's PR: unknown — its jobs run there" || bad "ci 403 fork-only fork: $(cirow "$out")"
+xr unset; out=$(run --pr 31); [ "$(rowstat "$out" ci)" = UNKNOWN ] && cirow "$out" | grep -q "ci.yml may post" \
+  && ok "ci (TD-207): 403, a fork-only workflow, and a forge that does not say: unknown" || bad "ci 403 fork-only unsaid: $(cirow "$out")"
 # the amendment: a push filtered to the default branch alone cannot post on a PR's head on another
 # branch (a consumer's build-ci-image.yml shape) — exempt; any wider or looser filter still counts
 CM='on:
