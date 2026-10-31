@@ -653,11 +653,81 @@ def _hits(patterns, default):
     return hit
 
 
-def gating_events(triggers, default):
-    """The events of `triggers` that run on every PR or every push to `default`."""
+# TD-207: a job condition true on a pull_request only when the PR's head is a fork's (cadence.md
+# §4.12's fork-only form), and one that names another event. A disjunct of a job's `if:` with
+# neither among its `&&` terms could run on a same-repo PR; a parenthesised term reads as that.
+PR_EVENTS = ("pull_request", "pull_request_target")
+FORK_HEAD_RE = re.compile(r"github\.event\.pull_request\.head\.repo\.full_name\s*!=\s*github\.repository"
+                          r"|github\.repository\s*!=\s*github\.event\.pull_request\.head\.repo\.full_name")
+EVENT_IS_RE = re.compile(r"""github\.event_name\s*==\s*(?:'(\w+)'|"(\w+)")""")
+
+
+def _fork_only_if(cond):
+    """Whether a job's `if:` value is false on every same-repo pull_request."""
+    c = cond.strip()
+    if len(c) > 1 and c[0] == c[-1] and c[0] in "'\"":   # a quoted scalar: `if: "…"`
+        c = c[1:-1]
+    m = re.fullmatch(r"\$\{\{(.*)\}\}", c.strip(), re.S)
+    c = (m.group(1) if m else c).strip()
+    if not c:
+        return False
+    for alt in c.split("||"):
+        terms = [t.strip() for t in alt.split("&&")]
+        if any(t.startswith("(") or t.endswith(")") for t in terms):
+            return False
+        if not any(FORK_HEAD_RE.fullmatch(t) or ((e := EVENT_IS_RE.fullmatch(t)) and (e.group(1) or e.group(2))
+                                                    not in PR_EVENTS) for t in terms):
+            return False
+    return True
+
+
+def fork_only(text):
+    """Whether every job of a workflow file has an `if:` that skips a same-repo pull_request — the
+    fork-only form, which runs a fork's PR in the forge's sandbox and no other PR (TD-207). False
+    when it has no `jobs:` this can read, or a job with no such `if:` — one that is a block scalar,
+    wraps onto another line or holds a `#` (a comment, or a string `_strip` would cut) included."""
+    lines = [x.rstrip() for x in text.splitlines()]
+    try:
+        i = next(n for n, t in enumerate(lines) if re.fullmatch(r"jobs\s*:", _strip(t)))
+    except StopIteration:
+        return False
+    body = []
+    for t in lines[i + 1:]:
+        if not t.strip() or t.lstrip().startswith("#"):   # a comment at column 0 ends nothing
+            continue
+        if not t[:1].isspace():
+            break
+        body.append(t)
+    if not body:
+        return False
+    ind = len(body[0]) - len(body[0].lstrip())
+    jobs, key_ind, in_if = [], None, False
+    for t in body:
+        d = len(t) - len(t.lstrip())
+        if d < ind:
+            return False
+        if d == ind:
+            jobs.append(None)
+            key_ind, in_if = None, False
+            continue
+        if key_ind is None:
+            key_ind = d
+        if d > key_ind:
+            if in_if:   # the condition goes on below its key: unread
+                jobs[-1], in_if = None, False
+            continue
+        m = re.match(r"""(?:if|"if"|'if')\s*:(.*)$""", t.strip())
+        jobs[-1] = m.group(1) if m and "#" not in m.group(1) else (None if m else jobs[-1])
+        in_if = bool(m)
+    return bool(jobs) and all(c is not None and _fork_only_if(c) for c in jobs)
+
+
+def gating_events(triggers, default, fork_only_jobs=False):
+    """The events of `triggers` that run on every PR or every push to `default`; a pull_request
+    event whose every job is fork-only (`fork_only_jobs`, TD-207) runs on no same-repo PR."""
     found = []
     for ev in ("pull_request", "pull_request_target", "push"):
-        if ev not in triggers:
+        if ev not in triggers or (fork_only_jobs and ev in PR_EVENTS):
             continue
         f = triggers[ev]
         if "paths" in f or "paths-ignore" in f:
@@ -685,10 +755,10 @@ def actions_warnings(root, default, precheck_set):
     for rel in sorted(p for p in listed.splitlines() if p.endswith((".yml", ".yaml"))):
         try:
             with open(os.path.join(root, rel), encoding="utf-8") as fh:
-                trig = workflow_triggers(fh.read())
+                text = fh.read()
         except (OSError, UnicodeDecodeError):
             continue
-        evs = gating_events(trig or {}, default)
+        evs = gating_events(workflow_triggers(text) or {}, default, fork_only(text))
         if evs:
             warns.append(f"{rel} runs on {' and '.join(evs)} — trigger it by path, tag or hand "
                          "and gate on `precheck` (cadence §4.12)")
@@ -715,13 +785,15 @@ def _default_only_push(f, default, head_branch):
     return bool(head_branch) and head_branch != default
 
 
-def head_workflows(root, sha, default=None, head_branch=None):
+def head_workflows(root, sha, default=None, head_branch=None, cross_repo=None):
     """The workflows at commit `sha` — the PR's head, so one the PR itself adds counts — that may
     post a check run there (TD-156): any that runs on an event outside HEAD_SAFE_EVENTS other
     than a tag-only push, filters or not — a filter narrows when it runs, not whether (TD-163) —
     and any whose triggers this cannot read. One exception: a push filtered to the default branch alone, when
     the PR's head branch is another, the default is verified on origin and `sha` is not already
-    on it. None without a clone, or with the head not in it."""
+    on it. And one more: a pull_request event of a fork-only workflow (TD-207) when the forge says the
+    PR is not a fork's (`cross_repo` False) — its jobs are skipped, and a skipped job's check run
+    cannot fail the PR. None without a clone, or with the head not in it."""
     if not root:
         return None
     listed = git(["ls-tree", "-r", "--name-only", sha, "--", ".github/workflows"], cwd=root)
@@ -746,6 +818,8 @@ def head_workflows(root, sha, default=None, head_branch=None):
                     "branches" in f or "branches-ignore" in f):
                 continue   # a tag push only
             if ev == "push" and exempt_ok and _default_only_push(f, default, head_branch):
+                continue
+            if ev in PR_EVENTS and cross_repo is False and fork_only(text):
                 continue
             found.append(rel)
             break
@@ -783,7 +857,8 @@ def _row_ci(pr, root=None):
         # its status is on the head, and no workflow at the head could have posted a check run here.
         # A GitHub App that posts check runs is not visible from the clone — the one blind spot.
         want, unread = _precheck()
-        wfs = head_workflows(root, sha, default_branch(root) if root else None, pr.get("head"))
+        wfs = head_workflows(root, sha, default_branch(root) if root else None, pr.get("head"),
+                             pr.get("cross_repo"))
         why = None
         if unread or not want:
             why = "the repo sets no `precheck` (docs/cadence.toml) to judge on instead"

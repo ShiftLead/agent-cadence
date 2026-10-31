@@ -12,6 +12,9 @@ verdict on the PR (TD-117, cadence.md §4.12).
                                 the same, refusing (exit 2) unless the PR's head is SHA (a
                                 full sha or a prefix) — the commit just pushed (TD-186)
     precheck.py ... --no-record run it and record nothing (a trial)
+    precheck.py --pr N --fork-ok
+                                run it on a fork's PR, which is otherwise refused (TD-207) —
+                                the person's flag, after reading the diff, never a session's
 
 The merge gate runs it: the session that runs the cadence check (docs/procedures/cadence.md)
 runs this first when `precheck` is set, and check_cadence.py's ci row reads the status. A
@@ -20,7 +23,7 @@ runs this first when `precheck` is set, and check_cadence.py's ci row reads the 
 The command is the repo's, read from the checkout this runs in (its docs/cadence.toml, never
 the PR's — a PR cannot change the check it is judged by before it merges). It runs with bash
 from the root of a detached worktree at the head commit, fetched from origin as the forge
-serves it (a fork's head included) — with --commit, origin's default branch is fetched and the
+serves it — with --commit, origin's default branch is fetched and the
 commit must be on it (an ancestor of its tip, or the tip), stdin closed, its output streamed; that worktree is
 removed afterwards. A fresh worktree has no installed dependencies, so the command sets up
 what it needs (`pdm install && pdm run test`).
@@ -30,6 +33,11 @@ in the same breath would test the previous head and pass it. So --pr re-reads th
 30s (PRECHECK_HEAD_WAIT, 0–600) while the head is not --expect's commit, or — without --expect —
 while origin's branch (`git ls-remote`) is at another commit, or this checkout, on that branch,
 holds a commit the head lacks; then it refuses, naming both shas. A fork's PR is not compared. The PASS/FAIL line and the recorded line name the full sha tested.
+
+A fork's PR is refused (TD-207): its head is a stranger's code, and the command would run it here
+with the person's credentials in reach — the clean worktree is no sandbox. So --pr reads whether
+the head is a fork's (the forge's `cross_repo`) and, when it is or the forge does not say, exits 2
+before fetching it. --fork-ok runs it anyway, and the recorded status's description says so.
 
 A PR may get a narrower command (TD-155): `[precheck-paths]` in docs/cadence.toml maps globs to a
 command, and when every file the PR changes (a three-dot diff against its base branch, fetched
@@ -43,7 +51,7 @@ took and the host it ran on.
 
 Exit: 0 the command passed and the status is recorded (or --no-record); 1 it failed (a failure
 status is recorded); 2 nothing ran — no `precheck` set, the PR is not open, its head cannot
-be fetched, its head is not the pushed commit (TD-186), a --commit that is not on origin's default branch, or a usage error; 3 it passed but the status could not be recorded (the ci row
+be fetched, its head is a fork's without --fork-ok (TD-207), its head is not the pushed commit (TD-186), a --commit that is not on origin's default branch, or a usage error; 3 it passed but the status could not be recorded (the ci row
 will not see it). Stdlib only.
 """
 
@@ -128,9 +136,10 @@ def narrow(entries: list[tuple[list[str], str]], paths: list[str] | None) -> tup
     return None
 
 
-def read_head(fg, n: int, root: str) -> tuple[dict, str] | int:
+def read_head(fg, n: int, root: str, fork_ok: bool = False) -> tuple[dict, str] | int:
     """(the PR, its head sha) once that head is fetched from origin, else the exit code, having
-    said why."""
+    said why. A fork's head, or one the forge does not say is not a fork's, is refused before it
+    is fetched unless `fork_ok` (TD-207)."""
     try:
         pr = fg.pr(n)
     except F.ForgeUnreadable as e:
@@ -139,6 +148,14 @@ def read_head(fg, n: int, root: str) -> tuple[dict, str] | int:
     sha = pr.get("head_sha")
     if pr.get("state") != "open" or not sha:
         print(f"precheck: PR {n} is {pr.get('state') or 'unreadable'} — only an open PR's head is checked",
+              file=sys.stderr)
+        return 2
+    if pr.get("cross_repo") is not False and not fork_ok:
+        what = ("is a fork's" if pr.get("cross_repo") else
+                "may be a fork's (the forge did not say whether it is)")
+        print(f"precheck: PR {n}'s head {sha[:7]} {what} — its commands would run on this machine "
+              "with your credentials, and nothing ran. Read its diff and see the forge's CI green on "
+              "it first; then the person runs it with --fork-ok (cadence.md §4.12, TD-207)",
               file=sys.stderr)
         return 2
     try:
@@ -161,9 +178,13 @@ def main(argv: list[str] | None = None) -> int:
     which.add_argument("--commit", metavar="SHA", help="a commit of origin's default branch")
     ap.add_argument("--no-record", action="store_true", help="run it, record no status")
     ap.add_argument("--expect", metavar="SHA", help="with --pr: the head you just pushed; refuse any other")
+    ap.add_argument("--fork-ok", action="store_true",
+                    help="with --pr: run a fork's PR (refused without it) — the person's, after reading the diff")
     a = ap.parse_args(argv)
     if a.expect is not None and a.pr is None:
         ap.error("--expect goes with --pr")
+    if a.fork_ok and a.pr is None:
+        ap.error("--fork-ok goes with --pr")
 
     root = C.repo_root(".")
     if not root:
@@ -181,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     cmd = str(cmd)   # resolve() typed it object; a repo key is a checked non-empty string
 
+    fork = False
     if a.commit is not None:
         sha = on_default(root, a.commit)
         if sha is None:
@@ -221,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         end = time.monotonic() + wait
         while True:
-            got = read_head(fg, a.pr, root)
+            got = read_head(fg, a.pr, root, a.fork_ok)
             if isinstance(got, int):
                 return got
             pr, sha = got
@@ -239,6 +261,9 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             time.sleep(max(0.05, min(3.0, wait / 10)))
         what = f"PR {a.pr}"
+        fork = pr.get("cross_repo") is not False   # only --fork-ok gets here with one
+        if fork:
+            what += " (a fork's head, run under --fork-ok)"
         if entries:
             paths = changed_files(root, pr.get("base"), sha)
             hit = narrow(entries, paths)
@@ -274,6 +299,8 @@ def main(argv: list[str] | None = None) -> int:
     if a.no_record:
         return 0 if ok else 1
     desc = f"{'passed' if ok else f'exit {rc}'} in {took:.0f}s on {socket.gethostname()}: {cmd}"
+    if fork:
+        desc = f"--fork-ok, a fork's head: {desc}"
     try:
         fg.set_status(sha, ok, CONTEXT, desc)
     except F.ForgeUnreadable as e:

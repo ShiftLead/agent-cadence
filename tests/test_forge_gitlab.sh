@@ -111,6 +111,7 @@ mr() {  # n state merge_commit_sha squash_commit_sha target merged_at
  "title": "topic $1", "description": "body", "source_branch": "topic$1", "target_branch": "$5",
  "sha": "$HEAD_SHA", "merged_at": $6, "merge_commit_sha": $3, "squash_commit_sha": $4,
  "updated_at": "$MERGED", "created_at": "$OLD", "draft": false, "user_notes_count": 2,
+ "source_project_id": 9, "target_project_id": 9,
  "references": {"short": "!$1"}}
 J
     echo '[{"old_path": "src/a.py", "new_path": "src/a.py"}]' > "$FAKE/diffs_$1.json"

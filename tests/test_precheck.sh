@@ -42,7 +42,7 @@ git -C "$R" push -q origin "HEAD:refs/pull/7/head"
 git -C "$R" checkout -q main; git -C "$R" branch -q -D topic
 git -C "$R" cat-file -e "$HEAD_SHA" 2>/dev/null && git -C "$R" reflog expire --expire=now --all && git -C "$R" gc -q --prune=now 2>/dev/null
 git -C "$R" remote set-url origin "$R.git"
-pr() { printf '{"number":%s,"url":"u","state":"%s","title":"t","body":"","baseRefName":"main","headRefName":"topic","headRefOid":"%s","files":[]}' "$1" "$2" "$3" > "$FAKE/pr_$1.json"; }
+pr() { printf '{"number":%s,"url":"u","state":"%s","title":"t","body":"","baseRefName":"main","headRefName":"topic","headRefOid":"%s","files":[],"isCrossRepository":false}' "$1" "$2" "$3" > "$FAKE/pr_$1.json"; }
 pr 7 OPEN "$HEAD_SHA"; pr 8 MERGED "$HEAD_SHA"
 run() { ( cd "$R" && python3 "$SCRIPT" "$@" 2>&1 ); }
 cfg() { mkdir -p "$R/docs"; printf 'precheck = "%s"\n' "$1" > "$R/docs/cadence.toml"; }
@@ -171,7 +171,7 @@ out=$(run --pr 12); rc=$?
   && ok "9b a PR also changing a file no single entry covers runs the full precheck" || bad "9b rc=$rc $out"
 out=$(run --pr 13 --no-record); rc=$?
 [ $rc -eq 0 ] && grep -q NARROW-RAN <<< "$out" && ok "9c a glob's * covers a suffix (technical_debt_archive.md)" || bad "9c rc=$rc $out"
-printf '{"number":14,"url":"u","state":"OPEN","title":"t","body":"","baseRefName":"gone","headRefName":"x","headRefOid":"%s","files":[]}' "$H11" > "$FAKE/pr_14.json"
+printf '{"number":14,"url":"u","state":"OPEN","title":"t","body":"","baseRefName":"gone","headRefName":"x","headRefOid":"%s","files":[],"isCrossRepository":false}' "$H11" > "$FAKE/pr_14.json"
 git -C "$R" push -q origin "$H11:refs/pull/14/head"
 out=$(run --pr 14 --no-record); rc=$?
 [ $rc -eq 0 ] && grep -q FULL-RAN <<< "$out" && grep -q "cannot read PR 14's changed files — the full \`precheck\` runs" <<< "$out" \
@@ -195,7 +195,7 @@ cfg 'echo RAN16'
 git -C "$R" checkout -q -b t16 origin/main; echo a > "$R/a16.txt"; git -C "$R" add a16.txt; git -C "$R" commit -qm a16
 A16=$(git -C "$R" rev-parse HEAD); git -C "$R" push -q origin "HEAD:refs/pull/16/head"
 echo b > "$R/b16.txt"; git -C "$R" add b16.txt; git -C "$R" commit -qm b16; B16=$(git -C "$R" rev-parse HEAD)
-pj() { printf '{"number":16,"url":"u","state":"OPEN","title":"t","body":"","baseRefName":"main","headRefName":"t16","headRefOid":"%s","files":[]}' "$1"; }
+pj() { printf '{"number":16,"url":"u","state":"OPEN","title":"t","body":"","baseRefName":"main","headRefName":"t16","headRefOid":"%s","files":[],"isCrossRepository":false}' "$1"; }
 pj "$A16" > "$FAKE/pr_16.json"; : > "$FAKE/posts"
 out=$(PRECHECK_HEAD_WAIT=0.3 run --pr 16); rc=$?
 [ $rc -eq 2 ] && grep -q "PR 16's head on the forge is $A16, but this checkout's t16 is $B16" <<< "$out" \
@@ -229,9 +229,26 @@ git -C "$R" push -q -f origin "$B16:refs/heads/t16"; pj "$A16" > "$FAKE/pr_16.js
 out=$(PRECHECK_HEAD_WAIT=0.3 run --pr 16); rc=$?
 [ $rc -eq 2 ] && grep -q "head on the forge is $A16, but origin's t16 is $B16" <<< "$out" && ! grep -q RAN16 <<< "$out" \
   && ok "10h origin's branch at a commit the PR's head is not, run from main: exit 2 naming both" || bad "10h rc=$rc $out"
-sed 's/"files":\[\]}/"files":[],"isCrossRepository":true}/' "$FAKE/pr_16.json" > "$FAKE/pr_16.x"; mv "$FAKE/pr_16.x" "$FAKE/pr_16.json"
-out=$(PRECHECK_HEAD_WAIT=0.3 run --pr 16 --no-record); rc=$?
-[ $rc -eq 0 ] && grep -q "on $A16" <<< "$out" && ok "10i a fork's PR (isCrossRepository): origin's same-named branch is not its head" || bad "10i rc=$rc $out"
+sed 's/"isCrossRepository":false/"isCrossRepository":true/' "$FAKE/pr_16.json" > "$FAKE/pr_16.x"; mv "$FAKE/pr_16.x" "$FAKE/pr_16.json"
+out=$(PRECHECK_HEAD_WAIT=0.3 run --pr 16 --no-record --fork-ok); rc=$?
+[ $rc -eq 0 ] && grep -q "on $A16" <<< "$out" && ok "10i a fork's PR (isCrossRepository) under --fork-ok: origin's same-named branch is not its head" || bad "10i rc=$rc $out"
+# TD-207: a fork's head is a stranger's code; without --fork-ok it is refused before it is fetched
+: > "$FAKE/posts"; WT0=$(wts)
+out=$(run --pr 16); rc=$?
+[ $rc -eq 2 ] && grep -q "PR 16's head ${A16:0:7} is a fork's — its commands would run on this machine" <<< "$out" \
+  && grep -q -- "--fork-ok" <<< "$out" && ! grep -q RAN16 <<< "$out" && [ ! -s "$FAKE/posts" ] && [ "$(wts)" = "$WT0" ] \
+  && ok "10l a fork's PR without --fork-ok: exit 2 naming the flag, nothing checked out, run or recorded" || bad "10l rc=$rc $out"
+sed 's/,"isCrossRepository":true//' "$FAKE/pr_16.json" > "$FAKE/pr_16.x"; mv "$FAKE/pr_16.x" "$FAKE/pr_16.json"
+out=$(run --pr 16); rc=$?
+[ $rc -eq 2 ] && grep -q "may be a fork's (the forge did not say whether it is)" <<< "$out" && ! grep -q RAN16 <<< "$out" \
+  && ok "10m a PR the forge does not say is a fork's or not: refused the same way" || bad "10m rc=$rc $out"
+pj "$A16" | sed 's/"isCrossRepository":false/"isCrossRepository":true/' > "$FAKE/pr_16.json"; : > "$FAKE/posts"
+out=$(run --pr 16 --fork-ok); rc=$?
+[ $rc -eq 0 ] && grep -q RAN16 <<< "$out" && grep -q "a fork's head, run under --fork-ok" <<< "$out" \
+  && grep -q "statuses/$A16 " "$FAKE/posts" && grep -q "description=--fork-ok, a fork's head: passed in" "$FAKE/posts" \
+  && ok "10n --fork-ok runs a fork's PR, and the recorded status's description says so" || bad "10n rc=$rc $out / $(cat "$FAKE/posts")"
+out=$(run --commit "$TIP" --fork-ok); rc=$?
+[ $rc -eq 2 ] && grep -q "\-\-fork-ok goes with --pr" <<< "$out" && ok "10o --fork-ok with --commit: a usage error" || bad "10o rc=$rc $out"
 for v in abc inf nan -1; do
   out=$(PRECHECK_HEAD_WAIT=$v run --pr 16 --no-record); rc=$?
   [ $rc -eq 2 ] && grep -q "PRECHECK_HEAD_WAIT='$v' is no number of seconds" <<< "$out" && ! grep -q RAN16 <<< "$out" \
