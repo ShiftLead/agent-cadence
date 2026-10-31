@@ -35,13 +35,24 @@ What changes because of it, what gets harder, and what is now out of bounds.
 The observable events that would reopen it ("a second consumer needs X", "the table passes
 1M rows"). Reopening means a new ADR that supersedes this one — never an edit to this one.
 
-## Review record
+<!-- A design that goes through review rounds (cadence.md §4.8 *Design review rounds*) keeps its
+review record in docs/reviews/TD-NNN.md, named by the design's entry — not in this ADR. The Status
+line above states the class (in-repo or wide, and why) before round 1, and how the rounds ended.
+Each reviewer is given the findings table and names a finding it reopens by its id ("reopens F2").
+The record file's form (cadence.md §4.8; Source: backfill only for one written after the fact, §2.13):
 
-Optional: a plan that went through design review rounds (cadence.md §4.8 *Design review rounds*)
-keeps every finding here, minor ones too. Each reviewer is given this table and names a finding
-it reopens by its id ("reopens F2") rather than raising it again in new words. The Status line
-states the class (in-repo or wide, and why) before round 1, and how the rounds ended after them.
+# Review record: TD-NNN
+
+**Design:** docs/plans/YYYY-MM-DD-slug.md
+**Class:** in-repo | wide
+**Decided:** YYYY-MM-DD | pending
+**Source:** rounds | backfill
+
+| review | round | role | model | tokens | date |
+|---|---|---|---|---|---|
+| R1 | 1 | fact-check \| design | <the exact model id, or alias?> | <the runner's total, or ?> | YYYY-MM-DD |
 
 | id | round | by | topic | finding | class | status |
 |---|---|---|---|---|---|---|
-| F1 | 1 | fact-check (<model>) | <the mechanism, in a phrase> | <what is wrong> | build-changing \| minor | applied \| rejected: <why> \| open \| reopens F<n> |
+| F1 | 1 | R1 | <the mechanism, in a phrase> | <what is wrong> | build-changing \| minor | applied \| rejected: <why> \| open \| reopens F<n> |
+-->

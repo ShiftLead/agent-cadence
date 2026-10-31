@@ -49,7 +49,7 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    order, each review's fixes committed before the next. **A design plan's rounds** (cadence §4.8
    *Design review rounds*) ask for each round from the same list, the fact-checks from
    `fact-check-model`, and stop by the stop rule or at the cap — `get design-rounds` for an in-repo
-   plan, `get design-rounds-wide` for a wide one — each finding a row of the plan's *Review record*. **Its prompt names the verdict words:** *end your report with
+   plan, `get design-rounds-wide` for a wide one — each review a row of the design's record file's Reviews table — the exact model and the tokens the runner reports — and each finding a row of its findings table (`docs/reviews/TD-NNN.md`, cadence §4.8). **Its prompt names the verdict words:** *end your report with
    `cadence-review: <SHIP|FIXED|BLOCK> · <your model> · <code|docs> · <n> findings` — SHIP,
    FIXED or BLOCK and no other word*. A reviewer asked in its own words writes its own
    (`CLEAN`), which the row never reads as a review: it fails naming the word, and the cure is a
