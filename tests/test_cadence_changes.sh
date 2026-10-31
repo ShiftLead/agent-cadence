@@ -4,6 +4,7 @@
 # pushing from a second clone and fetching, never by network. Dates derive from the run
 # date (TD-24). The hook must print once, then stay silent, and never write into the repo.
 set -u
+export TZ=UTC  # TD-209: the fixtures below are UTC dates, and the script's today must be too (west of UTC they differ after its date rolls over)
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$DC/files/scripts/cadence_changes.py"
 TMP=$(mktemp -d)

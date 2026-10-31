@@ -2,6 +2,7 @@
 # P2 --report acceptance tests (plan 2026-08-10). XDG_CONFIG_HOME override keeps
 # the real registry untouched.
 set -u
+export TZ=UTC  # TD-209: `date -d 'N days'` from now is N×24h, an hour short across DST; UTC has none, and the scripts under test inherit it
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NEW="$ROOT/files/scripts/nudge_user_attention.py"
 TMP=$(mktemp -d)

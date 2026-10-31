@@ -5,6 +5,7 @@
 # against origin/main, so a fixture without a remote would test something else).
 # Timestamps are derived from the run date (TD-24), never hardcoded.
 set -u
+export TZ=UTC  # TD-209: `date -d 'N days'` from now is N×24h, an hour short across DST; UTC has none, and the scripts under test inherit it
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$DC/files/scripts/check_cadence.py"
 TMP=$(mktemp -d)

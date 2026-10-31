@@ -7,6 +7,7 @@
 # Offline: every origin is a local bare repo (or a path that does not exist); HOME,
 # XDG_CONFIG_HOME and AGENT_CADENCE_REG_DIR are temp; dates derive from the run date (TD-24).
 set -u
+export TZ=UTC  # TD-209: `date -d 'N days'` from now is N×24h, an hour short across DST; UTC has none, and the scripts under test inherit it
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 N="$DC/files/scripts/nudge_user_attention.py"
 TMP=$(mktemp -d)

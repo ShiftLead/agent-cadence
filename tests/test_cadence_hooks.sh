@@ -4,6 +4,7 @@
 # the executable guard, output passthrough, the per-child timeout, exit 0 always, and
 # that children resolve beside the runner (so agent-cadence's files/scripts/ layout runs them, TD-038).
 set -u
+export TZ=UTC  # TD-209: `date -d 'N days'` from now is N×24h, an hour short across DST; UTC has none, and the scripts under test inherit it
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$DC/files/scripts/cadence_hooks.sh"
 SEED="$DC/files/.claude/settings.json"
