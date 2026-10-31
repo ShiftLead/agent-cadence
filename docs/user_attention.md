@@ -27,6 +27,7 @@ date has arrived (TD-7). **To snooze: just edit the Due date.** Undated items su
 
 ## Needs Paul
 
+- [ ] decide 2026-10-30 (person) — Agents type board lines by hand: every board write goes through `board.py`, and every repo that uses ledgerboard writes its ledger and board only through the helpers. Context: TD-206. Due: 2026-10-30. Decided: go ahead (2026-10-30).
 - [ ] decide 2026-10-30 (person) — The squash commit names who wrote a change but not who merged it, so a bad merge can't be traced from git: a `Merged-by:` trailer, beside the `Co-Authored-By:` ones it keeps. Context: TD-177. Due: 2026-10-30. Decided: go ahead (2026-10-30).
 - [x] decide 2026-10-29 (session 5634736a on kmaster) — Flip agent-cadence to public? Context: TD-191 step 4. Due: 2026-11-06. Answers: Flip (default) | Not yet: <what first>. Decided: Flip (2026-10-30). Closed: 2026-10-30 — flipped public 2026-10-30 (Paul); ruleset, fork check and v0.1.0 tag done.
   - **Context:** Everything before the flip is done. Two privacy reads ran: the second-model read over the seed, then a fragment grep over every commit through #18 and the tree at main. Both came back clean, except for what Paul accepted: the email on the first seven squash merges (#1–#7), one session id on the `cadence/ledger-ids` counter (`0640017`), and this board's `Swept:` host name. The README was rewritten for developers (#17) and the GitHub description matches it. Paul said "I think we are ready to flip but want to sleep on it" (2026-10-29).
