@@ -88,6 +88,7 @@ SYNC_FILES=(
     "scripts/cadence_config.py"
     "scripts/cadence_layer.py"
     "scripts/memory_harvest.py"
+    "scripts/review_stats.py"
     "scripts/cadence_hooks.sh"
     "scripts/install_git_hooks.sh"
     "scripts/git-hooks/pre-push"
