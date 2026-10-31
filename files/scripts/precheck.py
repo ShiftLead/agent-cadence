@@ -25,7 +25,8 @@ the PR's — a PR cannot change the check it is judged by before it merges). It 
 from the root of a detached worktree at the head commit, fetched from origin as the forge
 serves it — with --commit, origin's default branch is fetched and the
 commit must be on it (an ancestor of its tip, or the tip), stdin closed, its output streamed; that worktree is
-removed afterwards. A fresh worktree has no installed dependencies, so the command sets up
+removed afterwards, also when the precheck is stopped by SIGTERM or SIGHUP (`timeout`, a stopped background
+task), which then exits 128 + the signal and records nothing (TD-210). A fresh worktree has no installed dependencies, so the command sets up
 what it needs (`pdm install && pdm run test`).
 
 The head is the forge's, and the forge sees a push seconds after it (TD-186): a precheck started
@@ -62,6 +63,7 @@ import fnmatch
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -73,6 +75,14 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import cadence_config as C  # noqa: E402
 import forge as F  # noqa: E402
+
+
+def _stopped(signum: int, _frame: object) -> None:
+    # TD-210: Python's default SIGTERM/SIGHUP ends the process at once, skipping every `finally`, so the
+    # clean worktree was left registered in the clone; raised as an exit, the `finally` removes it
+    print(f"precheck: stopped by signal {signum} — removing the clean worktree", file=sys.stderr, flush=True)
+    raise SystemExit(128 + signum)
+
 
 HEAD_WAIT = 30.0   # TD-186: seconds to wait for the forge to see a push (PRECHECK_HEAD_WAIT)
 CONTEXT = "cadence/precheck"   # parity (cadence.md §7.9): check_cadence.py's row_ci reads this name
@@ -274,6 +284,8 @@ def main(argv: list[str] | None = None) -> int:
             elif paths is None:
                 print(f"precheck: cannot read PR {a.pr}'s changed files — the full `precheck` runs")
 
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, _stopped)
     tmp = tempfile.mkdtemp(prefix=f"precheck-{a.pr if a.commit is None else sha[:7]}-")
     wt = Path(tmp) / "head"
     try:
@@ -289,9 +301,13 @@ def main(argv: list[str] | None = None) -> int:
         rc = subprocess.run(["bash", "-c", cmd], cwd=wt, env=env, stdin=subprocess.DEVNULL, check=False).returncode
         took = time.monotonic() - t0
     finally:
+        for sig in (signal.SIGTERM, signal.SIGHUP):   # a second signal must not cut the cleanup short
+            signal.signal(sig, signal.SIG_IGN)
         if wt.exists():
             git("worktree", "remove", "--force", str(wt), cwd=root)
         shutil.rmtree(tmp, ignore_errors=True)
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            signal.signal(sig, signal.SIG_DFL)
 
     ok = rc == 0
     verdict = "passed" if ok else f"failed (exit {rc})"

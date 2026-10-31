@@ -88,6 +88,23 @@ cfg 'echo root=${CADENCE_REPO_ROOT:-unset}'
 out=$(CADENCE_REPO_ROOT="$TMP/live" run --pr 7 --no-record); rc=$?
 [ $rc -eq 0 ] && grep -q "root=unset" <<< "$out" && ok "5b the command runs without the launcher's CADENCE_REPO_ROOT" || bad "5b rc=$rc $out"
 
+# 5c. TD-210: a precheck stopped by SIGTERM or SIGHUP (`timeout`, a stopped background task) mid-run
+# removes its clean worktree and temp dir, exits 128 + the signal, and records nothing
+cfg 'touch $FAKE_DIR/started; sleep 30'
+for sig in TERM HUP; do
+  : > "$FAKE/posts"; rm -f "$FAKE/started"; WT0=$(wts); T5="$TMP/tmp5c-$sig"; mkdir -p "$T5"
+  ( cd "$R" && exec env TMPDIR="$T5" python3 "$SCRIPT" --pr 7 ) > "$TMP/out5c" 2>&1 &
+  pid=$!
+  for _ in $(seq 100); do [ -e "$FAKE/started" ] && break; sleep 0.1; done
+  inrun=$(wts)
+  kill -s "$sig" "$pid"; wait "$pid"; rc=$?
+  want=$((128 + $(kill -l "$sig")))
+  [ -e "$FAKE/started" ] && [ "$inrun" -gt "$WT0" ] && [ $rc -eq $want ] && [ "$(wts)" = "$WT0" ] \
+    && [ -z "$(ls -A "$T5")" ] && [ ! -s "$FAKE/posts" ] && grep -q "stopped by signal" "$TMP/out5c" \
+    && ok "5c SIG$sig mid-run: exit $want, the clean worktree and its temp dir removed, nothing recorded" \
+    || bad "5c SIG$sig rc=$rc (want $want) inrun=$inrun wts=$(wts)/$WT0 tmp=$(ls -A "$T5") $(cat "$TMP/out5c")"
+done
+
 # 6. a PR that is not open, and a head origin does not serve: exit 2, nothing run
 cfg 'echo SHOULD-NOT-RUN'
 out=$(run --pr 8); rc=$?
