@@ -1,6 +1,6 @@
 # ADR 2026-10-31: a cadence merge writes its own squash body, ending in one trailer paragraph that names who wrote, reviewed, checked and merged the change
 
-**Status:** proposed. Class: **wide** (cap `design-rounds-wide`, 6). The reason: it changes how every consumer merges (cadence.md §4.2, the procedure's step 5, a payload script), and ShiftLead's briefs merge through it. The shape is the Fix of 2026-10-28. Paul's go of 2026-10-30 was on the `Merged-by:` trailer, and it lifted the entry's block. The board line's close says *the Fix's shape stands; its design rounds run before the build*, and the entry's Status leaves the rest of the shape to these rounds: the merge command, `Review:`/`Precheck:` and the signed comments. Review rounds: see `docs/reviews/TD-177.md`.
+**Status:** proposed. Class: **wide** (cap `design-rounds-wide`, 6). The reason: it changes how every consumer merges (cadence.md §4.2, the procedure's step 5, a payload script), and ShiftLead's briefs merge through it. The shape is the Fix of 2026-10-28. Paul's go of 2026-10-30 was on the `Merged-by:` trailer, and it lifted the entry's block. The board line's close says *the Fix's shape stands; its design rounds run before the build*, and the entry's Status leaves the rest of the shape to these rounds: the merge command, `Review:`/`Precheck:` and the signed comments. How the rounds ran: they ended by the stop rule after round 5 (cap 6), with review-model `sonnet` (one design review and one fact-check a round). Build-changing findings per round: from design reviews 5, 3, 2, 2, 0; from fact-checks 4, 4, 4, 0, 0; the closing fact-check 0. 11 reviews, 766285 tokens, 68 findings (`docs/reviews/TD-177.md`). Recurring topics: **the hook's model reading** (F3, F19, F23, F31, F41, F47, F54, F56) and **the merge command's shape** (F45, F55: round 3 moved the merge back onto a visible `gh pr merge`). The signed comments were deferred (TD-211). Waiting on Paul's end-of-rounds item (board, 2026-10-31).
 **Date:** 2026-10-31
 **Related:** TD-177 (this design and its build); TD-067 (§4.2's squash keeps the trailers); TD-181 (the `Agent-Model:` commit trailer, built: cadence.md §9.9 and the hook name it, and its entry is not in this repo's ledger); shiftlead#TD-645 (the same trailer on ShiftLead's side); TD-117 and TD-148 (the precheck the gate reads); cadence.md §4.9 (the evidence comment).
 
@@ -25,7 +25,7 @@
    - then `Precheck: <sha>` when the repo sets `precheck` and the head's `cadence/precheck` commit status reads `success`, as the `ci` row's precheck reader sees it (the status itself, not the row's verdict, which can also pass on check runs). That sha is the same head.
 
    - **The data comes from the code, not the row's text.** `row_review` and `check_pr` return what they read: each listed comment's model and verdict, and the PR's `head_sha` from its one read. The review row also gains a `carve_out` field (`board-edit`, `queue-edit` or none), set where `board_edit_or_review` passes the PR today by `row_board_edit_pr` or `row_queue_edit_pr`. `--trailers` writes from those fields and never re-parses a rendered row.
-   - **On a non-zero exit** the gate writes FILE as `pr <n>`, `expect <sha>` and `unverified <exit code> <the failing rows>`, with no `Review:` or `Precheck:`. That is the deliberate path for a merge the procedure allows on a non-pass: step 5's *an unknown that will not clear*, a late review, the person's own call. It is refused unless the merge says why (2).
+   - **On a non-zero exit** the gate writes FILE as `pr <n>`, `expect <sha>` and `unverified <exit code> <the failing rows>`, the rows by their names as `check_cadence.py` prints them (`ci`, `review`, …), comma-separated, `-` when none failed (an exit 3 with only unknowns names those rows), with no `Review:` or `Precheck:`. That is the deliberate path for a merge the procedure allows on a non-pass: step 5's *an unknown that will not clear*, a late review, the person's own call. It is refused unless the merge says why (2).
 
    **These trailers are attested, not verified**, like the review row they come from (§4.9): a hand-written file would put its own lines in the squash, and §4.2 says so. The procedure makes FILE with `mktemp`.
 
@@ -116,7 +116,7 @@
      - a bad `AGENT_NAME`, or no name at all, refuses;
      - the trailer paragraph is the one `git interpret-trailers --parse` finds: a mixed last paragraph with a `Signed-off-by:` and a quarter trailers is parsed, one with only `Co-Authored-By:` among text lines is not, and a folded line is joined;
      - `pr_commits` is paginated and ordered, GitLab's reversed;
-     - zero commits, or a list shorter than the PR's count, refuse;
+     - zero commits, or (GitHub) a list shorter than the PR's count, or (GitLab) a page that cannot be read, refuse;
      - `--unverified` with a verified gate file refuses;
      - a `Signed-off-by:` stays in its commit's text.
    - **The parity test** — the hook and `forge.py` given one environment write one model.
