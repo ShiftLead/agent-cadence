@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-10-31 — A design still in conversation lands with `Blocked by: decision (<person>)`
+Do: filing an entry (or a build of it) while its design is still being shaped with the person, write `**Blocked by:** decision (<person>)` naming the human driving the session, and an `**Ask:**` saying what releases it; lift it only on their go.
+See: cadence.md §2.4, §4.8 (Design review rounds); TD-212.
+
 ## 2026-10-31 — The `cadence-review:` evidence comment ends with a signature line
 Do: end every evidence comment you post (and its late form) with `— <AGENT_NAME> (<adapter>/<model>)`, or `— <user.name>` from a person's shell; the procedure's step 3 snippet builds it.
 See: cadence.md §4.9; docs/procedures/cadence.md step 3; TD-211.
