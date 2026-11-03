@@ -72,7 +72,8 @@ SYNC_FILES=(
     "scripts/board_edit.py"
     "scripts/ledger.py"
     "scripts/ledger_next_id.py"
-    "scripts/ledgerboard.py"
+    "scripts/ledgerboard/__init__.py"
+    "scripts/ledgerboard/board.py"
     "scripts/list_sessions.py"
     "scripts/generate_session_index.sh"
     "scripts/generate_workspace.sh"
@@ -95,9 +96,11 @@ SYNC_FILES=(
     "scripts/git-hooks/post-merge"
     "scripts/git-hooks/prepare-commit-msg"
 )
-# RETIRED (TD-057): once SYNC, dropped from the payload. Empty: nothing was retired before the
-# pin, and `--pin` removes every synced copy by its lock hash whichever list it is in.
+# RETIRED (TD-057): once SYNC, dropped from the payload. `--pin` removes every synced copy by its
+# lock hash whichever list it is in. scripts/ledgerboard.py became the package scripts/ledgerboard/
+# with ledgerboard v2.3 (TD-213).
 RETIRED_FILES=(
+    "scripts/ledgerboard.py"
 )
 SEED_FILES=(
     "docs/user_attention.md"

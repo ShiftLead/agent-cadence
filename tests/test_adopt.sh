@@ -154,8 +154,8 @@ out=$( cd "$CL" && CADENCE_TEMP_ROOTS="$TMP/fx" python3 "$DC/launcher/agent_cade
 T="$TMP/t1"
 grep -qx '\* text=auto eol=lf' "$T/.gitattributes" && [ "$(git -C "$T" check-attr eol -- x.md)" = "x.md: eol: lf" ] \
     && ok "the seeded .gitattributes makes text LF" || bad "gitattributes seed: $(cat "$T/.gitattributes" 2>&1)"
-[ "$(sed 3d "$DC/.gitattributes")" = "$(sed 3d "$DC/files/.gitattributes")" ] \
-    && ok "this repo's own .gitattributes is its seed's (but the line naming which it is)" || bad "own .gitattributes differs from the seed"
+[ "$(sed 3d "$DC/.gitattributes" | head -n "$(sed 3d "$DC/files/.gitattributes" | wc -l)")" = "$(sed 3d "$DC/files/.gitattributes")" ] \
+    && ok "this repo's own .gitattributes opens with its seed's (but the line naming which it is); its own patterns follow" || bad "own .gitattributes differs from the seed"
 T="$TMP/t6b"; newrepo "$T"; printf 'a\r\nb\r\n' > "$T/w.md"; printf 'c\n' > "$T/u.md"; git -C "$T" add w.md u.md; git -C "$T" commit -qm crlf
 out=$(adopt "$T"); rc=$?
 [ $rc -eq 0 ] && grep -qF "1 file(s) are CRLF in the index" <<< "$out" && grep -qF 'add --renormalize .' <<< "$out" \

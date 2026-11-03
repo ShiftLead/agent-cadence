@@ -29,12 +29,14 @@ ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
 
 MARKER="SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/"
-# A file this repo vendors from another names that repo as canonical, and itself as vendored here
-# (ShiftLead ADR 2026-10-12: ledgerboard.py, the one vendored file) — still opening "SYNCED FILE".
-VENDORED_MARKER="SYNCED FILE — canonical copy: ShiftLead/ledgerboard ledgerboard.py (vendored by agent-cadence as files/"
-VENDORED="scripts/ledgerboard.py"
+# A file this repo vendors from another names that repo and its own path there as canonical, and
+# itself as vendored here (ShiftLead ADR 2026-10-12; from ledgerboard v2.3 the package
+# scripts/ledgerboard/, TD-213) — still opening "SYNCED FILE".
 marker() {  # $1 = a SYNC path -> the marker its header must carry, without the path
-  case " $VENDORED " in *" $1 "*) printf '%s' "$VENDORED_MARKER" ;; *) printf '%s' "$MARKER" ;; esac
+  case "$1" in
+    scripts/ledgerboard/*) printf '%s' "SYNCED FILE — canonical copy: ShiftLead/ledgerboard ${1#scripts/} (vendored by agent-cadence as files/" ;;
+    *) printf '%s' "$MARKER" ;;
+  esac
 }
 
 # The canonical lists, straight from sync.sh — never restated.

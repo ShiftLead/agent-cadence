@@ -146,6 +146,7 @@ from ledgerboard import (  # noqa: E402,F401  # sibling SYNC file: the board for
     item_key,
     item_record,
     item_refs,
+    needs_you,
     parse_answers,
     parse_board,
     parse_decided,
@@ -241,10 +242,20 @@ DUE_ONLY_LIST_CAP = 12
 
 
 
+def needing(content: str, today: date, warn: bool = False) -> list[BoardItem]:
+    """The open items that need the person, in board order: ledgerboard's needs_you() (v2.3, TD-213) —
+    every open item but one its `Hide until:` hides until a later date (a decided item never is). What
+    this report lists, surfaces, escalates and counts; a hidden item stays on the board (its size counts
+    it), and in --json with `hidden: true`."""
+    live = {it.line for it, _, _ in needs_you(content, today)}
+    return [it for it in parse_board(content, warn=warn) if it.line in live]
+
+
 def escalation(item: BoardItem, today: date) -> str | None:
     """Why this item belongs in the ledger rather than on the board (TD-039), or None.
-    Not for fyi (it has no date to miss) or a decided item (a session's work order)."""
-    if item.kind == "fyi" or item.decided is not None:
+    Not for fyi (it has no date to miss), a decided item (a session's work order) or a hidden one
+    (the person snoozed it: `Hide until:`, TD-213)."""
+    if item.kind == "fyi" or item.decided is not None or item.hidden(today):
         return None
     days = item.overdue_days(today)
     if days is not None and days >= LIMITS["escalate-overdue-days"]:
@@ -363,8 +374,9 @@ def _report_sort_key(item: BoardItem, today: date) -> tuple[int, int]:
 def surfaces_at_start(item: BoardItem, today: date) -> bool:
     """What the SessionStart line (--due-only) shows: every decided item, due or not,
     because it is a session's work order; an item whose Due: cannot be read (it might be
-    due — TD-053); otherwise only due and overdue items — never an fyi (TD-039)."""
-    if item.kind == "fyi" and item.decided is None:
+    due — TD-053); otherwise only due and overdue items — never an fyi (TD-039), and never an item
+    the person hid (`Hide until:` a later date, ledgerboard's needs_you(), TD-213)."""
+    if item.hidden(today) or (item.kind == "fyi" and item.decided is None):
         return False
     return item.decided is not None or item.bad_due is not None or item.overdue_days(today) is not None
 
@@ -393,7 +405,7 @@ def build_message(items: list[BoardItem], today: date, weekly: bool) -> str | No
     if not lines:
         return None
     lines.append("")
-    lines.append("Snooze: edit the item's Due date in docs/user_attention.md.")
+    lines.append("Snooze: `board_edit.py snooze --to <date>` hides an item until then; its Due: stays the deadline.")
     return "\n".join(lines)
 
 
@@ -1342,7 +1354,7 @@ def remote_tier(local_roots: list[Path], today: date, spent: dict | None = None)
         except FormatTooNew as e:
             lines.append(f"  ⚠ not read: {e}")
             continue
-        items = parse_board(content, warn=False)
+        items = needing(content, today)
         if items:
             for item in sorted(items, key=lambda i: _report_sort_key(i, today)):
                 lines.append(f"  • ({due_tag(item, today)}) {_clip(item.text)}")
@@ -1778,7 +1790,8 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
                 content = None
             if content is not None:
                 n_boards += 1
-                items = parse_board(content, warn=False)
+                on_board = parse_board(content, warn=False)
+                items = needing(content, today)   # TD-213: an item hidden until a later date is left out
                 total_items += len(items)
                 all_items += items
                 total_due += sum(1 for i in items if i.decided is None and i.todo and i.overdue_days(today) is not None)
@@ -1794,6 +1807,10 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
                             body.append(refs_ln)
                 else:
                     body.append("  (no open items)")
+                if len(on_board) > len(items):
+                    body.append(f"  ({len(on_board) - len(items)} hidden (Hide until:) — on the board, "
+                                "out of this report until their date)")
+                    routine.add(body[-1])
                 # Deliberately OUTSIDE the open-items gate (TD-14, decided
                 # 2026-08-12): the sweep covers PRs, worktrees, unpushed
                 # commits, and memories — an empty board proves nothing about
@@ -1802,7 +1819,7 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
                 if sweep:
                     body.append(f"  {sweep}")
                     routine.add(body[-1])
-                for extra in (size_note(items), archive_note(content), twin_note(content)):
+                for extra in (size_note(on_board), archive_note(content), twin_note(content)):
                     if extra:
                         body.append(f"  {extra}")
                         routine.add(body[-1])
@@ -1918,7 +1935,7 @@ def main() -> int:
     today = date.today()  # noqa: DTZ011  # local civil dates by design (TD-15: one-day skew tolerated at the sweep comparisons)
     weekly = args.force_weekly or today.weekday() == 0  # Monday
     try:
-        items = parse_board(checked(board.read_text(encoding="utf-8"), board))
+        items = needing(checked(board.read_text(encoding="utf-8"), board), today, warn=True)
     except FormatTooNew as e:
         logger.error("not read: %s", e)
         return 1

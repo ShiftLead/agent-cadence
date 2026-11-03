@@ -286,7 +286,7 @@ grep -q 'run `agent-cadence hook session-start`' "$DC/files/AGENTS.md" && grep -
 # and the REAL reader, own scope: only this repo's due item, though the roster lists another
 RR="$TMP/real"; mkdir -p "$RR/a/docs" "$RR/b/docs" "$RR/a/scripts" "$RR/cfg/agent-cadence"
 for r in a b; do git init -q -b main "$RR/$r"; printf '# Board\n\n## Needs the user\n\n- [ ] %s (session n/a) — item-of-%s. Due: %s.\n' "$(date -d '3 days ago' +%F)" "$r" "$(date -d yesterday +%F)" > "$RR/$r/docs/user_attention.md"; done
-cp "$SCRIPT" "$DC/files/scripts/nudge_user_attention.py" "$DC/files/scripts/ledgerboard.py" "$RR/a/scripts/"
+cp -R "$SCRIPT" "$DC/files/scripts/nudge_user_attention.py" "$DC/files/scripts/ledgerboard" "$RR/a/scripts/"
 printf '%s\n%s\n' "$RR/a" "$RR/b" > "$RR/cfg/agent-cadence/repos.txt"
 real() { ( cd "$RR/a" && CLAUDE_PROJECT_DIR="$RR/a" XDG_CONFIG_HOME="$RR/cfg" AGENT_CADENCE_REG_DIR="$RR/cfg/agent-cadence" env "$@" "$RR/a/scripts/cadence_hooks.sh" --session-start 2>/dev/null ); }
 out=$(real CADENCE_ATTENTION_SCOPE=own); all=$(real CADENCE_ATTENTION_SCOPE=machine)

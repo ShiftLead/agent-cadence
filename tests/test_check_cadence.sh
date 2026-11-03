@@ -756,16 +756,19 @@ P
 dcommit "bot: append in-flight"                                    # fail: replaces a line
 line=$(grep -n "decide X" "$D/docs/user_attention.md" | cut -d: -f1)
 GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  "$EDIT" decide --board "$D/docs/user_attention.md" --line "$line" --expect "$OLDD (session aaaa1111" --answer yes --tool shiftlead >/dev/null \
+  "$EDIT" decide --board "$D/docs/user_attention.md" --line "$line" --expect "$OLDD (session aaaa1111" --answer yes --by Alex --tool shiftlead >/dev/null \
   && dgit push -q origin HEAD:main                                 # board-edit, the real writer's message
 GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
   "$EDIT" snooze --board "$D/docs/user_attention.md" --line "$line" --expect "$OLDD (session aaaa1111" --to "$(date -d '9 days' +%F)" >/dev/null \
   && dgit push -q origin HEAD:main                                 # board-edit: a snooze
 GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
+  "$EDIT" due --board "$D/docs/user_attention.md" --line "$line" --expect "$OLDD (session aaaa1111" --to "$(date -d '12 days' +%F)" >/dev/null \
+  && dgit push -q origin HEAD:main                                 # board-edit: a due (TD-213)
+GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
   "$EDIT" reply --board "$D/docs/user_attention.md" --line "$line" --expect "$OLDD (session aaaa1111" --text "not before Friday" --by Alex --tool shiftlead >/dev/null \
   && dgit push -q origin HEAD:main                                 # board-edit: a reply (TD-075)
 sed -i -E "s/not before Friday/not before Monday/" "$D/docs/user_attention.md"; dcommit "shiftlead: reworded the reply by hand"   # fail: no fixed message
-sed -i -E "s/Due: [0-9-]+\. — Alex/Due: $TODAY. — Alex/" "$D/docs/user_attention.md"; dcommit "snoozed it by hand"   # fail: no fixed message
+sed -i -E "s/Due: [0-9-]+\.( Hide until: [0-9-]+\.)? — Alex/Due: $TODAY.\1 — Alex/" "$D/docs/user_attention.md"; dcommit "snoozed it by hand"   # fail: no fixed message
 echo x > "$D/scripts/a.sh"; dcommit "a script, straight to main"   # fail: a straight push's shape, off the board
 echo y > "$D/scripts/b.sh"; dcommit "a merged PR (#9)"             # a PR's squash: not listed
 printf '[]' > "$FAKE/prlist_since.json"
@@ -775,17 +778,18 @@ import json, sys
 d = json.load(sys.stdin)
 got = [(c["class"], c["subject"]) for c in d["direct"]["commits"]]
 want = [("fail", "a script, straight to main"), ("fail", "snoozed it by hand"), ("fail", "shiftlead: reworded the reply by hand"),
-        ("board-edit", "shiftlead: reply decide X. (session aaaa1111)"), ("board-edit", None), ("board-edit", None),
+        ("board-edit", "shiftlead: reply decide X. (session aaaa1111)"), ("board-edit", None), ("board-edit", None), ("board-edit", None),
         ("fail", "bot: append in-flight"), ("board-append", "bot: append"),
         ("fail", "board: stamp plus a ledger line"), ("stamp", "board: sweep stamp")]
 assert len(got) == len(want), got
 for (gc, gs), (wc, ws) in zip(got, want):
     assert gc == wc and (ws is None or gs == ws), (gc, gs, wc, ws)
-assert got[4][1].startswith("board_edit: snooze decide X. to "), got[4]
-assert got[5][1] == "shiftlead: decide decide X.: yes (session aaaa1111)", got[5]
+assert got[4][1].startswith("board_edit: due decide X. to "), got[4]
+assert got[5][1].startswith("board_edit: snooze decide X. to "), got[5]
+assert got[6][1] == "shiftlead: decide decide X.: yes (session aaaa1111)", got[6]
 assert d["verdict"] == "fail" and d["direct"]["status"] == "fail", d["verdict"]
 print("ok")' 2>&1)
-[ "$chk" = ok ] && [ $rc -eq 1 ] && ok "--since: direct commits classified (stamp, board-append, board_edit.py's board-edit pass, a reply among them; stamp+ledger, a removed line, a hand edit, a hand-reworded reply, a script fail; root and (#N) skipped), rc 1" \
+[ "$chk" = ok ] && [ $rc -eq 1 ] && ok "--since: direct commits classified (stamp, board-append, board_edit.py's board-edit pass, a reply and a due among them; stamp+ledger, a removed line, a hand edit, a hand-reworded reply, a script fail; root and (#N) skipped), rc 1" \
   || bad "direct classify rc=$rc: $chk"
 out=$( cd "$D" && python3 "$SCRIPT" --since 1d 2>&1 )
 echo "$out" | grep -q "^Direct commits on origin/main (no PR) — 10 direct commit(s)  \[FAIL\]" && echo "$out" | grep -q "PASS    board-edit" \

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-agent-cadence is the **canonical source** of a working-cadence system (docs + stdlib-only bash/python scripts + Claude Code skills/hooks) that each consumer repo runs from a **pin**: `[agent-cadence]` in its `docs/cadence.toml` names a commit, and the `agent-cadence` launcher (`launcher/`) runs that tree from a per-machine cache (cadence.md §9.19, TD-129). Nothing is copied into a consumer any more. There is no package and no registry — deliberately (see README "Philosophy / non-goals"; one exception: `files/scripts/ledgerboard.py`, vendored from a ShiftLead/ledgerboard release by `vendor_ledgerboard.sh`).
+agent-cadence is the **canonical source** of a working-cadence system (docs + stdlib-only bash/python scripts + Claude Code skills/hooks) that each consumer repo runs from a **pin**: `[agent-cadence]` in its `docs/cadence.toml` names a commit, and the `agent-cadence` launcher (`launcher/`) runs that tree from a per-machine cache (cadence.md §9.19, TD-129). Nothing is copied into a consumer any more. There is no package and no registry — deliberately (see README "Philosophy / non-goals"; one exception: the package `files/scripts/ledgerboard/`, vendored from a ShiftLead/ledgerboard release by `vendor_ledgerboard.sh`).
 
 **Read [`files/docs/cadence.md`](files/docs/cadence.md) first.** It is the system, and its rules (§1 worktrees, §2 the TD ledger, §3 never strand work, §4 review/merge loop, §7 memory and docs) govern how work is done *in this repo* as well — this repo dogfoods itself.
 

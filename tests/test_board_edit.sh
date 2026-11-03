@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # TD-036: a board item's Answers:/Decided: fields — read by nudge_user_attention.py, written
-# by board_edit.py (snooze|done|decide|reply), the one script every tool edits the board through.
+# by board_edit.py (snooze|due|done|decide|reply), the one script every tool edits the board through —
+# from TD-213 a wrapper over the vendored ledgerboard's board writer (ledgerboard/board.py, v2.3).
 # Offline: a throwaway git repo per case; HOME/XDG_CONFIG_HOME are temp dirs, so the real
 # roster is never read. Dates derive from the run date (TD-24).
 set -u
@@ -77,10 +78,10 @@ n=$(python3 "$NUDGE" --report --json --due-only --board "$B" 2>&1 | python3 -c '
 # --- 3) decide: records Decided: on exactly that line, one commit, board only, fixed message
 cp "$B" "$TMP/before"
 echo scratch > "$R/other.txt"; git -C "$R" add other.txt   # staged elsewhere: must stay out of the commit
-out=$("$EDIT" decide --board "$B" --line 7 --expect "$PAST (session abcdef12" --answer "merge" --tool shiftlead 2>&1); rc=$?
+out=$("$EDIT" decide --board "$B" --line 7 --expect "$PAST (session abcdef12" --answer "merge" --by Paul --tool shiftlead 2>&1); rc=$?
 [ $rc = 0 ] && ok "decide exits 0" || bad "decide rc=$rc: $out"
 diff <(sed 7d "$TMP/before") <(sed 7d "$B") >/dev/null && ok "decide: every other line (stamp included) byte-identical" || bad "decide touched other lines"
-[ "$(sed -n 7p "$B")" = "$(sed -n 7p "$TMP/before") Decided: merge ($TODAY)." ] && ok "decide: Decided: appended after Answers:" || bad "decide line: $(sed -n 7p "$B")"
+[ "$(sed -n 7p "$B")" = "$(sed -n 7p "$TMP/before") Decided: merge (by Paul) ($TODAY)." ] && ok "decide: Decided: appended after Answers:, naming who answered (--by)" || bad "decide line: $(sed -n 7p "$B")"
 msg=$(git -C "$R" log -1 --format=%s); files=$(git -C "$R" show --name-only --format= HEAD)
 [ "$msg" = "shiftlead: decide merge PR #7 or hold it?: merge (session abcdef12)" ] \
   && ok "decide: the carve-out's fixed commit message" || bad "commit message: $msg"
@@ -90,9 +91,9 @@ w=$(python3 "$NUDGE" --report --json --board "$B" 2>&1 | python3 -c 'import json
 [ "$w" = "session ['merge', 'hold', 'ask me Monday'] $PAST" ] && ok "decide: the reader now reads it as waiting on a session, answers and due intact" || bad "after decide: $w"
 
 # re-deciding replaces the field, never stacks a second one
-"$EDIT" decide --board "$B" --line 7 --expect "$PAST (session abcdef12" --answer "hold  it" >/dev/null 2>&1
+"$EDIT" decide --board "$B" --line 7 --expect "$PAST (session abcdef12" --answer "hold  it" --by Paul >/dev/null 2>&1
 l=$(sed -n 7p "$B")
-[ "$(grep -o 'Decided:' <<< "$l" | wc -l)" = 1 ] && [[ "$l" == *"Decided: hold it ($TODAY)." ]] && ok "re-decide replaces the Decided: field (whitespace folded)" || bad "re-decide: $l"
+[ "$(grep -o 'Decided:' <<< "$l" | wc -l)" = 1 ] && [[ "$l" == *"Decided: hold it (by Paul) ($TODAY)." ]] && ok "re-decide replaces the Decided: field (whitespace folded)" || bad "re-decide: $l"
 
 # --- 4) refusals: moved line, not an item, dirty board, an answer the reader cannot read back
 cp "$B" "$TMP/before"; head=$(git -C "$R" rev-parse HEAD)
@@ -100,7 +101,7 @@ cp "$B" "$TMP/before"; head=$(git -C "$R" rev-parse HEAD)
 [ $rc = 3 ] && cmp -s "$B" "$TMP/before" && ok "a moved line (head mismatch) is refused, exit 3, board untouched" || bad "moved line rc=$rc"
 "$EDIT" done --board "$B" --line 3 --expect "Swept:" >/dev/null 2>&1; rc=$?
 [ $rc = 3 ] && cmp -s "$B" "$TMP/before" && ok "the Swept: stamp line is not an item: refused" || bad "stamp line rc=$rc"
-"$EDIT" decide --board "$B" --line 9 --expect "$PAST" --answer "yes. Decided: no" >/dev/null 2>&1; rc=$?
+"$EDIT" decide --board "$B" --line 9 --expect "$PAST" --answer "yes. Decided: no" --by Paul >/dev/null 2>&1; rc=$?
 [ $rc = 3 ] && cmp -s "$B" "$TMP/before" && ok "an answer the reader would not read back is refused" || bad "unreadable answer rc=$rc"
 echo "- [ ] $PAST (n/a) — hand-typed, uncommitted." >> "$B"; cp "$B" "$TMP/dirty"
 "$EDIT" done --board "$B" --line 8 --expect "$PAST (session n/a" >/dev/null 2>&1; rc=$?
@@ -108,15 +109,28 @@ echo "- [ ] $PAST (n/a) — hand-typed, uncommitted." >> "$B"; cp "$B" "$TMP/dir
   && ok "a board with uncommitted changes is refused before any write" || bad "dirty board rc=$rc"
 git -C "$R" checkout -q docs/user_attention.md
 
-# --- 5) snooze: an existing Due: moves; an undated item gets one before its Answers:
+# --- 5) snooze hides the item until a date (Hide until:, ledgerboard v2.3) and leaves Due: alone;
+#        due moves Due:, and on an undated item inserts one before its Answers:
 "$EDIT" snooze --board "$B" --line 8 --expect "$PAST (session n/a" --to "$FUT2" >/dev/null 2>&1
-[ "$(sed -n 8p "$B")" = "- [ ] $PAST (session n/a) — plain item. Context: TD-1. Due: $FUT2." ] && ok "snooze rewrites the Due: date" || bad "snooze: $(sed -n 8p "$B")"
-"$EDIT" snooze --board "$B" --line 9 --expect "$PAST (session 0badf00d" --to "$FUT" >/dev/null 2>&1
+[ "$(sed -n 8p "$B")" = "- [ ] $PAST (session n/a) — plain item. Context: TD-1. Due: $PAST. Hide until: $FUT2." ] && ok "snooze writes Hide until: and keeps the Due: date" || bad "snooze: $(sed -n 8p "$B")"
+chk=$(python3 "$NUDGE" --report --json --board "$B" 2>&1 | python3 -c '
+import json,sys; i=[x for x in json.load(sys.stdin)["boards"][0]["items"] if x["line"]==8][0]
+print(i["due"], i["hide_until"], i["hidden"])')
+[ "$chk" = "$PAST $FUT2 True" ] && ok "--json: a snoozed item keeps its Due:, reads hidden until the date" || bad "snoozed json: $chk"
+out=$(python3 "$NUDGE" --report --due-only --board "$B" 2>&1)
+! grep -q "plain item" <<< "$out" && ok "--due-only: an overdue item hidden by a snooze does not surface" || bad "hidden item surfaced: $out"
+out=$(python3 "$NUDGE" --report --board "$B" 2>&1)
+! grep -q "• .*plain item" <<< "$out" && grep -q "1 hidden (Hide until:)" <<< "$out" \
+  && ok "full report: a hidden item is left out of the list and counted as hidden" || bad "full report with a hidden item: $out"
+"$EDIT" due --board "$B" --line 9 --expect "$PAST (session 0badf00d" --to "$FUT" >/dev/null 2>&1
 chk=$(python3 "$NUDGE" --report --json --board "$B" 2>&1 | python3 -c '
 import json,sys; i=[x for x in json.load(sys.stdin)["boards"][0]["items"] if x["line"]==9][0]
 print(i["due"], i["answers"])')
-[ "$chk" = "$FUT ['a | b', 'c']" ] && sed -n 9p "$B" | grep -q "Due: $FUT. Answers:" && ok "snooze on an undated question inserts Due: before Answers:" || bad "snooze undated: $chk / $(sed -n 9p "$B")"
+[ "$chk" = "$FUT ['a | b', 'c']" ] && sed -n 9p "$B" | grep -q "Due: $FUT. Answers:" && ok "due on an undated question inserts Due: before Answers:" || bad "due undated: $chk / $(sed -n 9p "$B")"
+git -C "$R" log --format=%s -1 | grep -q "^board_edit: due pick a shape. to $FUT (session 0badf00d)$" \
+  && ok "due commits under the fixed message" || bad "due message: $(git -C "$R" log --format=%s -1)"
 "$EDIT" snooze --board "$B" --line 8 --expect x --to 2026-02-30 >/dev/null 2>&1; [ $? = 2 ] && ok "snooze --to a non-date is a usage error" || bad "bad --to accepted"
+"$EDIT" due --board "$B" --line 8 --expect x >/dev/null 2>&1; [ $? = 2 ] && ok "due without --to is a usage error" || bad "due without --to accepted"
 git -C "$R" log --format=%s -2 | grep -q "^board_edit: snooze plain item. to $FUT2 (session n/a)$" \
   && ok "snooze commits under the fixed message" || bad "snooze message: $(git -C "$R" log --format=%s -2)"
 
@@ -131,7 +145,7 @@ L=$(wc -l < "$B")
   && [ "$(wc -l < "$B")" = "$L" ] && ok "done without --why appends Closed: today and keeps the line" || bad "done Closed: $(sed -n 10p "$B")"
 "$EDIT" done --board "$B" --line 8 --expect "$PAST (session n/a) — plain" --why "merged in
 PR #9." >/dev/null 2>&1; rc=$?
-[ $rc = 0 ] && sed -n 8p "$B" | grep -q "^- \[x\] .*Due: $FUT2\. Closed: $TODAY — merged in PR #9\.$" \
+[ $rc = 0 ] && sed -n 8p "$B" | grep -q "^- \[x\] .*Due: $PAST\. Hide until: $FUT2\. Closed: $TODAY — merged in PR #9\.$" \
   && ok "done --why: Closed: today — why (whitespace collapsed)" || bad "done --why rc=$rc: $(sed -n 8p "$B")"
 "$EDIT" snooze --board "$B" --line 7 --expect x --to "$FUT" --why x >/dev/null 2>&1; [ $? = 2 ] \
   && ok "--why on snooze is a usage error" || bad "--why accepted on snooze"
@@ -161,16 +175,16 @@ python3 "$NUDGE" --report --json --board "$AB" 2>&1 | python3 -c 'import json,sy
   && ok "--json carries the archive note; closed items are not items" || bad "--json archive slot"
 
 # decide on an unpunctuated undated item ends its sentence first, so the reader reads it back
-"$EDIT" decide --board "$B" --line 13 --expect "$PAST (n/a) — undated and" --answer go >/dev/null 2>&1; rc=$?
-[ $rc = 0 ] && [ "$(sed -n 13p "$B")" = "- [ ] $PAST (n/a) — undated and unpunctuated. Decided: go ($TODAY)." ] \
+"$EDIT" decide --board "$B" --line 13 --expect "$PAST (n/a) — undated and" --answer go --by Alex >/dev/null 2>&1; rc=$?
+[ $rc = 0 ] && [ "$(sed -n 13p "$B")" = "- [ ] $PAST (n/a) — undated and unpunctuated. Decided: go (by Alex) ($TODAY)." ] \
   && ok "decide on an unpunctuated item: '. Decided:' (the field starts a sentence)" || bad "unpunctuated decide rc=$rc: $(sed -n 13p "$B")"
 
 # --- 7) --no-commit edits a board outside git; a commit outside git is refused
 mkdir -p "$TMP/nogit"; printf '# b\n\n- [ ] %s (n/a) — outside git. Due: %s.\n' "$PAST" "$FUT" > "$TMP/nogit/b.md"
-"$EDIT" decide --board "$TMP/nogit/b.md" --line 3 --expect "$PAST" --answer hold >/dev/null 2>&1; rc=$?
+"$EDIT" decide --board "$TMP/nogit/b.md" --line 3 --expect "$PAST" --answer hold --by Alex >/dev/null 2>&1; rc=$?
 [ $rc = 3 ] && ! grep -q Decided "$TMP/nogit/b.md" && ok "outside git without --no-commit: refused, untouched" || bad "nogit commit rc=$rc"
-"$EDIT" decide --board "$TMP/nogit/b.md" --line 3 --expect "$PAST" --answer hold --no-commit >/dev/null 2>&1
-sed -n 3p "$TMP/nogit/b.md" | grep -q "Due: $FUT. Decided: hold ($TODAY)\.$" && ok "--no-commit edits the file only" || bad "--no-commit: $(sed -n 3p "$TMP/nogit/b.md")"
+"$EDIT" decide --board "$TMP/nogit/b.md" --line 3 --expect "$PAST" --answer hold --by Alex --no-commit >/dev/null 2>&1
+sed -n 3p "$TMP/nogit/b.md" | grep -q "Due: $FUT. Decided: hold (by Alex) ($TODAY)\.$" && ok "--no-commit edits the file only" || bad "--no-commit: $(sed -n 3p "$TMP/nogit/b.md")"
 
 # --- 7a) TD-066: one answer marked (default) — stripped from answers, carried as default
 DB="$TMP/def"; rm -rf "$DB"; git init -q -b main "$DB"; mkdir -p "$DB/docs"
@@ -194,8 +208,8 @@ print("ok")' 2>&1)
 [ "$chk" = ok ] && ok "(default): stripped from answers, carried as default; two marked or none = null" || bad "(default) json: $chk"
 python3 "$NUDGE" --report --board "$DB/docs/user_attention.md" 2>&1 | grep -q "overdue · default: merge) " \
   && ok "the report's tag shows the default" || bad "no default in the report tag"
-"$EDIT" decide --board "$DB/docs/user_attention.md" --line 5 --expect "$PAST (session abcdef12" --answer hold >/dev/null 2>&1; rc=$?
-[ $rc = 0 ] && sed -n 5p "$DB/docs/user_attention.md" | grep -q "Answers: merge (default) | hold. Decided: hold ($TODAY)\.$" \
+"$EDIT" decide --board "$DB/docs/user_attention.md" --line 5 --expect "$PAST (session abcdef12" --answer hold --by Alex >/dev/null 2>&1; rc=$?
+[ $rc = 0 ] && sed -n 5p "$DB/docs/user_attention.md" | grep -q "Answers: merge (default) | hold. Decided: hold (by Alex) ($TODAY)\.$" \
   && ok "decide on a marked question keeps the mark; the person's answer need not be the default" || bad "decide with (default) rc=$rc: $(sed -n 5p "$DB/docs/user_attention.md")"
 python3 "$NUDGE" --report --board "$DB/docs/user_attention.md" 2>&1 | grep -q "default: merge" \
   && bad "a decided item still shows the default" || ok "a decided item shows the decision, not the default"
@@ -263,17 +277,17 @@ done
 [ $rc = 0 ] && [ "$(sed -n 11p "$RBB")" = "- [ ] $PAST (n/a) — read the list. Answers: are in the TD. Due: $FUT. — Alex, $TODAY: which TD?" ] \
   && [ "$(rjson | python3 -c 'import json,sys; i=[x for x in json.load(sys.stdin)["boards"][0]["items"] if x["line"]==11][0]; print(i["answers"], len(i["replies"]))')" = "[] 1" ] \
   && ok "reply on an item whose prose says Answers: before its Due: lands after the Due:" || bad "reply after prose Answers: rc=$rc: $(sed -n 11p "$RBB")"
-# the other actions on a replied-to line: snooze dates an undated one AHEAD of its reply; decide and done keep it
-"$EDIT" snooze --board "$RBB" --line 7 --expect "$PAST (n/a) — undated" --to "$FUT2" >/dev/null 2>&1; rc=$?
+# the other actions on a replied-to line: due dates an undated one AHEAD of its reply; decide and done keep it
+"$EDIT" due --board "$RBB" --line 7 --expect "$PAST (n/a) — undated" --to "$FUT2" >/dev/null 2>&1; rc=$?
 [ $rc = 0 ] && [ "$(sed -n 7p "$RBB")" = "- [ ] $PAST (n/a) — undated and unpunctuated. Due: $FUT2. — Alex, $TODAY: next week" ] \
-  && ok "snooze on an undated replied-to item puts Due: ahead of the reply" || bad "snooze replied rc=$rc: $(sed -n 7p "$RBB")"
-"$EDIT" decide --board "$RBB" --line 5 --expect "$PAST (session abcdef12" --answer hold >/dev/null 2>&1
+  && ok "due on an undated replied-to item puts Due: ahead of the reply" || bad "due replied rc=$rc: $(sed -n 7p "$RBB")"
+"$EDIT" decide --board "$RBB" --line 5 --expect "$PAST (session abcdef12" --answer hold --by Alex >/dev/null 2>&1
 "$EDIT" reply --board "$RBB" --line 5 --expect "$PAST (session abcdef12" --text "until Friday" --by Alex >/dev/null 2>&1
 chk=$(rjson | python3 -c '
 import json, sys
 i = [x for x in json.load(sys.stdin)["boards"][0]["items"] if x["line"] == 5][0]
 assert [r["text"] for r in i["replies"]] == ["wait for CI.", "CI is green now.", "until Friday."], i["replies"]
-assert i["decided"]["text"] == "hold" and i["waiting_on"] == "session" and i["answers"] == ["merge", "hold"], i
+assert i["decided"]["text"] == "hold" and i["decided_by"] == "Alex" and i["waiting_on"] == "session" and i["answers"] == ["merge", "hold"], i
 print("ok")' 2>&1)
 [ "$chk" = ok ] && ok "decide after replies, and a reply after a decide: the decision stands, the replies in order" || bad "reply/decide: $chk"
 "$EDIT" done --board "$RBB" --line 6 --expect "$PAST (session n/a) — plain" --why handled >/dev/null 2>&1; rc=$?
@@ -291,6 +305,22 @@ git -C "$RB" config --unset user.name
 sed -n 7p "$RBB" | grep -q " — Robin Q, $TODAY: named — the person, $TODAY: unnamed$" \
   && [ "$(git -C "$RB" log -1 --format=%s)" = "board_edit: reply undated and unpunctuated. (session n/a)" ] \
   && ok "reply --by defaults to git user.name, else 'the person'; an earlier reply's words stay out of the commit head" || bad "reply --by default: $(sed -n 7p "$RBB") / $(git -C "$RB" log -1 --format=%s)"
+
+# --- 7c) who answered (ledgerboard v2.3): decide's --by is never git's user.name; a board whose People:
+#         line names one person defaults to them, one with none needs --by, a name off the line is refused
+PB="$TMP/people"; rm -rf "$PB"; git init -q -b main "$PB"; mkdir -p "$PB/docs"; PBB="$PB/docs/user_attention.md"
+printf '# board\n\nPeople: Paul\n\n## Needs the user\n\n- [ ] %s (session abcdef12 on testhost) — merge or hold? Context: PR #7. Due: %s. Answers: merge (default) | hold.\n' "$PAST" "$PAST" > "$PBB"
+git -C "$PB" add -A; git -C "$PB" commit -qm base; cp "$PBB" "$TMP/before"
+git -C "$PB" config user.name "Robin Q"
+"$EDIT" decide --board "$PBB" --line 7 --expect "$PAST" --answer hold --by Robin >/dev/null 2>&1; r1=$?
+[ $r1 = 3 ] && cmp -s "$PBB" "$TMP/before" && ok "decide --by a name off the board's People: line is refused" || bad "decide off People: rc=$r1"
+"$EDIT" decide --board "$PBB" --line 7 --expect "$PAST" --answer hold >/dev/null 2>&1; rc=$?
+[ $rc = 0 ] && sed -n 7p "$PBB" | grep -q "Decided: hold (by Paul) ($TODAY)\.$" \
+  && ok "decide on a one-person People: board defaults --by to that person, not git's user.name" || bad "decide People: default rc=$rc: $(sed -n 7p "$PBB")"
+"$EDIT" decide --board "$B" --line 9 --expect "$PAST" --answer a >/dev/null 2>&1; rc=$?
+[ $rc = 3 ] && ok "decide on a board with no People: line and no --by is refused" || bad "decide with no People: and no --by rc=$rc"
+"$EDIT" snooze --board "$PBB" --line 7 --expect "$PAST" --to "$FUT" --by Paul >/dev/null 2>&1; [ $? = 2 ] \
+  && ok "--by on snooze is a usage error" || bad "--by accepted on snooze"
 
 # --- 8) the SYNC contract: shipped executable, and sync.sh lists it
 [ -x "$EDIT" ] && ok "board_edit.py is executable" || bad "board_edit.py not executable"

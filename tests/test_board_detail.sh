@@ -88,9 +88,9 @@ cat > "$NB" <<EOF
 - [ ] act $RAISED (n/a) — next. Due: $T0.
 EOF
 before=$(sed -n '4,5p' "$NB")
-"$EDIT" decide --board "$NB" --line 3 --expect "decide $RAISED" --answer A --no-commit >/dev/null 2>&1; r1=$?
+"$EDIT" decide --board "$NB" --line 3 --expect "decide $RAISED" --answer A --by Alex --no-commit >/dev/null 2>&1; r1=$?
 "$EDIT" done --board "$NB" --line 3 --expect "decide $RAISED" --why "did A" --no-commit >/dev/null 2>&1; r2=$?
-[ $r1 = 0 ] && [ $r2 = 0 ] && [ "$(sed -n '4,5p' "$NB")" = "$before" ] && sed -n 3p "$NB" | grep -q "^- \[x\] .*Decided: A ($T0)\..*Closed: $T0 — did A\.$" \
+[ $r1 = 0 ] && [ $r2 = 0 ] && [ "$(sed -n '4,5p' "$NB")" = "$before" ] && sed -n 3p "$NB" | grep -q "^- \[x\] .*Decided: A (by Alex) ($T0)\..*Closed: $T0 — did A\.$" \
     && ok "decide then done: the head line edited, the block untouched" || bad "board_edit: r1=$r1 r2=$r2 $(cat "$NB")"
 
 echo "$PASS passed, $FAIL failed"
