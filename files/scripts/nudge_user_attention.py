@@ -7,7 +7,8 @@ Reads the user-attention board, finds unchecked items whose optional
 ``Due: YYYY-MM-DD`` marker is today or past, and pushes ONE message listing
 them. On Mondays it additionally appends a full-board summary (including
 items with no due date). Silent exit when
-there is nothing to say. Snoozing an item = editing its Due date on the board.
+there is nothing to say. Snoozing an item = `board_edit.py snooze`, which writes `Hide until:` (TD-213):
+the item is left out until then, and its Due: stays the deadline.
 
 Delivery channel (first match wins — most repos have no Telegram, so the
 generic hook comes first):
@@ -31,7 +32,7 @@ script *runs from* current via whatever schedule updates it.
 
 Point ``--board`` (or USER_ATTENTION_BOARD) at the LIVE working-tree copy of
 the board, not a deploy-pinned checkout: the board is an operator to-do list,
-not production code, and a hand-edited Due date (snooze) must take effect the
+not production code, and a snooze (`Hide until:`) or a moved Due date must take effect the
 same day — not after a merge + deploy sync. Falls back to the copy next to
 this script.
 
@@ -161,7 +162,7 @@ logger = logging.getLogger("nudge_user_attention")
 
 
 class FormatTooNew(ValueError):
-    """A ledger or board that declares a newer major of the formats than ledgerboard.py reads."""
+    """A ledger or board that declares a newer major of the formats than the ledgerboard package reads."""
 
 
 def checked(text: str, where: object) -> str:
@@ -1619,7 +1620,7 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
         json_gh_spent = {"t": 0.0, "hit": False}
         # One object, every row, no delivery — the tool-facing twin of the text
         # report. Items come back in board order with their line numbers so a
-        # consumer can edit the board (snooze = Due: edit, done = tick) by line.
+        # consumer can edit the board (snooze = Hide until:, due = Due: edit, done = tick) by line.
         out_rows: list[dict] = []
         for i, (label, board, root, note) in enumerate(rows):
             limits_problems = use_limits(root)   # TD-134: this board's repo's thresholds

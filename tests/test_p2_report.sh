@@ -47,7 +47,7 @@ R3="$TMP/gamma"; mk "$R3"
 #        this replaced was only valid while nudge output was frozen)
 out1=$(python3 "$NEW" --board "$R1/docs/user_attention.md" --dry-run --force-weekly 2>/dev/null); rc1=$?
 if [ "$rc1" = 0 ] && echo "$out1" | grep -q "Weekly board review" \
-   && echo "$out1" | grep -q "Snooze: edit" \
+   && echo "$out1" | grep -qF 'Snooze: `board_edit.py snooze --to <date>` hides' \
    && ! echo "$out1" | grep -q "Reminder: run /stranded-work"; then
   ok "nudge dry-run: weekly summary kept, Monday reminder retired"
 else bad "nudge dry-run content (rc=$rc1): $(echo "$out1" | head -5)"; fi

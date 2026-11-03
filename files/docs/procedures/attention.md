@@ -72,7 +72,8 @@ When the user answers, snoozes, re-dates or closes an item here, make the edit w
 `scripts/board_edit.py decide|snooze|due|done --board <board> --line <N> --expect "<item text>"`
 (the line and text from `--report --json`; a `decide` on a board whose `People:` line names more
 than one person, or none, also takes `--by <who answered>`; `snooze --to <date>` hides the item
-until then and keeps its `Due:`, `due --to <date>` moves the `Due:`), never by hand-editing the line — it refuses a
+until then and keeps its `Due:`, `due --to <date>` moves the `Due:`; an item `--report --json` marks `hidden: true` was snoozed and is not listed
+to the person until its `Hide until:` date), never by hand-editing the line — it refuses a
 board that moved and commits under cadence.md §4's tool-made-edit carve-out. An item's
 `Answers:` are the choices to offer; the user may answer in their own words. Surface any ⚠ lines
 (unreadable/missing boards, fetch skips) rather than smoothing

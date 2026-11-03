@@ -1546,7 +1546,7 @@ SWEEP_STAMPS = ("Swept", "Swept-deep")  # the stamp lines a sweep writes (cadenc
 
 
 def _lb():
-    """The board format, defined once: the sibling SYNC file ledgerboard.py (ShiftLead/ledgerboard),
+    """The board format, defined once: the sibling SYNC package ledgerboard/ (ShiftLead/ledgerboard),
     imported when a board is read — as this script imports its other siblings — so the rows that
     read no board run without it."""
     here = os.path.dirname(os.path.abspath(__file__))
