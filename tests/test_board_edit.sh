@@ -78,10 +78,10 @@ n=$(python3 "$NUDGE" --report --json --due-only --board "$B" 2>&1 | python3 -c '
 # --- 3) decide: records Decided: on exactly that line, one commit, board only, fixed message
 cp "$B" "$TMP/before"
 echo scratch > "$R/other.txt"; git -C "$R" add other.txt   # staged elsewhere: must stay out of the commit
-out=$("$EDIT" decide --board "$B" --line 7 --expect "$PAST (session abcdef12" --answer "merge" --by Paul --tool shiftlead 2>&1); rc=$?
+out=$("$EDIT" decide --board "$B" --line 7 --expect "$PAST (session abcdef12" --answer "merge" --by Pat --tool shiftlead 2>&1); rc=$?
 [ $rc = 0 ] && ok "decide exits 0" || bad "decide rc=$rc: $out"
 diff <(sed 7d "$TMP/before") <(sed 7d "$B") >/dev/null && ok "decide: every other line (stamp included) byte-identical" || bad "decide touched other lines"
-[ "$(sed -n 7p "$B")" = "$(sed -n 7p "$TMP/before") Decided: merge (by Paul) ($TODAY)." ] && ok "decide: Decided: appended after Answers:, naming who answered (--by)" || bad "decide line: $(sed -n 7p "$B")"
+[ "$(sed -n 7p "$B")" = "$(sed -n 7p "$TMP/before") Decided: merge (by Pat) ($TODAY)." ] && ok "decide: Decided: appended after Answers:, naming who answered (--by)" || bad "decide line: $(sed -n 7p "$B")"
 msg=$(git -C "$R" log -1 --format=%s); files=$(git -C "$R" show --name-only --format= HEAD)
 [ "$msg" = "shiftlead: decide merge PR #7 or hold it?: merge (session abcdef12)" ] \
   && ok "decide: the carve-out's fixed commit message" || bad "commit message: $msg"
@@ -91,9 +91,9 @@ w=$(python3 "$NUDGE" --report --json --board "$B" 2>&1 | python3 -c 'import json
 [ "$w" = "session ['merge', 'hold', 'ask me Monday'] $PAST" ] && ok "decide: the reader now reads it as waiting on a session, answers and due intact" || bad "after decide: $w"
 
 # re-deciding replaces the field, never stacks a second one
-"$EDIT" decide --board "$B" --line 7 --expect "$PAST (session abcdef12" --answer "hold  it" --by Paul >/dev/null 2>&1
+"$EDIT" decide --board "$B" --line 7 --expect "$PAST (session abcdef12" --answer "hold  it" --by Pat >/dev/null 2>&1
 l=$(sed -n 7p "$B")
-[ "$(grep -o 'Decided:' <<< "$l" | wc -l)" = 1 ] && [[ "$l" == *"Decided: hold it (by Paul) ($TODAY)." ]] && ok "re-decide replaces the Decided: field (whitespace folded)" || bad "re-decide: $l"
+[ "$(grep -o 'Decided:' <<< "$l" | wc -l)" = 1 ] && [[ "$l" == *"Decided: hold it (by Pat) ($TODAY)." ]] && ok "re-decide replaces the Decided: field (whitespace folded)" || bad "re-decide: $l"
 
 # --- 4) refusals: moved line, not an item, dirty board, an answer the reader cannot read back
 cp "$B" "$TMP/before"; head=$(git -C "$R" rev-parse HEAD)
@@ -101,7 +101,7 @@ cp "$B" "$TMP/before"; head=$(git -C "$R" rev-parse HEAD)
 [ $rc = 3 ] && cmp -s "$B" "$TMP/before" && ok "a moved line (head mismatch) is refused, exit 3, board untouched" || bad "moved line rc=$rc"
 "$EDIT" done --board "$B" --line 3 --expect "Swept:" >/dev/null 2>&1; rc=$?
 [ $rc = 3 ] && cmp -s "$B" "$TMP/before" && ok "the Swept: stamp line is not an item: refused" || bad "stamp line rc=$rc"
-"$EDIT" decide --board "$B" --line 9 --expect "$PAST" --answer "yes. Decided: no" --by Paul >/dev/null 2>&1; rc=$?
+"$EDIT" decide --board "$B" --line 9 --expect "$PAST" --answer "yes. Decided: no" --by Pat >/dev/null 2>&1; rc=$?
 [ $rc = 3 ] && cmp -s "$B" "$TMP/before" && ok "an answer the reader would not read back is refused" || bad "unreadable answer rc=$rc"
 echo "- [ ] $PAST (n/a) — hand-typed, uncommitted." >> "$B"; cp "$B" "$TMP/dirty"
 "$EDIT" done --board "$B" --line 8 --expect "$PAST (session n/a" >/dev/null 2>&1; rc=$?
@@ -309,17 +309,17 @@ sed -n 7p "$RBB" | grep -q " — Robin Q, $TODAY: named — the person, $TODAY: 
 # --- 7c) who answered (ledgerboard v2.3): decide's --by is never git's user.name; a board whose People:
 #         line names one person defaults to them, one with none needs --by, a name off the line is refused
 PB="$TMP/people"; rm -rf "$PB"; git init -q -b main "$PB"; mkdir -p "$PB/docs"; PBB="$PB/docs/user_attention.md"
-printf '# board\n\nPeople: Paul\n\n## Needs the user\n\n- [ ] %s (session abcdef12 on testhost) — merge or hold? Context: PR #7. Due: %s. Answers: merge (default) | hold.\n' "$PAST" "$PAST" > "$PBB"
+printf '# board\n\nPeople: Pat\n\n## Needs the user\n\n- [ ] %s (session abcdef12 on testhost) — merge or hold? Context: PR #7. Due: %s. Answers: merge (default) | hold.\n' "$PAST" "$PAST" > "$PBB"
 git -C "$PB" add -A; git -C "$PB" commit -qm base; cp "$PBB" "$TMP/before"
 git -C "$PB" config user.name "Robin Q"
 "$EDIT" decide --board "$PBB" --line 7 --expect "$PAST" --answer hold --by Robin >/dev/null 2>&1; r1=$?
 [ $r1 = 3 ] && cmp -s "$PBB" "$TMP/before" && ok "decide --by a name off the board's People: line is refused" || bad "decide off People: rc=$r1"
 "$EDIT" decide --board "$PBB" --line 7 --expect "$PAST" --answer hold >/dev/null 2>&1; rc=$?
-[ $rc = 0 ] && sed -n 7p "$PBB" | grep -q "Decided: hold (by Paul) ($TODAY)\.$" \
+[ $rc = 0 ] && sed -n 7p "$PBB" | grep -q "Decided: hold (by Pat) ($TODAY)\.$" \
   && ok "decide on a one-person People: board defaults --by to that person, not git's user.name" || bad "decide People: default rc=$rc: $(sed -n 7p "$PBB")"
 "$EDIT" decide --board "$B" --line 9 --expect "$PAST" --answer a >/dev/null 2>&1; rc=$?
 [ $rc = 3 ] && ok "decide on a board with no People: line and no --by is refused" || bad "decide with no People: and no --by rc=$rc"
-"$EDIT" snooze --board "$PBB" --line 7 --expect "$PAST" --to "$FUT" --by Paul >/dev/null 2>&1; [ $? = 2 ] \
+"$EDIT" snooze --board "$PBB" --line 7 --expect "$PAST" --to "$FUT" --by Pat >/dev/null 2>&1; [ $? = 2 ] \
   && ok "--by on snooze is a usage error" || bad "--by accepted on snooze"
 
 # --- 8) the SYNC contract: shipped executable, and sync.sh lists it
