@@ -792,7 +792,7 @@ print("ok")' 2>&1)
 [ "$chk" = ok ] && [ $rc -eq 1 ] && ok "--since: direct commits classified (stamp, board-append, board_edit.py's board-edit pass, a reply and a due among them; stamp+ledger, a removed line, a hand edit, a hand-reworded reply, a script fail; root and (#N) skipped), rc 1" \
   || bad "direct classify rc=$rc: $chk"
 out=$( cd "$D" && python3 "$SCRIPT" --since 1d 2>&1 )
-echo "$out" | grep -q "^Direct commits on origin/main (no PR) — 10 direct commit(s)  \[FAIL\]" && echo "$out" | grep -q "PASS    board-edit" \
+echo "$out" | grep -q "^Direct commits on origin/main (no PR) — 11 direct commit(s)  \[FAIL\]" && echo "$out" | grep -q "PASS    board-edit" \
   && ok "--since text: the Direct commits section" || bad "direct text: $(echo "$out" | tail -9)"
 git init -q -b main "$TMP/noorigin"; ( cd "$TMP/noorigin" && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m root )
 out=$( cd "$TMP/noorigin" && python3 "$SCRIPT" --since 1d --json 2>&1 ); rc=$?

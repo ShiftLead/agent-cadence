@@ -98,7 +98,7 @@ for board in BOARDS:
     fd = re.search(r"`(Decided: [^`]+)`", read(board))
     check(f"{board}: states the Answers: and Decided: templates", fa and fd)
     if fa and fd:
-        full = f"{item} {fill(fa.group(1), **{'<answer>': 'yes'})} {fill(fd.group(1), **{'<text>': 'yes'})}"
+        full = f"{item} {fill(fa.group(1), **{'<answer>': 'yes'})} {fill(fd.group(1), **{'<text>': 'yes', '<person>': 'pat'})}"
         check(f"{board}: ANSWERS_RE reads the Answers: template", N.parse_answers(full) == ["yes", "yes"], full)
         fdef = re.search(r"`(Answers: <answer> \(default\)[^`]*)`", read(board))
         check(f"{board}: states the Answers: (default) template", fdef)
@@ -106,8 +106,9 @@ for board in BOARDS:
             full2 = f"{item} {fill(fdef.group(1), **{'<answer>': 'yes'})}"
             check(f"{board}: DEFAULT_MARK_RE reads the (default) template",
                   N.parse_default(full2) == "yes" and N.parse_answers(full2) == ["yes", "yes"], full2)
-        check(f"{board}: DECIDED_RE reads the Decided: template",
-              N.parse_decided(full) == ("yes", dt.date.today()), full)
+        check(f"{board}: DECIDED_RE reads the Decided: template (who answered too, ledgerboard v2.3)",
+              N.parse_decided(full) == ("yes", dt.date.today())
+              and N.parse_board(full, warn=False)[0].decided_by == "pat", full)
         check(f"{board}: DUE_RE still reads the Due: date with both fields after it",
               N.parse_board(full, warn=False)[0].due == dt.date.today(), full)
 
