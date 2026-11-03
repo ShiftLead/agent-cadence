@@ -151,11 +151,11 @@ G="$TMP/g"; git init -q -b main "$G"; mkdir -p "$G/docs"; cp "$B" "$G/docs/user_
 gg() { git -C "$G" -c user.email=t@t -c user.name=t "$@"; }
 gg add -A; gg commit -qm board
 GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  "$EDIT" decide --board "$G/docs/user_attention.md" --line 8 --expect "look $RAISED (session abcdef12" --answer "Works" --tool shiftlead >/dev/null 2>&1; rc=$?
+  "$EDIT" decide --board "$G/docs/user_attention.md" --line 8 --expect "look $RAISED (session abcdef12" --answer "Works" --by Alex --tool shiftlead >/dev/null 2>&1; rc=$?
 l=$(sed -n 8p "$G/docs/user_attention.md")
-[ $rc -eq 0 ] && [[ "$l" == *"Answers: Works (default) | Not right: <what>. Decided: Works ($T0)." ]] && ok "one press on the default: decide --answer <the default's text> writes Decided: on a look" || bad "decide default: rc=$rc $l"
+[ $rc -eq 0 ] && [[ "$l" == *"Answers: Works (default) | Not right: <what>. Decided: Works (by Alex) ($T0)." ]] && ok "one press on the default: decide --answer <the default's text> writes Decided: on a look" || bad "decide default: rc=$rc $l"
 GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  "$EDIT" decide --board "$G/docs/user_attention.md" --line 7 --expect "look $RAISED (session abcdef12" --answer "Not right: the totals are off" >/dev/null 2>&1
+  "$EDIT" decide --board "$G/docs/user_attention.md" --line 7 --expect "look $RAISED (session abcdef12" --answer "Not right: the totals are off" --by Alex >/dev/null 2>&1
 w=$(python3 "$N" --report --board "$G/docs/user_attention.md" --json | python3 -c 'import json,sys; it=json.load(sys.stdin)["boards"][0]["items"]; print(it[0]["decided"]["text"], "|", it[0]["waiting_on"], "|", it[1]["waiting_on"])')
 [ "$w" = "Not right: the totals are off | session | session" ] && ok "a decided live look — Works or Not right: <text> — waits on a session" || bad "decided live look: $w"
 

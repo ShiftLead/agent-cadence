@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-03 — Snooze hides an item (`Hide until:`); `due` moves the deadline; `decide` names who answered
+Do: to snooze, `board_edit.py snooze --to <date>` (hides it, keeps `Due:`); to move the deadline, `board_edit.py due --to <date>`; on a `decide`, pass `--by <who answered>` unless the board's `People:` line names one person — give your board a `People:` line.
+See: cadence.md §3.5, §3.9, §4.5; procedures/attention.md; TD-213 (ledgerboard v2.3, the `scripts/ledgerboard/` package).
+
 ## 2026-10-31 — A design still in conversation lands with `Blocked by: decision (<person>)`
 Do: filing an entry (or a build of it) while its design is still being shaped with the person, write `**Blocked by:** decision (<person>)` naming the human driving the session, and an `**Ask:**` saying what releases it; lift it only on their go.
 See: cadence.md §2.4, §4.8 (Design review rounds); TD-212.

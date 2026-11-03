@@ -125,7 +125,7 @@ the top of the git work tree the command runs in; ``--archive`` applies to a v1 
 for ``--split`` and the writers ``fmt``, ``new`` and ``renumber`` (which also take from the counter), ``set``, ``note``, ``edit``, ``archive``, ``reopen``, and offline except where ``--check --since``'s edit
 adds an id: then it asks origin for the counter (``git ls-remote``, and a fetch of its tracking ref). Exit 0 (``--check``: 1 on an error);
 2 when the ledger, or ``--since``'s ref, cannot be read or the arguments are unusable, or the
-ledger or archive declares a newer major of the format than ``ledgerboard.py`` reads
+ledger or archive declares a newer major of the format than the ``ledgerboard`` package reads
 (``Ledgerboard: N``, TD-133) — then nothing was read. A cross-repo blocker whose ledger declares
 one stays blocked, and says why. A detector,
 never a gate (cadence.md §7): ``--check`` is what lets a caller choose to gate on it.

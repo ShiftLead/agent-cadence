@@ -2,6 +2,8 @@
 
 Swept: 2026-09-22 (kmaster, quick)
 
+People: Paul
+
 Items that need Paul to act or decide, plus in-flight work parked by a session. Sessions add
 entries **the moment they arise** and close them when handled — never delete (see
 [files/docs/cadence.md §3](../files/docs/cadence.md#3-never-strand-work) — the system this
@@ -17,13 +19,15 @@ Under the line, indented two spaces, a detail block of sub-bullets in plain Engl
 
 Kinds: `decide | act | look | watch | fyi` — optional, one word before the date: `- [ ] decide YYYY-MM-DD (…`. `decide`/`act` (or no word) are the person's to-do, and so is `look`, a live look the person is asked to make; `watch` is a session's own re-check, its check-by date as `Due:`; `fyi` carries no `Due:` and never reaches the SessionStart line. An item overdue 14 days or more belongs in the ledger: ledger it and close it here (cadence.md §3).
 
-A question ends with its answers after `Due:` — `Answers: <answer> | <answer>.`, the one you recommend marked `Answers: <answer> (default) | <answer>.` The person's answer is appended by `scripts/board_edit.py decide`, never by hand: `Decided: <text> (YYYY-MM-DD).` A `look` (the person is asked to look at something live) ends with the fixed pair `Answers: Works | Not right: <what>.`; a `watch`, an `act` and an `fyi` carry none (cadence.md §3.5).
+A question ends with its answers after `Due:` — `Answers: <answer> | <answer>.`, the one you recommend marked `Answers: <answer> (default) | <answer>.` The person's answer is appended by `scripts/board_edit.py decide`, never by hand: `Decided: <text> (by <person>) (YYYY-MM-DD).` — `<person>` is who answered, one of the `People:` line's names. A `look` (the person is asked to look at something live) ends with the fixed pair `Answers: Works | Not right: <what>.`; a `watch`, an `act` and an `fyi` carry none (cadence.md §3.5).
 
 Closing an entry never deletes it: `files/scripts/board_edit.py done --why <why>` ticks it and appends `Closed: YYYY-MM-DD — <why>.` A merge conflict here is resolved by keeping both sides; 10 or more closed entries are archived to `user_attention_archive.md` in a PR of their own (TD-062).
 
 `Due:` is optional but recommended — the SessionStart due-items line surfaces items whose
-date has arrived (TD-7). **To snooze: just edit the Due date.** Undated items surface in
-`/attention`'s full report.
+date has arrived (TD-7). **To snooze, hide the item until a date:** `files/scripts/board_edit.py snooze --to
+<date>` writes `Hide until: <date>.` after its `Due:`, which stays the real deadline, and the reports leave it
+out until then; `board_edit.py due --to <date>` moves the deadline itself (ledgerboard v2.3, TD-213). Undated
+items surface in `/attention`'s full report.
 
 ## Needs Paul
 

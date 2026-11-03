@@ -29,7 +29,7 @@ docs/plans/2026-10-22-ledger-ids.md in agent-cadence.
 
 The fallback reads main, the counter if it could be fetched, and the open PRs; it pushes nothing and
 exits 3 with ``why`` naming the cause. A ledger or archive on main that declares a newer major of
-the format than ``ledgerboard.py`` reads (``Ledgerboard: N``) is not read: exit 2, no id (TD-133);
+the format than the ``ledgerboard`` package reads (``Ledgerboard: N``) is not read: exit 2, no id (TD-133);
 an open PR whose ledger does is named in ``unread`` — its ids are not seen. What it cannot see (an id given and not pushed, a PR opened
 after the read) is left to the cadence check's ``ledger`` row, the backstop for every unreserved id.
 

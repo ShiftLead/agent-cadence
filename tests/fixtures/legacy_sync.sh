@@ -3,7 +3,7 @@
 # kept only to make the input `sync.sh --pin` migrates — a repo the copy mode synced (tests/test_sync_pin.sh).
 # A test copies it beside a temp build of files/ and runs it there, with HOME, XDG and the roster temp.
 # Its SYNC_FILES is frozen: a path later removed from files/ makes it fail, and the test then prunes it from
-# this copy rather than growing the copy mode back.
+# this copy rather than growing the copy mode back (pruned so far: scripts/ledgerboard.py, become a package, TD-213).
 #
 # sync.sh — install or update the dev-cadence system in a target repo.
 #
@@ -109,7 +109,6 @@ SYNC_FILES=(
     "scripts/board_edit.py"
     "scripts/ledger.py"
     "scripts/ledger_next_id.py"
-    "scripts/ledgerboard.py"
     "scripts/list_sessions.py"
     "scripts/generate_session_index.sh"
     "scripts/generate_workspace.sh"

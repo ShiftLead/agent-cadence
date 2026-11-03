@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # vendor_ledgerboard.sh <tag> — take a ledgerboard release into this repo (ShiftLead ADR 2026-10-12).
 #
-# Copies, from ShiftLead/ledgerboard at <tag> (e.g. v1.0):
-#   ledgerboard.py -> files/scripts/ledgerboard.py   (a SYNC file: consumers get it by sync.sh)
-#   fixtures/      -> tests/ledgerboard/             (tooling: never synced)
+# Copies, from ShiftLead/ledgerboard at <tag> (v2.3 or later: the package, TD-213):
+#   ledgerboard/*.py -> files/scripts/ledgerboard/   (SYNC files: the module and its board writer, board.py)
+#   fixtures/        -> tests/ledgerboard/           (tooling: never synced)
 # and writes tests/ledgerboard/MANIFEST (the tag, its commit, a sha256 per file). Refuses a
-# module whose release header is not <tag>'s or not intact. Commit the result and PR it; a
-# consumer then takes it by sync. Tooling at the repo root, beside sync.sh; never synced.
+# package file whose release header is not <tag>'s or not intact, and a package file that is not in
+# sync.sh's SYNC_FILES (a new one is added there and to the README's table in the same PR). Commit the
+# result and PR it; a consumer takes it by its next pin bump. Tooling at the repo root, beside sync.sh.
 #
 # LEDGERBOARD_SRC=<path to a ledgerboard clone> reads the tag from that clone instead of a
 # fresh shallow clone of https://github.com/ShiftLead/ledgerboard.
@@ -25,18 +26,26 @@ else
     commit=$(git -C "$TMP/src" rev-parse HEAD)
     mv "$TMP/src"/* "$TMP/" && rm -rf "$TMP/src"
 fi
-head -1 "$TMP/ledgerboard.py" | grep -q "^# ledgerboard $tag sha256:" \
-    || { echo "ledgerboard.py at $tag does not carry the $tag release header" >&2; exit 1; }
-python3 "$TMP/fixtures/run.py" --check-header --module "$TMP/ledgerboard.py"
-install -m 644 "$TMP/ledgerboard.py" "$DC/files/scripts/ledgerboard.py"
+[ -f "$TMP/ledgerboard/__init__.py" ] \
+    || { echo "ledgerboard at $tag is not the package (v2.3 or later): no ledgerboard/__init__.py" >&2; exit 1; }
+for f in "$TMP"/ledgerboard/*.py; do
+    head -1 "$f" | grep -q "^# ledgerboard $tag sha256:" \
+        || { echo "ledgerboard/$(basename "$f") at $tag does not carry the $tag release header" >&2; exit 1; }
+    grep -qxF "    \"scripts/ledgerboard/$(basename "$f")\"" "$DC/sync.sh" \
+        || { echo "ledgerboard/$(basename "$f") is not in sync.sh's SYNC_FILES — add it there and to README's table" >&2; exit 1; }
+done
+python3 "$TMP/fixtures/run.py" --check-header --module "$TMP/ledgerboard"
+rm -rf "$DC/files/scripts/ledgerboard" "$DC/files/scripts/ledgerboard.py"
+mkdir -p "$DC/files/scripts/ledgerboard"
+install -m 644 "$TMP"/ledgerboard/*.py "$DC/files/scripts/ledgerboard/"
 rm -rf "$DC/tests/ledgerboard"
 cp -R "$TMP/fixtures" "$DC/tests/ledgerboard"
 {
     echo "# Written by vendor_ledgerboard.sh — do not edit by hand."
     echo "tag: $tag"
     echo "commit: $commit"
-    (cd "$DC" && find files/scripts/ledgerboard.py tests/ledgerboard -type f ! -name MANIFEST | LC_ALL=C sort \
+    (cd "$DC" && find files/scripts/ledgerboard tests/ledgerboard -type f ! -name MANIFEST ! -path '*/__pycache__/*' | LC_ALL=C sort \
         | while read -r f; do echo "file: $f $(sha256sum "$f" | cut -d' ' -f1)"; done)
 } > "$DC/tests/ledgerboard/MANIFEST"
-python3 "$DC/tests/ledgerboard/run.py" --module "$DC/files/scripts/ledgerboard.py"
-echo "vendored ledgerboard $tag ($commit) — commit it, PR it, then sync the consumers"
+python3 "$DC/tests/ledgerboard/run.py" --module "$DC/files/scripts/ledgerboard"
+echo "vendored ledgerboard $tag ($commit) — commit it and PR it; a consumer takes it by its next pin bump"

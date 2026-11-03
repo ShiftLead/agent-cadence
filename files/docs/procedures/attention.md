@@ -68,9 +68,12 @@ TD-084) is what the person decides from: when they turn to an item, show its Con
 Caveats and Recommended as written rather than summarising them away. An item that asks for a
 decision without one is worth offering to have its session fill in (cadence.md §3.3).
 
-When the user answers, snoozes or closes an item here, make the edit with
-`scripts/board_edit.py decide|snooze|done --board <board> --line <N> --expect "<item text>"`
-(the line and text from `--report --json`), never by hand-editing the line — it refuses a
+When the user answers, snoozes, re-dates or closes an item here, make the edit with
+`scripts/board_edit.py decide|snooze|due|done --board <board> --line <N> --expect "<item text>"`
+(the line and text from `--report --json`; a `decide` on a board whose `People:` line names more
+than one person, or none, also takes `--by <who answered>`; `snooze --to <date>` hides the item
+until then and keeps its `Due:`, `due --to <date>` moves the `Due:`; an item `--report --json` marks `hidden: true` was snoozed and is not listed
+to the person until its `Hide until:` date), never by hand-editing the line — it refuses a
 board that moved and commits under cadence.md §4's tool-made-edit carve-out. An item's
 `Answers:` are the choices to offer; the user may answer in their own words. Surface any ⚠ lines
 (unreadable/missing boards, fetch skips) rather than smoothing
@@ -105,5 +108,5 @@ ahead of the local file, and a pull will make the file match what was reported.
 
 Read-only by default — the report path makes no writes. The only writes this procedure may
 ever make are registry creation/append under the explicit opt-in above. Checking items
-off, snoozing (editing `Due:` dates), and any other board edits are user-directed
+off, snoozing (`Hide until:`), re-dating (`Due:`), and any other board edits are user-directed
 follow-ups, not part of the report.
