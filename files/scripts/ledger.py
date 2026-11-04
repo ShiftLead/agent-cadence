@@ -140,7 +140,6 @@ import os
 import re
 import subprocess
 import sys
-from collections import Counter
 from collections.abc import Mapping
 from datetime import date, datetime
 from pathlib import Path, PurePosixPath
@@ -176,6 +175,13 @@ from ledgerboard import (  # noqa: E402,F401  # re-exported: readers and tests r
 from ledgerboard import heading_nums as _heading_nums  # noqa: E402
 from ledgerboard import (
     ledger as LBL,  # noqa: E402  # the package's ledger writer (v2.4): every write goes through it (TD-216)
+)
+from ledgerboard.ledger import (  # noqa: E402  # the reports' rows, filters and counts are the package's (TD-216)
+    _held_by,
+    _row,
+    counts,
+    field_summary,
+    select,
 )
 
 LEDGER_REL, ARCHIVE_REL = "docs/technical_debt.md", "docs/technical_debt_archive.md"
@@ -669,67 +675,10 @@ def id_flags(ledger: Path, archive: Path, text: str, arch: str, ref: str) -> lis
             for lvl, mark, flags in (("error", "⚠", fails), ("info", "ℹ", warns)) for kind, t in flags]
 
 
-def value_of(rec: dict, key: str) -> str:
-    """What a filter or a count reads: the derived Type and Priority, else the field's first word."""
-    if key == "type":
-        return rec["type"]
-    if key == "priority":
-        return rec["priority"].lower()
-    return first_word(rec["fields"].get(key))
-
-
-def select(recs: list[dict], where: list[tuple[str, str]], want_pickable: bool | None) -> list[dict]:
-    out = []
-    for r in recs:
-        if want_pickable is not None and r["pickable"] != want_pickable:
-            continue
-        if all(value_of(r, k) == v for k, v in where):
-            out.append(r)
-    return out
-
-
-def counts(recs: list[dict], by: list[str]) -> list[dict]:
-    """One row per combination of values of the ``by`` fields, most entries first; an absent field is ``(none)``."""
-    c = Counter(tuple(value_of(r, k) or "(none)" for k in by) for r in recs)
-    return [dict(zip(by, vals), count=n) for vals, n in sorted(c.items(), key=lambda kv: (-kv[1], [(v == "(none)", v) for v in kv[0]]))]
-
-
-def field_summary(res: dict) -> list[dict]:
-    """Every field any entry carries, with how many carry it, the values seen, and its vocabulary."""
-    seen: dict[str, Counter] = {}
-    for r in res["entries"]:
-        for k, v in r["fields"].items():
-            seen.setdefault(k, Counter())[first_word(v) or "(empty)"] += 1
-    keys = [k for k in CADENCE_FIELDS if k in seen] + sorted(k for k in seen if k not in CADENCE_FIELDS)
-    keys += [k for k in res["declared"] if k not in seen]
-    out = []
-    for k in keys:
-        vals = seen.get(k, Counter())
-        out.append({"field": k, "defined_by": "cadence" if k in CADENCE_FIELDS else
-                    ("preamble" if k in res["declared"] else "undeclared"),
-                    "entries": sum(vals.values()), "declared": res["declared"].get(k),
-                    "values": dict(sorted(vals.items(), key=lambda kv: (-kv[1], kv[0])))})
-    return out
-
-
 def _toplevel() -> Path:
     r = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
                        timeout=10, check=False)
     return Path(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip() else Path.cwd()
-
-
-def _row(r: dict) -> str:
-    return f"  {r['id']:<7} {r['priority']:<7} {r['type']:<8} {r['title']}"
-
-
-def _held_by(r: dict) -> str:
-    """What a blocked entry waits on, for the text modes: its ``Blocked by`` and, since ledgerboard
-    v2.1, its open parts (``parts_open``, kept apart from ``blocked_by``) — so a parent held only by
-    its ``Part of`` children never prints an empty reason (TD-167)."""
-    why = [", ".join(r["blocked_by"])] if r["blocked_by"] else []
-    if r.get("parts_open"):
-        why.append(f"parts open: {', '.join(r['parts_open'])}")
-    return "; ".join(why)
 
 
 LINK_RE = re.compile(r"(\]\()([^)\s]+)((?:\s+\"[^\"\n]*\")?\))")   # an inline link, a title kept; not <…> or a reference definition
