@@ -56,15 +56,16 @@ a written Pickable that disagrees with the derived one, and — when the ledger 
 at all — a header field that is neither the cadence's nor declared. Standing flags are counted, not
 printed. The ids the edit adds (in the ledger or archive, in neither at REF) are judged against the
 counter's takes on origin, as the cadence check's ``ledger`` row judges them (TD-145, cadence.md §2.10):
-an id no take gave, and one whose ``**Taken by:**`` is not its take's ``by``, are errors; an id older
-than the counter, an entry with no ``**Taken by:**``, a take for another branch than this one or the
-default, and a counter origin did not give are ℹ lines. ``--json``: ``{"flags": [{"level": error|info, "id", "field", "kind", "text", "standing"}],
+ledgerboard's ``judge_takes()`` through ``ledger_next_id.judge()`` (TD-188): an id no take gave, an ``**Id take:**``
+that is another id's take's nonce or no take's, and (with no ``Id take``) a ``**Taken by:**`` that is not its
+take's ``by``, are errors; an id older than the counter, a matching ``Taken by`` with no ``Id take``, an entry
+with neither, a take for another branch than this one or the default, and a counter origin did not give are ℹ lines. ``--json``: ``{"flags": [{"level": error|info, "id", "field", "kind", "text", "standing"}],
 "errors": N}`` — key on ``kind`` and ``field``, never on the sentence. Kinds: fields-decl, below-header,
 type, vocabulary, blocked-item, cross-repo, blocked-unknown, blockers-archived, pickable-disagrees,
 undeclared-field, rank (a rank file line), prose-wait (TD-166: a header field that names an id after *waits on/for* or *blocked by*
 while its Blocked by does not), no-ask (TD-122: an entry waiting on the person — Owner: person or a
-decision holder's name, decision (<who>), an **Answers:** line — with no **Ask:** line in its body), and the ids' id-untaken, id-taken-by, id-before-counter,
-id-no-taken-by, id-branch, id-counter; with ``--since``, archive-loss (an id archived at REF that is now in
+decision holder's name, decision (<who>), an **Answers:** line — with no **Ask:** line in its body), and the ids' id-untaken, id-take, id-taken-by, id-before-counter,
+id-no-take, id-no-taken-by, id-branch, id-by-unhashed, id-counter; with ``--since``, archive-loss (an id archived at REF that is now in
 neither the ledger nor the archive, TD-179), archive-reopened (ℹ: one back in the ledger) and, in a v2
 ledger, not-canonical (TD-201: an entry file that differs from the merge-base's, or is new, and is not in
 ledgerboard's canonical form — it names ``ledger.py fmt TD-n``, or the hand fix for one ``canonical()`` refuses). ``check_cadence.py``'s ``ledger`` row runs the same field check on a PR's ledger edit.

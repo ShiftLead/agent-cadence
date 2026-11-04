@@ -385,7 +385,19 @@ chk()   { (set -o pipefail; cd "$W" && python3 "$LEDGER" --check --since origin/
 reset() { git -C "$W" checkout -q -- docs; }
 git -C "$W" checkout -q -b td125-x
 entry 125 a; out=$(chk); rc=$?; reset
-[ "$rc" = 0 ] && ! grep -q "TD-125" <<< "$out" && ok "18 an id its Taken by's take gave passes, silent" || bad "18 rc=$rc $out"
+[ "$rc" = 0 ] && ! grep -q "⚠.*TD-125" <<< "$out" && grep -q "ℹ a matching \*\*Taken by:\*\* but no \*\*Id take:\*\* on TD-125" <<< "$out" \
+  && ok "18 an id its Taken by's take gave passes, with the transition's ℹ asking for its Id take (TD-188)" || bad "18 rc=$rc $out"
+# TD-188: the gate is ledgerboard's judge_takes — an Id take is judged alone wherever it is present
+nonce() { git -C "$O" log --format=%b refs/heads/cadence/ledger-ids | sed -n "s/^take: //p" | sed -n "${1}p"; }
+idtake() { printf '\n## TD-%s: t\n\n**Priority:** Low\n**Status:** Open\n**Id take:** %s\n%s\n**Why:** x.\n' "$1" "$2" \
+             "${3:+**Taken by:** $3}" >> "$W/docs/technical_debt.md"; }
+take "$W" --by c >/dev/null 2>&1                                              # TD-126 by c (newest first in log)
+idtake 125 "$(nonce 2)"; out=$(chk); rc=$?; reset
+[ "$rc" = 0 ] && ! grep -q "TD-125" <<< "$out" && ok "18i an Id take naming the take that gave the id: silent" || bad "18i rc=$rc $out"
+idtake 125 "$(nonce 1)" a; out=$(chk); rc=$?; reset
+[ "$rc" = 1 ] && grep -q "⚠ TD-125's Id take is the take of TD-126" <<< "$out" && ! grep -q "$(nonce 1)" <<< "$out" \
+  && ok "18j another id's take's nonce fails, naming both ids and no nonce, a matching Taken by beside it or not" \
+  || bad "18j rc=$rc $out"
 entry 125 b; out=$(chk); rc=$?; reset
 [ "$rc" = 1 ] && grep -q "⚠ TD-125 was handed to a, not b" <<< "$out" \
   && ok "18b Taken by another than the take's by: an error naming the by (#2370)" || bad "18b rc=$rc $out"
@@ -393,8 +405,8 @@ entry 140 a; out=$(chk); rc=$?; reset
 [ "$rc" = 1 ] && grep -q "⚠ TD-140 handed out by nobody" <<< "$out" && ok "18c a hand-typed id no take gave: an error" || bad "18c rc=$rc $out"
 entry 125; out=$(chk --json); rc=$?; reset
 kinds=$(python3 -c 'import json,sys; print(",".join(f["kind"] for f in json.loads(sys.argv[1])["flags"] if f["kind"].startswith("id-")))' "$out")
-[ "$rc" = 0 ] && [ "$kinds" = id-no-taken-by ] && grep -q 'Taken by:\*\* a' <<< "$out" \
-  && ok "18d no Taken by: an ℹ line naming the take's by, keyed id-no-taken-by" || bad "18d rc=$rc kinds=$kinds $out"
+[ "$rc" = 0 ] && [ "$kinds" = id-no-taken-by ] && grep -q 'no \*\*Id take:\*\* or \*\*Taken by:\*\* on TD-125' <<< "$out" \
+  && ok "18d neither Id take nor Taken by: an ℹ line keyed id-no-taken-by" || bad "18d rc=$rc kinds=$kinds $out"
 entry 50 a; out=$(chk); rc=$?; reset
 [ "$rc" = 0 ] && grep -q "ℹ TD-050 below the counter's first take (TD-125)" <<< "$out" \
   && ok "18e an id older than the counter: ℹ, not judged" || bad "18e rc=$rc $out"
@@ -436,7 +448,7 @@ take "$W" --by "$h" >/dev/null 2>&1                                             
 git -C "$W" checkout -q -b td125-x
 entry 125 "$sid"; entry 126 t@t.example; entry 127 "$h"; out=$(chk --json); rc=$?; reset
 kinds=$(python3 -c 'import json,sys; print(",".join(f["kind"] for f in json.loads(sys.argv[1])["flags"] if f["kind"].startswith("id-")))' "$out")
-[ "$rc" = 0 ] && [ "$kinds" = id-by-unhashed ] && grep -q "TD-125, TD-126 taken by a bare session id" <<< "$out" \
+[ "$rc" = 0 ] && [ "$kinds" = id-no-take,id-by-unhashed ] && grep -q "TD-125, TD-126 taken by a bare session id" <<< "$out" \
   && ! grep -q "TD-127 taken by" <<< "$out" \
   && ok "20 a by that is a UUID or an address: an ℹ line keyed id-by-unhashed, naming those ids alone" || bad "20 rc=$rc kinds=$kinds $out"
 

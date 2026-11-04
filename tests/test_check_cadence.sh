@@ -1142,8 +1142,8 @@ idpr 40 id-j "TD-013: j" "$J"; plist 40
 out=$(irun --pr 40); [ "$(rowstat "$out" ledger)" = PASS ] && irow "$out" | grep -q "⚠ TD-009 below the counter's first take (TD-012)" \
   && ! irow "$out" | grep -q "handed out by nobody" \
   && ok "ids: an id in a range take passes; one older than the counter warns" || bad "ids range/before: $(irow "$out")"
-irow "$out" | grep -q "no \*\*Taken by:\*\* on TD-013 (\`\*\*Taken by:\*\* someone-else\`)" \
-  && ok "ids: an entry with no Taken by warns, naming its take's by" || bad "ids no taken-by: $(irow "$out")"
+irow "$out" | grep -q "no \*\*Id take:\*\* or \*\*Taken by:\*\* on TD-013" \
+  && ok "ids: an entry with neither Id take nor Taken by warns (TD-188: ledgerboard's judge_takes)" || bad "ids no taken-by: $(irow "$out")"
 # TD-145 slice 2: the entry's **Taken by:** against its take's by — the #2370 case fails, naming the by
 tbranch() { # tbranch <name> <n> <id> <taken-by> [preamble line]: a branch adding one entry with that field (none when empty)
   ( cd "$IR" && git checkout -q -b "$1" origin/main && { [ -z "${5:-}" ] || sed -i "1a $5" docs/technical_debt.md; } \
@@ -1152,8 +1152,9 @@ tbranch() { # tbranch <name> <n> <id> <taken-by> [preamble line]: a branch addin
     && igit commit -qam "$1" && git push -q origin "HEAD:refs/pull/$2/head" && git rev-parse HEAD )
 }
 K=$(tbranch id-k 41 TD-013 '`someone-else` (the take)'); idpr 41 id-k "TD-013: k" "$K"; plist 41
-out=$(irun --pr 41); [ "$(rowstat "$out" ledger)" = PASS ] && ! irow "$out" | grep -q "Taken by" \
-  && ok "ids: an entry whose Taken by is its take's by passes, a comment after the value read as free" || bad "ids taken-by match: $(irow "$out")"
+out=$(irun --pr 41); [ "$(rowstat "$out" ledger)" = PASS ] && ! irow "$out" | grep -q "handed to\|⚠ TD-013" \
+  && irow "$out" | grep -q "a matching \*\*Taken by:\*\* but no \*\*Id take:\*\* on TD-013" \
+  && ok "ids: an entry whose Taken by is its take's by passes (the transition's ℹ asks for its Id take), a comment after the value read as free" || bad "ids taken-by match: $(irow "$out")"
 M=$(tbranch id-m 42 TD-013 me); idpr 42 id-m "TD-013: m" "$M"; plist 42
 out=$(irun --pr 42); rc=$?; [ "$(rowstat "$out" ledger)" = FAIL ] && [ $rc -eq 1 ] && irow "$out" | grep -q "TD-013 was handed to someone-else, not me" \
   && ok "ids: an entry whose Taken by is not its take's by fails, naming the take's by (#2370)" || bad "ids taken-by mismatch: rc=$rc $(irow "$out")"
