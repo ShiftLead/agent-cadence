@@ -5,6 +5,7 @@
 
     ledger_next_id.py [--count n] [--by who] [--branch name] [--floor N] [--prs] [--ledger PATH] [--archive PATH] [--json]
     ledger_next_id.py --claim TD-N [--by who] [--branch name] [--json]
+    ledger_next_id.py --show TD-N [--by who] [--json]
 
 The counter is a branch on origin, ``cadence/ledger-ids``: never merged, never checked out, never a
 local branch. Its tip's tree holds one file, ``LAST``, the last id given as a number. A take is one
@@ -49,11 +50,15 @@ a matching one warns asking for the ``Id take``, and neither warns, one whose ta
 warns, and one whose take's ``by`` is a bare session id (a UUID) or an email address warns (TD-195). A reserved take prints the line to write in each entry's header: ``**Taken by:** <by>``.
 
 ``--claim TD-N`` takes exactly that id, for one the fallback printed and could not reserve: the same
-push, refused with exit 2 when a take already gave TD-N or main holds it. ``LAST`` becomes the
+push, refused with exit 2 when a take already gave TD-N (naming the take's by, date and short sha, never its
+nonce) or main holds it. ``--show TD-N`` prints the ``**Id take:**`` line of the caller's own take of TD-N
+(its ``by``: ``--by``, else the default) and refuses another's the same way (exit 2), so a session that lost
+the line recovers it and a hand-off passes ``--by`` (TD-188). ``LAST`` becomes the
 higher of N and the tip's, so a later take still goes above both.
 
-Output: the ids, one a line, and on stderr the ``**Taken by:**`` line when reserved; ``--json``:
-``{ids, reserved, taken_by, why, unread, warnings}`` (``taken_by`` the take's ``by``, null when nothing was reserved). Exit 0 reserved
+Output: the ids, one a line, and on stderr the ``**Id take:**`` and ``**Taken by:**`` lines when reserved; ``--json``:
+``{ids, reserved, taken_by, id_take, why, unread, warnings}`` (``taken_by`` the take's ``by``, ``id_take`` its nonce
+— the entry's ``**Id take:**``, TD-188 — both null when nothing was reserved). Exit 0 reserved
 on the counter; 3 printed but not reserved (the fallback); 2 refused, nothing printed (a fetch of
 ``origin/<default>`` failed, so main cannot be the floor; or 30 seconds of a moving tip) — with
 ``--json`` the object still prints, its ``ids`` empty and ``why`` saying why.
@@ -352,12 +357,12 @@ def host_line(root: Path, warnings: list) -> str | None:
     return socket.gethostname() or None
 
 
-def message(ids: list[int], by: str, branch: str | None, host: str | None) -> str:
+def message(ids: list[int], by: str, branch: str | None, host: str | None, nonce: str) -> str:
     subject = tid(ids[0]) if len(ids) == 1 else f"{tid(ids[0])}..{tid(ids[-1])}"
     # take: a nonce, so two takes from the same tip in the same second (fixed identity, same by,
     # branch and host) are never one commit — the second push would read "[up to date]" and exit 0
     body = ([f"by: {by}"] + ([f"branch: {branch}"] if branch else []) + ([f"host: {host}"] if host else [])
-            + [f"take: {uuid.uuid4().hex}"])
+            + [f"take: {nonce}"])
     return f"{subject} [skip ci]\n\n" + "\n".join(body) + "\n"
 
 
@@ -389,7 +394,7 @@ def porcelain_line(out: str, err: str) -> str:
 
 
 def take(root: Path, a: argparse.Namespace) -> tuple[int, dict]:
-    res: dict = {"ids": [], "reserved": False, "taken_by": None, "why": "", "unread": [], "warnings": []}
+    res: dict = {"ids": [], "reserved": False, "taken_by": None, "id_take": None, "why": "", "unread": [], "warnings": []}
     warnings = res["warnings"]
     default = L.N.default_branch(root)
     main_ref = f"refs/remotes/origin/{default}"
@@ -445,16 +450,17 @@ def take(root: Path, a: argparse.Namespace) -> tuple[int, dict]:
                 res["why"] = "the counter's log could not be read, so TD-N cannot be judged free"
                 return 2, res
             if claim in given and given[claim]["sha"] in written:
-                res.update(ids=[claim], reserved=True, taken_by=by, why="")
+                res.update(ids=[claim], reserved=True, taken_by=by, id_take=given[claim].get("take"), why="")
                 return 0, res
-            if claim in given:
-                res["why"] = f"{tid(claim)} was already handed to {given[claim].get('by', 'unknown')}"
+            if claim in given:   # named by its by, date and short sha, never its nonce (TD-188)
+                res["why"] = f"{tid(claim)} was already handed out to {L.LB._take_named(given[claim])}"
                 return 2, res
             if claim in ids_at(root, main_ref, a.ledger, a.archive):
                 res["why"] = f"{tid(claim)} is already on origin/{default}"
                 return 2, res
             ids, last = [claim], max(claim, next_number(read_last(root, parent), set(), None) - 1 if parent else 0)
-        sha = commit(root, last, parent, message(ids, by, branch, host_line(root, warnings)))
+        nonce = uuid.uuid4().hex   # the take's nonce: the entry's **Id take:** (TD-188)
+        sha = commit(root, last, parent, message(ids, by, branch, host_line(root, warnings), nonce))
         if sha is not None:
             written.add(sha)
         if sha is None:
@@ -466,7 +472,7 @@ def take(root: Path, a: argparse.Namespace) -> tuple[int, dict]:
         p = git(root, "push", "--porcelain", "origin", f"{sha}:{COUNTER_REF}")
         if p.returncode == 0 and pushed(p.stdout):
             git(root, "update-ref", TRACKING_REF, sha)
-            res.update(ids=ids, reserved=True, taken_by=by, why="")
+            res.update(ids=ids, reserved=True, taken_by=by, id_take=nonce, why="")
             return 0, res
         why = porcelain_line(p.stdout, p.stderr)
         now = probe(root)
@@ -496,6 +502,37 @@ def asks_outcomes(root: Path) -> bool:
     return v == "on"
 
 
+def show(root: Path, n: int, by: str | None, as_json: bool) -> int:
+    """``--show TD-N`` (TD-188): the ``**Id take:**`` line for the caller's own take of TD-N — a session that lost
+    it recovers it. Another's take is refused, naming its by, date and short sha, never its nonce (``--by``
+    names a deliberate hand-off). Exit 0 printed; 2 refused: no counter, no take gave TD-N, or not yours."""
+    me = (by or "").strip() or default_by(root)
+    takes, why = counter_takes(root)
+    res: dict = {"id": tid(n), "id_take": None, "by": me, "why": ""}
+    if takes is None or not takes:
+        res["why"] = why or "origin has no ledger-id counter"
+    else:
+        gave = [t for t in takes.all if n in t.get("ids", [])]
+        own = [t for t in gave if (t.get("by") or "").strip() == me]
+        mine = [t for t in own if t.get("take")]
+        if mine:
+            res["id_take"] = mine[0]["take"]
+        elif not gave:
+            res["why"] = f"no take gave {tid(n)}"
+        elif own:
+            res["why"] = f"your take of {tid(n)} ({L.LB._take_named(own[0])}) carries no nonce, so it has no Id take"
+        else:
+            res["why"] = (f"{tid(n)} was handed out to {'; '.join(map(L.LB._take_named, gave))}, not to {me}"
+                          " — pass its by with --by to take a hand-off")
+    if as_json:
+        print(json.dumps(res, indent=1))
+    elif res["id_take"]:
+        print(f"**Id take:** {res['id_take']}")
+    else:
+        print(f"ledger_next_id: refused — {res['why']}", file=sys.stderr)
+    return 0 if res["id_take"] else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--count", type=int, default=1, help=f"how many ids, 1 to {MAX_COUNT}")
@@ -509,8 +546,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--archive", default=L.ARCHIVE_REL)
     ap.add_argument("--claim", metavar="TD-N",
                     help="take exactly this id (one the fallback printed), if no take gave it and main lacks it")
+    ap.add_argument("--show", metavar="TD-N",
+                    help="print the **Id take:** line of the take that gave TD-N, when it is your own (--by)")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
+    if a.show is not None:
+        m = re.fullmatch(r"(?:TD-)?(\d+)", a.show.strip())
+        if not m or int(m.group(1)) < 1:
+            ap.error("--show is an id: TD-N")
+        if a.claim is not None or a.count != 1 or a.floor is not None or a.prs or a.branch:
+            ap.error("--show reads one take; --claim, --count, --floor, --prs and --branch do not apply")
+        top = git(Path.cwd(), "rev-parse", "--show-toplevel")
+        if top.returncode != 0 or not top.stdout.strip():
+            print("ledger_next_id: not inside a git work tree", file=sys.stderr)
+            return 2
+        return show(Path(top.stdout.strip()), int(m.group(1)), a.by, a.json)
     if a.claim is not None:
         m = re.fullmatch(r"(?:TD-)?(\d+)", a.claim.strip())
         if not m or int(m.group(1)) < 1:
@@ -529,7 +579,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         rc, res = take(Path(top.stdout.strip()), a)
     except L.N.FormatTooNew as e:   # main's ledger: no id can be judged free (TD-133)
-        rc, res = 2, {"ids": [], "reserved": False, "taken_by": None, "why": f"not read — {e}", "unread": [], "warnings": []}
+        rc, res = 2, {"ids": [], "reserved": False, "taken_by": None, "id_take": None, "why": f"not read — {e}", "unread": [], "warnings": []}
     if rc == 2:
         res["ids"] = []
     res["warnings"] = list(dict.fromkeys(res["warnings"]))   # a retried pass repeats its warnings
@@ -539,8 +589,9 @@ def main(argv: list[str] | None = None) -> int:
         for n in res["ids"]:
             print(tid(n))
         if res["taken_by"]:
-            print(f"ledger_next_id: write `**Taken by:** {res['taken_by']}` in each entry's header (cadence §2.10)",
-                  file=sys.stderr)
+            take_line = f"`**Id take:** {res['id_take']}` and " if res.get("id_take") else ""
+            print(f"ledger_next_id: write {take_line}`**Taken by:** {res['taken_by']}` in each entry's header "
+                  "(cadence §2.10)", file=sys.stderr)
         for w in res["warnings"]:
             print(f"ledger_next_id: {w}", file=sys.stderr)
         if res["unread"]:

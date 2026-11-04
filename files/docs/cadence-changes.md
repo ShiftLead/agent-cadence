@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-04 — `ledger_next_id.py` prints the take's `**Id take:**`; `--show TD-N` recovers it
+Do: write the printed `**Id take:** <nonce>` (`id_take` in `--json`) in the entry's header beside `Taken by`; lost it? `ledger_next_id.py --show TD-N` (your own take only; `--by` for a hand-off).
+See: cadence.md §2.10; TD-188.
+
 ## 2026-11-04 — The ledger row judges ids with ledgerboard's `judge_takes`: an `Id take` is judged where present
 Do: an entry may carry `**Id take:** <nonce>` (its take's `take:` line); where present it alone is judged, and another id's take fails. Without it `Taken by` is judged as before, a match now an ℹ (`id-no-take`). Writers still write `Taken by` until TD-188's next slice.
 See: cadence.md §2.10; TD-188.
