@@ -152,8 +152,8 @@ rm "$L/TD-006.md"
 # --- 6) Unknown id, a bad id, and a v1 ledger: exit 2, nothing written.
 before=$(sums)
 fmt TD-99 >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 2 ] && grep -q 'TD-99 is in neither' "$TMP/err" && [ "$(sums)" = "$before" ] \
-  && ok "an id in neither directory exits 2" || bad "fmt TD-99 (rc=$rc): $(cat "$TMP/err")"
+[ $rc -eq 2 ] && grep -Eq 'TD-0*99 is in neither' "$TMP/err" && [ "$(sums)" = "$before" ] \
+  && ok "an id in neither directory exits 2 (named at the ledger's width, TD-216)" || bad "fmt TD-99 (rc=$rc): $(cat "$TMP/err")"
 fmt nope >/dev/null 2>&1; rc=$?
 [ $rc -eq 2 ] && ok "a malformed id is a usage error" || bad "fmt nope (rc=$rc)"
 printf '# Ledger\n\n## TD-001: x\n\n**Priority:** Low\n' > "$TMP/technical_debt.md"
