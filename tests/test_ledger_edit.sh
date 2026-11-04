@@ -59,8 +59,8 @@ lp set TD-003 --blocked-by "" >/dev/null 2>"$TMP/err" && ! grep -q 'Blocked by' 
 # --- 2) note: the Status kept as it was, a dated line added to the entry's Log (ledgerboard v2.4).
 lp note TD-003 "reproduced it" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 0 ] && grep -qx "\*\*Status:\*\* Open — first look done" "$L/TD-003.md" \
-  && [ "$(sed -n '/^\*\*Log:\*\*$/,$p' "$L/TD-003.md")" = "$(printf '**Log:**\n- %s: reproduced it' "$TODAY")" ] \
-  && ok "note keeps the Status and adds a dated line to the Log, the body's last section" || bad "note (rc=$rc): $(cat "$TMP/err") $(cat "$L/TD-003.md")"
+  && [ "$(sed -n '/^\*\*Log:\*\*$/,$p' "$L/TD-003.md")" = "$(printf '**Log:**\n- %s: reproduced it' "$(date -u +%F)")" ] \
+  && ok "note keeps the Status and adds a dated line (the UTC day, ledgerboard's writer, TD-216) to the Log, the body's last section" || bad "note (rc=$rc): $(cat "$TMP/err") $(cat "$L/TD-003.md")"
 
 # --- 3) edit: one section replaced, the rest untouched; a missing Fix added after the Why.
 before_hdr=$(sed -n '1,/^$/p;' "$L/TD-003.md"; sed -n '/^\*\*Why/p;/^\*\*Done when/p' "$L/TD-003.md")
