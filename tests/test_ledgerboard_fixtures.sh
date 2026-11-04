@@ -22,8 +22,9 @@ unlisted=""
 for f in "$MOD"/*.py; do grep -q "^file: files/scripts/ledgerboard/$(basename "$f") " "$MAN" || unlisted="$unlisted $(basename "$f")"; done
 [ -z "$unlisted" ] && ok "every package file is in the MANIFEST" || bad "package files the MANIFEST does not name:$unlisted"
 drift=""
-while read -r _ f h; do
-    [ "$(cd "$DC" && sha256sum "$f" 2>/dev/null | cut -d' ' -f1)" = "$h" ] || drift="$drift $f"
+while read -r line; do  # `file: <path> <sha256>`; v2.4's fixture paths hold spaces, so the hash is the last word
+    h=${line##* }; f=${line#file: }; f=${f% *}
+    [ "$(cd "$DC" && sha256sum "$f" 2>/dev/null | cut -d' ' -f1)" = "$h" ] || drift="$drift '$f'"
 done < <(grep '^file: ' "$MAN" 2>/dev/null)
 [ -n "$(grep -c '^file: ' "$MAN" 2>/dev/null)" ] && [ -z "$drift" ] \
     && ok "every vendored file is as vendored" || bad "edited since vendored (vendor_ledgerboard.sh owns them):$drift"

@@ -73,8 +73,8 @@ BD="$TMP/b"; mkdir -p "$BD/docs"; git init -q -b main "$BD"
 board "Ledgerboard: 3" > "$BD/docs/user_attention.md"
 before=$(cat "$BD/docs/user_attention.md")
 out=$(python3 "$S/board_edit.py" done --board "$BD/docs/user_attention.md" --line 5 --expect "act" --why x --no-commit 2>&1); rc=$?
-[ "$rc" = 3 ] && grep -qF "this file declares Ledgerboard: 3" <<< "$out" && [ "$before" = "$(cat "$BD/docs/user_attention.md")" ] \
-  && ok "6 board_edit.py: refused (exit 3), the board untouched" || bad "6 rc=$rc '$out'"
+[ "$rc" = 1 ] && grep -qF "this file declares Ledgerboard: 3" <<< "$out" && [ "$before" = "$(cat "$BD/docs/user_attention.md")" ] \
+  && ok "6 board_edit.py: refused (exit 1, ledgerboard v2.4's table), the board untouched" || bad "6 rc=$rc '$out'"
 board "Ledgerboard: 1" > "$BD/docs/user_attention.md"
 python3 "$S/board_edit.py" done --board "$BD/docs/user_attention.md" --line 5 --expect "act" --why x --no-commit >/dev/null 2>&1 \
   && grep -q "^- \[x\]" "$BD/docs/user_attention.md" && ok "6b Ledgerboard: 1: edited as before" || bad "6b $(cat "$BD/docs/user_attention.md")"

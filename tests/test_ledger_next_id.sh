@@ -370,7 +370,10 @@ mkrepo "$O" "$W"
 take "$W" --by a >/dev/null 2>&1                                              # TD-125 by a
 entry() { printf '\n## TD-%s: t\n\n**Priority:** Low\n**Status:** Open\n%s\n**Why:** x.\n' "$1" "${2:+**Taken by:** $2}" \
             >> "$W/docs/technical_debt.md"; }
-chk()   { (cd "$W" && python3 "$LEDGER" --check --since origin/main "$@"); }
+# ledgerboard v2.4 notes every Taken by as a retired field (its migrate is v2.5's): not what these judge
+unretired() { grep -v "the Taken by field is retired" || true; }   # text output only (--json passes through)
+chk()   { (set -o pipefail; cd "$W" && python3 "$LEDGER" --check --since origin/main "$@" \
+             | if [ $# -eq 0 ]; then unretired; else cat; fi); }
 reset() { git -C "$W" checkout -q -- docs; }
 git -C "$W" checkout -q -b td125-x
 entry 125 a; out=$(chk); rc=$?; reset
@@ -397,7 +400,7 @@ out=$(chk); rc=$?
 git -C "$W" remote set-url origin "$O"
 [ "$rc" = 0 ] && ! grep -q "counter" <<< "$out" && ok "18g an edit adding no id asks origin nothing" || bad "18g rc=$rc $out"
 base=$(git -C "$W" rev-parse origin/main); git -C "$W" remote remove origin
-entry 140 a; out=$(cd "$W" && python3 "$LEDGER" --check --since "$base"); rc=$?; reset
+entry 140 a; out=$(set -o pipefail; cd "$W" && python3 "$LEDGER" --check --since "$base" | unretired); rc=$?; reset
 git -C "$W" remote add origin "$O"
 [ "$rc" = 0 ] && ! grep -q "TD-140\|counter" <<< "$out" && ok "18g2 no origin remote: no counter to ask, silent" || bad "18g2 rc=$rc $out"
 mkrepo "$O" "$W"; git -C "$W" checkout -q -b td140

@@ -98,14 +98,14 @@ l=$(sed -n 7p "$B")
 # --- 4) refusals: moved line, not an item, dirty board, an answer the reader cannot read back
 cp "$B" "$TMP/before"; head=$(git -C "$R" rev-parse HEAD)
 "$EDIT" decide --board "$B" --line 8 --expect "$PAST (session abcdef12" --answer merge >/dev/null 2>&1; rc=$?
-[ $rc = 3 ] && cmp -s "$B" "$TMP/before" && ok "a moved line (head mismatch) is refused, exit 3, board untouched" || bad "moved line rc=$rc"
+[ $rc = 1 ] && cmp -s "$B" "$TMP/before" && ok "a moved line (head mismatch) is refused, exit 1 (ledgerboard v2.4's table), board untouched" || bad "moved line rc=$rc"
 "$EDIT" done --board "$B" --line 3 --expect "Swept:" >/dev/null 2>&1; rc=$?
-[ $rc = 3 ] && cmp -s "$B" "$TMP/before" && ok "the Swept: stamp line is not an item: refused" || bad "stamp line rc=$rc"
+[ $rc = 1 ] && cmp -s "$B" "$TMP/before" && ok "the Swept: stamp line is not an item: refused" || bad "stamp line rc=$rc"
 "$EDIT" decide --board "$B" --line 9 --expect "$PAST" --answer "yes. Decided: no" --by Pat >/dev/null 2>&1; rc=$?
-[ $rc = 3 ] && cmp -s "$B" "$TMP/before" && ok "an answer the reader would not read back is refused" || bad "unreadable answer rc=$rc"
+[ $rc = 1 ] && cmp -s "$B" "$TMP/before" && ok "an answer the reader would not read back is refused" || bad "unreadable answer rc=$rc"
 echo "- [ ] $PAST (n/a) — hand-typed, uncommitted." >> "$B"; cp "$B" "$TMP/dirty"
 "$EDIT" done --board "$B" --line 8 --expect "$PAST (session n/a" >/dev/null 2>&1; rc=$?
-[ $rc = 3 ] && cmp -s "$B" "$TMP/dirty" && [ "$(git -C "$R" rev-parse HEAD)" = "$head" ] \
+[ $rc = 1 ] && cmp -s "$B" "$TMP/dirty" && [ "$(git -C "$R" rev-parse HEAD)" = "$head" ] \
   && ok "a board with uncommitted changes is refused before any write" || bad "dirty board rc=$rc"
 git -C "$R" checkout -q docs/user_attention.md
 
@@ -182,7 +182,7 @@ python3 "$NUDGE" --report --json --board "$AB" 2>&1 | python3 -c 'import json,sy
 # --- 7) --no-commit edits a board outside git; a commit outside git is refused
 mkdir -p "$TMP/nogit"; printf '# b\n\n- [ ] %s (n/a) — outside git. Due: %s.\n' "$PAST" "$FUT" > "$TMP/nogit/b.md"
 "$EDIT" decide --board "$TMP/nogit/b.md" --line 3 --expect "$PAST" --answer hold --by Alex >/dev/null 2>&1; rc=$?
-[ $rc = 3 ] && ! grep -q Decided "$TMP/nogit/b.md" && ok "outside git without --no-commit: refused, untouched" || bad "nogit commit rc=$rc"
+[ $rc = 1 ] && ! grep -q Decided "$TMP/nogit/b.md" && ok "outside git without --no-commit: refused, untouched" || bad "nogit commit rc=$rc"
 "$EDIT" decide --board "$TMP/nogit/b.md" --line 3 --expect "$PAST" --answer hold --by Alex --no-commit >/dev/null 2>&1
 sed -n 3p "$TMP/nogit/b.md" | grep -q "Due: $FUT. Decided: hold (by Alex) ($TODAY)\.$" && ok "--no-commit edits the file only" || bad "--no-commit: $(sed -n 3p "$TMP/nogit/b.md")"
 
@@ -262,12 +262,12 @@ print("ok")' "$TODAY" "$PAST" "$DPAST" "$FUT" 2>&1)
 cp "$RBB" "$TMP/before"; rbad=0
 for bad_text in "yes. Decided: no" "see Answers: above" "Closed: it" "Context: PR #77" ""; do
   "$EDIT" reply --board "$RBB" --line 6 --expect "$PAST" --text "$bad_text" --by Alex >/dev/null 2>&1; rc=$?
-  [ $rc = 3 ] && cmp -s "$RBB" "$TMP/before" || rbad="'$bad_text' rc=$rc"
+  [ $rc = 1 ] && cmp -s "$RBB" "$TMP/before" || rbad="'$bad_text' rc=$rc"
 done
 "$EDIT" reply --board "$RBB" --line 7 --expect "$PAST" --text "push it, Due: $FUT" --by Alex >/dev/null 2>&1; r1=$?
 "$EDIT" reply --board "$RBB" --line 6 --expect "$PAST" --text "fine" --by "Alex, or Sam" >/dev/null 2>&1; r2=$?
 "$EDIT" reply --board "$RBB" --line 7 --expect "$PAST" --text "push it, Due 2026-9-5" --by Alex >/dev/null 2>&1; r3=$?
-[ $r1 = 3 ] && [ $r2 = 3 ] && [ $r3 = 3 ] && cmp -s "$RBB" "$TMP/before" && [ "$rbad" = 0 ] \
+[ $r1 = 1 ] && [ $r2 = 1 ] && [ $r3 = 1 ] && cmp -s "$RBB" "$TMP/before" && [ "$rbad" = 0 ] \
   && ok "reply refused, board untouched: a field's name in the words, empty words, a Due: on an undated item, a name the reader cannot read back" || bad "reply refusals: due=$r1 by=$r2 text=$rbad"
 "$EDIT" reply --board "$RBB" --line 6 --expect "$PAST" --text "push it, Due: $FUT is fine" --by Alex >/dev/null 2>&1; rc=$?
 [ $rc = 0 ] && [ "$(rjson | python3 -c 'import json,sys; print([i["due"] for i in json.load(sys.stdin)["boards"][0]["items"] if i["line"]==6][0])')" = "$PAST" ] \
@@ -301,7 +301,7 @@ print("ok")' 2>&1)
 git -C "$RB" config user.name "Robin Q"; cp "$RBB" "$TMP/before"
 "$EDIT" reply --board "$RBB" --line 7 --expect "$PAST" --text "named" >/dev/null 2>&1; rc=$?
 git -C "$RB" config --unset user.name
-[ $rc = 3 ] && cmp -s "$RBB" "$TMP/before" \
+[ $rc = 1 ] && cmp -s "$RBB" "$TMP/before" \
   && ok "reply with no --by on a board with no People: line is refused, git's user.name unused" || bad "reply --by default rc=$rc: $(sed -n 7p "$RBB")"
 
 # --- 7c) who answered (ledgerboard v2.3): decide's --by is never git's user.name; a board whose People:
@@ -311,19 +311,19 @@ printf '# board\n\nPeople: Pat\n\n## Needs the user\n\n- [ ] %s (session abcdef1
 git -C "$PB" add -A; git -C "$PB" commit -qm base; cp "$PBB" "$TMP/before"
 git -C "$PB" config user.name "Robin Q"
 "$EDIT" decide --board "$PBB" --line 7 --expect "$PAST" --answer hold --by Robin >/dev/null 2>&1; r1=$?
-[ $r1 = 3 ] && cmp -s "$PBB" "$TMP/before" && ok "decide --by a name off the board's People: line is refused" || bad "decide off People: rc=$r1"
+[ $r1 = 1 ] && cmp -s "$PBB" "$TMP/before" && ok "decide --by a name off the board's People: line is refused" || bad "decide off People: rc=$r1"
 "$EDIT" decide --board "$PBB" --line 7 --expect "$PAST" --answer hold >/dev/null 2>&1; rc=$?
 [ $rc = 0 ] && sed -n 7p "$PBB" | grep -q "Decided: hold (by Pat) ($TODAY)\.$" \
   && ok "decide on a one-person People: board defaults --by to that person, not git's user.name" || bad "decide People: default rc=$rc: $(sed -n 7p "$PBB")"
 "$EDIT" decide --board "$B" --line 9 --expect "$PAST" --answer a >/dev/null 2>&1; rc=$?
-[ $rc = 3 ] && ok "decide on a board with no People: line and no --by is refused" || bad "decide with no People: and no --by rc=$rc"
+[ $rc = 1 ] && ok "decide on a board with no People: line and no --by is refused" || bad "decide with no People: and no --by rc=$rc"
 "$EDIT" reply --board "$PBB" --line 7 --expect "$PAST" --text "after lunch" >/dev/null 2>&1; rc=$?
 [ $rc = 0 ] && sed -n 7p "$PBB" | grep -q " — Pat, $TODAY: after lunch\. Answers: merge (default) | hold\. Decided:" \
   && ok "reply on a one-person People: board defaults --by to that person (TD-206)" || bad "reply People: default rc=$rc: $(sed -n 7p "$PBB")"
 printf '# board\n\nPeople: Pat, Sam\n\n## Needs the user\n\n- [ ] %s (n/a) — two people. Due: %s.\n' "$PAST" "$PAST" > "$PBB"
 git -C "$PB" commit -qam two; cp "$PBB" "$TMP/before"
 "$EDIT" reply --board "$PBB" --line 7 --expect "$PAST" --text "x" >/dev/null 2>&1; rc=$?
-[ $rc = 3 ] && cmp -s "$PBB" "$TMP/before" && ok "reply with no --by on a two-person People: board is refused" || bad "reply two-people rc=$rc"
+[ $rc = 1 ] && cmp -s "$PBB" "$TMP/before" && ok "reply with no --by on a two-person People: board is refused" || bad "reply two-people rc=$rc"
 "$EDIT" snooze --board "$PBB" --line 7 --expect "$PAST" --to "$FUT" --by Pat >/dev/null 2>&1; [ $? = 2 ] \
   && ok "--by on snooze is a usage error" || bad "--by accepted on snooze"
 

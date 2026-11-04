@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-04 — ledgerboard v2.4: a decision is written bare with an `**Ask:**`; `note` and `archive` write the Log
+Do: write `Blocked by: decision (<person>)` with nothing after it and put what they owe in an `**Ask:**` section (`ledger.py set` refuses the old form; an edited entry with a decision and no Ask fails the `ledger` row); read a note, an archive's why and a reopen in the entry's `**Log:**`, not its Status; `board_edit.py` now exits 1 refused, 4 write failed (was 3 and 1).
+See: cadence.md §2.4, §2.8, §2.12; `board_edit.py`'s docstring; TD-215.
+
 ## 2026-11-04 — The cadence check has a `board` row: a hand-typed board line fails it
 Do: change board item lines only through `board_edit.py` (`add`, `snooze`, `due`, `reply`, `decide`, `done`, `archive`, `fmt`); when the `board` row fails, redo the line with the command it names; correcting an item's text is `done` on the old line plus `add` of the new one; a bot's direct append must be a line `item_line()` writes (with its `Context:`), or the audit fails it.
 See: cadence.md §3.4, procedures/cadence.md step 4; TD-206.

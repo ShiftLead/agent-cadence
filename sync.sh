@@ -74,6 +74,7 @@ SYNC_FILES=(
     "scripts/ledger_next_id.py"
     "scripts/ledgerboard/__init__.py"
     "scripts/ledgerboard/board.py"
+    "scripts/ledgerboard/ledger.py"
     "scripts/list_sessions.py"
     "scripts/generate_session_index.sh"
     "scripts/generate_workspace.sh"

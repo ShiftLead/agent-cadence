@@ -141,7 +141,7 @@ import subprocess
 import sys
 from collections import Counter
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -151,7 +151,6 @@ from ledgerboard import (  # noqa: E402,F401  # re-exported: readers and tests r
     BLOCKED_RE,
     CADENCE_FIELDS,
     COMMENT_RE,
-    DECISION_RE,
     EDIT_ERRORS,
     FIELD_RE,
     FIELDS_DECL_RE,
@@ -386,16 +385,36 @@ class Roster:
         return out
 
 
+def _today(today: date | str | None) -> date | str:
+    """The day ledgerboard v2.4's readers judge an ``until`` gate against: the caller's, else this machine's."""
+    return today if today is not None else date.today()  # noqa: DTZ011  # a civil date, as ledgerboard's readers use
+
+
 def pickable(ledger: str, archive: str, roster: Roster | None = None, undeclared: bool = False,
-             rank_text: str | None = None) -> dict:
+             rank_text: str | None = None, today: date | str | None = None) -> dict:
     """ledgerboard's pickable, in rank order, with this machine's roster resolving ``<repo>#TD-NNN`` items."""
-    return LB.pickable(ledger, archive, (roster or Roster()).resolve, undeclared, rank_text=rank_text)
+    return LB.pickable(ledger, archive, (roster or Roster()).resolve, undeclared, rank_text=rank_text,
+                       today=_today(today))
 
 
 def check(ledger: str, archive: str, old: str | None = None, roster: Roster | None = None,
-          rank_text: str | None = None) -> list[dict]:
-    """ledgerboard's check (--check's flags, the rank file's too), with this machine's roster resolving cross-repo items."""
-    return LB.check(ledger, archive, old, (roster or Roster()).resolve, rank_text=rank_text)
+          rank_text: str | None = None, today: date | str | None = None) -> list[dict]:
+    """ledgerboard's check (--check's flags, the rank file's too), with this machine's roster resolving cross-repo items.
+    ledgerboard v2.4's check() raises Refused on an entry with a field below its header block (its Log
+    reader, ``reassigns()``, refuses the entry where v2.3 flagged it): that is one error naming the
+    entries, never a traceback — until ledgerboard flags it again (TD-222)."""
+    try:
+        return LB.check(ledger, archive, old, (roster or Roster()).resolve, rank_text=rank_text, today=_today(today))
+    except LB.Refused as e:
+        bad = []
+        for tid, t in LB._entry_texts(ledger).items():
+            try:
+                LB.log_lines(t)
+            except LB.Refused:
+                bad.append(tid)
+        return [{"level": "error", "id": bad[0] if bad else None, "field": "ledger", "kind": "check-refused",
+                 "standing": False, "text": f"⚠ {', '.join(bad) or 'the ledger'}: not checked — {e} "
+                                            "(ledgerboard v2.4's check() stops on it)"}]
 
 
 # TD-166: a wait on another entry belongs in Blocked by (cadence.md §2.4), where --pickable resolves it; one
@@ -425,8 +444,8 @@ def prose_waits(ledger: str, archive: str = "") -> dict[str, list[tuple[str, str
         named.add(_wait_key(None, e["id"][3:]))
         for field, value in e["fields"].items():
             if field == "blocked by":
-                d = LB.DECISION_RE.search(value)
-                spans = [value[d.end():]] if d else []
+                old_form = LB.parse_gates(value)["old_form"]  # v2.4: the pointer is the old form's text
+                spans = [old_form[1]] if old_form else []
             elif field in NO_WAIT_FIELDS:
                 continue
             else:

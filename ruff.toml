@@ -15,3 +15,8 @@
 # defaults lands on consumers first unless it is adopted here.
 [lint]
 select = ["E4", "E7", "E9", "F", "DTZ", "PLW1510", "PLW1508", "I001"]
+
+# The vendored ledgerboard package (vendor_ledgerboard.sh) is kept byte-identical to its release, so a
+# finding in it is ledgerboard's to fix, not ours: v2.4's board.py has two function-local imports I001 reflows.
+[lint.per-file-ignores]
+"files/scripts/ledgerboard/*" = ["I001"]

@@ -55,7 +55,7 @@ head_is() { [ "$(git -C "$W" rev-parse HEAD)" = "$(git -C "$W" rev-parse origin/
 out=$(lp archive TD-001 --why "built it" --pr 7 --pointer "tests/x.sh" 2>"$TMP/err"); rc=$?
 f="$L/archive/TD-001.md"
 if [ $rc -eq 0 ] && [ "$out" = "$f" ] && [ ! -e "$L/TD-001.md" ] \
-   && grep -qx "\*\*Status:\*\* Resolved $TODAY: built it" "$f" \
+   && grep -qx "\*\*Status:\*\* Resolved $TODAY" "$f" && grep -qx -- "- $TODAY: archived: Resolved — built it" "$f" \
    && grep -qx "\*\*Resolved:\*\* $TODAY (PR #7) — tests/x.sh" "$f" && ! grep -q '^\*\*Fix' "$f" \
    && grep -q '(\.\./TD-004\.md)' "$f" && grep -q '(\.\./\.\./plans/p\.md)' "$f" \
    && git -C "$W" diff --quiet && [ "$(git -C "$W" diff --cached --name-only --no-renames | sort | tr '\n' ' ')" = "docs/ledger/TD-001.md docs/ledger/archive/TD-001.md " ] \
@@ -72,7 +72,7 @@ lp archive TD-001 --why x >/dev/null 2>"$TMP/err"; rc=$?
 out=$(lp reopen TD-001 --why "it came back" 2>"$TMP/err"); rc=$?
 f="$L/TD-001.md"
 if [ $rc -eq 0 ] && [ "$out" = "$f" ] && [ ! -e "$L/archive/TD-001.md" ] \
-   && grep -qx "\*\*Status:\*\* Open $TODAY: it came back — was: Resolved $TODAY: built it" "$f" \
+   && grep -qx "\*\*Status:\*\* Open" "$f" && grep -qx -- "- $TODAY: reopened — it came back" "$f" \
    && grep -q '(TD-004\.md)' "$f" && grep -q '(\.\./plans/p\.md)' "$f" && grep -q 'edit TD-001 --section Fix' "$TMP/err"; then
   ok "reopen writes the reopened Status, moves the file back with its links, and names the next step"
 else
