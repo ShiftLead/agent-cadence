@@ -745,6 +745,44 @@ def _code_spans(text: str) -> list[tuple[int, int]]:
     return spans
 ANCHOR_RE = re.compile(r"td-0*(\d+)(?:-|$)", re.IGNORECASE)   # an entry heading's GitHub slug: `## TD-21: x` → td-21-x
 FROZEN_SUMMARY = "summary-at-split.md"   # the archive's v1 `## Summary`, kept as it stood (TD-185)
+# TD-183: the seed preamble's v1 sentences (files/docs/technical_debt.md), each with what --split writes in its place
+# when a repo kept it word for word — a README that names a summary table and an archive file it no longer has
+# misdirects the next session. tests/test_ledger_v2.sh holds them to the seed, so a seed edit changes both.
+SEED_V1_TO_V2 = (
+    ("Once this file is split into `docs/ledger/` (`scripts/ledger.py --split`), every entry is written with "
+     "`scripts/ledger.py`",
+     "Every entry is written with `scripts/ledger.py`"),
+    ("**This file holds open work only.** The summary table below lists exactly the entries that have a body in "
+     "this file — one row each, no history. When an entry is fully resolved, move the whole body to "
+     "[`technical_debt_archive.md`](technical_debt_archive.md), delete its summary row, and replace **Fix** with the "
+     "resolution date plus a pointer to whichever doc/code now carries the lasting content. An entry that is only "
+     "*partly* resolved stays here, with what shipped and what remains spelled out in its **Status**.",
+     "**This directory holds the ledger:** one `TD-NNN.md` per open entry, and `archive/` (made by the first archive) for "
+     "the resolved ones. When an entry is fully resolved, `scripts/ledger.py archive TD-n` moves it there and replaces **Fix** with "
+     "the resolution date plus a pointer to whichever doc/code now carries the lasting content. An entry that is only "
+     "*partly* resolved stays open, with what shipped and what remains spelled out in its **Status**."),
+)
+
+
+def _seed_to_v2(readme: str) -> str:
+    """The README with each seed sentence it still holds verbatim rewritten for the v2 layout (TD-183)."""
+    for v1, v2 in SEED_V1_TO_V2:
+        readme = readme.replace(v1, v2)
+    return readme
+
+
+def _v1_notes(readme: str) -> list[str]:
+    """ledgerboard's split_notes() on the README as written, less the notes on an inline link (``](target)``):
+    relink() has rewritten each of those it could resolve and warned on the rest (TD-176). A reference
+    definition or an HTML link relink() does not rewrite keeps its note."""
+    out = []
+    for n, line, why in LB.split_notes(readme):
+        m = re.match(r"links (.+?) relatively", why)
+        if m and f"]({m.group(1)}" in line:
+            continue
+        out.append(f"README.md:{n}: {why} — rewrite the line for the v2 layout")
+    return out
+
 
 
 def relink(text: str, src: Path, dst: Path, gone: dict[Path, Path], targets: dict[int, Path] | None = None,
@@ -834,6 +872,8 @@ def split(ledger: Path, archive: Path, v2: bool) -> int:
     except LB.Refused as e:
         print(f"ledger: --split: {e}", file=sys.stderr)
         return 2
+    if "README.md" in files:
+        files["README.md"] = _seed_to_v2(files["README.md"])
     if summary:
         heading, _, table = summary.partition("\n")
         files[f"{LB.LEDGER_ARCHIVE}/{FROZEN_SUMMARY}"] = (
@@ -857,6 +897,9 @@ def split(ledger: Path, archive: Path, v2: bool) -> int:
         relinked += new != body
         for w in warns:
             print(f"ledger: --split: {rel}: {w}", file=sys.stderr)
+        if rel == "README.md":
+            for w in _v1_notes(new):
+                print(f"ledger: --split: {w}", file=sys.stderr)
         written.append((out / rel, new))
     elsewhere = []
     root = _toplevel()

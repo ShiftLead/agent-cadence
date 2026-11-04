@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-04 — `ledger.py --split` rewrites the seed's v1 preamble and warns on the rest
+Do: after a split, rewrite only the README lines `--split` warns about (`README.md:<n>: … rewrite the line for the v2 layout`); an unedited seed preamble needs no hand edit.
+See: cadence.md §2.12; TD-183.
+
 ## 2026-11-04 — ledgerboard v2.4: a decision is written bare with an `**Ask:**`; `note` and `archive` write the Log
 Do: write `Blocked by: decision (<person>)` with nothing after it and put what they owe in an `**Ask:**` section (`ledger.py set` refuses the old form; an edited entry with a decision and no Ask fails the `ledger` row); read a note, an archive's why and a reopen in the entry's `**Log:**`, not its Status; `board_edit.py` now exits 1 refused, 4 write failed (was 3 and 1).
 See: cadence.md §2.4, §2.8, §2.12; `board_edit.py`'s docstring; TD-215.
