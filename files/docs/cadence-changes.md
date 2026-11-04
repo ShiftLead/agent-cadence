@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-04 — `ledger.py archive` and `reopen` are ledgerboard's writer's: `--dropped`, ledger links repointed, UTC dates
+Do: archive a not-done entry with `ledger.py archive TD-n --why "…" --dropped` (refused while an entry is Blocked by it); expect the move to repoint and stage the ledger's own links to the file (only links from outside the ledger are named for you); read its dates as the UTC day; exit 3 is `needs`.
+See: cadence.md §2.6; TD-216.
+
 ## 2026-11-04 — `ledger.py note` and `edit` are ledgerboard's writer's: UTC dates, exit 4 on a failed write
 Do: read a note's date as the UTC day; expect `note`/`edit` to exit 1 refused, 2 unusable, 4 a write failed (files restored); `set` is unchanged until TD-218.
 See: cadence.md §2.12; TD-216.

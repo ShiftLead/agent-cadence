@@ -1393,8 +1393,11 @@ def _entry_file(w: "_Writer", cmd: str, tid: str) -> tuple[Path | None, bool, st
 
 
 def move(cmd: str, argv: list[str]) -> int:
-    """``ledger.py archive|reopen TD-n``: the entry's edit through ``edit_entry()``, its relative links
-    rewritten for the other directory, and the file moved there (TD-200). Commits nothing."""
+    """``ledger.py archive|reopen TD-n``: the move through ledgerboard's ``plan_archive()``/``plan_reopen()``
+    (TD-216): the entry's edit, its relative links rewritten for the other directory, every link to it in
+    the ledger repointed, the gate against origin/<default>, the date the UTC day. This script keeps the
+    git I/O: a tracked file's move and the ledger files it rewrote are staged. Commits nothing. Exit by the
+    package's table: 1 refused, 2 unusable, 3 needs, 4 the write failed."""
     ap = argparse.ArgumentParser(prog=f"ledger.py {cmd}", description={
         "archive": "archive an open entry: its archived form (cadence.md §2.8), then the file moved to archive/",
         "reopen": "reopen an archived entry: its Status reopened, then the file moved back"}[cmd])
@@ -1404,7 +1407,10 @@ def move(cmd: str, argv: list[str]) -> int:
         ap.add_argument("--pr", type=int, help="the PR that resolved it, as the forge numbered it")
         ap.add_argument("--pointer", help="where the lasting content now lives (a doc, test or code)")
         ap.add_argument("--as-is", action="store_true", help="keep the Fix, with the Resolved line after it")
-        ap.add_argument("--superseded-by", metavar="TD-n", help="archive as superseded by that entry, Why and Fix kept")
+        how = ap.add_mutually_exclusive_group()
+        how.add_argument("--superseded-by", metavar="TD-n", help="archive as superseded by that entry, Why and Fix kept")
+        how.add_argument("--dropped", action="store_true",
+                         help="archive as Dropped: not done, and refused while an entry is Blocked by it")
     ap.add_argument("--ledger", help="a v2 directory; default: docs/ledger/ at the work tree's top")
     a = ap.parse_args(argv)
     if not ID_ITEM_RE.match(a.id):
@@ -1412,42 +1418,40 @@ def move(cmd: str, argv: list[str]) -> int:
     w = _Writer.open(cmd, a.ledger)
     if isinstance(w, int):
         return w
-    path, archived, text = _entry_file(w, cmd, a.id)
-    if path is None:
-        return 2
-    if cmd == "archive" and archived:
-        return w.say(cmd, f"{a.id} is archived already ({path})", 2)
-    if cmd == "reopen" and not archived:
-        return w.say(cmd, f"{a.id} is open ({path}) — only an archived entry is reopened", 2)
-    dst_dir = w.ledger / LB.LEDGER_ARCHIVE if cmd == "archive" else w.ledger
-    dst = dst_dir / path.name
-    if dst.exists():
-        return w.say(cmd, f"{dst} exists — nothing was written", 2)
-    today = datetime.now().astimezone().date().isoformat()
-    kw = ({"pr": a.pr, "pointer": a.pointer, "as_is": a.as_is or None, "superseded_by": a.superseded_by}
-          if cmd == "archive" else {})
     try:
-        out = LB.edit_entry(text, cmd, today=today, why=a.why, **{k: v for k, v in kw.items() if v is not None})
+        led, base = w.lb_ledgers()
+        if cmd == "archive":
+            plan = LBL.plan_archive(led, a.id, a.why, pr=a.pr, pointer=a.pointer, as_is=a.as_is,
+                                    superseded_by=a.superseded_by, dropped=a.dropped, base=base,
+                                    resolve=w.roster.resolve)
+        else:
+            plan = LBL.plan_reopen(led, a.id, a.why, base=base, resolve=w.roster.resolve)
+    except LBL.Unusable as e:
+        return w.say(cmd, str(e), 2)
+    except LBL.Needs as e:
+        return w.say(cmd, f"needs: {e} — nothing was written", 3)
     except LB.Refused as e:
-        return w.say(cmd, f"refused — {e}", 1)
-    out, warns = relink(out, path.parent, dst_dir, {})
-    tid = LB.entries(out)[0]["id"]
-    after = _overlay(w.io, {path: None, dst: out})
-    led_after, _ = read_pair(str(w.ledger), None, after)
-    left = LB._left_with_open_parts(w.text or "", led_after or "")  # judged against the working tree, not only REF
-    for r in left:
-        w.say(cmd, f"refused — {r['text']}", 1)
-    if left or w.refused_changes(tid, {path: None, dst: out}):
-        return w.say(cmd, f"nothing was written to {path}", 1)
-    for warn in warns:
-        w.say(cmd, f"note — a link left dead: {warn}", 0)
-    tracked = _git_mv(w.root, path, dst)
-    _write(dst, out)
-    if tracked:
-        _stage(w.root, dst)
+        w.say(cmd, f"refused — {e}", 1)
+        return w.say(cmd, f"nothing was written to {LB.entry_path(str(w.ledger), a.id, w.io[0])}", 1)
+    src, dst = Path(plan.info["moved"]["from"]), Path(plan.info["moved"]["to"])
+    tid = plan.info["id"]
+    for n in plan.info.get("notes", []):
+        w.say(cmd, f"note — {n}", 0)
+    tracked = [Path(p) for p in plan.changes if _git(w.root, "ls-files", "--error-unmatch", "--", p) is not None]
+    try:
+        LBL.apply(plan)
+    except OSError as e:
+        return w.say(cmd, f"the write failed, every file restored: {e}", 4)
+    if src in tracked:   # staged as git mv stages it: the removal and the new file, which git pairs as a rename
+        tracked.append(dst)
+    for p in tracked:
+        _git(w.root, "add", "-A", "--", str(p))
     print(dst)
-    for ln in _links_to(w.root, path.name):
-        if not ln.startswith(f"{dst.relative_to(w.root).as_posix()}:"):
+    for rid in plan.info.get("rewired", []):
+        w.say(cmd, f"note — {rid}'s Blocked by now names {plan.info['successor']}", 0)
+    written = {Path(p).resolve().relative_to(w.root.resolve()).as_posix() for p in plan.changes}
+    for ln in _links_to(w.root, src.name):
+        if ln.split(":", 1)[0] not in written:
             w.say(cmd, f"check — a link to the moved file, left as it was: {ln[:200]}", 0)
     if cmd == "reopen":
         w.say(cmd, f"next: `ledger.py edit {tid} --section Fix --from -` with what is left to do", 0)
