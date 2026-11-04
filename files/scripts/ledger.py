@@ -957,7 +957,9 @@ def split(ledger: Path, archive: Path, v2: bool) -> int:
 
 
 def fmt(argv: list[str]) -> int:
-    """``ledger.py fmt``: put entries in canonical form (ledgerboard's ``canonical()``, TD-197)."""
+    """``ledger.py fmt``: put entries in canonical form (TD-197) through ledgerboard's ``plan_fmt()`` (TD-216):
+    every entry's write made both or neither; exit 1 an entry refused (or, ``--check``, one would change),
+    2 unusable, 4 the write failed, every file restored."""
     ap = argparse.ArgumentParser(prog="ledger.py fmt",
                                  description="write each entry of a v2 ledger in canonical form (ledgerboard SPEC)")
     ap.add_argument("ids", nargs="*", metavar="TD-n", help="the entries to format; default: every entry, open and archived")
@@ -976,40 +978,23 @@ def fmt(argv: list[str]) -> int:
     if why:
         print(f"ledger: fmt: not read — {ledger}: {why}", file=sys.stderr)
         return 2
-    if a.ids:
-        paths = []
-        for t in a.ids:
-            p = LB.entry_path(str(ledger), t, io[0])
-            if p is None:
-                print(f"ledger: fmt: {t} is in neither {ledger} nor its archive", file=sys.stderr)
-                return 2
-            paths.append(Path(p))
-    else:
-        paths = [ledger / d / n for d in ("", LB.LEDGER_ARCHIVE)
-                 for n in LB._entry_names(io[0](str(ledger / d)) or [])]
-    changed, refused = [], 0
-    for p in paths:
+    try:
+        plan = LBL.plan_fmt(LBL.Ledger.open(str(ledger)), a.ids)
+    except LBL.Unusable as e:
+        print(f"ledger: fmt: {e}", file=sys.stderr)
+        return 2
+    for r in plan.info["refused"]:
+        print(f"ledger: fmt: {r['path']}: refused, left alone — {r['why']}", file=sys.stderr)
+    if not a.check:
         try:
-            with open(p, encoding="utf-8", newline="") as f:  # newline="": a CRLF file is one fmt changes
-                text = f.read()
-            out = LB.canonical(text)
-        except UnicodeDecodeError as e:
-            print(f"ledger: fmt: {p}: refused, left alone — not UTF-8 ({e.reason} at byte {e.start}): fix it by hand",
-                  file=sys.stderr)
-            refused += 1
-            continue
-        except LB.Refused as e:
-            print(f"ledger: fmt: {p}: refused, left alone — {e}", file=sys.stderr)
-            refused += 1
-            continue
-        if out != text:
-            changed.append(p)
-            if not a.check:
-                with open(p, "w", encoding="utf-8", newline="") as f:
-                    f.write(out)
+            LBL.apply(plan)
+        except OSError as e:
+            print(f"ledger: fmt: the write failed, every file restored: {e}", file=sys.stderr)
+            return 4
+    n, changed, refused = plan.info["entries"], plan.info["formatted"], len(plan.info["refused"])
     for p in changed:
         print(f"{'would change' if a.check else 'formatted'}: {p}")
-    print(f"ledger fmt: {len(paths)} entr{'y' if len(paths) == 1 else 'ies'}, {len(changed)} "
+    print(f"ledger fmt: {n} entr{'y' if n == 1 else 'ies'}, {len(changed)} "
           f"{'would change' if a.check else 'formatted'}, {refused} refused")
     return 1 if refused or (a.check and changed) else 0
 
