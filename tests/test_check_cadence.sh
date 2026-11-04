@@ -638,7 +638,7 @@ out=$(run --pr 7)
 
 # --- 12) --branch resolves the open PR for a head; --json shape
 printf '[{"number":5,"state":"OPEN"}]' > "$FAKE/prlist_head.json"
-out=$(run --branch topic5 --json); echo "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["prs"][0]["pr"]==5 and d["verdict"]=="pass" and {r["rule"] for r in d["prs"][0]["rows"]}=={"pr","review","ci","base","ledger","worktree","pushed","deploy"}' && ok "--branch + --json" || bad "--branch json: $out"
+out=$(run --branch topic5 --json); echo "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["prs"][0]["pr"]==5 and d["verdict"]=="pass" and {r["rule"] for r in d["prs"][0]["rows"]}=={"pr","review","ci","base","ledger","board","worktree","pushed","deploy"}' && ok "--branch + --json" || bad "--branch json: $out"
 # 12b) the person's cadence layers (TD-126): one line after the rows, a "layers" key in --json;
 # the verdict never moves, and a machine with none set prints nothing of them
 printf '[{"number":5,"state":"OPEN"}]' > "$FAKE/prlist_head.json"
@@ -748,7 +748,7 @@ p, after, new = sys.argv[1:]
 L = open(p).read().split("\n"); L.insert(L.index(after) + 1, new); open(p, "w").write("\n".join(L))
 P
 }
-ins "## Needs the user" "- [ ] $TODAY (n/a) — a bot's event. Due: $FUTD."; ins "## Needs the user" ""; dcommit "bot: append"   # board-append (+ a blank line)
+ins "## Needs the user" "- [ ] $TODAY (n/a) — a bot's event. Context: TD-1. Due: $FUTD."; ins "## Needs the user" ""; dcommit "bot: append"   # board-append (+ a blank line)
 python3 - "$D/docs/user_attention.md" "- [ ] $TODAY (n/a) — parked. Due: $FUTD." <<'P'
 import sys
 p, new = sys.argv[1:]; s = open(p).read(); assert "- (none)" in s; open(p, "w").write(s.replace("- (none)", new))

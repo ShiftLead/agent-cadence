@@ -82,7 +82,9 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    in the title needs its status line or archive move in this PR (§2; in a split ledger `ledger.py note`/`set` or
    `ledger.py archive`, never a hand edit — §2.12), or — when it says *bad
    field(s)* — that an entry this PR added or changed has a field the reader rejects: run
-   `python3 scripts/ledger.py --check --since origin/<default>` and fix what it prints with the command it names (§2.12); `pushed` means
+   `python3 scripts/ledger.py --check --since origin/<default>` and fix what it prints with the command it names (§2.12); `board` means an item line this PR
+   changed is not one the writers would write (§3.4, TD-206): redo it with the command the row names
+   (`board_edit.py add`, `done`, `decide`, `fmt` …) rather than hand-fixing the line; `pushed` means
    commits exist only on this machine (§3); `worktree` after a merge means scratch or
    unlanded commits are sitting in the worktree (§1); `base` means the PR targets a branch
    other than the default — retarget it (`gh api -X PATCH repos/{owner}/{repo}/pulls/<n> -f base=main` — not

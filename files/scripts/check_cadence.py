@@ -1684,6 +1684,279 @@ def classify_archive(root, sha, subject):
                     f"subject's count {n}: run board_edit.py archive (or the done that reaches it)")
 
 
+# --- the board row (TD-206, design §3): each item's net change, by the writers' rules -------------------
+
+_CLOSED_TAIL_RE = re.compile(r"Closed:\s*(?P<date>\d{4}-\d{2}-\d{2})(?: — (?P<why>.*?))?\.?$")
+_DECIDE_LEADS = {"context": "Context", "question": "Question", "recommended": "Recommended"}
+
+
+def _item_lines(text):
+    """[(1-based line, line)] of every item line (`- [ ]` or `- [x]` at any indent) of a board's text."""
+    return [(n, ln) for n, ln in enumerate(text.splitlines(), 1) if _lb().is_item(ln)]
+
+
+def _fields(line):
+    """The fields an edit changes, read from an open item line: Due:, Hide until:, Decided: (and by), replies."""
+    lb = _lb()
+    got = lb.parse_board(line, warn=False)
+    it = got[0] if got else None
+    m = lb.ITEM_RE.match(line)
+    return {"due": it.due if it else None, "hide": it.hide_until if it else None,
+            "decided": (it.decided, it.decided_by) if it else (None, None),
+            "replies": lb.parse_replies(m.group("text")) if m else []}
+
+
+def _read_back(line):
+    """(open form, (date, why) or None): a closed line's Closed: read and cut first, with item_key's own cut,
+    since DECIDED_RE is anchored at the line's end; an open line is its own open form."""
+    lb = _lb()
+    m = lb.CLOSED_RE.search(line)
+    if not (lb.CLOSED_ITEM_RE.match(line) and m):
+        return line, None
+    w = _CLOSED_TAIL_RE.match(line[m.start():])
+    if not w:
+        return line, None
+    line = re.sub(r"^(\s*-\s*)\[[xX]\]", r"\1[ ]", line)
+    line = re.sub(r"\s*" + lb.CLOSED_RE.pattern, "", line)
+    return line, (dt.date.fromisoformat(w.group("date")), w.group("why"))
+
+
+def writers_made(base, added):
+    """True when replaying the net change of the fields item_key strips (Due:, Hide until:, new replies,
+    Decided:, Closed:) through edit_line, in the writers' order (due, snooze, each new reply oldest first,
+    decide, done; the replies also after decide, for a line whose text ends no sentence), on `base` or on
+    canonical_item(base) (fmt first), gives `added` byte for byte (design §3 rule 1)."""
+    lb = _lb()
+    if not lb.ITEM_RE.match(base):
+        return False  # the writers edit open lines only
+    open_a, closed = _read_back(added)
+    if lb.CLOSED_ITEM_RE.match(added) and closed is None or not lb.ITEM_RE.match(open_a):
+        return False
+    fa = _fields(open_a)
+    starts = [base]
+    try:
+        fmt = lb.canonical_item(base + "\n").rstrip("\n")
+        if fmt != base:
+            starts.append(fmt)
+    except lb.Refused:
+        pass
+    for b in starts:
+        fb = _fields(b)
+        if fa["replies"][: len(fb["replies"])] != fb["replies"]:
+            continue
+        pre = []
+        if fa["due"] != fb["due"]:
+            if fa["due"] is None:
+                continue  # no writer removes a Due:
+            pre.append(("due", {"to": fa["due"]}))
+        if fa["hide"] != fb["hide"]:
+            if fa["hide"] is None:
+                continue
+            pre.append(("snooze", {"to": fa["hide"]}))
+        reps = [("reply", {"reply": t, "by": by, "today": dt.date.fromisoformat(d)})
+                for by, d, t in fa["replies"][len(fb["replies"]):]]
+        dec = []
+        if fa["decided"] != fb["decided"]:
+            (d, by) = fa["decided"]
+            if d is None:
+                continue
+            dec = [("decide", {"answer": d[0], "by": by, "today": d[1]})]
+        done = [("done", {"why": closed[1], "today": closed[0]})] if closed else []
+        for order in (pre + reps + dec + done, pre + dec + reps + done):
+            cur = b
+            try:
+                for act, kw in order:
+                    cur = lb.edit_line(cur, act, **kw)
+            except (lb.Refused, ValueError):
+                continue
+            if cur == added:
+                return True
+    return False
+
+
+def _prefix(line):
+    """`<kind> <date> (<head>) —`: what a line changed outside the writer's fields still shares."""
+    m = _lb().ANY_ITEM_RE.match(line)
+    rest = line[m.end():] if m else line
+    return rest.split(" — ", 1)[0] if " — " in rest else None
+
+
+def _people_check(base, head):
+    """Rule 6: the People: line's faults fail only when the diff touches that line."""
+    lb = _lb()
+    def ppl(text):
+        return [ln for ln in text.splitlines() if lb.PEOPLE_RE.match(ln)]
+    touched = ppl(base) != ppl(head)
+    out = []
+    for _, why in lb.people_problems(head):
+        if why.startswith("ℹ"):
+            continue
+        out.append(("fail" if touched else "info", f"People: {why}" + ("" if touched else " (untouched by this PR)")))
+    return out
+
+
+def _decided_check(line, people, what):
+    """Rule 3: a new or changed Decided: carries (by <person>), on People: where the board has one."""
+    lb = _lb()
+    open_l, _ = _read_back(line)
+    text = lb.ITEM_RE.match(open_l).group("text") if lb.ITEM_RE.match(open_l) else ""
+    if lb.parse_decided(text) is None:
+        return None
+    by = lb.parse_decided_by(text)
+    if not by:
+        return f"{what}: its Decided: names no `(by <person>)` — write it with board_edit.py decide"
+    if people is not None and by.lower() not in {p.lower() for p in people}:
+        return f"{what}: its Decided: is by {by}, who is not on the board's People: — board_edit.py decide --by <person>"
+    return None
+
+
+def archive_gain(base_arch, head_arch):
+    """The lines the archive gained, or None when its existing lines changed (only an append is a writer's)."""
+    b, h = base_arch.splitlines(), head_arch.splitlines()
+    if h[: len(b)] != b:
+        return None
+    return h[len(b):]
+
+
+def archive_net_problems(gained, unpaired_keys):
+    """The merged PR's net check on its archive (rule 5): gained item lines are closed (Closed: CLOSED_RE reads)
+    or an open twin of a gained closed one; other gained lines are blank or in those items' detail blocks; every
+    gained item's key is one the board lost unpaired; and at least ARCHIVE_AT closed item lines arrive."""
+    lb = _lb()
+    out = []
+    items = [ln for ln in gained if lb.is_item(ln)]
+    closed = [ln for ln in items if lb.CLOSED_ITEM_RE.match(ln) and lb.CLOSED_RE.search(ln)]
+    ckeys = {lb.item_key(ln) for ln in closed}
+    for ln in items:
+        if ln in closed or (lb.is_open_item(ln) and lb.item_key(ln) in ckeys):
+            if lb.item_key(ln) not in unpaired_keys:
+                out.append(f"the archive gained {ln[:70]!r}, which the board did not lose")
+            continue
+        out.append(f"the archive gained {ln[:70]!r}: neither a closed item with its Closed: nor the open twin of one "
+                   "— board_edit.py done, then archive")
+    block = False
+    for ln in gained:
+        if lb.is_item(ln):
+            block = True
+        elif not ln.strip():
+            block = False
+        elif not (block and ln[:1].isspace()):
+            out.append(f"the archive gained {ln[:70]!r}, outside any item's detail block — only board_edit.py archive moves lines")
+    if items and len(closed) < lb.ARCHIVE_AT:
+        out.append(f"the archive gained {len(closed)} closed item(s), under ARCHIVE_AT ({lb.ARCHIVE_AT}): "
+                   "a writer's archive moves them only at the threshold")
+    return out
+
+
+def board_change_problems(base, head, base_arch="", head_arch="", *, net_archive=False):
+    """[(status, message)] — `fail` or `info` — for a change of the board from `base` to `head` (design §3):
+    rules 1–6 on each item's net change, with the archive's gain exempting the items it took; `net_archive`
+    (a merged PR) adds the archive's net check. Byte-equal item lines added and removed cancel, so a moved item
+    or a reordered section judges nothing; lines the change leaves alone are never judged."""
+    lb = _lb()
+    out = []
+    people = lb.board_people(head)
+    bl, hl = _item_lines(base), _item_lines(head)
+    pool = {}
+    for _, ln in bl:
+        pool[ln] = pool.get(ln, 0) + 1
+    added = []
+    for n, ln in hl:
+        if pool.get(ln):
+            pool[ln] -= 1
+        else:
+            added.append((n, ln))
+    hpool = {}
+    for _, ln in hl:
+        hpool[ln] = hpool.get(ln, 0) + 1
+    removed = []
+    for n, ln in bl:
+        if hpool.get(ln):
+            hpool[ln] -= 1
+        else:
+            removed.append((n, ln))
+    used = set()
+    new_items = []
+    head_lines = head.splitlines()
+    gate = {n: why for n, why in lb.board_problems(head, base) if not why.startswith("ℹ")}
+    for n, ln in added:
+        where = f"line {n}"
+        cands = [i for i, (_, r) in enumerate(removed) if i not in used and lb.item_key(r) == lb.item_key(ln)]
+        if cands:
+            hit = next((i for i in cands if writers_made(removed[i][1], ln)), None)
+            used.add(cands[0] if hit is None else hit)
+            if hit is None:
+                cmd = "done" if lb.CLOSED_ITEM_RE.match(ln) else "fmt"
+                out.append(("fail", f"{where}: not what the writers make of its base line — board_edit.py {cmd} "
+                                    "(or the command for the field it changes)"))
+                continue
+            base_l = removed[hit][1]
+            if _fields(_read_back(ln)[0])["decided"] != _fields(base_l)["decided"]:
+                why = _decided_check(ln, people, where)
+                if why:
+                    out.append(("fail", why))
+            continue
+        new_items.append((n, ln))
+        if lb.CLOSED_ITEM_RE.match(ln):
+            out.append(("fail", f"{where}: a closed line with no open line it closes — board_edit.py done"))
+            continue
+        problem = lb.item_problem(ln)
+        if problem is None:
+            try:
+                if lb.canonical_item(ln + "\n") != ln + "\n":
+                    problem = "not in the writers' form"
+            except lb.Refused as e:
+                problem = str(e)
+        if problem:
+            out.append(("fail", f"{where}: a new item the writer would not write ({problem}) — board_edit.py add"))
+            continue
+        if n in gate:
+            out.append(("fail", f"{where}: {gate[n]} — board_edit.py add"))
+            continue
+        text = lb.ITEM_RE.match(ln).group("text")
+        k = lb.KIND_RE.match(text.strip())
+        if k and k.group("kind").lower() == "decide" and lb.parse_decided(text) is None:
+            blk = lb.detail_block(head_lines, n)
+            missing = [lead for lead in lb.DECIDE_NEEDS
+                       if not any(re.match(rf"^- \*\*{_DECIDE_LEADS[lead]}:\*\* ", b) for b in blk)]
+            if missing:
+                out.append(("fail", f"{where}: a new open decide without its detail block's "
+                                    f"{', '.join(_DECIDE_LEADS[m] for m in missing)} — board_edit.py add --detail"))
+                continue
+        why = _decided_check(ln, people, where)
+        if why:
+            out.append(("fail", why))
+    gained = archive_gain(base_arch, head_arch) if head_arch != base_arch else []
+    if gained is None:
+        out.append(("fail", "the archive's existing lines changed — only board_edit.py archive writes it, and it appends"))
+        gained = []
+    gkeys = {lb.item_key(ln) for ln in gained if lb.is_item(ln)}
+    unpaired = [(n, r) for i, (n, r) in enumerate(removed) if i not in used]
+    for n, r in unpaired:
+        if lb.item_key(r) in gkeys:
+            continue
+        pre = _prefix(r)
+        twin = next((m for m, a in new_items if pre and _prefix(a) == pre), None)
+        if twin is not None:
+            out.append(("fail", f"base line {n} → line {twin}: a line changed outside the writer's fields — "
+                                "board_edit.py fmt, or the command for the field (a corrected text is done plus add)"))
+        else:
+            out.append(("fail", f"base line {n}: an item deleted — the board closes, never deletes: board_edit.py done "
+                                f"({r[:60]!r})"))
+    if net_archive and gained:
+        out += [("fail", why) for why in archive_net_problems(gained, {lb.item_key(r) for _, r in unpaired})]
+    out += _people_check(base, head)
+    return out
+
+
+def _direct_rules(root, sha):
+    """The board row's rules on one direct commit's board change (TD-206): the failures, joined, or ""."""
+    base, head = _show(root, f"{sha}^", BOARD), _show(root, sha, BOARD)
+    if base is None or head is None:
+        return "board unreadable"
+    return "; ".join(m for st, m in board_change_problems(base, head) if st == "fail")
+
+
 def classify_direct(root, sha, subject, files):
     """(class, detail) for one direct commit; class is stamp | board-append | board-edit | board-archive | fail."""
     if sorted(files) == sorted([BOARD, ARCHIVE]):
@@ -1706,14 +1979,67 @@ def classify_direct(root, sha, subject, files):
             above = [x for x in post[: n - 1] if x.startswith("## ")]
             heads.append(above[-1] if above else "")
         if all(h.startswith("## Needs") for h in heads):
+            bad = _direct_rules(root, sha)
+            if bad:
+                return "fail", bad
             return "board-append", f"{len(items)} whole item line(s) appended under {heads[0]}"
         return "fail", "appended items outside the ## Needs section"
     if len(removed) == 1 and len(new) == 1 and _lb().is_open_item(removed[0]) \
             and _lb().is_item(new[0]) and _edit_key(removed[0]) == _edit_key(new[0]):
         if _lb().subject_kind(subject) == "edit":
+            bad = _direct_rules(root, sha)
+            if bad:
+                return "fail", bad
             return "board-edit", "one item's Due:/tick/Closed:/Decided:/reply, under board_edit.py's message"
         return "fail", "a one-item board edit without board_edit.py's fixed message"
     return "fail", f"board change outside the carve-outs (-{len(removed)} +{len(new)} lines)"
+
+
+def row_board(pr, root):
+    """TD-206, cadence §3.4: the board row. On a PR that changes the board, each item's net change across it —
+    an open PR's merge-base against its head, a merged PR's merge commit against its parent — by the writers'
+    rules (board_change_problems). An open PR's commits that touch the archive must each be a board-archive
+    commit; a merged PR, one commit by then, gets the archive's net check. A hard failure (decision 5)."""
+    files = pr.get("files") or []
+    if BOARD not in files:
+        return row("board", "na", "the PR does not change the board")
+    if not root:
+        return row("board", "unknown", "no clone to read the board's change from")
+    if pr["state"] == "merged":
+        new = pr.get("merge_sha")
+        old = f"{new}^" if new else None
+    else:
+        new = pr.get("head_sha")
+        old = None
+    if not new:
+        return row("board", "unknown", f"{FORGE.cli if FORGE else 'the forge'} gave no commit")
+    if git(["cat-file", "-e", f"{new}^{{commit}}"], cwd=root) is None:
+        fetch_once(root)
+    if old is None:
+        mb = git(["merge-base", default_ref(root), new], cwd=root)
+        if not mb:
+            return row("board", "unknown", f"no merge-base of {new[:7]} with {default_ref(root)}")
+        old = mb.strip()
+    texts = [_show(root, c, f) for c in (old, new) for f in (BOARD, ARCHIVE)]
+    if None in texts:
+        return row("board", "unknown", f"the board at {old[:7]} or {new[:7]} is unreadable")
+    base_b, base_a, head_b, head_a = texts
+    found = board_change_problems(base_b, head_b, base_a, head_a, net_archive=pr["state"] == "merged")
+    if pr["state"] != "merged" and ARCHIVE in files:
+        log = git(["log", "--format=%H%x00%s", f"{old}..{new}", "--", ARCHIVE], cwd=root) or ""
+        for line in log.splitlines():
+            sha, _, subject = line.partition("\0")
+            names = git(["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", sha], cwd=root) or ""
+            cls, why = classify_direct(root, sha, subject, [f for f in names.split("\0") if f])
+            if cls != "board-archive":
+                found.insert(0, ("fail", f"commit {sha[:7]} writes the archive but is not the writer's archive ({why})"))
+    fails = [m for st, m in found if st == "fail"]
+    infos = [m for st, m in found if st != "fail"]
+    if fails:
+        return row("board", "fail", "; ".join(fails[:4]) + (f" (+{len(fails) - 4} more)" if len(fails) > 4 else "")
+                   + " (cadence §3.4: the board is written through board_edit.py)")
+    return row("board", "pass", "every changed item line is one the writers would write"
+               + (f" — ℹ {'; '.join(infos)}" if infos else ""))
 
 
 def _tool_pr_commit(pr, root):
@@ -1883,6 +2209,7 @@ def check_pr(number, root):
         ("ci", lambda: row_ci(pr, root)),
         ("base", lambda: row_base(pr, root)),
         ("ledger", lambda: row_ledger(pr, root)),
+        ("board", lambda: row_board(pr, root)),
         ("worktree", lambda: row_worktree(pr, root)),
         ("pushed", lambda: row_pushed(pr, root)),
         ("deploy", lambda: row_deploy(pr, root)),
