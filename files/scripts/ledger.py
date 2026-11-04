@@ -134,6 +134,7 @@ never a gate (cadence.md §7): ``--check`` is what lets a caller choose to gate 
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -141,7 +142,7 @@ import subprocess
 import sys
 from collections import Counter
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -151,7 +152,6 @@ from ledgerboard import (  # noqa: E402,F401  # re-exported: readers and tests r
     BLOCKED_RE,
     CADENCE_FIELDS,
     COMMENT_RE,
-    DECISION_RE,
     EDIT_ERRORS,
     FIELD_RE,
     FIELDS_DECL_RE,
@@ -386,16 +386,61 @@ class Roster:
         return out
 
 
+def _today(today: date | str | None) -> date | str:
+    """The day ledgerboard v2.4's readers judge an ``until`` gate against: the caller's, else this machine's."""
+    return today if today is not None else date.today()  # noqa: DTZ011  # a civil date, as ledgerboard's readers use
+
+
 def pickable(ledger: str, archive: str, roster: Roster | None = None, undeclared: bool = False,
-             rank_text: str | None = None) -> dict:
+             rank_text: str | None = None, today: date | str | None = None) -> dict:
     """ledgerboard's pickable, in rank order, with this machine's roster resolving ``<repo>#TD-NNN`` items."""
-    return LB.pickable(ledger, archive, (roster or Roster()).resolve, undeclared, rank_text=rank_text)
+    return LB.pickable(ledger, archive, (roster or Roster()).resolve, undeclared, rank_text=rank_text,
+                       today=_today(today))
+
+
+def _log_refused(text: str) -> dict[str, str]:
+    """id -> entry text, for each entry whose Log ledgerboard v2.4 refuses to read (TD-222)."""
+    out = {}
+    for tid, t in LB._entry_texts(text).items():
+        try:
+            LB.log_lines(t)
+        except LB.Refused:
+            out[tid] = t
+    return out
 
 
 def check(ledger: str, archive: str, old: str | None = None, roster: Roster | None = None,
-          rank_text: str | None = None) -> list[dict]:
-    """ledgerboard's check (--check's flags, the rank file's too), with this machine's roster resolving cross-repo items."""
-    return LB.check(ledger, archive, old, (roster or Roster()).resolve, rank_text=rank_text)
+          rank_text: str | None = None, today: date | str | None = None) -> list[dict]:
+    """ledgerboard's check (--check's flags, the rank file's too), with this machine's roster resolving cross-repo items.
+    ledgerboard v2.4's check() raises Refused on an entry with a field below its header block (its Log
+    reader, ``reassigns()``, refuses the entry where v2.3 flagged it), stopping the whole check: until
+    ledgerboard flags it again (TD-222), the rest of the ledger is checked without those entries, and each
+    is one ``check-refused`` flag — an error on an entry this edit wrote, standing ℹ on one ``old`` holds
+    as it is (so a PR is never failed on an entry it did not touch, cadence.md §2.12's ``--since``)."""
+    def run(text: str, before: str | None) -> list[dict]:
+        return LB.check(text, archive, before, (roster or Roster()).resolve, rank_text=rank_text, today=_today(today))
+    try:
+        return run(ledger, old)
+    except LB.Refused as e:
+        why = str(e)
+    bad = _log_refused(ledger)
+    if not bad:
+        return [{"level": "error", "id": None, "field": "ledger", "kind": "check-refused", "standing": False,
+                 "text": f"⚠ the ledger: not checked — {why} (ledgerboard v2.4's check() stops on it)"}]
+    strip = lambda text: functools.reduce(lambda t, x: t.replace(x, ""), _log_refused(text).values(), text)  # noqa: E731
+    try:
+        recs = [r for r in run(strip(ledger), strip(old) if old is not None else None)
+                if not any(re.search(rf"\b{re.escape(tid)}\b", r["text"]) for tid in bad)]
+    except LB.Refused as e2:
+        recs = [{"level": "error", "id": None, "field": "ledger", "kind": "check-refused", "standing": False,
+                 "text": f"⚠ the ledger: not checked — {e2} (ledgerboard v2.4's check() stops on it)"}]
+    was = LB._entry_texts(old) if old is not None else {}
+    for tid, text in bad.items():
+        standing = old is not None and was.get(tid) == text
+        recs.append({"level": "info" if standing else "error", "id": tid, "field": "ledger", "kind": "check-refused",
+                     "standing": standing, "text": f"{'ℹ' if standing else '⚠'} {tid}: not checked — {why} "
+                                                   "(ledgerboard v2.4's check() stops on it, TD-222)"})
+    return recs
 
 
 # TD-166: a wait on another entry belongs in Blocked by (cadence.md §2.4), where --pickable resolves it; one
@@ -425,8 +470,8 @@ def prose_waits(ledger: str, archive: str = "") -> dict[str, list[tuple[str, str
         named.add(_wait_key(None, e["id"][3:]))
         for field, value in e["fields"].items():
             if field == "blocked by":
-                d = LB.DECISION_RE.search(value)
-                spans = [value[d.end():]] if d else []
+                old_form = LB.parse_gates(value)["old_form"]  # v2.4: the pointer is the old form's text
+                spans = [old_form[1]] if old_form else []
             elif field in NO_WAIT_FIELDS:
                 continue
             else:

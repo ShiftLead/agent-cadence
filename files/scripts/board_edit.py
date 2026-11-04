@@ -67,7 +67,7 @@ list    the open items: line, due tag and text, or ``--json``.
 
 ``--line`` is the 1-based line ``nudge_user_attention.py --report --json`` prints for
 the item, and ``--expect`` the start of its text (or of the raw line) as the tool last
-showed it. The edit is refused, exit 3, when line N is not an open item or no longer
+showed it. The edit is refused, exit 1, when line N is not an open item or no longer
 starts with HEAD — the board moved under the tool — or when the board declares a newer major
 of the format than the vendored ledgerboard reads (``Ledgerboard: N``, TD-133). Only line N is
 rewritten; the ``Swept:``/``Swept-deep:`` stamps and every other line keep their bytes.
@@ -84,7 +84,9 @@ origin's head and lands the commit by a PR it opens and squash-merges at once, t
 with this message (cadence.md §4.5, TD-083) — or, where the forge takes a direct push,
 pushes it under ``ALLOW_MAIN_PUSH=1``.
 
-Exit: 0 edited (and committed); 1 git failed (the files are restored); 2 usage; 3 refused.
+Exit, by ledgerboard v2.4's one table for its writers (SPEC *The board writer*; TD-215): 0 edited (and
+committed); 1 refused; 2 usage; 4 a write or git failed (the files are restored). It never exits 3,
+the ledger writer's ``needs`` (until v2.4 this script exited 3 refused and 1 git failed).
 """
 from __future__ import annotations
 
@@ -97,7 +99,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import ledgerboard as LB  # noqa: E402  # sibling SYNC package: the board format (ShiftLead/ledgerboard v2.3)
+import ledgerboard as LB  # noqa: E402  # sibling SYNC package: the board format (ShiftLead/ledgerboard v2.4)
 from ledgerboard import (  # noqa: E402,F401  # re-exported: tests reach them as board_edit.<name>
     Refused,
     edit_line,
@@ -211,7 +213,7 @@ def passthrough(argv: list[str]) -> int:
             _clean(root, list(plan.changes))
     except Refused as e:
         print(f"board_edit: refused: {e}", file=sys.stderr)
-        return 3
+        return 1
     if a.plan:
         print(json.dumps(plan.as_json(), ensure_ascii=False))
         return 0
@@ -220,7 +222,7 @@ def passthrough(argv: list[str]) -> int:
             LBB.apply(plan)
         except OSError as e:
             print(f"board_edit: cannot write {a.board}: {e}", file=sys.stderr)
-            return 1
+            return 4
         for r in plan.info["refused"]:
             print(f"board_edit: fmt: line {r['line']} kept as it is: {r['why']}", file=sys.stderr)
         fixed = plan.info["fixed"]
@@ -233,12 +235,12 @@ def passthrough(argv: list[str]) -> int:
             LBB.apply(plan)
         except OSError as e:
             print(f"board_edit: cannot write: {e}", file=sys.stderr)
-            return 1
+            return 4
         print(f"board_edit: {a.action}{where} (not committed)")
         return 0
     sha = _commit(root, plan)
     if sha is None:
-        return 1
+        return 4
     print(f"board_edit: {a.action}{where} — committed {sha}: {plan.subject} (not pushed)")
     return 0
 
@@ -309,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
             _clean(root, list(plan.changes))
     except Refused as e:
         print(f"board_edit: refused: {e}", file=sys.stderr)
-        return 3
+        return 1
 
     what = (f" to {a.to}" if a.action in ("snooze", "due")
             else f": {' '.join(a.answer.split())}" if a.action == "decide" else "")
@@ -320,16 +322,16 @@ def main(argv: list[str] | None = None) -> int:
             LBB.apply(plan)
         except OSError as e:
             print(f"board_edit: cannot write {board}: {e}", file=sys.stderr)
-            return 1
+            return 4
         print(f"board_edit: {a.action} line {a.line}{what} (not committed)")
         return 0
     try:
         sha = _commit(root, plan)
     except OSError as e:
         print(f"board_edit: cannot write {board}: {e}", file=sys.stderr)
-        return 1
+        return 4
     if sha is None:
-        return 1
+        return 4
     print(f"board_edit: {a.action} line {a.line}{what} — committed {sha} (not pushed; "
           "cadence.md §4.5: land it by its own PR, or push with ALLOW_MAIN_PUSH=1)")
     return 0

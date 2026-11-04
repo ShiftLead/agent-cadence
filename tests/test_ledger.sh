@@ -104,13 +104,15 @@ flags = "\n".join(r["flags"])
 assert pick == ["TD-003", "TD-010", "TD-006", "TD-005", "TD-011"], pick
 assert blk == {"TD-4": ["TD-003"], "TD-007": ["decision (Alex)"], "TD-008": ["TD-999"],
                "TD-009": ["\x27once CI lands\x27"],
-               "TD-012": ["decision (Alex)", "\x27after the decision: TD-003\x27"]}, blk
+               "TD-012": ["TD-003", "decision (Alex)"]}, blk  # v2.4: a comma after a decision starts the next item
 assert "TD-006: every blocker is archived (TD-001, TD-002)" in flags, flags
 assert "TD-008: Blocked by TD-999, which names no entry" in flags, flags
 assert "TD-009: cannot read Blocked by item" in flags, flags
-assert "TD-012: cannot read Blocked by item \x27after the decision: TD-003\x27" in flags, flags
+assert "TD-012: cannot read" not in flags, flags
+assert "TD-007: Blocked by item \x27decision (Alex) — docs/user_attention.md" in flags and "is retired" in flags, flags  # v2.4: the old form
+assert "TD-012: Blocked by names decision (Alex) and the entry has no **Ask:**" in flags, flags  # v2.4 ask-missing
 assert "TD-011" not in flags, flags
-assert len(r["flags"]) == 4, flags
+assert len(r["flags"]) == 5, flags
 print("ok")' "$out" 2>&1)
 [ "$chk" = ok ] && ok "pick order by card (Priority, Type, id); blocked kinds; archived blockers lift; flags" || bad "--json: $chk / $out"
 
@@ -276,9 +278,32 @@ printf '# rank\nTD-035: 0h\nTD-033: 1i\n' > "$RK/technical_debt_rank.yml"
 python3 "$LEDGER_PY" --ledger "$RK/technical_debt.md" --archive "$TMP/none.md" --pickable | grep -q "^  TD-035 " \
   && ok "--pickable prints rank order too" || bad "--pickable rank: $(python3 "$LEDGER_PY" --ledger "$RK/technical_debt.md" --archive "$TMP/none.md" --pickable)"
 printf 'TD-035 0h\n' > "$RK/technical_debt_rank.yml"
+# TD-222: ledgerboard v2.4's check() raises on TD-036's below-the-block line; ledger.py names it as one error
 python3 "$LEDGER_PY" --ledger "$RK/technical_debt.md" --archive "$TMP/none.md" --check --json \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if [f for f in d["flags"] if f["kind"] == "check-refused" and f["level"] == "error" and f["id"] == "TD-036"] else 1)' \
+  && ok "--check names an entry ledgerboard v2.4's check() refuses as one error, not a traceback (TD-222)" \
+  || bad "check-refused: $(python3 "$LEDGER_PY" --ledger "$RK/technical_debt.md" --archive "$TMP/none.md" --check 2>&1)"
+chk222=$(python3 - "$DC/files/scripts" <<'PY'
+import sys; sys.path.insert(0, sys.argv[1]); import ledger as L
+bad = "## TD-036: below\n\n**Priority:** Low\n\n**Blocked by:** decision (Alex)\n\n"
+other = "## TD-040: other\n\n**Priority:** Low\n**Blocked by:** TD-999\n\n**Why:** w.\n\n"
+old = "# L\n\n" + bad + other
+r = {(x["id"], x["kind"]): x for x in L.check(old, "", old)}
+assert (r[("TD-036", "check-refused")]["level"], r[("TD-036", "check-refused")]["standing"]) == ("info", True), r
+assert any(k[0] == "TD-040" for k in r), r   # the rest of the ledger is still checked
+edited = old.replace("**Priority:** Low\n\n**Blocked by:** decision", "**Priority:** High\n\n**Blocked by:** decision")
+r = {(x["id"], x["kind"]): x for x in L.check(edited, "", old)}
+assert (r[("TD-036", "check-refused")]["level"], r[("TD-036", "check-refused")]["standing"]) == ("error", False), r
+print("ok")
+PY
+)
+[ "$chk222" = ok ] && ok "a refused entry unchanged since --since is standing ℹ, an edited one an error; the rest is still checked (TD-222)" \
+  || bad "check-refused scope: $chk222"
+RK2="$TMP/rank2"; mkdir -p "$RK2"; cp "$RK/technical_debt_rank.yml" "$RK2/"
+sed '/^## TD-036:/,$d' "$RK/technical_debt.md" > "$RK2/technical_debt.md"
+python3 "$LEDGER_PY" --ledger "$RK2/technical_debt.md" --archive "$TMP/none.md" --check --json \
   | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if [f for f in d["flags"] if f["kind"] == "rank" and f["level"] == "error"] else 1)' \
-  && ok "--check flags an unreadable rank file line as an error" || bad "rank flag: $(python3 "$LEDGER_PY" --ledger "$RK/technical_debt.md" --archive "$TMP/none.md" --check)"
+  && ok "--check flags an unreadable rank file line as an error" || bad "rank flag: $(python3 "$LEDGER_PY" --ledger "$RK2/technical_debt.md" --archive "$TMP/none.md" --check)"
 [ "$(rj --list | ids)" = "TD-031,TD-033,TD-032,TD-034,TD-035,TD-036" ] \
   && ok "an unreadable line ranks nothing: the implicit order" || bad "bad rank line order: $(rj --list | ids)"
 [ "$(lj --list --owner grinder | ids)" = "TD-031,TD-033,TD-036" ] \
@@ -312,8 +337,9 @@ assert "TD-031: its Pickable" not in fl, fl
 assert "TD-036: its Blocked by line is below the header block" in fl, fl
 assert "Fields: cannot read \x27Broken\x27" in fl, fl
 assert "Fields: \x27priority\x27 is the cadence" in fl, fl
+assert "TD-036: Blocked by names decision (Alex) and the entry has no **Ask:**" in fl, fl  # v2.4 ask-missing
 assert "TD-032" not in fl and "TD-034" not in fl, fl
-assert len(r["flags"]) == 5, fl
+assert len(r["flags"]) == 6, fl
 print("ok")' "$out" 2>&1)
 [ "$chk" = ok ] && ok "--json: fields raw; written Pickable only flagged; vocabulary, below-block and Fields: flags" || bad "fields json: $chk / $out"
 [ "$(lj --counts owner,kind | python3 -c 'import json,sys; print(";".join(f"{r["owner"]}/{r["kind"]}={r["count"]}" for r in json.load(sys.stdin)["counts"]))')" \
@@ -428,8 +454,9 @@ for want in ("TD-101: every blocker is archived (other#TD-036)",
              "TD-105: cannot resolve dup#TD-001 — 2 roster repos are named dup — write owner/name",
              "TD-107: cannot resolve noledger#TD-001 — no readable docs/technical_debt.md"):
     assert want in fl, (want, fl)
-assert "TD-108" not in fl and "TD-102" not in fl and "TD-109" not in fl, fl
-assert len(r["flags"]) == 6, fl
+assert "TD-108: Blocked by item \x27decision (Alex) — see the board\x27 is retired" in fl, fl  # v2.4: the old form
+assert "TD-102" not in fl and "TD-109" not in fl, fl
+assert len(r["flags"]) == 7, fl
 print("ok")' "$out" 2>&1)
 [ "$chk" = ok ] && ok "<repo>#TD-NNN: lifted, open (origin wins), unknown repo/entry, ambiguous, owner/name, no ledger" || bad "cross-repo: $chk / $out"
 mkdir -p "$X/empty"

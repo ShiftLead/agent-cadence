@@ -95,8 +95,8 @@ cp "$B" "$TMP/before"
 "$EDIT" add --board "$B" --text "bad." --due "not-a-date" >/dev/null 2>&1; r2=$?
 "$EDIT" fmt --board "$B" --tool x >/dev/null 2>&1; r3=$?
 "$EDIT" list --board "$B" --no-commit >/dev/null 2>&1; r4=$?
-[ "$r1$r3$r4" = 222 ] && [ $r2 = 3 ] && cmp -s "$B" "$TMP/before" \
-  && ok "pass-through usage: an option the command does not take is exit 2, a line the writer refuses exit 3, board untouched" \
+[ "$r1$r3$r4" = 222 ] && [ $r2 = 1 ] && cmp -s "$B" "$TMP/before" \
+  && ok "pass-through usage: an option the command does not take is exit 2, a line the writer refuses exit 1 (v2.4's table), board untouched" \
   || bad "usage: $r1 $r2 $r3 $r4"
 chk=$(python3 - "$S" <<'EOF'
 import sys

@@ -1052,8 +1052,10 @@ apr 13 ask-hdr "$HDR"; out=$(arun --pr 13)
 [ "$(rowstat "$out" ledger)" = PASS ] && lrow "$out" | grep -qF "TD-013 waits on the person (Answers:; its Ask: is in the header)" \
   && ok "ledger: an Answers: entry whose Ask: sits in the header block warns, and says where it is" || bad "ask header: $(lrow "$out")"
 apr 10 ask-edit "$EDT"; out=$(arun --pr 10)
-[ "$(rowstat "$out" ledger)" = PASS ] && lrow "$out" | grep -qF "TD-010 waits on the person (decision (Alex))" \
-  && ok "ledger: an edited entry blocked on a decision with no Ask: warns" || bad "ask edited: $(lrow "$out")"
+# ledgerboard v2.4 (SPEC *The ledger*, ask-missing in EDIT_ERRORS): a decision gate with no Ask: on an entry the
+# edit changed is an error — the row fails, naming it; an Owner: person with none still only warns (TD-011 above)
+[ "$(rowstat "$out" ledger)" = FAIL ] && lrow "$out" | grep -qF "⚠ TD-010: Blocked by names decision (Alex) and the entry has no **Ask:**" \
+  && ok "ledger: an edited entry blocked on a decision with no Ask: fails (ledgerboard v2.4)" || bad "ask edited: $(lrow "$out")"
 apr 14 ask-arch "$ARC"; out=$(arun --pr 14)
 [ "$(rowstat "$out" ledger)" = PASS ] && ! lrow "$out" | grep -q "waits on the person" && ok "ledger: an entry moved to the archive does not warn" || bad "ask archived: $(lrow "$out")"
 ( cd "$AR" && git checkout -q ask-add ) && out=$( cd "$AR" && python3 "$DC/files/scripts/ledger.py" --check --since origin/main ); rc=$?

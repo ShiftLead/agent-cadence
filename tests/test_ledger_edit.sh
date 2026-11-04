@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # TD-199: `ledger.py set`, `note` and `edit` change one open entry of a v2 ledger through
 # ledgerboard's edit_entry(), refusing what the gate would fail. Asserts: set changes a field in place
-# and removes one with an empty value; note keeps the earlier Status and adds a dated line; edit
-# replaces one section and leaves the header and the other sections alone, and adds a missing Fix
-# after the Why; refusals leave the file untouched — an unknown Type, a wait in prose (TD-166), an id
-# in a decision's pointer (TD-172), a cross-repo blocker its roster repo lacks, an entry canonical()
+# and removes one with an empty value; note keeps the Status and adds a dated line to the Log (ledgerboard
+# v2.4); edit replaces one section and leaves the header and the other sections alone, and adds a missing Fix
+# after the Why; refusals leave the file untouched — an unknown Type, a wait in prose in a field (TD-166), a
+# decision with a pointer (v2.4's old form; TD-172), a cross-repo blocker its roster repo lacks, an entry canonical()
 # refuses, an archived entry, an unknown id.
 # Offline: origin is a local bare repo, the roster a temp dir; HOME/XDG are temp dirs.
 set -u
@@ -56,10 +56,11 @@ c=$(lp --check --since origin/main 2>&1) && lp fmt --check TD-003 >/dev/null 2>&
 lp set TD-003 --blocked-by "" >/dev/null 2>"$TMP/err" && ! grep -q 'Blocked by' "$L/TD-003.md" \
   && ok "set with an empty value removes the field" || bad "set remove: $(cat "$TMP/err")"
 
-# --- 2) note: the earlier Status kept, a dated line added.
+# --- 2) note: the Status kept as it was, a dated line added to the entry's Log (ledgerboard v2.4).
 lp note TD-003 "reproduced it" >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 0 ] && grep -qx "\*\*Status:\*\* Open — first look done $TODAY: reproduced it" "$L/TD-003.md" \
-  && ok "note keeps the earlier Status text and appends a dated line" || bad "note (rc=$rc): $(cat "$TMP/err") $(grep Status "$L/TD-003.md")"
+[ $rc -eq 0 ] && grep -qx "\*\*Status:\*\* Open — first look done" "$L/TD-003.md" \
+  && [ "$(sed -n '/^\*\*Log:\*\*$/,$p' "$L/TD-003.md")" = "$(printf '**Log:**\n- %s: reproduced it' "$TODAY")" ] \
+  && ok "note keeps the Status and adds a dated line to the Log, the body's last section" || bad "note (rc=$rc): $(cat "$TMP/err") $(cat "$L/TD-003.md")"
 
 # --- 3) edit: one section replaced, the rest untouched; a missing Fix added after the Why.
 before_hdr=$(sed -n '1,/^$/p;' "$L/TD-003.md"; sed -n '/^\*\*Why/p;/^\*\*Done when/p' "$L/TD-003.md")
@@ -79,12 +80,12 @@ cp "$L/TD-003.md" "$TMP/td3"
 lp set TD-003 --type nonsense >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
   && ok "set refuses an unknown Type, writing nothing" || bad "bad Type (rc=$rc): $(cat "$TMP/err")"
-lp note TD-003 "waits on TD-001 now" >/dev/null 2>"$TMP/err"; rc=$?
+lp set TD-003 --status "Open — waits on TD-001 now" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused — .*waits on TD-001' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
-  && ok "note refuses a wait written in prose (TD-166)" || bad "prose note (rc=$rc): $(cat "$TMP/err")"
+  && ok "set refuses a wait written in prose in a field (TD-166; a note goes to the Log, which is no field)" || bad "prose set (rc=$rc): $(cat "$TMP/err")"
 lp set TD-003 --blocked-by "decision (owner) — after TD-001 lands" >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 1 ] && grep -q 'refused — .*decision pointer names TD-001' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
-  && ok "set refuses an id in a decision's pointer (TD-172)" || bad "pointer (rc=$rc): $(cat "$TMP/err")"
+[ $rc -eq 1 ] && grep -q 'refused — .*old form' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
+  && ok "set refuses a decision with a pointer: v2.4 never writes the old form (TD-172's id in it with it)" || bad "pointer (rc=$rc): $(cat "$TMP/err")"
 O2="$TMP/o2"; R2="$TMP/other"; mkrepo "$O2" "$R2"; echo "$R2" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 lp set TD-003 --blocked-by "other#TD-099" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'other has no TD-099' "$TMP/err" && grep -q fetch "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
