@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-04 — The ledger row judges ids with ledgerboard's `judge_takes`: an `Id take` is judged where present
+Do: an entry may carry `**Id take:** <nonce>` (its take's `take:` line); where present it alone is judged, and another id's take fails. Without it `Taken by` is judged as before, a match now an ℹ (`id-no-take`). Writers still write `Taken by` until TD-188's next slice.
+See: cadence.md §2.10; TD-188.
+
 ## 2026-11-04 — `ledger.py`'s reports are ledgerboard's `run_report`; `new` and `--split` date by UTC
 Do: parse `--pickable`/`--list`/`--counts`/`--fields`/`--summary --json` as JSON (now one line, not indented); read `new`'s default Added and `--split`'s summary date as the UTC day; `--check` is unchanged.
 See: cadence.md §2.12; TD-216.

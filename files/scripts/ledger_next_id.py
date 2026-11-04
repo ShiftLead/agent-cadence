@@ -41,10 +41,11 @@ the same for every session on a machine — else unknown: TD-195, the counter is
 take never writes the id or the address itself), ``branch`` (``--branch``, else the current
 branch; left out when detached), ``take`` (a nonce, so no two takes are ever one commit) and ``host`` (left out in a cloud session or a container, and when the repo's ``docs/cadence.toml``
 says ``ledger-ids-host = "off"``). The cadence check's ``ledger`` row and ``ledger.py --check --since`` decide on
-them through ``judge()`` (TD-145):
-``read_takes()`` maps each id to the take that gave it; a new id in a PR that no take gave fails, one
-whose entry's ``**Taken by:**`` is not its take's ``by`` fails naming the ``by``, one with no
-``**Taken by:**`` warns, one whose take names a branch that is neither the default nor the PR's
+them through ``judge()`` (TD-145), which is ledgerboard's ``judge_takes()`` (TD-188) over ``read_takes()``
+(each commit read by its ``parse_take()``): a new id in a PR that no take gave fails; an entry's
+``**Id take:**`` is judged alone where present (another id's take's nonce, or no take's, fails naming both
+ids, never the nonce); without one, a ``**Taken by:**`` that is not its take's ``by`` fails naming the ``by``,
+a matching one warns asking for the ``Id take``, and neither warns, one whose take names a branch that is neither the default nor the PR's
 warns, and one whose take's ``by`` is a bare session id (a UUID) or an email address warns (TD-195). A reserved take prints the line to write in each entry's header: ``**Taken by:** <by>``.
 
 ``--claim TD-N`` takes exactly that id, for one the fallback printed and could not reserve: the same
@@ -245,30 +246,36 @@ def probe(root: Path) -> str | None:
     return ""
 
 
-TAKE_RE = re.compile(r"^TD-(\d+)(?:\.\.TD-(\d+))? \[skip ci\]$")   # message()'s subject
+class Takes(dict):
+    """id -> the first take that gave it (``read_takes()``'s map, as callers index it), and ``all``: every take
+    the counter holds, in order, as ledgerboard's ``judge_takes()`` reads them (an id given twice is in both)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.all: list[dict] = []
 
 
-def read_takes(root: Path, ref: str = TRACKING_REF) -> dict[int, dict] | None:
-    """Every id the counter at ``ref`` gave, mapped to its take: ``sha``, ``date`` and the body's
-    fields (``by``, ``branch``, ``take``, ``host``, those it has). The first take of an id wins, so
-    a counter hand-edited to give one twice reads as the earlier. None when the log cannot be read;
-    a commit whose subject is not a take's (a hand-made LAST) gives nothing."""
+def read_takes(root: Path, ref: str = TRACKING_REF) -> Takes | None:
+    """Every id the counter at ``ref`` gave, mapped to its take: ledgerboard's ``parse_take()`` of each
+    commit (``ids`` and the body's ``by``, ``branch``, ``take``, ``host``, those it has; TD-188), with its
+    ``sha`` and ``date``. The first take of an id wins the map; ``.all`` keeps every take. None when the
+    log cannot be read; a commit that is not a take's (a hand-made LAST) gives nothing."""
     r = git(root, "log", "--reverse", "--format=%H%x00%cI%x00%s%x00%b%x1e", ref)
     if r.returncode != 0:
         return None
-    takes: dict[int, dict] = {}
+    takes = Takes()
     for rec in r.stdout.split("\x1e"):
         parts = rec.strip("\n").split("\x00", 3)
         if len(parts) != 4:
             continue
         sha, date, subject, body = parts
-        m = TAKE_RE.match(subject.strip())
-        if not m:
+        t = L.LB.parse_take(subject, body)
+        if t is None:
             continue
-        lo, hi = int(m.group(1)), int(m.group(2) or m.group(1))
-        fields = {k.strip(): v.strip() for k, sep, v in (ln.partition(":") for ln in body.splitlines()) if sep}
-        for n in range(lo, hi + 1):
-            takes.setdefault(n, {"sha": sha, "date": date, **fields})
+        t.update(sha=sha, date=date)
+        takes.all.append(t)
+        for n in t["ids"]:
+            takes.setdefault(n, t)
     return takes
 
 
@@ -289,10 +296,6 @@ def counter_takes(root: Path) -> tuple[dict[int, dict] | None, str]:
     return takes, ""
 
 
-UNHASHED_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[^\s@]+@[^\s@]+\.[^\s@]+",
-                         re.IGNORECASE)
-
-
 def default_by(root: Path) -> str:
     """TD-195: the take's ``by`` when no ``--by`` is given: the first 12 hex digits of the sha256 of the
     session's id, else of ``git config user.email``, else ``unknown``. One session's takes still share
@@ -307,61 +310,18 @@ def default_by(root: Path) -> str:
 
 def judge(new: set[int], takes: dict[int, dict], texts: list[str], branch: str, default: str
           ) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
-    """TD-145: new ids against the counter's takes, for the cadence check's ``ledger`` row and
-    ``ledger.py --check --since`` alike. ``texts`` are the ledger and archive holding the new entries,
-    ``branch`` the one they are for, ``default`` the default branch. Returns (fails, warns), each a list
-    of (kind, text). A new id no take gave fails (nobody handed it out); one below the counter's first
-    take predates the counter and warns. An id a take gave: its entry's ``**Taken by:**`` naming another
-    than the take's ``by`` fails, naming the ``by`` (the #2370 case — an id typed by hand that another
-    session was later handed); none warns, except where the ledger declares a ``Fields:`` vocabulary,
-    whose check would refuse a field the format does not define yet; a take naming a branch neither
-    the default nor ``branch`` warns — a session may take an id on one branch for an entry it files in
-    another PR; a take whose ``by`` is a bare UUID or an email address warns (TD-195: it publishes
-    what ``default_by()`` hashes)."""
-    LB = L.LB
-    fails: list[tuple[str, str]] = []
-    warns: list[tuple[str, str]] = []
-    first = min(takes)
-    nobody = sorted(n for n in new if n not in takes and n >= first)
-    before = sorted(n for n in new if n not in takes and n < first)
-    if nobody:
-        fails.append(("id-untaken", f"{', '.join(map(tid, nobody))} handed out by nobody: the counter gave no such id — "
-                      "take ids from the front end or ledger_next_id.py, and an id its fallback printed "
-                      "with ledger_next_id.py --claim (cadence §2.10)"))
-    if before:
-        warns.append(("id-before-counter", f"{', '.join(map(tid, before))} below the counter's first take "
-                      f"({tid(first)}): older than the counter, not judged against it"))
-    taker: dict[int, str | None] = {}
-    for t in texts:
-        for e in LB.entries(t):
-            taker.setdefault(int(e["id"][3:]), e["fields"].get("taken by"))
-    writable = "taken by" in LB.CADENCE_FIELDS or not LB.declared(texts[0] if texts else "")[0]
-    mismatch, missing, elsewhere, unhashed = [], [], [], []
-    for n in sorted(n for n in new if n in takes):
-        by = (takes[n].get("by") or "").strip()
-        if UNHASHED_RE.search(by):
-            unhashed.append(tid(n))
-        if n in taker:
-            if not LB.first_word(taker[n]):   # absent, or a value of only marks
-                if writable and by:
-                    missing.append(f"{tid(n)} (`**Taken by:** {by}`)")
-            elif by and LB.first_word(taker[n]) != LB.first_word(by):
-                mismatch.append(f"{tid(n)} was handed to {by}, not {LB.first_word(taker[n])}")
-        took = (takes[n].get("branch") or "").strip()
-        if took and took not in (default, branch or ""):
-            elsewhere.append(f"{tid(n)} ({took})")
-    if mismatch:
-        fails.append(("id-taken-by", "; ".join(mismatch) + " — an id is the session's the counter handed it to; "
-                      "take this entry its own (cadence §2.10)"))
-    if missing:
-        warns.append(("id-no-taken-by", f"no **Taken by:** on {', '.join(missing)} — write its take's by in the "
-                      "header (cadence §2.10)"))
-    if elsewhere:
-        warns.append(("id-branch", f"taken for another branch: {', '.join(elsewhere)}"))
-    if unhashed:
-        warns.append(("id-by-unhashed", f"{', '.join(unhashed)} taken by a bare session id or an email "
-                      "address, which the counter publishes — take ids with no --by, which hashes it (TD-195)"))
-    return fails, warns
+    """New ids against the counter's takes, for the cadence check's ``ledger`` row and ``ledger.py --check
+    --since`` alike (TD-145): ledgerboard's ``judge_takes()`` (TD-188), with the transition's
+    ``accept_taken_by`` — an entry's ``Id take`` is judged alone where it is present; where it is absent a
+    ``Taken by`` naming its take's ``by`` passes with a warning, one naming another fails. ``texts`` are the
+    ledger and archive holding the new entries, ``branch`` the one they are for, ``default`` the default
+    branch; ``takes`` a ``read_takes()`` map (its ``.all``, else its distinct values). Returns (fails, warns),
+    each a list of (kind, text)."""
+    every = getattr(takes, "all", None) or list({id(t): t for t in takes.values()}.values())
+    every = [t if t.get("ids") else {**t, "ids": [n for n, v in takes.items() if v is t]} for t in every]
+    fails, warns = L.LB.judge_takes(new, every, texts, branch, default, accept_taken_by=True)
+    here = {"id-untaken": " (here: `ledger_next_id.py`, and `ledger_next_id.py --claim TD-N` for a printed one; cadence §2.10)"}
+    return [(k, t + here.get(k, "")) for k, t in fails], warns
 
 
 def read_last(root: Path, tip: str) -> str | None:
