@@ -757,8 +757,8 @@ SEED_V1_TO_V2 = (
      "[`technical_debt_archive.md`](technical_debt_archive.md), delete its summary row, and replace **Fix** with the "
      "resolution date plus a pointer to whichever doc/code now carries the lasting content. An entry that is only "
      "*partly* resolved stays here, with what shipped and what remains spelled out in its **Status**.",
-     "**This directory holds the ledger:** one `TD-NNN.md` per open entry, and [`archive/`](archive/) for the resolved "
-     "ones. When an entry is fully resolved, `scripts/ledger.py archive TD-n` moves it there and replaces **Fix** with "
+     "**This directory holds the ledger:** one `TD-NNN.md` per open entry, and `archive/` (made by the first archive) for "
+     "the resolved ones. When an entry is fully resolved, `scripts/ledger.py archive TD-n` moves it there and replaces **Fix** with "
      "the resolution date plus a pointer to whichever doc/code now carries the lasting content. An entry that is only "
      "*partly* resolved stays open, with what shipped and what remains spelled out in its **Status**."),
 )
@@ -772,10 +772,16 @@ def _seed_to_v2(readme: str) -> str:
 
 
 def _v1_notes(readme: str) -> list[str]:
-    """ledgerboard's split_notes() on the README as written, less its relative-link notes: relink() has
-    rewritten each link it could resolve and warned on the rest (TD-176)."""
-    return [f"README.md:{n}: {why} — rewrite the line for the v2 layout" for n, _, why in LB.split_notes(readme)
-            if not why.startswith("links ")]
+    """ledgerboard's split_notes() on the README as written, less the notes on an inline link (``](target)``):
+    relink() has rewritten each of those it could resolve and warned on the rest (TD-176). A reference
+    definition or an HTML link relink() does not rewrite keeps its note."""
+    out = []
+    for n, line, why in LB.split_notes(readme):
+        m = re.match(r"links (.+?) relatively", why)
+        if m and f"]({m.group(1)}" in line:
+            continue
+        out.append(f"README.md:{n}: {why} — rewrite the line for the v2 layout")
+    return out
 
 
 
