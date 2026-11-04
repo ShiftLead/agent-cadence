@@ -174,6 +174,9 @@ from ledgerboard import (  # noqa: E402,F401  # re-exported: readers and tests r
     parse_blocked,
 )
 from ledgerboard import heading_nums as _heading_nums  # noqa: E402
+from ledgerboard import (
+    ledger as LBL,  # noqa: E402  # the package's ledger writer (v2.4): every write goes through it (TD-216)
+)
 
 LEDGER_REL, ARCHIVE_REL = "docs/technical_debt.md", "docs/technical_debt_archive.md"
 LEDGER_DIR_REL = "docs/ledger"  # a v2 ledger (TD-160): one TD-NNN.md per entry, read through LB.load()
@@ -417,8 +420,16 @@ def check(ledger: str, archive: str, old: str | None = None, roster: Roster | No
     ledgerboard flags it again (TD-222), the rest of the ledger is checked without those entries, and each
     is one ``check-refused`` flag — an error on an entry this edit wrote, standing ℹ on one ``old`` holds
     as it is (so a PR is never failed on an entry it did not touch, cadence.md §2.12's ``--since``)."""
+    return guarded_check(ledger, archive, old, (roster or Roster()).resolve, rank_text, today=today)
+
+
+def guarded_check(ledger: str, archive: str, old: str | None = None, resolve: LB.Resolve | None = None,
+                  rank_text: str | None = None, *, today: date | str | None = None) -> list[dict]:
+    """``check()`` with the resolver given as ledgerboard's ``check()`` takes it — so the package's ledger
+    writer gates through it too (bound as ``LBL.check`` below, TD-216: a below-block entry elsewhere must not
+    refuse an edit of another one). TD-222 removes both once ledgerboard flags the entry again."""
     def run(text: str, before: str | None) -> list[dict]:
-        return LB.check(text, archive, before, (roster or Roster()).resolve, rank_text=rank_text, today=_today(today))
+        return LB.check(text, archive, before, resolve, rank_text=rank_text, today=_today(today))
     try:
         return run(ledger, old)
     except LB.Refused as e:
@@ -1061,6 +1072,22 @@ class _Writer:
         print(f"ledger: {cmd}: {text}", file=sys.stderr)
         return code
 
+    def lb_ledgers(self) -> "tuple[LBL.Ledger, LBL.Ledger | None]":
+        """(the ledger as the package's writer reads it, the same at origin/<default> — the gate's base — or
+        None where that ref holds no v2 ledger): this script keeps the git I/O, the package the edit (TD-216)."""
+        led = LBL.Ledger.open(str(self.ledger))
+        io = git_io(self.root, self.ref, self.rel)
+        if io is None or io[0](self.rel) is None:
+            return led, None
+        files = {}
+        for d in ("", LB.LEDGER_ARCHIVE):
+            sub = f"{self.rel}/{d}".rstrip("/")
+            for n in io[0](sub) or []:
+                t = io[1](f"{sub}/{n}")
+                if t is not None:
+                    files[os.path.join(str(self.ledger), d, n) if d else os.path.join(str(self.ledger), n)] = t
+        return led, LBL.Ledger(str(self.ledger), files, True)
+
     def xrepo_refused(self, value: str | None, was: str = "") -> bool:
         """A ``<repo>#TD-n`` this Blocked by value adds (not in ``was``) whose roster repo was read and has
         no such entry (TD-153's missing) is refused, saying to fetch there."""
@@ -1223,10 +1250,11 @@ def new(argv: list[str]) -> int:
 
 
 def edit(cmd: str, argv: list[str]) -> int:
-    """``ledger.py set|note|edit TD-n …``: one edit of an open entry through ``edit_entry()`` (TD-199)."""
+    """``ledger.py set|note|edit TD-n …``: one edit of an open entry (TD-199) — note and edit through ledgerboard's
+    writer (``_lb_edit``, TD-216), set through ``edit_entry()`` until TD-218."""
     ap = argparse.ArgumentParser(prog=f"ledger.py {cmd}", description={
         "set": "set an open entry's header fields (an empty value removes one)",
-        "note": "append a dated line to an open entry's Status",
+        "note": "append a dated line (the UTC day) to an open entry's Log",
         "edit": "replace one section of an open entry (or add it where SPEC puts it)"}[cmd])
     ap.add_argument("id", metavar="TD-n")
     if cmd == "set":
@@ -1255,6 +1283,8 @@ def edit(cmd: str, argv: list[str]) -> int:
     w = _Writer.open(cmd, a.ledger)
     if isinstance(w, int):
         return w
+    if cmd != "set":   # TD-216: note and edit are the package's writer's; set waits for TD-218 (its --by gate route)
+        return _lb_edit(w, cmd, a.id, kw)
     found = LB.entry_path(str(w.ledger), a.id, w.io[0])
     if found is None:
         return w.say(cmd, f"{a.id} is in neither {w.ledger} nor its archive", 2)
@@ -1275,6 +1305,32 @@ def edit(cmd: str, argv: list[str]) -> int:
         with open(path, "w", encoding="utf-8", newline="") as f:
             f.write(out)
     print(path)
+    return 0
+
+
+LBL.check = guarded_check  # the package writer's gate (``LBL._flags``) reads check() through this guard (TD-222)
+
+
+def _lb_edit(w: _Writer, cmd: str, tid: str, kw: dict) -> int:
+    """``note``/``edit`` through ledgerboard's ``plan_edit()`` (TD-216): the package reads, edits, gates against
+    the ledger at origin/<default> (``check()``, with this machine's roster resolving cross-repo items) and
+    writes; the date is its UTC day. Exit by the package's table: 1 refused, 2 unusable, 4 the write failed."""
+    kw = {k: v for k, v in kw.items() if k != "today"}
+    try:
+        led, base = w.lb_ledgers()
+        plan = LBL.plan_edit(led, cmd, tid, base=base, resolve=w.roster.resolve, **kw)
+    except LBL.Unusable as e:
+        return w.say(cmd, str(e), 2)
+    except LB.Refused as e:
+        w.say(cmd, f"refused — {e}", 1)
+        return w.say(cmd, f"nothing was written to {LB.entry_path(str(w.ledger), tid, w.io[0])}", 1)
+    for n in plan.info.get("notes", []):
+        w.say(cmd, f"note — {n}", 0)
+    try:
+        LBL.apply(plan)
+    except OSError as e:
+        return w.say(cmd, f"the write failed, every file restored: {e}", 4)
+    print(LB.entry_path(str(w.ledger), tid, w.io[0]))
     return 0
 
 

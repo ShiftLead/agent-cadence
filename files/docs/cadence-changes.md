@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-04 — `ledger.py note` and `edit` are ledgerboard's writer's: UTC dates, exit 4 on a failed write
+Do: read a note's date as the UTC day; expect `note`/`edit` to exit 1 refused, 2 unusable, 4 a write failed (files restored); `set` is unchanged until TD-218.
+See: cadence.md §2.12; TD-216.
+
 ## 2026-11-04 — `ledger.py --split` rewrites the seed's v1 preamble and warns on the rest
 Do: after a split, rewrite only the README lines `--split` warns about (`README.md:<n>: … rewrite the line for the v2 layout`); an unedited seed preamble needs no hand edit.
 See: cadence.md §2.12; TD-183.
