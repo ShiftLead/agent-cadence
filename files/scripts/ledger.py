@@ -135,8 +135,11 @@ never a gate (cadence.md §7): ``--check`` is what lets a caller choose to gate 
 ``<repo>#TD-n`` ids the package names (its exit 3, ``needs:``) through the roster, as its ``--resolved``
 file, until none is needed. Their ``--json`` is one line. ``--check`` stays this script's: its ``--since``
 reads a git ref, and it adds the prose-wait, Ask, archive-loss, canonical-form and id flags to the package's.
-Every command's exit follows the package's table: 0 ok, 1 refused, 2 usage or unreadable, 3 needs (an id
-the run could not resolve, or an archive's cross-repo successor), 4 a write failed, every file restored.
+The reports, ``fmt``, ``note``, ``edit``, ``archive`` and ``reopen`` exit by the package's table: 0 ok,
+1 refused, 2 usage or unreadable, 3 needs (an id the run could not resolve, or an archive's cross-repo
+successor), 4 a write failed, every file restored. ``--check`` exits 1 when an error flag stands. ``new``
+and ``renumber`` keep their own (above; no exit 4, a failed write raises) until TD-188 moves them onto the
+package's writer, and ``set`` until TD-218.
 """
 
 from __future__ import annotations
@@ -1679,6 +1682,7 @@ def report(argv: list[str], ledger: Path, archive: Path | None, roster: Roster |
     sys.stdout.write(out.getvalue())
     sys.stderr.write(err.getvalue().replace("ledgerboard.ledger: ", "ledger: "))
     return rc
+
 
 if __name__ == "__main__":
     sys.exit(main())
