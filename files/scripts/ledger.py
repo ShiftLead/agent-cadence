@@ -129,19 +129,33 @@ ledger or archive declares a newer major of the format than the ``ledgerboard`` 
 (``Ledgerboard: N``, TD-133) — then nothing was read. A cross-repo blocker whose ledger declares
 one stays blocked, and says why. A detector,
 never a gate (cadence.md §7): ``--check`` is what lets a caller choose to gate on it.
+
+``--pickable``, ``--list``, ``--counts``, ``--fields`` and ``--summary`` are ledgerboard's reports
+(``ledgerboard.ledger``'s ``run_report``, TD-216): this script finds the ledger and resolves the
+``<repo>#TD-n`` ids the package names (its exit 3, ``needs:``) through the roster, as its ``--resolved``
+file, until none is needed. Their ``--json`` is one line. ``--check`` stays this script's: its ``--since``
+reads a git ref, and it adds the prose-wait, Ask, archive-loss, canonical-form and id flags to the package's.
+The reports, ``fmt``, ``note``, ``edit``, ``archive`` and ``reopen`` exit by the package's table: 0 ok,
+1 refused, 2 usage or unreadable, 3 needs (an id the run could not resolve, or an archive's cross-repo
+successor), 4 a write failed, every file restored. ``--check`` exits 1 when an error flag stands. ``new``
+and ``renumber`` keep their own (above; no exit 4, a failed write raises) until TD-188 moves them onto the
+package's writer, and ``set`` until TD-218.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import functools
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 from collections.abc import Mapping
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+from io import StringIO
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -176,17 +190,11 @@ from ledgerboard import heading_nums as _heading_nums  # noqa: E402
 from ledgerboard import (
     ledger as LBL,  # noqa: E402  # the package's ledger writer (v2.4): every write goes through it (TD-216)
 )
-from ledgerboard.ledger import (  # noqa: E402  # the reports' rows, filters and counts are the package's (TD-216)
-    _held_by,
-    _row,
-    counts,
-    field_summary,
-    select,
-)
 
 LEDGER_REL, ARCHIVE_REL = "docs/technical_debt.md", "docs/technical_debt_archive.md"
 LEDGER_DIR_REL = "docs/ledger"  # a v2 ledger (TD-160): one TD-NNN.md per entry, read through LB.load()
 ALIASES = ("type", "owner", "kind")  # --type X is --where type=X, and so on
+NEEDS_ID_RE = re.compile(r"[\w.-]+(?:/[\w.-]+)*#TD-\d+")   # an id run_report names after needs: (TD-216)
 RESOLVED_RE = re.compile(r"^\*\*Resolved:\*\*\s*(\d{4}-\d{2}-\d{2})", re.M)   # an archived entry's date (TD-152)
 
 
@@ -839,7 +847,7 @@ def split(ledger: Path, archive: Path, v2: bool) -> int:
         files[f"{LB.LEDGER_ARCHIVE}/{FROZEN_SUMMARY}"] = (
             f"# {archive.name}'s summary, frozen at the split\n\n"
             f"This table was the `{heading.strip()}` of `{archive.name}` when the ledger was split into this directory "
-            f"(`ledger.py --split`, {datetime.now().astimezone().date().isoformat()}). It is not kept up to date: an entry "
+            f"(`ledger.py --split`, {datetime.now(timezone.utc).date().isoformat()}). It is not kept up to date: an entry "
             "archived since is not in it, and each entry's own file is the record.\n\n" + table.strip("\n") + "\n")
     rank = Path(LB.rank_path(str(ledger)))
     # the round trip above compared the bytes; the links are rewritten for the files' new place after it
@@ -1118,7 +1126,7 @@ def new(argv: list[str]) -> int:
             sections.append((name, body.strip()))
     if not sections or sections[0][0] != "Why":
         ap.error("--why is empty: the Why is the point of an entry (cadence.md §2)")
-    a.added = a.added if a.added is not None else datetime.now().astimezone().date().isoformat()
+    a.added = a.added if a.added is not None else datetime.now(timezone.utc).date().isoformat()
     a.status = a.status if a.status is not None else "Open"
     fields = _fields_given(ap, a)
 
@@ -1208,7 +1216,7 @@ def edit(cmd: str, argv: list[str]) -> int:
         if not kw["fields"]:
             ap.error("give at least one field to set")
     elif cmd == "note":
-        kw.update(words=a.words, today=datetime.now().astimezone().date().isoformat())
+        kw.update(words=a.words, today=datetime.now(timezone.utc).date().isoformat())
     else:
         kw.update(section=a.section, words=_read_body(ap, "--from", a.src).strip())
         if not kw["words"]:
@@ -1646,60 +1654,34 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ledger check: {len(errors)} error(s)"
               + (f"; {standing} standing flag(s) on entries unchanged since {a.since}, not shown" if standing else ""))
         return 1 if errors else 0
-    res = pickable(text, arch, rank_text=rank_text)
+    return report(argv, ledger, None if v2 else archive)
 
-    if mode == "summary":
-        if a.json:
-            print(json.dumps({"entries": res["entries"], "flags": res["flags"]}, indent=2, ensure_ascii=False))
-            return 0
-        print("| ID | Title | Priority | Type | State |\n|----|-------|----------|------|-------|")
-        for r in res["entries"]:
-            state = "pickable" if r["pickable"] else f"blocked by {_held_by(r)}"
-            print(f"| {r['id']} | {r['title'].replace('|', '/')} | {r['priority']} | {r['type']} | {state} |")
-    elif mode == "pickable":
-        if a.json:
-            print(json.dumps({k: res[k] for k in ("pickable", "blocked", "flags")}, indent=2, ensure_ascii=False))
-            return 0
-        print(f"Pickable ({len(res['pickable'])}), in pick order:")
-        for r in res["pickable"]:
-            print(_row(r))
-        if not res["pickable"]:
-            print("  (none)")
-        if res["blocked"]:
-            print(f"Blocked ({len(res['blocked'])}):")
-            for r in res["blocked"]:
-                print(f"{_row(r)} — by {_held_by(r)}")
-    elif mode == "list":
-        kept = select(res["entries"], where, want)
-        if a.json:
-            print(json.dumps({"entries": kept, "flags": res["flags"]}, indent=2, ensure_ascii=False))
-            return 0
-        print(f"Entries ({len(kept)}), in pick order:")
-        for r in kept:
-            print(_row(r) + ("" if r["pickable"] else f" — blocked by {_held_by(r)}"))
-        if not kept:
-            print("  (none)")
-    elif mode == "counts":
-        rows = counts(select(res["entries"], where, want), by)
-        if a.json:
-            print(json.dumps({"by": by, "counts": rows, "flags": res["flags"]}, indent=2, ensure_ascii=False))
-            return 0
-        for row in rows:
-            print(f"  {row['count']:>4}  " + "  ".join(f"{k}={row[k]}" for k in by))
-        if not rows:
-            print("     0")
-    else:
-        fs = field_summary(res)
-        if a.json:
-            print(json.dumps({"fields": fs, "flags": res["flags"]}, indent=2, ensure_ascii=False))
-            return 0
-        for f in fs:
-            vocab = f" — declared: {' | '.join(f['declared'])}" if f["declared"] else ""
-            vals = ", ".join(f"{v} {n}" for v, n in f["values"].items())
-            print(f"  {f['field']:<12} {f['defined_by']:<10} {f['entries']:>3} entries  {vals}{vocab}")
-    for f in res["flags"]:
-        print(f)
-    return 0
+
+def report(argv: list[str], ledger: Path, archive: Path | None, roster: Roster | None = None) -> int:
+    """--pickable, --list, --counts, --fields, --summary: ledgerboard's ``run_report`` (TD-216), given the
+    ledger's path and this machine's roster as its ``--resolved`` file (target design §1.1). The package names
+    the ``<repo>#TD-n`` ids it needs (exit 3, ``needs:``), which are resolved and the report run again, until
+    nothing is needed; only the last run's output is printed. The day is this machine's civil date, as before."""
+    roster = roster or Roster()
+    answers: dict[str, dict] = {}
+    with tempfile.TemporaryDirectory(prefix="ledger-report-") as tmp:
+        path = Path(tmp) / "resolved.json"
+        for _ in range(64):   # each round resolves at least one new id, so a supersede chain ends
+            path.write_text(json.dumps(answers), encoding="utf-8")
+            out, err = StringIO(), StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                rc = LBL.run_report([*argv, "--ledger", str(ledger), *(["--archive", str(archive)] if archive else []),
+                                     "--resolved", str(path), "--today", str(_today(None))])
+            seen = {k.lower() for k in answers}   # the package reads its keys case-insensitively
+            new = [m.group(0) for m in NEEDS_ID_RE.finditer(out.getvalue() + err.getvalue())
+                   if m.group(0).lower() not in seen] if rc == 3 else []
+            if not new:
+                break
+            for item in new:
+                answers[item] = roster.resolve(item)
+    sys.stdout.write(out.getvalue())
+    sys.stderr.write(err.getvalue().replace("ledgerboard.ledger: ", "ledger: "))
+    return rc
 
 
 if __name__ == "__main__":

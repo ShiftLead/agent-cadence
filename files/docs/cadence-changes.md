@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-04 — `ledger.py`'s reports are ledgerboard's `run_report`; `new` and `--split` date by UTC
+Do: parse `--pickable`/`--list`/`--counts`/`--fields`/`--summary --json` as JSON (now one line, not indented); read `new`'s default Added and `--split`'s summary date as the UTC day; `--check` is unchanged.
+See: cadence.md §2.12; TD-216.
+
 ## 2026-11-04 — `ledger.py fmt` is ledgerboard's writer's: its writes land all or none
 Do: expect `fmt` to exit 4 when a write fails (every file restored) and to name an unknown id at the ledger's width (`TD-099`); its other exits are unchanged.
 See: cadence.md §2.12; TD-216.
