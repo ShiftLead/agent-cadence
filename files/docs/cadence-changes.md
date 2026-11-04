@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-04 — `ledger.py new` and `renumber` write `**Id take:**`, not `Taken by`
+Do: nothing to copy — `new` and `renumber` now write the take's nonce as `Id take` through ledgerboard's `plan_new`/`plan_renumber` (`Taken by` only for an old take with no nonce); `renumber` of an archived entry exits 2.
+See: cadence.md §2.10; TD-188.
+
 ## 2026-11-04 — `ledger_next_id.py` prints the take's `**Id take:**`; `--show TD-N` recovers it
 Do: write the printed `**Id take:** <nonce>` (`id_take` in `--json`) in the entry's header beside `Taken by`; lost it? `ledger_next_id.py --show TD-N` (your own take only; `--by` for a hand-off).
 See: cadence.md §2.10; TD-188.

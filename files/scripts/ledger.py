@@ -86,13 +86,14 @@ the heading, the header block in its field order, the body byte for byte, LF lin
 would change and writes nothing. Exit 1 when an entry was refused, or under ``--check`` would change;
 2 for a v1 ledger (split first), an id in neither directory, or a ledger ``v2_problems()`` faults.
 
-``new`` (TD-198) files one entry in a v2 ledger: ``docs/ledger/TD-NNN.md`` from ledgerboard's
-``entry_text()``, so canonical by construction — a flag per header field (``--priority``, ``--type``,
+``new`` (TD-198) files one entry in a v2 ledger: ``docs/ledger/TD-NNN.md`` from ledgerboard's writer,
+``plan_new()`` (TD-188), so canonical by construction — a flag per header field (``--priority``, ``--type``,
 ``--added`` (default today), ``--owner``, ``--kind``, ``--status`` (default Open), ``--blocked-by``,
 ``--part-of``, ``--location``; ``--field NAME=VALUE`` for a repo's own) and ``--why``, ``--fix``,
 ``--done-when`` each from a file or ``-`` for stdin. The id is a take from the counter
-(``ledger_next_id.py``, ``--by`` passed through) and ``Taken by`` its ``by``; ``--id TD-n`` files under an
-id already taken (written at §2.2's width, ``TD-3`` as ``TD-003``), ``Taken by`` that take's ``by`` — judged as
+(``ledger_next_id.py``, ``--by`` passed through) and ``Id take`` its nonce; ``--id TD-n`` files under an
+id already taken (written at §2.2's width, ``TD-3`` as ``TD-003``), ``Id take`` that take's nonce (``Taken by``
+its ``by`` only for a take with no nonce, made before the counter wrote one) — judged as
 the gate judges it, so in a repo whose counter has no take yet an id nobody took is not caught. It refuses the write on every flag the entry brings
 that ``--check --since origin/<default>`` counts as an error (``cross-repo`` a note), on a wait written in
 prose (``prose-wait``), and on a ``<repo>#TD-n`` blocker whose roster repo was read and has no such entry —
@@ -111,10 +112,11 @@ an archived entry is not edited. Exit 0 written; 1 refused; 2 a usage error, an 
 archived or reopened form, ``relink()`` for the other directory, then ``git mv`` (a rename for a file git
 does not track), the move and its edit staged; a parent with an open part is refused; a link to the moved file
 from another file is named, never rewritten. ``renumber TD-old [TD-new]`` takes the new id from
-the counter (``TD-new``: one a take gave, else ``--claim``ed), moves the file, rewrites every Blocked by and
-Part of naming it and its rank line, and lists the references in prose — here, and as ``<repo>#TD-old`` in
-the roster's other repos — for the session to judge; an archived entry is not renumbered (the gate's
-archive-loss), and a file ``canonical()`` refuses stops it before any take. Each refuses as ``new`` does, and
+the counter (``TD-new``: one a take gave, else ``--claim``ed) and writes through ledgerboard's ``plan_renumber()``
+(TD-188): it moves the file, writes the take's nonce as ``Id take``, rewrites every Blocked by, Part of and
+Log ``while`` naming it, its rank line and the ledger's links to it, and lists the references in prose — here,
+and as ``<repo>#TD-old`` in the roster's other repos — for the session to judge; an archived entry is not
+renumbered (exit 2), and a file ``canonical()`` refuses stops it before any take. Each refuses as ``new`` does, and
 commits nothing.
 
 The ledger is a v1 file or a v2 directory (ledgerboard SPEC *The ledger as a directory*, TD-160), and
@@ -136,11 +138,10 @@ never a gate (cadence.md §7): ``--check`` is what lets a caller choose to gate 
 ``<repo>#TD-n`` ids the package names (its exit 3, ``needs:``) through the roster, as its ``--resolved``
 file, until none is needed. Their ``--json`` is one line. ``--check`` stays this script's: its ``--since``
 reads a git ref, and it adds the prose-wait, Ask, archive-loss, canonical-form and id flags to the package's.
-The reports, ``fmt``, ``note``, ``edit``, ``archive`` and ``reopen`` exit by the package's table: 0 ok,
+The reports, ``fmt``, ``note``, ``edit``, ``archive``, ``reopen``, ``new`` and ``renumber`` (TD-188) exit by the package's table: 0 ok,
 1 refused, 2 usage or unreadable, 3 needs (an id the run could not resolve, or an archive's cross-repo
-successor), 4 a write failed, every file restored. ``--check`` exits 1 when an error flag stands. ``new``
-and ``renumber`` keep their own (above; no exit 4, a failed write raises) until TD-188 moves them onto the
-package's writer, and ``set`` until TD-218.
+successor), 4 a write failed, every file restored. ``--check`` exits 1 when an error flag stands. ``set``
+keeps its own (above; no exit 4, a failed write raises) until TD-218.
 """
 
 from __future__ import annotations
@@ -667,7 +668,8 @@ def _at_ref(ledger: Path, ref: str, archive: Path | None = None) -> tuple[tuple[
 def id_flags(ledger: Path, archive: Path, text: str, arch: str, ref: str) -> list[dict]:
     """TD-145: the ids this edit adds — in the ledger or archive and in neither at ``ref`` — judged
     against the counter's takes on origin (``ledger_next_id.judge()``, the cadence check's ``ledger``
-    row's own): an id nobody handed out, or one handed to another than its ``**Taken by:**``, is an
+    row's own, ledgerboard's ``judge_takes()``, TD-188): an id nobody handed out, an ``**Id take:**`` of
+    another id's take or of none, or (with no ``Id take``) a ``**Taken by:**`` naming another, is an
     error. The one call here that asks origin, and only when the edit adds an id; a repo with no
     counter, or no ``origin`` remote, is judged by nothing, and a counter origin did not give is an ℹ line."""
     import ledger_next_id as X  # sibling SYNC script: the counter's reader (it imports this one)
@@ -1144,22 +1146,36 @@ def new(argv: list[str]) -> int:
     if w.xrepo_refused(_field_value(fields, "blocked by")):
         return 1
 
-    def render(tid: str, taken_by: str | None) -> str | None:
+    try:
+        led, base = w.lb_ledgers()
+    except LBL.Unusable as e:
+        return w.say("new", str(e), 2)
+
+    def render(tid: str, take: str | None, taken_by: str | None) -> "LBL.Plan | int":
+        """The package writer's plan for the entry (TD-188): ``plan_new()`` writes the take's nonce as ``Id
+        take``; ``Taken by`` only for a take that carries no nonce (one made before the counter wrote one)."""
+        extra = [("Taken by", taken_by)] if taken_by and not take else []
         try:
-            out = LB.entry_text(tid, a.title, fields + ([("Taken by", taken_by)] if taken_by else []), sections)
+            plan = LBL.plan_new(led, tid, a.title, fields + extra, sections, take=take, base=base,
+                                resolve=w.roster.resolve)
+            out = next(t for t in plan.changes.values() if t is not None)
             if LB.canonical(out) != out:
                 raise LB.Refused("the entry would not be in canonical form")
-            return out
+            return plan
+        except LBL.Unusable as e:
+            return w.say("new", str(e), 2)
         except LB.Refused as e:
-            w.say("new", f"refused — {e}", 1)
-            return None
+            return w.say("new", f"refused — {e}", 1)
+
+    def text_of(plan: "LBL.Plan") -> str:
+        return next(t for t in plan.changes.values() if t is not None)
 
     # Everything but the id is judged first, under a provisional one, so a refusal spends no take.
-    provisional = f"TD-{max(known, default=0) + 1}"
-    entry = render(provisional, None)
-    if entry is None:
-        return 1
-    if w.refused(provisional, f"{provisional}.md", entry, with_ids=False, notes=False):  # notes once, below
+    provisional = LBL.tid_of(f"TD-{max(known, default=0) + 1}")   # at §2.2's width, as plan_new() writes it
+    plan = render(provisional, None, None)
+    if isinstance(plan, int):
+        return plan
+    if w.refused(provisional, f"{provisional}.md", text_of(plan), with_ids=False, notes=False):  # notes once, below
         return w.say("new", f"no id was taken and nothing was written ({provisional} above is provisional)", 1)
 
     import ledger_next_id as X  # sibling SYNC script: the counter (it imports this one)
@@ -1170,7 +1186,8 @@ def new(argv: list[str]) -> int:
         takes, why = X.counter_takes(w.root)
         if takes is None:
             return w.say("new", f"refused — {why}, so {tid}'s take cannot be named", 2)
-        taken_by = (takes.get(_num(tid)) or {}).get("by")
+        given = takes.get(_num(tid)) or {}
+        take, taken_by = given.get("take"), given.get("by")
     else:
         cmd = [sys.executable, str(Path(__file__).with_name("ledger_next_id.py")), "--json", "--ledger", w.rel]
         r = subprocess.run(cmd + (["--by", a.by] if a.by else []), cwd=w.root, capture_output=True, text=True,
@@ -1185,15 +1202,17 @@ def new(argv: list[str]) -> int:
                                 f"with `ledger_next_id.py --claim {t}`, then run again with --id {t}", 2)
         if r.returncode != 0 or not res.get("ids"):
             return w.say("new", f"no id was taken — {res.get('why')}", 2)
-        tid, taken_by = res["ids"][0], res.get("taken_by")
-    entry = render(tid, taken_by)
-    if entry is None or w.refused(tid, f"{tid}.md", entry):
+        tid, take, taken_by = res["ids"][0], res.get("id_take"), res.get("taken_by")
+    plan = render(tid, take, taken_by)
+    if isinstance(plan, int) or w.refused(tid, f"{tid}.md", text_of(plan)):
         return w.say("new", f"{tid} is taken and nothing was written — fix the above, then run again with --id {tid}", 1)
     path = w.ledger / f"{tid}.md"
     if path.exists():
         return w.say("new", f"{path} exists — nothing was written", 2)
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write(entry)
+    try:
+        LBL.apply(plan)
+    except OSError as e:
+        return w.say("new", f"the write failed: {e}", 4)
     print(path)
     return 0
 
@@ -1303,21 +1322,8 @@ def _overlay(io: tuple[LB.Ls, LB.Read], changes: Mapping[Path, str | None]) -> t
     return ls2, read2
 
 
-def _git_mv(root: Path, src: Path, dst: Path) -> bool:
-    """``git mv`` a tracked file, so the move is staged as one; a file git does not track is renamed.
-    Whether git tracks it now (so its edit is staged too, with ``_stage``)."""
-    dst.parent.mkdir(exist_ok=True)  # an archive/ git never saw: a directory with nothing archived yet
-    if _git(root, "ls-files", "--error-unmatch", "--", str(src)) is not None:
-        r = subprocess.run(["git", "-C", str(root), "mv", "--", str(src), str(dst)], capture_output=True,
-                           text=True, timeout=60, check=False)
-        if r.returncode == 0:
-            return True
-    os.replace(src, dst)
-    return False
 
 
-def _stage(root: Path, path: Path) -> None:
-    _git(root, "add", "--", str(path))
 
 
 def _links_to(root: Path, name: str) -> list[str]:
@@ -1325,9 +1331,6 @@ def _links_to(root: Path, name: str) -> list[str]:
     return _grep(root, rf"\]\(([^)]*/)?{re.escape(name)}([#)\s]|$)")
 
 
-def _write(path: Path, text: str) -> None:
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write(text)
 
 
 def _entry_file(w: "_Writer", cmd: str, tid: str) -> tuple[Path | None, bool, str]:
@@ -1444,53 +1447,45 @@ def renumber(argv: list[str]) -> int:
     known = LB.heading_nums(w.text) | LB.heading_nums(w.arch)
     import ledger_next_id as X  # sibling SYNC script: the counter (it imports this one)
 
-    def plan(tid: str, taken_by: str | None) -> dict[Path, str | None] | None:
-        """Every file the renumber writes (None: removed), or None when one is refused (said)."""
-        changes: dict[Path, str | None] = {}
+    try:
+        led, base = w.lb_ledgers()
+    except LBL.Unusable as e:
+        return w.say("renumber", str(e), 2)
+
+    def plan(tid: str, take: str | None, taken_by: str | None) -> "LBL.Plan | int":
+        """The package writer's renumber (TD-188): the file, its heading, every Blocked by, Part of and Log
+        ``while`` naming it, its rank line and the ledger's links to it; the take's nonce written as ``Id
+        take``, ``Taken by`` only for a take that carries no nonce. The exit code (said) when refused."""
         try:
-            out = LB.edit_entry(text, "renumber", new=tid)
-            if taken_by:
-                out = LB.edit_entry(out, "set", fields={"Taken by": taken_by})
+            p = LBL.plan_renumber(led, a.old, tid, take=take, base=base, resolve=w.roster.resolve)
+            dst = p.info["moved"]["to"]   # a Taken by the old id carried names another take: replaced or dropped
+            if taken_by and not take:
+                p.changes[dst] = LB.edit_entry(p.changes[dst], "set", fields={"Taken by": taken_by})
+            elif "taken by" in (LB.entries(p.changes[dst])[0]["fields"] if LB.entries(p.changes[dst]) else {}):
+                p.changes[dst] = LB.edit_entry(p.changes[dst], "set", fields={"Taken by": ""})
+            return p
+        except LBL.Unusable as e:
+            return w.say("renumber", str(e), 2)
         except LB.Refused as e:
-            w.say("renumber", f"refused — {path.name}: {e}", 1)
-            return None
-        changes[path] = None
-        changes[path.with_name(f"{tid}.md")] = out
-        for d in (w.ledger, w.ledger / LB.LEDGER_ARCHIVE):
-            for f in sorted(d.glob("TD-*.md")) if d.is_dir() else ():
-                if f == path:
-                    continue
-                t = f.read_text(encoding="utf-8")
-                fields = LB.entries(t)[0]["fields"] if LB.entries(t) else {}
-                if not any(LB._rename(fields.get(k) or "", old, tid) != (fields.get(k) or "") for k in ("blocked by", "part of")):
-                    continue
-                try:
-                    changes[f] = LB.edit_entry(t, "rename_ref", old=old, new=tid)
-                except LB.Refused as e:
-                    w.say("renumber", f"refused — {f.name} names {old}, and {e}", 1)
-                    return None
-        rank_file = Path(LB.rank_path(str(w.ledger)))
-        rank_text = w.io[1](str(rank_file))
-        key = LB.rank(rank_text)[0].get(old) if rank_text else None
-        if key is not None:
-            try:
-                changes[rank_file] = LB.set_rank(rank_text, {old: None, tid: key})
-            except LB.Refused as e:
-                w.say("renumber", f"refused — {rank_file.name}: {e}", 1)
-                return None
-        return changes
+            return w.say("renumber", f"refused — {e}", 1)
+
+    def changes_of(p: "LBL.Plan") -> dict[Path, str | None]:
+        return {Path(f): t for f, t in p.changes.items()}
 
     # Everything but the take is judged first, under a provisional id, so a refusal spends no take.
-    provisional = a.new or f"TD-{max(known, default=0) + 1}"
+    provisional = LBL.tid_of(a.new or f"TD-{max(known, default=0) + 1}")   # at §2.2's width, as the package writes it
     if a.new and _num(a.new) in known:
         return w.say("renumber", f"{a.new} is in the ledger or its archive already", 2)
-    changes = plan(provisional, None)
-    if changes is None or w.refused_changes(provisional, changes, with_ids=False, notes=False):
+    p = plan(provisional, None, None)
+    if isinstance(p, int):
+        return w.say("renumber", "no id was taken and nothing was written", p)
+    if w.refused_changes(provisional, changes_of(p), with_ids=False, notes=False):
         return w.say("renumber", "no id was taken and nothing was written", 1)
 
     takes, why = X.counter_takes(w.root)
     if a.new and takes and _num(a.new) in takes:
-        tid, taken_by = X.tid(_num(a.new)), takes[_num(a.new)].get("by")
+        given = takes[_num(a.new)]
+        tid, take, taken_by = X.tid(_num(a.new)), given.get("take"), given.get("by")
     else:
         cmd = [sys.executable, str(Path(__file__).with_name("ledger_next_id.py")), "--json", "--ledger", w.rel]
         cmd += (["--claim", a.new] if a.new else []) + (["--by", a.by] if a.by else [])
@@ -1501,21 +1496,22 @@ def renumber(argv: list[str]) -> int:
             res = {"ids": [], "why": (r.stderr.strip() or f"exit {r.returncode}")}
         if r.returncode != 0 or not res.get("ids"):
             return w.say("renumber", f"no id was taken — {res.get('why') or why}; nothing was written", 2)
-        tid, taken_by = res["ids"][0], res.get("taken_by")
-    changes = plan(tid, taken_by)
-    if changes is None or w.refused_changes(tid, changes):
+        tid, take, taken_by = res["ids"][0], res.get("id_take"), res.get("taken_by")
+    p = plan(tid, take, taken_by)
+    if isinstance(p, int) or w.refused_changes(tid, changes_of(p)):
         return w.say("renumber", f"{tid} is taken and nothing was written — fix the above, then run again "
                                  f"with {old} {tid}", 1)
-    dst = path.with_name(f"{tid}.md")
-    tracked = _git_mv(w.root, path, dst)
-    for f, t in changes.items():
-        if t is not None:
-            _write(f, t)
-    if tracked:
-        _stage(w.root, dst)  # the move and its edit staged as one; the dependents' edits are left as set's are
+    src, dst = Path(p.info["moved"]["from"]), Path(p.info["moved"]["to"])
+    tracked = _git(w.root, "ls-files", "--error-unmatch", "--", str(src)) is not None
+    try:
+        LBL.apply(p)
+    except OSError as e:
+        return w.say("renumber", f"the write failed, every file restored: {e}", 4)
+    if tracked:   # the move and its edit staged as git mv stages them; the dependents' edits are left as set's are
+        _git(w.root, "add", "-A", "--", str(src), str(dst))
     print(dst)
-    for f in changes:
-        if f not in (path, dst):
+    for f in p.changes:
+        if Path(f) not in (src, dst):
             print(f)
     # What no field holds is the session's to judge: prose here, and <repo>#old in the roster's other repos.
     for ln in _grep(w.root, _ref_rx(old)):

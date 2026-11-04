@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # TD-198: `ledger.py new` files one entry in a v2 ledger from flags, its id from the counter.
 # Asserts: an entry from flags is written in canonical form, passes `--check --since` and
-# `fmt --check`, and carries the take's `Taken by`; two news take two ids; a body from stdin works;
+# `fmt --check`, and carries the take's nonce as `Id take` (TD-188; `Taken by` only for a take with no
+# nonce); two news take two ids; a body from stdin works;
 # what the gate would fail is refused before any take (an unknown Type, a prose wait), and so is a
 # cross-repo blocker its roster repo does not have; --id files under a taken id and refuses an
 # untaken one; a v1 ledger, two stdin sections and missing --priority/--why are usage errors.
@@ -37,15 +38,16 @@ mkrepo() {  # $1 origin dir, $2 clone dir
   git clone -q "$1" "$2"; git -C "$2" config user.email t@t
 }
 last() { git -C "$1" show refs/heads/cadence/ledger-ids:LAST 2>/dev/null; }   # $1 origin
+nonce() { git -C "$1" log -1 --format=%b refs/heads/cadence/ledger-ids | sed -n 's/^take: //p'; }   # the newest take's
 lp()   { (cd "$W" && python3 "$LEDGER_PY" "$@"); }
 O="$TMP/o"; W="$TMP/w"; mkrepo "$O" "$W"
 printf 'Filing goes wrong by hand.\n\nA second paragraph.\n' > "$TMP/why.md"
 printf -- '- one step\n- another\n' > "$TMP/fix.md"
 
-# --- 1) A full entry from flags: written in canonical form, with the take's Taken by.
+# --- 1) A full entry from flags: written in canonical form, with the take's nonce as Id take.
 out=$(lp new --title "a filed entry" --priority Medium --type debt --owner grinder --kind build \
       --location "x.py" --field "Area=ledger" --why "$TMP/why.md" --fix "$TMP/fix.md" 2>"$TMP/err"); rc=$?
-f="$W/docs/ledger/TD-003.md"
+f="$W/docs/ledger/TD-003.md"; N1=$(nonce "$O")
 want="## TD-003: a filed entry
 
 **Priority:** Medium
@@ -54,7 +56,7 @@ want="## TD-003: a filed entry
 **Owner:** grinder
 **Kind:** build
 **Status:** Open
-**Taken by:** $BY
+**Id take:** $N1
 **Location:** x.py
 **Area:** ledger
 
@@ -64,8 +66,9 @@ A second paragraph.
 
 **Fix:** - one step
 - another"
-if [ $rc -eq 0 ] && [ "$out" = "$f" ] && [ "$(cat "$f" 2>/dev/null)" = "$want" ] && [ "$(last "$O")" = 3 ]; then
-  ok "new writes the entry in canonical form under the taken id, with the take's Taken by, and prints its path"
+if [ $rc -eq 0 ] && [ "$out" = "$f" ] && [ "$(cat "$f" 2>/dev/null)" = "$want" ] && [ "$(last "$O")" = 3 ] \
+   && [ ${#N1} -eq 32 ] && ! grep -q 'Taken by' "$f"; then
+  ok "new writes the entry in canonical form under the taken id, its Id take the take's nonce (no Taken by), and prints its path"
 else
   bad "new (rc=$rc) out=$out: $(cat "$TMP/err") --- $(cat "$f" 2>/dev/null)"
 fi
@@ -115,8 +118,9 @@ out=$(lp new --title xrepo --priority Low --blocked-by "other#TD-001" --why "$TM
 # --- 5) --id: a taken id is filed with its take's by; an untaken one is refused.
 t=$(cd "$W" && python3 "$NEXT" --by someone-else 2>/dev/null)
 out=$(lp new --id "$t" --title "by id" --priority Low --why "$TMP/why.md" 2>"$TMP/err"); rc=$?
-[ $rc -eq 0 ] && grep -qx '\*\*Taken by:\*\* someone-else' "$out" && grep -q "^## $t: by id" "$out" \
-  && ok "--id files under an id already taken, its Taken by the take's by" || bad "--id taken (rc=$rc): $(cat "$TMP/err")"
+Nt=$(nonce "$O")
+[ $rc -eq 0 ] && grep -qx "\*\*Id take:\*\* $Nt" "$out" && ! grep -q 'Taken by' "$out" && grep -q "^## $t: by id" "$out" \
+  && ok "--id files under an id already taken, its Id take that take's nonce" || bad "--id taken (rc=$rc): $(cat "$TMP/err")"
 t2=$(cd "$W" && python3 "$NEXT" 2>/dev/null)
 out=$(lp new --id "TD-$((10#${t2#TD-}))" --title unpadded --priority Low --why "$TMP/why.md" 2>"$TMP/err"); rc=$?
 [ $rc -eq 0 ] && [ "$out" = "$W/docs/ledger/$t2.md" ] && grep -q "^## $t2: unpadded" "$out" \
@@ -137,6 +141,19 @@ lp new --title x --priority Low >/dev/null 2>&1; r3=$?
 lp new --title x --priority Low --why - </dev/null >/dev/null 2>&1; r4=$?
 [ $r1 -eq 2 ] && [ $r2 -eq 2 ] && [ $r3 -eq 2 ] && [ $r4 -eq 2 ] && [ "$(last "$O")" = "$((10#${t2#TD-}))" ] \
   && ok "two stdin sections, no --priority, no --why and an empty Why are usage errors, before any take" || bad "usage: $r1 $r2 $r3 $r4"
+
+# --- 7) A take with no nonce (made before the counter wrote one): --id writes its by as Taken by, which the gate accepts.
+tip=$(git -C "$O" rev-parse refs/heads/cadence/ledger-ids)
+blob=$(echo 90 | git -C "$O" hash-object -w --stdin)
+tree=$(printf '100644 blob %s\tLAST\n' "$blob" | git -C "$O" mktree)
+c=$(printf 'TD-090 [skip ci]\n\nby: old-take\n' | git -C "$O" commit-tree "$tree" -p "$tip")
+git -C "$O" update-ref refs/heads/cadence/ledger-ids "$c" "$tip"
+out=$(lp new --id TD-090 --title "old take" --priority Low --why "$TMP/why.md" 2>"$TMP/err"); rc=$?
+c=$(lp --check --since origin/main 2>&1)   # TD-005's other#TD-001 errs here, the roster emptied above: judge TD-090's lines
+[ $rc -eq 0 ] && grep -qx '\*\*Taken by:\*\* old-take' "$out" && ! grep -q 'Id take' "$out" \
+  && grep -q 'ℹ a matching \*\*Taken by:\*\* but no \*\*Id take:\*\* on TD-090' <<<"$c" && ! grep -q '⚠.*TD-090' <<<"$c" \
+  && ok "--id under a take with no nonce writes its by as Taken by, and the gate passes it" \
+  || bad "no-nonce take (rc=$rc check=$rc1): $(cat "$TMP/err") $c"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

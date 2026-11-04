@@ -10,7 +10,7 @@
 # part is refused, as is an archived entry archived again or an open one reopened; renumber takes its id
 # from the counter, moves the file, rewrites its dependents' Blocked by and Part of (in ledger/ and
 # archive/) and the rank file,
-# writes the take's Taken by, and names a reference in prose; an entry canonical() refuses stops it
+# writes the take's nonce as Id take (TD-188), and names a reference in prose; an entry canonical() refuses stops it
 # before any take, writing nothing; an archived entry is not renumbered; none of the three commits.
 # Offline: origin is a local bare repo, the roster a temp dir; HOME/XDG are temp dirs.
 set -u
@@ -23,7 +23,6 @@ mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$AGENT_CADENCE_REG_DIR"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset CLAUDE_CODE_REMOTE CADENCE_FORGE
 export CLAUDE_CODE_SESSION_ID=fixture-session LEDGER_IDS_RACE_SECONDS=20
-BY=$(printf %s fixture-session | sha256sum | cut -c1-12)
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -116,13 +115,13 @@ printf '## TD-005: five\n\n**Priority:** High\n**Blocked by:** TD-003\n\n**Why:*
 printf 'TD-003 is the parent.\n' > "$W/docs/plans/q.md"
 git -C "$W" add -A; git -C "$W" commit -qm fixed; git -C "$W" push -q origin HEAD:main
 out=$(lp renumber TD-003 2>"$TMP/err"); rc=$?
-n="$L/TD-008.md"
+n="$L/TD-008.md"; N8=$(git -C "$O" log -1 --format=%b refs/heads/cadence/ledger-ids | sed -n 's/^take: //p')
 if [ $rc -eq 0 ] && [ "$(head -1 <<<"$out")" = "$n" ] && [ ! -e "$L/TD-003.md" ] \
-   && head -1 "$n" | grep -qx '## TD-008: parent' && grep -qx "\*\*Taken by:\*\* $BY" "$n" \
+   && head -1 "$n" | grep -qx '## TD-008: parent' && [ ${#N8} -eq 32 ] && grep -qx "\*\*Id take:\*\* $N8" "$n" && ! grep -q 'Taken by' "$n" \
    && grep -qx '\*\*Part of:\*\* TD-008' "$L/TD-004.md" && grep -qx '\*\*Blocked by:\*\* TD-008' "$L/TD-005.md" \
    && grep -qx '\*\*Part of:\*\* TD-008' "$L/archive/TD-007.md" \
    && grep -q 'plans/q.md' "$TMP/err"; then
-  ok "renumber takes the counter's id, moves the file, writes its Taken by, rewrites Part of and Blocked by in ledger/ and archive/, names prose"
+  ok "renumber takes the counter's id, moves the file, writes its take's nonce as Id take, rewrites Part of and Blocked by in ledger/ and archive/, names prose"
 else
   bad "renumber (rc=$rc) out=$out: $(cat "$TMP/err") $(ls "$L")"
 fi
@@ -131,15 +130,20 @@ c=$(lp --check 2>&1) && ok "the ledger passes --check after the renumber" || bad
 git -C "$W" add -A; git -C "$W" commit -qm renum; git -C "$W" push -q origin HEAD:main
 
 # The rank file: TD-004 renumbered keeps its key under the new id; an archived entry is not renumbered.
+sed -i 's/^\(\*\*Priority:\*\* .*\)$/\1\n**Taken by:** old-by/' "$L/TD-004.md"   # the old id's taker, stale once renumbered
+git -C "$W" add -A; git -C "$W" commit -qm takenby; git -C "$W" push -q origin HEAD:main
 out=$(lp renumber TD-004 2>"$TMP/err"); rc=$?
 nid=$(basename "$(head -1 <<<"$out")" .md)
+grep -q '^\*\*Id take:\*\* ' "$L/$nid.md" && ! grep -q 'Taken by' "$L/$nid.md" \
+  && ok "renumber drops the old id's Taken by when it writes the new take's Id take" || bad "stale Taken by: $(cat "$L/$nid.md")"
 [ $rc -eq 0 ] && [ "$nid" != TD-004 ] && grep -qx "$nid: n" "$L/rank.yml" && ! grep -q '^TD-004:' "$L/rank.yml" \
   && grep -qx 'TD-001: m' "$L/rank.yml" && ok "renumber moves the id's rank line, keeping its key" \
   || bad "rank (rc=$rc) out=$out: $(cat "$TMP/err") $(cat "$L/rank.yml")"
 git -C "$W" add -A; git -C "$W" commit -qm renum2; git -C "$W" push -q origin HEAD:main
+before=$(ctr)
 lp renumber TD-001 >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 1 ] && grep -q 'archive lost TD-001' "$TMP/err" && [ -e "$L/archive/TD-001.md" ] \
-  && ok "an archived entry is not renumbered: the gate's archive-loss refuses it" || bad "archived renumber (rc=$rc): $(cat "$TMP/err")"
+[ $rc -eq 2 ] && [ "$before" = "$(ctr)" ] && grep -q 'an archived entry is not renumbered' "$TMP/err" && [ -e "$L/archive/TD-001.md" ] \
+  && ok "an archived entry is not renumbered: the package's writer refuses it, before any take" || bad "archived renumber (rc=$rc): $(cat "$TMP/err")"
 lp renumber TD-005 TD-002 >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 2 ] && grep -q 'already' "$TMP/err" && ok "renumbering onto an id the ledger holds is refused" || bad "onto held (rc=$rc): $(cat "$TMP/err")"
 
