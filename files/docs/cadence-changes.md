@@ -13,7 +13,7 @@ sessions already running (ShiftLead design §4.8). Written by the agent-cadence 
 the convention (cadence.md §7).
 
 ## 2026-11-04 — The cadence check has a `board` row: a hand-typed board line fails it
-Do: change board item lines only through `board_edit.py` (`add`, `snooze`, `due`, `reply`, `decide`, `done`, `archive`, `fmt`); when the `board` row fails, redo the line with the command it names; correcting an item's text is `done` on the old line plus `add` of the new one.
+Do: change board item lines only through `board_edit.py` (`add`, `snooze`, `due`, `reply`, `decide`, `done`, `archive`, `fmt`); when the `board` row fails, redo the line with the command it names; correcting an item's text is `done` on the old line plus `add` of the new one; a bot's direct append must be a line `item_line()` writes (with its `Context:`), or the audit fails it.
 See: cadence.md §3.4, procedures/cadence.md step 4; TD-206.
 
 ## 2026-11-04 — `board_edit.py add` writes a new board item; `done` archives at the threshold; `reply --by`

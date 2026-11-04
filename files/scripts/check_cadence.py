@@ -1716,16 +1716,28 @@ def _read_back(line):
     w = _CLOSED_TAIL_RE.match(line[m.start():])
     if not w:
         return line, None
+    try:
+        when = dt.date.fromisoformat(w.group("date"))
+    except ValueError:  # a date no writer writes: read as no Closed: at all
+        return line, None
     line = re.sub(r"^(\s*-\s*)\[[xX]\]", r"\1[ ]", line)
     line = re.sub(r"\s*" + lb.CLOSED_RE.pattern, "", line)
-    return line, (dt.date.fromisoformat(w.group("date")), w.group("why"))
+    return line, (when, w.group("why"))
 
 
 def writers_made(base, added):
     """True when replaying the net change of the fields item_key strips (Due:, Hide until:, new replies,
     Decided:, Closed:) through edit_line, in the writers' order (due, snooze, each new reply oldest first,
     decide, done; the replies also after decide, for a line whose text ends no sentence), on `base` or on
-    canonical_item(base) (fmt first), gives `added` byte for byte (design §3 rule 1)."""
+    canonical_item(base) (fmt first), gives `added` byte for byte (design §3 rule 1). A field no writer writes
+    (an impossible date) is simply not writer-made."""
+    try:
+        return _writers_made(base, added)
+    except ValueError:
+        return False
+
+
+def _writers_made(base, added):
     lb = _lb()
     if not lb.ITEM_RE.match(base):
         return False  # the writers edit open lines only
@@ -1818,19 +1830,28 @@ def archive_gain(base_arch, head_arch):
     return h[len(b):]
 
 
-def archive_net_problems(gained, unpaired_keys):
+def archive_net_problems(gained, unpaired):
     """The merged PR's net check on its archive (rule 5): gained item lines are closed (Closed: CLOSED_RE reads)
-    or an open twin of a gained closed one; other gained lines are blank or in those items' detail blocks; every
-    gained item's key is one the board lost unpaired; and at least ARCHIVE_AT closed item lines arrive."""
+    or an open twin of a gained closed one; each is matched to its own line the board lost unpaired — the same
+    bytes, or the writers' close of it (writers_made) — so no line is moved twice or changed on the way; other
+    gained lines are blank or in those items' detail blocks; and at least ARCHIVE_AT closed item lines arrive."""
     lb = _lb()
     out = []
     items = [ln for ln in gained if lb.is_item(ln)]
     closed = [ln for ln in items if lb.CLOSED_ITEM_RE.match(ln) and lb.CLOSED_RE.search(ln)]
     ckeys = {lb.item_key(ln) for ln in closed}
+    pool = list(unpaired)
     for ln in items:
         if ln in closed or (lb.is_open_item(ln) and lb.item_key(ln) in ckeys):
-            if lb.item_key(ln) not in unpaired_keys:
-                out.append(f"the archive gained {ln[:70]!r}, which the board did not lose")
+            hit = next((i for i, r in enumerate(pool) if r == ln), None)
+            if hit is None:
+                hit = next((i for i, r in enumerate(pool)
+                            if lb.item_key(r) == lb.item_key(ln) and writers_made(r, ln)), None)
+            if hit is None:
+                out.append(f"the archive gained {ln[:70]!r}, which is not a line the board lost, nor the writers' "
+                           "close of one — board_edit.py done, then archive")
+            else:
+                pool.pop(hit)
             continue
         out.append(f"the archive gained {ln[:70]!r}: neither a closed item with its Closed: nor the open twin of one "
                    "— board_edit.py done, then archive")
@@ -1944,7 +1965,7 @@ def board_change_problems(base, head, base_arch="", head_arch="", *, net_archive
             out.append(("fail", f"base line {n}: an item deleted — the board closes, never deletes: board_edit.py done "
                                 f"({r[:60]!r})"))
     if net_archive and gained:
-        out += [("fail", why) for why in archive_net_problems(gained, {lb.item_key(r) for _, r in unpaired})]
+        out += [("fail", why) for why in archive_net_problems(gained, [r for _, r in unpaired])]
     out += _people_check(base, head)
     return out
 

@@ -119,6 +119,13 @@ b8 = board(CAN, CAN, OLD, *closed[:8])
 hand = ed(CAN, ("done", {"why": "x"}))
 case("a hand close from eight closed plus an open twin, then a hand move, fails", b8, board(OLD), False,
      base_arch="", head_arch="\n".join([hand, CAN, *closed[:8]]) + "\n", net_archive=True)
+case("ten copies of one deleted item's closed form fail the net check", board(CAN, OLD), board(OLD), False,
+     base_arch="", head_arch="\n".join([ed(CAN, ("done", {"why": "k"}))] * 10) + "\n", net_archive=True)
+moved = [c.replace("— done.", "— TOTALLY DIFFERENT.") for c in closed] + [ed(CAN, ("done", {"why": "x"}))]
+case("a hand move at the threshold that changes the moved lines' text fails the net check", b0, board(OLD), False,
+     base_arch="", head_arch="\n".join(moved) + "\n", net_archive=True)
+case("an impossible Closed: date fails, not a crash", board(CAN), board(ed(CAN, ("done", {"why": "x"})).replace(f"Closed: {T}", "Closed: 2026-13-45")), False)
+case("an impossible reply date fails, not a crash", board(CAN), board(CAN + " — Pat, 2026-13-45: hi."), False)
 case("an archive whose earlier lines changed fails", board(CAN), board(CAN), False, base_arch="a\nb\n", head_arch="a\nc\n")
 for good, name, r in results:
     print(("ok" if good else "NO") + "\t" + name + ("" if good else "\t" + repr(r)[:300]))
