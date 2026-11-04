@@ -324,7 +324,7 @@ class Roster:
 
     def __init__(self) -> None:
         self._roots: list[Path] | None = None
-        self._paths: dict[Path, str] | None = None
+        self._paths: dict[Path, tuple[str, str]] | None = None
         self._read: dict[Path, dict] = {}
 
     def _find(self, repo: str) -> tuple[Path | None, str]:
@@ -335,12 +335,13 @@ class Roster:
                 return None, "no roster on this machine"
         if "/" in repo:   # an origin path: ledgerboard's origin_path(), an exact match before a suffix one (TD-217)
             want = repo.lower()
-            if self._paths is None:   # each clone's origin read once
-                self._paths = {r: LB.origin_path((_git(r, "remote", "get-url", "origin") or "").strip()) or ""
-                               for r in self._roots}
+            if self._paths is None:   # each clone's origin read once: (its origin_key, its origin_path)
+                urls = {r: (_git(r, "remote", "get-url", "origin") or "").strip() for r in self._roots}
+                self._paths = {r: (LB.origin_key(u) or "", LB.origin_path(u) or "") for r, u in urls.items()}
             paths = self._paths
-            hits = [r for r, p in paths.items() if p == want] or \
-                [r for r, p in paths.items() if p.endswith("/" + want)]
+            hits = [r for r, (_, p) in paths.items() if p == want] or \
+                [r for r, (_, p) in paths.items() if p.endswith("/" + want)] or \
+                [r for r, (k, _) in paths.items() if k == want]   # host/owner/name, as the old URL suffix matched
         else:
             hits = [r for r in self._roots if r.name.lower() == repo.lower()]
         if not hits:

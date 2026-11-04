@@ -468,9 +468,11 @@ chk=$(cd "$DC/files/scripts" && AGENT_CADENCE_REG_DIR="$X/proster" python3 -c '
 import ledger as L
 r = L.Roster()
 got = {k: (r._find(k)[0].name if r._find(k)[0] else r._find(k)[1]) for k in
-       ("acme/tools", "ACME/Tools", "group/acme/tools", "sub/solo", "team/sub/solo", "cme/tools")}
+       ("acme/tools", "ACME/Tools", "group/acme/tools", "sub/solo", "team/sub/solo", "cme/tools",
+        "gitlab.example/team/sub/solo")}
 want = {"acme/tools": "tools", "ACME/Tools": "tools", "group/acme/tools": "deep", "sub/solo": "only",
-        "team/sub/solo": "only", "cme/tools": "not on this machine\x27s roster"}
+        "team/sub/solo": "only", "cme/tools": "not on this machine\x27s roster",
+        "gitlab.example/team/sub/solo": "only"}
 assert got == want, got
 print("ok")' 2>&1)
 [ "$chk" = ok ] && ok "owner/name: an exact origin path wins over a suffix one; a suffix alone still resolves; case-blind" \
