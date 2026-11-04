@@ -384,6 +384,12 @@ out=$(take "$W" --show TD-125 --by someone-else); rc=$?
   && ok "17i --show of another's take: refused (exit 2), naming its by, date and sha, never its nonce" || bad "17i rc=$rc out='$out' $(cat "$TMP/err")"
 out=$(take "$W" --show TD-999 --by grinder-y --json); rc=$?
 [ "$rc" = 2 ] && grep -q '"why": "no take gave TD-999"' <<< "$out" && ok "17j --show of an id no take gave: refused" || bad "17j rc=$rc $out"
+blob=$(printf '126\n' | git -C "$O" hash-object -w --stdin); tree=$(printf '100644 blob %s\tLAST\n' "$blob" | git -C "$O" mktree)
+git -C "$O" update-ref refs/heads/cadence/ledger-ids \
+  "$(git -C "$O" commit-tree "$tree" -p refs/heads/cadence/ledger-ids -m "$(printf 'TD-126 [skip ci]\n\nby: grinder-y\n')")"
+out=$(take "$W" --show TD-126 --by " grinder-y "); rc=$?
+[ "$rc" = 2 ] && grep -q "your take of TD-126 (grinder-y on .*) carries no nonce" "$TMP/err" \
+  && ok "17l --show of the caller's own take with no nonce: refused saying so (--by read stripped)" || bad "17l rc=$rc $(cat "$TMP/err")"
 out=$(take "$W" --show TD-125 --count 2); rc=$?
 [ "$rc" = 2 ] && grep -q "do not apply" "$TMP/err" && ok "17k --show with --count: a usage error" || bad "17k rc=$rc $(cat "$TMP/err")"
 

@@ -5,6 +5,7 @@
 
     ledger_next_id.py [--count n] [--by who] [--branch name] [--floor N] [--prs] [--ledger PATH] [--archive PATH] [--json]
     ledger_next_id.py --claim TD-N [--by who] [--branch name] [--json]
+    ledger_next_id.py --show TD-N [--by who] [--json]
 
 The counter is a branch on origin, ``cadence/ledger-ids``: never merged, never checked out, never a
 local branch. Its tip's tree holds one file, ``LAST``, the last id given as a number. A take is one
@@ -505,18 +506,21 @@ def show(root: Path, n: int, by: str | None, as_json: bool) -> int:
     """``--show TD-N`` (TD-188): the ``**Id take:**`` line for the caller's own take of TD-N — a session that lost
     it recovers it. Another's take is refused, naming its by, date and short sha, never its nonce (``--by``
     names a deliberate hand-off). Exit 0 printed; 2 refused: no counter, no take gave TD-N, or not yours."""
-    me = by or default_by(root)
+    me = (by or "").strip() or default_by(root)
     takes, why = counter_takes(root)
     res: dict = {"id": tid(n), "id_take": None, "by": me, "why": ""}
     if takes is None or not takes:
         res["why"] = why or "origin has no ledger-id counter"
     else:
         gave = [t for t in takes.all if n in t.get("ids", [])]
-        mine = [t for t in gave if (t.get("by") or "").strip() == me and t.get("take")]
+        own = [t for t in gave if (t.get("by") or "").strip() == me]
+        mine = [t for t in own if t.get("take")]
         if mine:
             res["id_take"] = mine[0]["take"]
         elif not gave:
             res["why"] = f"no take gave {tid(n)}"
+        elif own:
+            res["why"] = f"your take of {tid(n)} ({L.LB._take_named(own[0])}) carries no nonce, so it has no Id take"
         else:
             res["why"] = (f"{tid(n)} was handed out to {'; '.join(map(L.LB._take_named, gave))}, not to {me}"
                           " — pass its by with --by to take a hand-off")
