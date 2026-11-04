@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# TD-200: `ledger.py archive`, `reopen` and `renumber` move an entry, or rename one, as one command.
-# Asserts: archive writes the archived form (Status, the Fix replaced by **Resolved:**) and git-mvs the
-# file to archive/ (staged; the archive/ made when none exists), its relative links rewritten one level
-# down, a link to it from another file named; reopen moves it back, links one level up;
+# TD-200: `ledger.py archive`, `reopen` and `renumber` move an entry, or rename one, as one command
+# (archive and reopen through ledgerboard's plan_archive/plan_reopen, TD-216; the dates the UTC day).
+# Asserts: archive writes the archived form (Status, the Fix replaced by **Resolved:**) and moves the
+# file to archive/ (staged as git mv stages it; the archive/ made when none exists), its relative links
+# rewritten one level down, a link to it from another ledger file repointed and staged, one from outside
+# the ledger named; reopen moves it back, links one level up; --dropped archives as Dropped and is
+# refused while an entry is Blocked by it;
 # archiving again leaves one **Resolved:** section; --superseded-by keeps the Fix; a parent with an open
 # part is refused, as is an archived entry archived again or an open one reopened; renumber takes its id
 # from the counter, moves the file, rewrites its dependents' Blocked by and Part of (in ledger/ and
@@ -24,7 +27,7 @@ BY=$(printf %s fixture-session | sha256sum | cut -c1-12)
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
-TODAY=$(date +%F)
+TODAY=$(date -u +%F)   # the writer's day is the UTC one (TD-216)
 
 # A v2 ledger: TD-001 (links to TD-004 and a doc), TD-003 a parent with TD-004 Part of it,
 # TD-004 Blocked by TD-001, TD-005 a field twice; TD-002 archived; TD-001 ranked.
@@ -33,6 +36,7 @@ mkrepo() {  # $1 origin dir, $2 clone dir
   git init -q -b main "$TMP/seed"; local L="$TMP/seed/docs/ledger"; mkdir -p "$L/archive" "$TMP/seed/docs/plans"
   printf '# Ledger\n\nLedgerboard: 2\n' > "$L/README.md"
   printf 'a plan\n' > "$TMP/seed/docs/plans/p.md"
+  printf 'see [one](../ledger/TD-001.md)\n' > "$TMP/seed/docs/plans/r.md"
   printf '## TD-001: one\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** see [four](TD-004.md) and [the plan](../plans/p.md).\n\n**Fix:** do it.\n\n**Done when** done.\n' > "$L/TD-001.md"
   printf '## TD-002: archived\n\n**Priority:** Low\n**Status:** Resolved %s: done\n\n**Why:** a fixture.\n\n**Resolved:** %s\n' \
     "$TODAY" "$TODAY" > "$L/archive/TD-002.md"
@@ -58,9 +62,10 @@ if [ $rc -eq 0 ] && [ "$out" = "$f" ] && [ ! -e "$L/TD-001.md" ] \
    && grep -qx "\*\*Status:\*\* Resolved $TODAY" "$f" && grep -qx -- "- $TODAY: archived: Resolved — built it" "$f" \
    && grep -qx "\*\*Resolved:\*\* $TODAY (PR #7) — tests/x.sh" "$f" && ! grep -q '^\*\*Fix' "$f" \
    && grep -q '(\.\./TD-004\.md)' "$f" && grep -q '(\.\./\.\./plans/p\.md)' "$f" \
-   && git -C "$W" diff --quiet && [ "$(git -C "$W" diff --cached --name-only --no-renames | sort | tr '\n' ' ')" = "docs/ledger/TD-001.md docs/ledger/archive/TD-001.md " ] \
-   && grep -q 'check — a link to the moved file.*TD-003.md' "$TMP/err"; then
-  ok "archive writes the archived form, rewrites its links for archive/, git-mvs the file staged, and names a link to it"
+   && grep -q '(archive/TD-001\.md)' "$L/TD-003.md" \
+   && git -C "$W" diff --quiet && [ "$(git -C "$W" diff --cached --name-only --no-renames | sort | tr '\n' ' ')" = "docs/ledger/TD-001.md docs/ledger/TD-003.md docs/ledger/archive/TD-001.md " ] \
+   && grep -q 'check — a link to the moved file.*plans/r.md' "$TMP/err" && ! grep -q 'check — .*TD-003.md' "$TMP/err"; then
+  ok "archive writes the archived form, rewrites its links for archive/, repoints a ledger link to it, stages the move, and names an outside link"
 else
   bad "archive (rc=$rc) out=$out: $(cat "$TMP/err") $(cat "$f" 2>/dev/null) [$(git -C "$W" status --porcelain)]"
 fi
@@ -147,6 +152,23 @@ out=$( (cd "$TMP/w3" && python3 "$LEDGER_PY" archive TD-001 --why done) 2>"$TMP/
 [ $rc -eq 0 ] && [ -e "$TMP/w3/docs/ledger/archive/TD-001.md" ] && [ ! -e "$TMP/w3/docs/ledger/TD-001.md" ] \
   && grep -q '^\*\*Status:\*\* Resolved' "$TMP/w3/docs/ledger/archive/TD-001.md" \
   && ok "archive makes the archive/ a ledger with nothing archived lacks" || bad "no archive/ (rc=$rc): $(cat "$TMP/err")"
+
+# --- 7) --dropped (TD-216, the package's archive): refused while an entry is Blocked by it; else archived Dropped.
+rm -rf "$TMP/o4" "$TMP/w4" "$TMP/seed"; git init -q --bare -b main "$TMP/o4"; git init -q -b main "$TMP/seed"
+L4="$TMP/seed/docs/ledger"; mkdir -p "$L4"; printf '# Ledger\n\nLedgerboard: 2\n' > "$L4/README.md"
+printf '## TD-001: one\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** a fixture.\n' > "$L4/TD-001.md"
+printf '## TD-002: two\n\n**Priority:** Low\n**Status:** Open\n**Blocked by:** TD-001\n\n**Why:** a fixture.\n' > "$L4/TD-002.md"
+git -C "$TMP/seed" add -A; git -C "$TMP/seed" commit -qm seed; git -C "$TMP/seed" push -q "$TMP/o4" main; git clone -q "$TMP/o4" "$TMP/w4"
+L4="$TMP/w4/docs/ledger"
+(cd "$TMP/w4" && python3 "$LEDGER_PY" archive TD-001 --why "not worth it" --dropped) >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'TD-002' "$TMP/err" && [ -e "$L4/TD-001.md" ] && [ ! -e "$L4/archive/TD-001.md" ] \
+  && ok "--dropped is refused while an entry is Blocked by it, writing nothing" || bad "dropped blocker (rc=$rc): $(cat "$TMP/err")"
+(cd "$TMP/w4" && python3 "$LEDGER_PY" archive TD-002 --why "not worth it" --dropped) >/dev/null 2>"$TMP/err"; rc=$?
+f="$L4/archive/TD-002.md"
+[ $rc -eq 0 ] && grep -q '^\*\*Status:\*\* Dropped' "$f" && [ ! -e "$L4/TD-002.md" ] \
+  && ok "--dropped archives the entry Dropped" || bad "dropped (rc=$rc): $(cat "$TMP/err") $(cat "$f" 2>/dev/null)"
+(cd "$TMP/w4" && python3 "$LEDGER_PY" archive TD-001 --why x --dropped --superseded-by TD-002) >/dev/null 2>&1; rc=$?
+[ $rc -eq 2 ] && ok "--dropped and --superseded-by together are a usage error" || bad "dropped+superseded (rc=$rc)"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
