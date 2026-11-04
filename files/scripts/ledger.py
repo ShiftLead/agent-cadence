@@ -324,6 +324,7 @@ class Roster:
 
     def __init__(self) -> None:
         self._roots: list[Path] | None = None
+        self._paths: dict[Path, str] | None = None
         self._read: dict[Path, dict] = {}
 
     def _find(self, repo: str) -> tuple[Path | None, str]:
@@ -332,9 +333,14 @@ class Roster:
             self._roots = reg or []
             if reg is None:
                 return None, "no roster on this machine"
-        if "/" in repo:
-            hits = [r for r in self._roots
-                    if (N._local_origin(r) or "").rstrip("/").lower().endswith("/" + repo.lower())]
+        if "/" in repo:   # an origin path: ledgerboard's origin_path(), an exact match before a suffix one (TD-217)
+            want = repo.lower()
+            if self._paths is None:   # each clone's origin read once
+                self._paths = {r: LB.origin_path((_git(r, "remote", "get-url", "origin") or "").strip()) or ""
+                               for r in self._roots}
+            paths = self._paths
+            hits = [r for r, p in paths.items() if p == want] or \
+                [r for r, p in paths.items() if p.endswith("/" + want)]
         else:
             hits = [r for r in self._roots if r.name.lower() == repo.lower()]
         if not hits:
@@ -665,10 +671,9 @@ def id_flags(ledger: Path, archive: Path, text: str, arch: str, ref: str) -> lis
     import ledger_next_id as X  # sibling SYNC script: the counter's reader (it imports this one)
     root, _, _ = _rel(ledger)
     then, _ = _at_ref(ledger, ref, archive)
-    before: set[int] = set()
-    for t in then or ("", ""):
-        before |= X.ids_in(N.checked(t, f"{ref}:{ledger.name}"))
-    new = (X.ids_in(text) | X.ids_in(arch)) - before
+    before = LB.ids_held({f"{ref}:{ledger.name}#{i}": N.checked(t, f"{ref}:{ledger.name}")
+                          for i, t in enumerate(then or ("", ""))})   # the package's id reader (TD-217)
+    new = LB.ids_held({"ledger": text, "archive": arch}) - before
     if not new or _git(root, "remote", "get-url", "origin") is None:
         return []   # no origin remote: no counter to ask, so nothing to say
     takes, why = X.counter_takes(root)

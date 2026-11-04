@@ -15,7 +15,8 @@ docs/plans/2026-10-22-ledger-ids.md in agent-cadence.
 1. Probe ``git ls-remote --heads origin cadence/ledger-ids``: present, absent (the first take), or
    failed — the last goes to the fallback.
 2. Fetch ``origin/<default>`` and, when present, the counter, in one ``git fetch``.
-3. The next id is one above the highest of ``LAST`` (absent or not a number: ignored, a warning), the
+3. The next id is ledgerboard's ``next_id()`` and the ids its ``ids_held()`` reads (TD-217): one above the
+   highest of ``LAST`` (absent, or not a number of at most 18 digits: ignored, a warning), the
    ids in the ledger and archive on ``origin/<default>`` (headings and table rows, read as numbers, so
    ``TD-28`` is 28; a v2 ledger's entry file names and headings, TD-160 — ``--ledger`` names either
    layout, and main is read in the one it has), and ``--floor``. The first take also reads the open PRs (``--prs`` forces it on
@@ -106,16 +107,12 @@ def git(root: Path, *args: str, timeout: float = 60, env: dict | None = None,
         return subprocess.CompletedProcess(args, 124, "", str(e))
 
 
-def ids_in(text: str | None) -> set[int]:
-    """Every id a ledger or archive holds, as numbers: its headings and its table rows."""
-    t = L.LB.COMMENT_RE.sub("", text or "")
-    return L.LB.heading_nums(t) | {int(m.group(2)) for m in L.ROW_RE.finditer(t)}
-
-
 def ids_at(root: Path, ref: str, ledger: str, archive: str) -> set[int]:
     """Every id the ledger and archive at ``ref`` hold, in whichever layout ``ref`` has them
     (``ledger.layout_at()``): a v1 pair's headings and rows, or a v2 directory's (TD-160) entry file
-    names and the headings in them. A ref that cannot be listed holds none."""
+    names and the headings in them. A ref that cannot be listed holds none. The ids are ledgerboard's
+    ``ids_held()`` of those files (TD-217); each text is first read through ``N.checked``, so a newer major of
+    the format raises FormatTooNew here, as before."""
     under = os.path.commonpath([PurePosixPath(p).parent.as_posix() for p in (ledger, archive)])
     io = L.git_io(root, ref, "" if under in (".", "") else under)   # both paths listed, wherever they are
     if io is None:
@@ -123,21 +120,20 @@ def ids_at(root: Path, ref: str, ledger: str, archive: str) -> set[int]:
     ls, read = io
     rel, arel = L.layout_at(ledger, archive, io)
     names = ls(rel)
+    files: dict[str, str] = {}
     if names is None:
-        out: set[int] = set()
         for p in (rel, arel or L.LB.archive_path(rel)):
             t = read(p)
             if t is not None:   # a newer major of the format is not read (TD-133): FormatTooNew
-                out |= ids_in(L.N.checked(t, f"{ref}:{p}"))
-        return out
+                files[p] = L.N.checked(t, f"{ref}:{p}")
+        return L.LB.ids_held(files)
     text, arch = L.LB.load(rel, ls, read)
-    out = ids_in(L.N.checked(text, f"{ref}:{rel}")) | ids_in(L.N.checked(arch, f"{ref}:{rel}/archive"))
+    files[rel] = L.N.checked(text, f"{ref}:{rel}")
+    files[f"{rel}/archive"] = L.N.checked(arch, f"{ref}:{rel}/archive")
     sub = f"{rel.rstrip('/')}/{L.LB.LEDGER_ARCHIVE}"
-    for n in names + (ls(sub) or []):
-        m = L.LB.ENTRY_FILE_RE.match(n)
-        if m:
-            out.add(int(m.group(1)))
-    return out
+    for d, ns in ((rel, names), (sub, ls(sub) or [])):
+        files.update({f"{d.rstrip('/')}/{n}": "" for n in ns})   # an entry file's name is an id it holds
+    return L.LB.ids_held(files)
 
 
 def tid(n: int) -> str:
@@ -368,14 +364,18 @@ def judge(new: set[int], takes: dict[int, dict], texts: list[str], branch: str, 
     return fails, warns
 
 
-def read_last(root: Path, tip: str, warnings: list) -> int:
-    r = git(root, "show", f"{tip}:LAST")
-    raw = r.stdout.strip() if r.returncode == 0 else ""
-    if raw.isascii() and raw.isdigit():
-        return int(raw)
-    warnings.append(f"the counter's LAST is {'not a number (' + raw[:20] + ')' if raw else 'absent'}"
-                    " — ignored; the ledger, archive and --floor decide")
-    return 0
+def read_last(root: Path, tip: str) -> str | None:
+    """The counter's ``LAST`` at ``tip``, as text (None: absent); ledgerboard's ``next_id()`` reads it (TD-217)."""
+    r = git(root, "show", f"{tip}:{L.LB.COUNTER_FILE}")
+    return r.stdout if r.returncode == 0 else None
+
+
+def next_number(last: str | None, known: set[int], floor: int | None, warnings: list | None = None) -> int:
+    """ledgerboard's ``next_id()``: one above the highest of ``LAST``, the ids known and ``--floor`` (TD-217)."""
+    n, warns = L.LB.next_id(last, known, floor)
+    if warnings is not None:
+        warnings.extend(warns)
+    return n
 
 
 def host_line(root: Path, warnings: list) -> str | None:
@@ -440,12 +440,11 @@ def take(root: Path, a: argparse.Namespace) -> tuple[int, dict]:
 
     def fallback(why: str, counter_fetched: bool) -> tuple[int, dict]:
         known = ids_at(root, main_ref, a.ledger, a.archive)
-        if counter_fetched:
-            known.add(read_last(root, TRACKING_REF, []))
+        last = read_last(root, TRACKING_REF) if counter_fetched else "0"   # not fetched: no LAST, no warning
         prs, unread = read_prs(root, a.ledger, a.archive, notes=warnings)
         for rec in prs.values():
             known |= rec["head"]
-        first = getattr(a, "claim", None) or max([*known, a.floor or 0]) + 1
+        first = getattr(a, "claim", None) or next_number(last, known, a.floor)
         res.update(ids=list(range(first, first + a.count)), reserved=False, why=why, unread=unread)
         return 3, res
 
@@ -467,15 +466,16 @@ def take(root: Path, a: argparse.Namespace) -> tuple[int, dict]:
             return 2, res
         parent = None
         known = ids_at(root, main_ref, a.ledger, a.archive)
+        last_text = "0"   # no counter yet: the ledger, archive and --floor decide, with no warning
         if tip:
             parent = git(root, "rev-parse", "--verify", "-q", TRACKING_REF).stdout.strip() or None
-            known.add(read_last(root, parent or tip, warnings))
+            last_text = read_last(root, parent or tip)
         res["unread"] = []
         if not tip or a.prs:
             prs, res["unread"] = read_prs(root, a.ledger, a.archive, notes=warnings)
             for rec in prs.values():
                 known |= rec["head"]
-        first = max([*known, a.floor or 0]) + 1
+        first = next_number(last_text, known, a.floor, warnings)
         ids = list(range(first, first + a.count))
         last = ids[-1]
         claim = getattr(a, "claim", None)
@@ -493,7 +493,7 @@ def take(root: Path, a: argparse.Namespace) -> tuple[int, dict]:
             if claim in ids_at(root, main_ref, a.ledger, a.archive):
                 res["why"] = f"{tid(claim)} is already on origin/{default}"
                 return 2, res
-            ids, last = [claim], max(claim, read_last(root, parent, []) if parent else 0)
+            ids, last = [claim], max(claim, next_number(read_last(root, parent), set(), None) - 1 if parent else 0)
         sha = commit(root, last, parent, message(ids, by, branch, host_line(root, warnings)))
         if sha is not None:
             written.add(sha)

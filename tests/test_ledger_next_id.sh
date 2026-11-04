@@ -89,6 +89,14 @@ git -C "$O" update-ref refs/heads/cadence/ledger-ids \
 out=$(take "$W" --json); rc=$?
 [ "$rc" = 0 ] && grep -q '"TD-125"' <<< "$out" && grep -q "absent" <<< "$out" \
   && ok "4b a counter tip with no LAST: a warning, the ledger decides" || bad "4b rc=$rc $out"
+# 4c. the next id is ledgerboard's next_id() (TD-217): a LAST past 18 digits is no number a counter reaches
+mkrepo "$O" "$W"
+blob=$(printf '9999999999999999999\n' | git -C "$O" hash-object -w --stdin)
+tree=$(printf '100644 blob %s\tLAST\n' "$blob" | git -C "$O" mktree)
+git -C "$O" update-ref refs/heads/cadence/ledger-ids "$(git -C "$O" commit-tree "$tree" -m giant)"
+out=$(take "$W" --json); rc=$?
+[ "$rc" = 0 ] && grep -q '"TD-125"' <<< "$out" && grep -q "not a number" <<< "$out" \
+  && ok "4c a 19-digit LAST: ignored with a warning (ledgerboard's next_id), the ledger decides" || bad "4c rc=$rc $out"
 
 # 5. host: left out when the repo says off, and in a cloud session
 mkrepo "$O" "$W"
