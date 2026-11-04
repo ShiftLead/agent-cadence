@@ -64,5 +64,11 @@ files/docs/claude-memory/MEMORY.md a link to a file the tree lacks (file.md)
 tests/ledgerboard/edit/cases.json a name your publish-names lists (Paul)
 tests/ledgerboard/edit/expected.json a name your publish-names lists (Paul)
 
+# The vendored ledgerboard fixtures (v2.4, TD-215) are ledgers and boards of imaginary repos: their relative
+# links point at files of those repos, which this tree never holds. Links only — a name or an email still shows.
+tests/ledgerboard/* a link to a file the tree lacks (*)
+# A cross-repo ref in an event check (`acme/tools@a.lock <sha>`), not an email address.
+tests/ledgerboard/events/*.json an email address (tools@a.lock) :: *acme/tools@a.lock*
+
 # The memory index's template comment shows the link format.
 docs/claude-memory/MEMORY.md a link to a file the tree lacks (file.md)
