@@ -219,7 +219,8 @@ wait for Paul.
 - The main checkout is Paul's anchor; every team seat runs in `.claude/worktrees/<name>`.
 - `docs/ledger/` and `docs/user_attention.md` are high-churn: pull before editing,
   small edits, grep for conflict markers. A ledger entry is written only through
-  `files/scripts/ledger.py` (cadence.md §2.12, TD-202), never by hand.
+  `files/scripts/ledger.py` (cadence.md §2.12, TD-202), never by hand; a board item line only through
+  `files/scripts/board_edit.py` (`add`, `done`, …), which the cadence check's `board` row holds (cadence.md §3.4, TD-206).
 - **In consumers the post-merge hook reports reapable worktrees** (landed, clean, idle — see
   `files/scripts/reap_worktrees.sh` for the guards, and TD-043 for how liveness can misread).
   Here too, since TD-038's follow-up: the hook finds the reaper one level up from its own directory
