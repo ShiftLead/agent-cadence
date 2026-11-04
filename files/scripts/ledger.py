@@ -138,11 +138,10 @@ never a gate (cadence.md §7): ``--check`` is what lets a caller choose to gate 
 ``<repo>#TD-n`` ids the package names (its exit 3, ``needs:``) through the roster, as its ``--resolved``
 file, until none is needed. Their ``--json`` is one line. ``--check`` stays this script's: its ``--since``
 reads a git ref, and it adds the prose-wait, Ask, archive-loss, canonical-form and id flags to the package's.
-The reports, ``fmt``, ``note``, ``edit``, ``archive`` and ``reopen`` exit by the package's table: 0 ok,
+The reports, ``fmt``, ``note``, ``edit``, ``archive``, ``reopen``, ``new`` and ``renumber`` (TD-188) exit by the package's table: 0 ok,
 1 refused, 2 usage or unreadable, 3 needs (an id the run could not resolve, or an archive's cross-repo
-successor), 4 a write failed, every file restored. ``--check`` exits 1 when an error flag stands. ``new``
-and ``renumber`` keep their own (above; no exit 4, a failed write raises) until TD-188 moves them onto the
-package's writer, and ``set`` until TD-218.
+successor), 4 a write failed, every file restored. ``--check`` exits 1 when an error flag stands. ``set``
+keeps its own (above; no exit 4, a failed write raises) until TD-218.
 """
 
 from __future__ import annotations
@@ -1323,21 +1322,8 @@ def _overlay(io: tuple[LB.Ls, LB.Read], changes: Mapping[Path, str | None]) -> t
     return ls2, read2
 
 
-def _git_mv(root: Path, src: Path, dst: Path) -> bool:
-    """``git mv`` a tracked file, so the move is staged as one; a file git does not track is renamed.
-    Whether git tracks it now (so its edit is staged too, with ``_stage``)."""
-    dst.parent.mkdir(exist_ok=True)  # an archive/ git never saw: a directory with nothing archived yet
-    if _git(root, "ls-files", "--error-unmatch", "--", str(src)) is not None:
-        r = subprocess.run(["git", "-C", str(root), "mv", "--", str(src), str(dst)], capture_output=True,
-                           text=True, timeout=60, check=False)
-        if r.returncode == 0:
-            return True
-    os.replace(src, dst)
-    return False
 
 
-def _stage(root: Path, path: Path) -> None:
-    _git(root, "add", "--", str(path))
 
 
 def _links_to(root: Path, name: str) -> list[str]:
@@ -1345,9 +1331,6 @@ def _links_to(root: Path, name: str) -> list[str]:
     return _grep(root, rf"\]\(([^)]*/)?{re.escape(name)}([#)\s]|$)")
 
 
-def _write(path: Path, text: str) -> None:
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write(text)
 
 
 def _entry_file(w: "_Writer", cmd: str, tid: str) -> tuple[Path | None, bool, str]:
@@ -1475,9 +1458,11 @@ def renumber(argv: list[str]) -> int:
         take``, ``Taken by`` only for a take that carries no nonce. The exit code (said) when refused."""
         try:
             p = LBL.plan_renumber(led, a.old, tid, take=take, base=base, resolve=w.roster.resolve)
+            dst = p.info["moved"]["to"]   # a Taken by the old id carried names another take: replaced or dropped
             if taken_by and not take:
-                dst = p.info["moved"]["to"]
                 p.changes[dst] = LB.edit_entry(p.changes[dst], "set", fields={"Taken by": taken_by})
+            elif "taken by" in (LB.entries(p.changes[dst])[0]["fields"] if LB.entries(p.changes[dst]) else {}):
+                p.changes[dst] = LB.edit_entry(p.changes[dst], "set", fields={"Taken by": ""})
             return p
         except LBL.Unusable as e:
             return w.say("renumber", str(e), 2)

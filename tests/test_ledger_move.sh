@@ -130,8 +130,12 @@ c=$(lp --check 2>&1) && ok "the ledger passes --check after the renumber" || bad
 git -C "$W" add -A; git -C "$W" commit -qm renum; git -C "$W" push -q origin HEAD:main
 
 # The rank file: TD-004 renumbered keeps its key under the new id; an archived entry is not renumbered.
+sed -i 's/^\(\*\*Priority:\*\* .*\)$/\1\n**Taken by:** old-by/' "$L/TD-004.md"   # the old id's taker, stale once renumbered
+git -C "$W" add -A; git -C "$W" commit -qm takenby; git -C "$W" push -q origin HEAD:main
 out=$(lp renumber TD-004 2>"$TMP/err"); rc=$?
 nid=$(basename "$(head -1 <<<"$out")" .md)
+grep -q '^\*\*Id take:\*\* ' "$L/$nid.md" && ! grep -q 'Taken by' "$L/$nid.md" \
+  && ok "renumber drops the old id's Taken by when it writes the new take's Id take" || bad "stale Taken by: $(cat "$L/$nid.md")"
 [ $rc -eq 0 ] && [ "$nid" != TD-004 ] && grep -qx "$nid: n" "$L/rank.yml" && ! grep -q '^TD-004:' "$L/rank.yml" \
   && grep -qx 'TD-001: m' "$L/rank.yml" && ok "renumber moves the id's rank line, keeping its key" \
   || bad "rank (rc=$rc) out=$out: $(cat "$TMP/err") $(cat "$L/rank.yml")"
