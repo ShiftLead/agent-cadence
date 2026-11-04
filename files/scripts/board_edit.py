@@ -247,7 +247,9 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] in PASSTHROUGH:
         return passthrough(argv)
-    ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0],
+                                 epilog=f"also: {', '.join(PASSTHROUGH)} — ledgerboard/board.py's own "
+                                        "commands, its flags (`board_edit.py <command> --help`)")
     ap.add_argument("action", choices=("snooze", "due", "done", "decide", "reply"))
     ap.add_argument("--board", required=True, help="the board file (docs/user_attention.md)")
     ap.add_argument("--line", type=int, required=True, help="1-based line of the item")

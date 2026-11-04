@@ -48,7 +48,7 @@ w=$(grep -n "did the backfill" <<< "$out" | cut -d: -f1); a=$(grep -n "rotate th
 full=$(rep)
 grep -q "8 open item(s) (decide 1, act 1, look 1, watch 1, fyi 2, unmarked 2), 4 due/overdue, 1 watch item(s) to check" <<< "$full" \
     && ok "full report header: kinds counted; a look is due like a to-do; fyi and watch not in due/overdue" || bad "full header: $(head -1 <<< "$full")"
-grep -qF "(fyi · ⚠ an fyi carries no Due: — drop it) fyi $RAISED (n/a) — heads-up" <<< "$full" \
+grep -qF "(fyi · ⚠ an fyi carries no Due: — \`board_edit.py done\` it and \`board_edit.py add\` it again without --due) fyi $RAISED (n/a) — heads-up" <<< "$full" \
     && grep -qF "(fyi) FYI $RAISED" <<< "$full" \
     && ok "an fyi with a Due: is flagged; one without is tagged fyi" || bad "fyi tags: $full"
 f=$(grep -n "heads-up" <<< "$full" | cut -d: -f1); u=$(grep -n "not a kind word" <<< "$full" | cut -d: -f1)
@@ -64,7 +64,7 @@ board <<EOF
 - [ ] watch $RAISED (n/a) — a check long missed. Due: $(d '15 days ago').
 EOF
 full=$(rep)
-grep -qF "(20d overdue · ⚠ overdue 20d — ledger it and close it here) $RAISED (n/a) — long overdue" <<< "$full" \
+grep -qF "(20d overdue · ⚠ overdue 20d — \`ledger.py new\` it, then \`board_edit.py done\` it here) $RAISED (n/a) — long overdue" <<< "$full" \
     && grep -qF "(13d overdue) $RAISED (n/a) — nearly" <<< "$full" \
     && ok "escalation: overdue 20d flagged, 13d not" || bad "escalation tags: $full"
 grep "decided long ago" <<< "$full" | grep -q "ledger it" && bad "a decided item was escalated: $full" \
@@ -72,7 +72,7 @@ grep "decided long ago" <<< "$full" | grep -q "ledger it" && bad "a decided item
 grep "check long missed" <<< "$full" | grep -qF "(watch · check 15d overdue · ⚠ overdue 15d" \
     && ok "escalation: a watch item long past its check-by date is flagged too" || bad "watch escalation: $(grep 'check long' <<< "$full")"
 out=$(rep --due-only)
-grep -q "^⚠ 2 item(s) overdue past their repo's escalate-overdue-days across these boards — ledger each as a TD and close it on the board" <<< "$out" \
+grep -q "^⚠ 2 item(s) overdue past their repo's escalate-overdue-days across these boards — \`ledger.py new\` each as a TD, then \`board_edit.py done\` it on the board" <<< "$out" \
     && ok "SessionStart line counts the escalations" || bad "due-only escalation line: $out"
 [ "$(rep --json | python3 -c 'import json,sys; print([i["escalate"] for i in json.load(sys.stdin)["boards"][0]["items"]])')" \
   = "['overdue 20d', None, None, 'overdue 15d']" ] && ok "--json carries escalate" || bad "json escalate: $(rep --json | head -40)"
@@ -84,8 +84,8 @@ full=$(rep); out=$(rep --due-only)
     && ok "15 open items: no size warning; the SessionStart line stays silent" || bad "15 items: '$out' / $(grep open <<< "$full")"
 { for n in $(seq 1 16); do echo "- [ ] fyi $RAISED (n/a) — note $n."; done; } | board
 full=$(rep); out=$(rep --due-only)
-grep -q "⚠ 16 open items on this board (over 15) — triage or ledger them" <<< "$full" \
-    && grep -q "^⚠ board(s) over their repo's board-size-warn — triage or ledger them: r 16$" <<< "$out" \
+grep -q "⚠ 16 open items on this board (over 15) — triage them" <<< "$full" \
+    && grep -q "^⚠ board(s) over their repo's board-size-warn — triage them (\`board_edit.py done\`; durable debt \`ledger.py new\` first): r 16$" <<< "$out" \
     && [ "$(rep --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["boards"][0]["size"].startswith("⚠ 16 open items on this board"))')" = True ] \
     && ok "16 open items: warned in the report, the SessionStart line and --json" || bad "16 items: '$out' / $(grep open <<< "$full")"
 
@@ -165,15 +165,15 @@ C="$TMP/r/docs/cadence.toml"
   echo "- [ ] act $RAISED (n/a) — late. Due: $(d '20 days ago')."; } | board
 printf 'board-size-warn = 4\nescalate-overdue-days = "30"\n' > "$C"
 full=$(rep)
-grep -q "⚠ 5 open items on this board (over 4)" <<< "$full" && ! grep -q "ledger it and close it here" <<< "$full" \
+grep -q "⚠ 5 open items on this board (over 4)" <<< "$full" && ! grep -q "\`ledger.py new\` it, then \`board_edit.py done\` it here" <<< "$full" \
     && ok "TD-134 the repo's board-size-warn (an integer) and escalate-overdue-days (a string) are read" || bad "repo keys: $full"
 j=$(rep --json | python3 -c 'import json,sys; b=json.load(sys.stdin)["boards"][0]; print(b["limits"]["board-size-warn"], b["limits"]["escalate-overdue-days"], b["size"][:22], b["items"][-1]["escalate"])')
 [ "$j" = "4 30 ⚠ 5 open items on this None" ] && ok "TD-134 --json: the board's limits, and its size and escalation read with them" || bad "json limits: $j"
 rm "$C"; printf 'board-size-warn = "4"\n' > "$AGENT_CADENCE_REG_DIR/cadence.toml"
-full=$(rep); grep -q "(over 4)" <<< "$full" && grep -q "ledger it and close it here" <<< "$full" \
+full=$(rep); grep -q "(over 4)" <<< "$full" && grep -q "\`ledger.py new\` it, then \`board_edit.py done\` it here" <<< "$full" \
     && ok "TD-134 the machine's value, and the default (14) for the key it leaves out" || bad "machine key: $full"
 rm "$AGENT_CADENCE_REG_DIR/cadence.toml"
-full=$(CADENCE_ESCALATE_OVERDUE_DAYS=25 rep); ! grep -q "ledger it and close it here" <<< "$full" && ok "TD-134 env CADENCE_ESCALATE_OVERDUE_DAYS wins" || bad "env key: $full"
+full=$(CADENCE_ESCALATE_OVERDUE_DAYS=25 rep); ! grep -q "\`ledger.py new\` it, then \`board_edit.py done\` it here" <<< "$full" && ok "TD-134 env CADENCE_ESCALATE_OVERDUE_DAYS wins" || bad "env key: $full"
 printf 'board-size-warn = 0\n' > "$C"; full=$(rep)
 grep -q "⚠ a threshold setting cannot be read: .*board-size-warn must be a whole number of 1 or more, not 0 — using 15" <<< "$full" \
     && ! grep -q "open items on this board" <<< "$full" && ok "TD-134 an invalid value is said, and its default used" || bad "invalid key: $full"
@@ -191,7 +191,7 @@ done
 printf 'board-size-warn = 3\nescalate-overdue-days = 30\n' > "$TMP/A/docs/cadence.toml"
 printf '%s\n%s\n' "$TMP/A" "$TMP/B" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 out=$(cd "$TMP/B" && python3 "$N" --report --due-only 2>&1)
-grep -q "^⚠ board(s) over their repo's board-size-warn — triage or ledger them: A 4$" <<< "$out" \
+grep -q "^⚠ board(s) over their repo's board-size-warn — triage them (\`board_edit.py done\`; durable debt \`ledger.py new\` first): A 4$" <<< "$out" \
     && grep -q "^⚠ 4 item(s) overdue past their repo's escalate-overdue-days" <<< "$out" \
     && ok "TD-134 --due-only: each roster board by its own repo's values (A's size and escalation, B's defaults)" || bad "due-only per repo: $out"
 rm "$AGENT_CADENCE_REG_DIR/repos.txt"

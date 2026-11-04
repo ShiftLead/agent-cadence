@@ -199,5 +199,28 @@ R="$TMP/g"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
 "$EDIT" add --board "$B" --text "a dated act." --due "$FUT" >/dev/null 2>&1
 [ "$(cls "$R" | cut -d' ' -f1)" = board-append ] && ok "classify_direct: a direct dated one-line add is board-append, as before" || bad "append: $(cls "$R")"
 
+# --- 7) the nudge's item advice names a writer command on every line (design §4's general rule): a fixture board
+#        with a twin, ARCHIVE_AT closed items, an oversized board, an escalated item, an unparseable Due: and an fyi
+#        carrying a Due:, through the full report and the session-start text; stamp advice and the summary header (it names /attention) are exempt
+NB="$TMP/n/docs/user_attention.md"; mkdir -p "$(dirname "$NB")"; OLDD=$(date -d "40 days ago" +%F)
+{
+  printf '# board\n\nPeople: Pat\n\nSwept: %s (h, deep)\nSwept-deep: %s\n\n## Needs the user\n\n' "$TODAY" "$TODAY"
+  printf -- '- [ ] %s (n/a) — a twin. Context: TD-1. Due: %s.\n- [ ] %s (n/a) — a twin. Context: TD-1. Due: %s.\n' "$PAST" "$FUT" "$PAST" "$PAST"
+  printf -- '- [ ] %s (n/a) — long overdue. Context: TD-2. Due: %s.\n' "$OLDD" "$OLDD"
+  printf -- '- [ ] %s (n/a) — a typo date. Context: TD-3. Due: 2026-9-5.\n' "$PAST"
+  printf -- '- [ ] fyi %s (n/a) — heads-up. Context: TD-4. Due: %s.\n' "$PAST" "$PAST"
+  for i in $(seq 1 14); do printf -- '- [ ] %s (n/a) — filler %s. Context: TD-5. Due: %s.\n' "$PAST" "$i" "$PAST"; done
+  for i in $(seq 1 10); do printf -- '- [x] %s (n/a) — closed %s. Context: TD-6. Due: %s. Closed: %s — done.\n' "$PAST" "$i" "$PAST" "$PAST"; done
+} > "$NB"
+full=$(python3 "$S/nudge_user_attention.py" --report --board "$NB" 2>&1)
+due=$(python3 "$S/nudge_user_attention.py" --report --due-only --board "$NB" 2>&1)
+miss=$(printf '%s\n%s\n' "$full" "$due" | grep '⚠' | grep -v 'Swept' | grep -v 'run /attention for the full report' | grep -v 'board_edit.py\|ledger.py')
+conds=0
+for want in "appear twice" "closed item(s) on the board" "open items on this board" "overdue 40d" "unparseable due date" "an fyi carries no Due:" "escalate-overdue-days"; do
+  printf '%s\n%s\n' "$full" "$due" | grep -qF "$want" && conds=$((conds+1)) || echo "  (condition not triggered: $want)"
+done
+[ -z "$miss" ] && [ $conds -eq 7 ] && ok "the nudge's item advice names board_edit.py or ledger.py on every line, all seven conditions triggered" \
+  || bad "advice without a command ($conds/7 conditions): $miss"
+
 echo; echo "$PASS passed, $FAIL failed"
 [ $FAIL -eq 0 ]
