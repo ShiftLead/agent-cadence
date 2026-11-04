@@ -285,6 +285,37 @@ print(K.ledger_touched(['docs/ledger/README.md', 'docs/ledger/archive/TD-1.md', 
 [ "$out" = "['docs/ledger/README.md', 'docs/ledger/archive/TD-1.md', 'docs/technical_debt.md']" ] \
   && ok "ledger_touched: v1's files and a v2 ledger's README and entry files, nothing else" || bad "ledger_touched: $out"
 
+# --- TD-183: the seed itself through --split gives a README with no v1 wording and the template whole; an
+# edited preamble still naming the v1 layout is warned about; ledger.py's seed sentences are the seed's.
+SD="$TMP/seedsplit"; mkdir -p "$SD/docs"; git -C "$SD" init -q -b main
+cp "$DC/files/docs/technical_debt.md" "$DC/files/docs/technical_debt_archive.md" "$SD/docs/"
+git -C "$SD" add -A; git -C "$SD" commit -qm seed
+out=$(lp "$SD" --split 2>&1); rc=$?
+RM="$SD/docs/ledger/README.md"
+tmpl_in=$(sed -n '/^<!-- Entry template:/,/^-->/p' "$DC/files/docs/technical_debt.md")
+[ "$rc" = 0 ] && ! grep -q "rewrite the line for the v2 layout" <<<"$out" \
+  && ! grep -qi "summary table\|technical_debt_archive.md\|Once this file is split" "$RM" \
+  && grep -qF '**This directory holds the ledger:**' "$RM" && grep -qF 'Every entry is written with `scripts/ledger.py`' "$RM" \
+  && [ "$(sed -n '/^<!-- Entry template:/,/^-->/p' "$RM")" = "$tmpl_in" ] \
+  && ok "the seed through --split: a README with no v1 wording, needing no hand edit, its template whole (TD-183)" \
+  || bad "seed split rc=$rc '$out' $(cat "$RM")"
+ED="$TMP/editsplit"; mkdir -p "$ED/docs"; git -C "$ED" init -q -b main
+printf '# Debt\n\nThe summary table below lists every open entry; resolved ones go to `technical_debt_archive.md`.\n\n---\n\n## Summary\n\n| ID | Title | Priority | Status |\n|----|-------|----------|--------|\n' > "$ED/docs/technical_debt.md"
+printf '# Archive\n' > "$ED/docs/technical_debt_archive.md"
+git -C "$ED" add -A; git -C "$ED" commit -qm v1
+out=$(lp "$ED" --split 2>&1); rc=$?
+[ "$rc" = 0 ] && grep -q "README.md:[0-9]*: names the summary table.*rewrite the line for the v2 layout" <<<"$out" \
+  && grep -q "README.md:[0-9]*: names technical_debt_archive.md, a v1 file" <<<"$out" \
+  && ok "an edited preamble that names the v1 layout is warned about, line by line (TD-183)" || bad "edited split rc=$rc '$out'"
+chk=$(python3 - "$DC" <<'PY'
+import sys; sys.path.insert(0, sys.argv[1] + "/files/scripts"); import ledger as L
+seed = open(sys.argv[1] + "/files/docs/technical_debt.md").read()
+miss = [v1[:60] for v1, _ in L.SEED_V1_TO_V2 if v1 not in seed]
+print("ok" if not miss else f"not in the seed: {miss}")
+PY
+)
+[ "$chk" = ok ] && ok "ledger.py's SEED_V1_TO_V2 sentences are the seed's, word for word (TD-183 parity)" || bad "seed parity: $chk"
+
 [ -x "$LEDGER_PY" ] && ok "ledger.py is executable" || bad "ledger.py not executable"
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
