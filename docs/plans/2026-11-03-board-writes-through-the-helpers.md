@@ -1,6 +1,6 @@
 # TD-206: every board write goes through the helpers — design
 
-**Status:** converged, draft 18, 2026-11-03 (Fable round 17 and Sonnet round 18 both CONVERGED). Shape agreed with Paul in conversation on 2026-11-03; the build waits on his go.
+**Status:** converged, draft 18, 2026-11-03 (Fable round 17 and Sonnet round 18 both CONVERGED). Shape agreed with Paul in conversation on 2026-11-03; his go the same day. **Built** 2026-11-04 in three PRs: #75 (§1–§2), #76 (§3), #77 (§4–§6).
 **Entry:** TD-206. **Builds on:** TD-213 (`board_edit.py` wraps ledgerboard v2.3's `board.py`), TD-202 and TD-173 (the same rule for the ledger). **ShiftLead's half:** shiftlead#TD-1286.
 
 ## The problem
