@@ -335,9 +335,10 @@ out=$(take "$W" --claim 128); rc=$?
 out=$(take "$W"); [ "$out" = TD-131 ] && ok "16d the next take goes above both" || bad "16d out='$out'"
 before=$(git -C "$O" rev-parse refs/heads/cadence/ledger-ids)
 out=$(take "$W" --claim TD-126 --json); rc=$?
-[ "$rc" = 2 ] && grep -q '"why": "TD-126 was already handed to b"' <<< "$out" && grep -q '"ids": \[\]' <<< "$out" \
+[ "$rc" = 2 ] && grep -q '"why": "TD-126 was already handed out to b on '"$TODAY"' (' <<< "$out" \
+  && ! grep -q "$(git -C "$O" log --format=%b refs/heads/cadence/ledger-ids | sed -n 's/^take: //p' | tr '\n' '|' | sed 's/|$//')" <<< "$out" && grep -q '"ids": \[\]' <<< "$out" \
   && [ "$(git -C "$O" rev-parse refs/heads/cadence/ledger-ids)" = "$before" ] \
-  && ok "16e --claim of an id a take gave: refused (exit 2) naming its taker, the counter untouched" || bad "16e rc=$rc $out"
+  && ok "16e --claim of an id a take gave: refused (exit 2) naming its by, date and sha, never a nonce; the counter untouched" || bad "16e rc=$rc $out"
 take "$W" --claim TD-028 >/dev/null 2>&1; rc=$?
 [ "$rc" = 2 ] && grep -q "TD-028 is already on origin/main" "$TMP/err" \
   && ok "16f --claim of an id main holds: refused" || bad "16f rc=$rc $(cat "$TMP/err")"
@@ -362,7 +363,7 @@ rm -f "$O/hooks/pre-receive"
 mkrepo "$O" "$W"
 out=$(take "$W" --by grinder-y --branch td125-x); rc=$?
 [ "$rc" = 0 ] && [ "$out" = TD-125 ] && grep -qx "branch: td125-x" <<< "$(body "$O")" \
-  && grep -qF 'write `**Taken by:** grinder-y` in each entry'"'"'s header' "$TMP/err" \
+  && grep -qF "write \`**Id take:** $(body "$O" | sed -n 's/^take: //p')\` and \`**Taken by:** grinder-y\` in each entry's header" "$TMP/err" \
   && ok "17 --branch is recorded in place of the current branch; stderr names the Taken by line" || bad "17 rc=$rc out='$out' $(body "$O") $(cat "$TMP/err")"
 out=$(take "$W" --by grinder-y --json); rc=$?
 [ "$rc" = 0 ] && grep -q '"taken_by": "grinder-y"' <<< "$out" && grep -qx "branch: main" <<< "$(body "$O")" \
@@ -371,6 +372,20 @@ printf '#!/bin/sh\nexit 1\n' > "$O/hooks/pre-receive"; chmod +x "$O/hooks/pre-re
 out=$(take "$W" --json); rc=$?
 rm -f "$O/hooks/pre-receive"
 [ "$rc" = 3 ] && grep -q '"taken_by": null' <<< "$out" && ok "17c the fallback reserves nothing, so it names no taker" || bad "17c rc=$rc $out"
+
+# 17g. TD-188: a reserved take prints its Id take (id_take in --json); --show recovers it for its own taker only
+mkrepo "$O" "$W"
+out=$(take "$W" --by grinder-y --json); n1=$(body "$O" | sed -n 's/^take: //p')
+grep -q "\"id_take\": \"$n1\"" <<< "$out" && ok "17g --json carries the take's nonce as id_take" || bad "17g $out"
+out=$(take "$W" --show TD-125 --by grinder-y); rc=$?
+[ "$rc" = 0 ] && [ "$out" = "**Id take:** $n1" ] && ok "17h --show TD-N prints the caller's own take's Id take line" || bad "17h rc=$rc out='$out' $(cat "$TMP/err")"
+out=$(take "$W" --show TD-125 --by someone-else); rc=$?
+[ "$rc" = 2 ] && [ -z "$out" ] && grep -q "TD-125 was handed out to grinder-y on $TODAY (" "$TMP/err" && ! grep -q "$n1" "$TMP/err" \
+  && ok "17i --show of another's take: refused (exit 2), naming its by, date and sha, never its nonce" || bad "17i rc=$rc out='$out' $(cat "$TMP/err")"
+out=$(take "$W" --show TD-999 --by grinder-y --json); rc=$?
+[ "$rc" = 2 ] && grep -q '"why": "no take gave TD-999"' <<< "$out" && ok "17j --show of an id no take gave: refused" || bad "17j rc=$rc $out"
+out=$(take "$W" --show TD-125 --count 2); rc=$?
+[ "$rc" = 2 ] && grep -q "do not apply" "$TMP/err" && ok "17k --show with --count: a usage error" || bad "17k rc=$rc $(cat "$TMP/err")"
 
 # 18. TD-145 slice 3: ledger.py --check --since judges the ids the edit adds against the counter, as the row does
 LEDGER="$DC/files/scripts/ledger.py"
@@ -438,7 +453,7 @@ out=$(CLAUDE_CODE_SESSION_ID=$sid take "$W" --json); rc=$?
 CLAUDE_CODE_SESSION_ID=$sid take "$W" --by grinder-z >/dev/null
 grep -qx "by: grinder-z" <<< "$(body "$O")" && ok "19b --by still wins over the session id, verbatim" || bad "19b $(body "$O")"
 CLAUDE_CODE_SESSION_ID=$sid take "$W" >/dev/null
-grep -qF "write \`**Taken by:** $h\`" "$TMP/err" && ok "19c the Taken by line it prints is the hash" || bad "19c $(cat "$TMP/err")"
+grep -qF "\`**Taken by:** $h\`" "$TMP/err" && ok "19c the Taken by line it prints is the hash" || bad "19c $(cat "$TMP/err")"
 
 # 20. TD-195: a take whose by is a bare session id or an address warns (id-by-unhashed); a hash or a name does not
 mkrepo "$O" "$W"
