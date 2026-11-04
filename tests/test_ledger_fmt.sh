@@ -4,7 +4,7 @@
 # refused; fmt puts a hand-edited entry (fields out of order, CRLF, stray blank lines) in canonical
 # form and is idempotent; --check names what would change, exits 1 and writes nothing; a refused
 # entry is named with its hand fix, left alone, and fails the run; named ids format only those; a v1
-# ledger and an unknown id exit 2 with nothing written.
+# ledger and an unknown id exit 2 with nothing written; a failed write exits 4, every file as it was (TD-216).
 # Offline, fixture-driven: a temp ledger, HOME/XDG and the roster in a temp dir.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -160,6 +160,23 @@ printf '# Ledger\n\n## TD-001: x\n\n**Priority:** Low\n' > "$TMP/technical_debt.
 python3 "$LEDGER_PY" fmt --ledger "$TMP/technical_debt.md" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 2 ] && grep -q -- '--split` first' "$TMP/err" \
   && ok "a v1 ledger is refused: split first" || bad "fmt on v1 (rc=$rc): $(cat "$TMP/err")"
+
+# --- 7) TD-216: the writes land all or none — a write that fails (archive/ read-only) exits 4 and leaves the
+# open entry it would also have formatted as it was.
+L="$TMP/ledger7"; mkdir -p "$L/archive"
+printf '# Ledger\n\nLedgerboard: 2\n' > "$L/README.md"
+printf '## TD-001: CRLF\r\n\r\n**Priority:** Low\r\n\r\n**Why:** x.\r\n' > "$L/TD-001.md"
+printf '## TD-002: archived\n**Status:** Done\n**Priority:** Low\n\n**Why:** y.\n' > "$L/archive/TD-002.md"
+before=$(sums)
+chmod a-w "$L/archive"
+if [ ! -w "$L/archive" ]; then   # as root a read-only directory is still written: nothing to check there
+  fmt >/dev/null 2>"$TMP/err"; rc=$?
+  [ $rc -eq 4 ] && grep -q 'every file restored' "$TMP/err" && [ "$(sums)" = "$before" ] \
+    && ok "a failed write exits 4 and leaves every entry as it was (all or none)" || bad "failed write (rc=$rc): $(cat "$TMP/err")"
+else
+  ok "a failed write's exit 4 is not checkable as root (a read-only directory is written anyway)"
+fi
+chmod u+w "$L/archive"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
