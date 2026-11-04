@@ -168,6 +168,11 @@ R="$TMP/c"; mkrepo "$R" 10; B="$R/docs/user_attention.md"
 out=$("$EDIT" archive --board "$B" 2>&1); rc=$?
 [ $rc = 0 ] && [ "$(git -C "$R" log -1 --format=%s)" = "board_edit: archive 10 closed items (session n/a)" ] && [ "$(cls "$R")" = "board-archive pass" ] \
   && ok "archive at ten: one commit of two files, class board-archive" || bad "archive rc=$rc: $out / $(cls "$R")"
+# a relative --archive from below the root names the same file for the write and for git
+R="$TMP/c2"; mkrepo "$R" 10
+(cd "$R/docs" && "$EDIT" archive --board user_attention.md --archive other.md >/dev/null 2>&1); rc=$?
+[ $rc = 0 ] && [ "$(git -C "$R" show --name-only --format= HEAD | sort | tr '\n' ' ')" = "docs/other.md docs/user_attention.md " ] \
+  && ok "archive --archive relative to the cwd, run from docs/: written and committed" || bad "relative --archive rc=$rc"
 R="$TMP/d"; mkrepo "$R" 3; B="$R/docs/user_attention.md"
 "$EDIT" archive --board "$B" >/dev/null 2>&1
 [ "$(cls "$R")" = "fail none" ] && ok "archive below ARCHIVE_AT: fails the class, no carve-out" || bad "below: $(cls "$R")"

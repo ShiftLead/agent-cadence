@@ -190,8 +190,8 @@ def passthrough(argv: list[str]) -> int:
         extra.append("no_commit")
     if extra:
         ap.error(f"{a.action} does not take {', '.join('--' + e.replace('_', '-') for e in extra)}")
-    if a.action == "archive" and a.archive is None and a.board:
-        a.archive = str(Path(a.board).resolve().parent / ARCHIVE_NAME)
+    if a.action == "archive" and a.board:  # absolute, so git (run at the root) and the write name one file
+        a.archive = str(Path(a.archive).resolve() if a.archive else Path(a.board).resolve().parent / ARCHIVE_NAME)
     missing = [o for o in LBB.NEEDS_OPT[a.action] if getattr(a, o) in (None, [])]
     if missing:
         ap.error(f"{a.action} needs {', '.join('--' + o for o in missing)}")

@@ -1624,7 +1624,10 @@ def _show(root, sha, path):
         return None
     if git(["cat-file", "-e", f"{sha}:{path}"], cwd=root) is None:
         return ""
-    return git(["show", f"{sha}:{path}"], cwd=root)
+    try:
+        return git(["show", f"{sha}:{path}"], cwd=root)
+    except UnicodeDecodeError:  # not text the board's reader reads: unreadable, not a crash
+        return None
 
 
 def classify_archive(root, sha, subject):
