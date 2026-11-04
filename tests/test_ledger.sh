@@ -459,6 +459,24 @@ assert "TD-102" not in fl and "TD-109" not in fl, fl
 assert len(r["flags"]) == 7, fl
 print("ok")' "$out" 2>&1)
 [ "$chk" = ok ] && ok "<repo>#TD-NNN: lifted, open (origin wins), unknown repo/entry, ambiguous, owner/name, no ledger" || bad "cross-repo: $chk / $out"
+# TD-217: an owner/name resolves by ledgerboard's origin_path, an exact match before a suffix one
+mkrepo "$X/p/tools" "TD-001" ""; git -C "$X/p/tools" remote add origin https://gitlab.example/acme/tools.git
+mkrepo "$X/p/deep" "" "TD-001"; git -C "$X/p/deep" remote add origin git@gitlab.example:group/acme/tools.git
+mkrepo "$X/p/only" "" "TD-001"; git -C "$X/p/only" remote add origin ssh://git@gitlab.example:2222/team/sub/solo.git
+mkdir -p "$X/proster"; printf '%s\n' "$X/p/tools" "$X/p/deep" "$X/p/only" > "$X/proster/repos.txt"
+chk=$(cd "$DC/files/scripts" && AGENT_CADENCE_REG_DIR="$X/proster" python3 -c '
+import ledger as L
+r = L.Roster()
+got = {k: (r._find(k)[0].name if r._find(k)[0] else r._find(k)[1]) for k in
+       ("acme/tools", "ACME/Tools", "group/acme/tools", "sub/solo", "team/sub/solo", "cme/tools",
+        "gitlab.example/team/sub/solo")}
+want = {"acme/tools": "tools", "ACME/Tools": "tools", "group/acme/tools": "deep", "sub/solo": "only",
+        "team/sub/solo": "only", "cme/tools": "not on this machine\x27s roster",
+        "gitlab.example/team/sub/solo": "only"}
+assert got == want, got
+print("ok")' 2>&1)
+[ "$chk" = ok ] && ok "owner/name: an exact origin path wins over a suffix one; a suffix alone still resolves; case-blind" \
+  || bad "origin_path match: $chk"
 mkdir -p "$X/empty"
 AGENT_CADENCE_REG_DIR="$X/empty" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md" | grep -q "TD-101: cannot resolve other#TD-036 — no roster on this machine; the block stays" \
   && ok "no roster file: every cross-repo item keeps its block" || bad "no roster: $(AGENT_CADENCE_REG_DIR="$X/empty" python3 "$LEDGER_PY" --pickable --ledger "$XL" --archive "$TMP/none.md")"
