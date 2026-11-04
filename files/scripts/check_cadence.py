@@ -1540,6 +1540,7 @@ def row_deploy(pr, root):
 # first-parent commit in the --since window that no PR made is classified by what it
 # touches, and anything outside the carve-outs is a fail ("landed without review").
 BOARD = "docs/user_attention.md"
+ARCHIVE = "docs/user_attention_archive.md"  # the board's archive (cadence §3.4): only a board-archive commit writes it
 LEDGER = "docs/technical_debt.md"  # its rank file, the pick order (TD-119), is named from it by ledgerboard's rank_path()
 LEDGER_DIR = "docs/ledger"  # a split ledger (TD-160): rank_path() names its rank file inside it
 SWEEP_STAMPS = ("Swept", "Swept-deep")  # the stamp lines a sweep writes (cadence §3); their shape is ledgerboard's
@@ -1613,8 +1614,80 @@ def _edit_key(line):
     return _lb().item_key(line)
 
 
+_DONE_ARCHIVED_RE = re.compile(r"; archived (\d+) \(session [^)]+\)$")
+_CLOSED_WHY_RE = re.compile(r"Closed:\s*\d{4}-\d{2}-\d{2}(?: — (?P<why>.*?))?\.?$")
+
+
+def _show(root, sha, path):
+    """`path`'s text at `sha`, "" where that tree has no such file, None when git cannot read the commit."""
+    if git(["rev-parse", "--verify", "-q", f"{sha}^{{commit}}"], cwd=root) is None:
+        return None
+    if git(["cat-file", "-e", f"{sha}:{path}"], cwd=root) is None:
+        return ""
+    try:
+        return git(["show", f"{sha}:{path}"], cwd=root)
+    except UnicodeDecodeError:  # not text the board's reader reads: unreadable, not a crash
+        return None
+
+
+def classify_archive(root, sha, subject):
+    """(class, detail) of a commit that changes the board and its archive (TD-206, cadence §3.4): `board-archive`
+    when recomputing the writer's archive from the parent gives the commit's two files, line for line, at the
+    threshold (ARCHIVE_AT closed items) and with the subject's count; `fail` otherwise. Two writers make one:
+    a standalone `archive` (its subject ledgerboard's archive subject), and a `done` that archived in the same
+    write (`<tool>: done <head>; archived <n> (session <s>)`), whose one closed item is found again among the
+    parent's open items and closed by ledgerboard's edit_line() with the date and why the head carries."""
+    lb = _lb()
+    base_b, base_a = _show(root, f"{sha}^", BOARD), _show(root, f"{sha}^", ARCHIVE)
+    head_b, head_a = _show(root, sha, BOARD), _show(root, sha, ARCHIVE)
+    if None in (base_b, base_a, head_b, head_a):
+        return "fail", "board or archive unreadable"
+    kind = lb.subject_kind(subject)
+    if kind == "archive":
+        n = int(re.search(r": archive (\d+) closed", subject).group(1))
+        boards = [base_b]
+    elif kind == "edit" and lb.edit_action(subject) == "done" and _DONE_ARCHIVED_RE.search(subject):
+        n = int(_DONE_ARCHIVED_RE.search(subject).group(1))
+        gained = {lb.item_key(x) for x in head_a.splitlines()[len(base_a.splitlines()):] if lb.is_item(x)}
+        lines = base_b.splitlines(keepends=True)
+        boards = []
+        for i, ln in enumerate(lines):
+            body = ln.rstrip("\r\n")
+            if not (lb.is_open_item(body) and lb.item_key(body) in gained):
+                continue
+            closed = next((x for x in head_a.splitlines() if lb.CLOSED_ITEM_RE.match(x)
+                           and lb.item_key(x) == lb.item_key(body)), None)
+            m = lb.CLOSED_RE.search(closed or "")
+            w = _CLOSED_WHY_RE.match(closed[m.start():]) if m else None
+            if not w:
+                continue
+            try:
+                new = lb.edit_line(body, "done", why=w.group("why"), today=dt.date.fromisoformat(m.group("date")))
+            except (lb.Refused, ValueError):
+                continue
+            boards.append("".join(lines[:i] + [new + ln[len(body):]] + lines[i + 1:]))
+        if not boards:
+            return "fail", "a done that archived, but no open item of the parent closes into the archive"
+    else:
+        return "fail", "the board and its archive changed together without board_edit.py's archive or done subject"
+    for b in boards:
+        c = len(lb.closed_items(b))
+        if c < lb.ARCHIVE_AT:
+            continue
+        try:
+            got = lb.archive_closed(b, base_a)
+        except lb.Refused:
+            continue
+        if got == (head_b, head_a) and c == n:
+            return "board-archive", f"{n} closed items archived by the writer (ARCHIVE_AT {lb.ARCHIVE_AT})"
+    return "fail", (f"not the writer's archive at the threshold (ARCHIVE_AT {lb.ARCHIVE_AT}) with the "
+                    f"subject's count {n}: run board_edit.py archive (or the done that reaches it)")
+
+
 def classify_direct(root, sha, subject, files):
-    """(class, detail) for one direct commit; class is stamp | board-append | board-edit | fail."""
+    """(class, detail) for one direct commit; class is stamp | board-append | board-edit | board-archive | fail."""
+    if sorted(files) == sorted([BOARD, ARCHIVE]):
+        return classify_archive(root, sha, subject)
     if files != [BOARD]:
         return "fail", "touches " + (", ".join(files[:6]) + (" …" if len(files) > 6 else "") or "nothing")
     diff = _board_diff(root, sha)
@@ -1672,15 +1745,18 @@ def row_board_edit_pr(pr, root):
     board_edit.py's fixed message, the PR touches the board alone, and its commit
     (_tool_pr_commit) is the one-item edit the direct audit accepts (classify_direct, the same
     rules). None otherwise: the ordinary review row decides."""
-    if not root or _lb().subject_kind(pr.get("title") or "") != "edit":
+    if not root or _lb().subject_kind(pr.get("title") or "") not in ("edit", "archive"):
         return None
-    if list(pr.get("files") or []) != [BOARD]:
+    if sorted(pr.get("files") or []) not in ([BOARD], sorted([BOARD, ARCHIVE])):
         return None
     found = _tool_pr_commit(pr, root)
     if not found:
         return None
     sha, files = found
     cls, _ = classify_direct(root, sha, pr["title"], files)
+    if cls == "board-archive":
+        return row("review", "pass", "tool-made board archive (cadence §3.4, §4.5 carve-out): board_edit.py's "
+                   "message, the writer's archive at the threshold — no comment needed")
     if cls != "board-edit":
         return None
     return row("review", "pass", "tool-made board edit (cadence §4.5 carve-out): board_edit.py's message, "

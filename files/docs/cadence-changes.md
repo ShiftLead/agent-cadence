@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-04 — `board_edit.py add` writes a new board item; `done` archives at the threshold; `reply --by`
+Do: write a new board item with `board_edit.py add` (its kind, `--answer`s, `--default`, `--detail` JSON), never by hand; let the `done` that reaches 10 closed items archive them (or run `board_edit.py archive`); pass `reply --by` unless the board's `People:` names one person.
+See: cadence.md §3.4, §3.5, §4.6; TD-206.
+
 ## 2026-11-03 — Snooze hides an item (`Hide until:`); `due` moves the deadline; `decide` names who answered
 Do: to snooze, `board_edit.py snooze --to <date>` (hides it, keeps `Due:`); to move the deadline, `board_edit.py due --to <date>`; on a `decide`, pass `--by <who answered>` unless the board's `People:` line names one person — give your board a `People:` line.
 See: cadence.md §3.5, §3.9, §4.5; procedures/attention.md; TD-213 (ledgerboard v2.3, the `scripts/ledgerboard/` package).

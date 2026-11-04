@@ -68,10 +68,10 @@ TD-084) is what the person decides from: when they turn to an item, show its Con
 Caveats and Recommended as written rather than summarising them away. An item that asks for a
 decision without one is worth offering to have its session fill in (cadence.md §3.3).
 
-When the user answers, snoozes, re-dates or closes an item here, make the edit with
-`scripts/board_edit.py decide|snooze|due|done --board <board> --line <N> --expect "<item text>"`
-(the line and text from `--report --json`; a `decide` on a board whose `People:` line names more
-than one person, or none, also takes `--by <who answered>`; `snooze --to <date>` hides the item
+When the user answers, replies to, snoozes, re-dates or closes an item here, make the edit with
+`scripts/board_edit.py decide|reply|snooze|due|done --board <board> --line <N> --expect "<item text>"`
+(the line and text from `--report --json`; a `decide` or a `reply` on a board whose `People:` line names more
+than one person, or none, also takes `--by <who answered>`; a new item is `board_edit.py add`; `snooze --to <date>` hides the item
 until then and keeps its `Due:`, `due --to <date>` moves the `Due:`; an item `--report --json` marks `hidden: true` was snoozed and is not listed
 to the person until its `Hide until:` date), never by hand-editing the line — it refuses a
 board that moved and commits under cadence.md §4's tool-made-edit carve-out. An item's
