@@ -6,7 +6,7 @@ All conventions — entry format and the `<host>` semantics, `Due:` dates and sn
 
 The format is defined once in ShiftLead/ledgerboard's [`SPEC.md`](https://github.com/ShiftLead/ledgerboard/blob/main/SPEC.md); the `scripts/ledgerboard/` package reads it.
 
-Format: `- [ ] YYYY-MM-DD (session <first-8-of-session-uuid> on <host>, or n/a) — what's needed. Context: TD-NNN (another repo's: <repo>#TD-NNN) / PR #N / branch. Due: YYYY-MM-DD.`
+Format: ledgerboard's (cadence.md §3.3), written by `scripts/board_edit.py add`, never by hand — in outline `- [ ] YYYY-MM-DD (session <first-8-of-session-uuid> on <host>, or n/a) — what's needed. Context: TD-NNN (another repo's: <repo>#TD-NNN) / PR #N / branch. Due: YYYY-MM-DD.`
 
 Under the line, indented two spaces, a detail block of sub-bullets in plain English for someone who has not read your session: `**Context:**` (a few sentences; nested bullets where a list is clearer), `**Question:**`, `**Caveats:**` (when there are any), `**Recommended:** <the default> — why. **Otherwise:** <each other answer> — when.` Always on a `decide`; on an `act`/`look` whenever the line alone does not say what to do; fields stay on the line (cadence.md §3.3, TD-084).
 

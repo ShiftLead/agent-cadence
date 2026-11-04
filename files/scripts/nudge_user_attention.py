@@ -269,8 +269,8 @@ def archive_note(content: str) -> str | None:
     n = len(closed_items(content))
     if n < ARCHIVE_AT:
         return None
-    return (f"⚠ {n} closed item(s) on the board — move them to docs/user_attention_archive.md "
-            "in a PR of its own (cadence.md §3)")
+    return (f"⚠ {n} closed item(s) on the board — `board_edit.py archive` moves them to "
+            "docs/user_attention_archive.md (the next `board_edit.py done` does it too) (cadence.md §3.4)")
 
 
 def twin_note(content: str) -> str | None:
@@ -285,7 +285,7 @@ def twin_note(content: str) -> str | None:
     if not n:
         return None
     return (f"⚠ {n} open item(s) appear twice — a merge kept both copies of a snooze or "
-            "Decided:; keep the right one, drop the other (cadence.md §3)")
+            "Decided:; close the wrong one with `board_edit.py done --why \"duplicate of …\"`, never delete it (cadence.md §3.4)")
 
 
 
@@ -293,8 +293,8 @@ def size_note(items: list[BoardItem]) -> str | None:
     """TD-039: the warning for a board past board-size-warn open items."""
     if len(items) <= LIMITS["board-size-warn"]:
         return None
-    return (f"⚠ {len(items)} open items on this board (over {LIMITS['board-size-warn']}) — triage or ledger "
-            "them: the board is only \"a human must act\" (cadence.md §3)")
+    return (f"⚠ {len(items)} open items on this board (over {LIMITS['board-size-warn']}) — triage them "
+            "(`board_edit.py done`; what is durable debt `ledger.py new` first): the board is only \"a human must act\" (cadence.md §3)")
 
 
 def kind_counts(items: list[BoardItem]) -> str:
@@ -333,10 +333,12 @@ def item_tag(item: BoardItem, today: date) -> str:
     who it now waits on and since when."""
     if item.decided is None:
         if item.bad_due is not None:
-            return f"⚠ unparseable due date {_clip(item.bad_due)} — write Due: YYYY-MM-DD"
+            return (f"⚠ unparseable due date {_clip(item.bad_due)} — `board_edit.py done` it and "
+                    "`board_edit.py add` it again with --due YYYY-MM-DD")
         rec = f" · default: {_clip(item.default)}" if item.default else ""
         if item.kind == "fyi":
-            base = "fyi" + (" · ⚠ an fyi carries no Due: — drop it" if item.fyi_due else "")
+            base = "fyi" + (" · ⚠ an fyi carries no Due: — `board_edit.py done` it and `board_edit.py add` "
+                            "it again without --due" if item.fyi_due else "")
         elif item.kind == "watch":
             days = item.overdue_days(today)
             base = "watch · " + ("no check-by date" if item.due is None
@@ -345,7 +347,7 @@ def item_tag(item: BoardItem, today: date) -> str:
         else:
             base = due_tag(item, today)
         esc = escalation(item, today)
-        esc_tag = f" · ⚠ {esc} — ledger it and close it here" if esc else ""
+        esc_tag = f" · ⚠ {esc} — `ledger.py new` it, then `board_edit.py done` it here" if esc else ""
         return base + rec + esc_tag
     text, on = item.decided
     age = (today - on).days
@@ -1747,9 +1749,10 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
             if n_escalate:
                 # Counts every surfacing item, listed or past the cap — so never "of them".
                 print(f"⚠ {n_escalate} item(s) overdue past their repo's escalate-overdue-days across these boards — "
-                      "ledger each as a TD and close it on the board (cadence.md §3)")
+                      "`ledger.py new` each as a TD, then `board_edit.py done` it on the board (cadence.md §3)")
         if oversized:
-            print(f"⚠ board(s) over their repo's board-size-warn — triage or ledger them: {', '.join(oversized)}")
+            print(f"⚠ board(s) over their repo's board-size-warn — triage them (`board_edit.py done`; durable debt "
+                  f"`ledger.py new` first): {', '.join(oversized)}")
         if elsewhere:
             worst = f"most overdue: {most_overdue[1]} {most_overdue[0]}d" if most_overdue else "none overdue"
             print(f"ℹ {sum(elsewhere.values())} due in {len(elsewhere)} other repo(s) ({worst})"

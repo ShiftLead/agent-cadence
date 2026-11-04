@@ -30,7 +30,7 @@ cat > "$B/user_attention.md" <<EOF
 - [ ] $T0 (n/a) — fix the reader so a malformed Due: is no longer silent.
 EOF
 out=$(python3 "$S/nudge_user_attention.py" --report --board "$B/user_attention.md" 2>&1)
-grep -q "(⚠ unparseable due date 2026-9-5 — write Due: YYYY-MM-DD) .*typo date" <<< "$out" && grep -q "(⚠ unparseable due date 2026-02-30" <<< "$out" \
+grep -q "(⚠ unparseable due date 2026-9-5 — \`board_edit.py done\` it and \`board_edit.py add\` it again with --due YYYY-MM-DD) .*typo date" <<< "$out" && grep -q "(⚠ unparseable due date 2026-02-30" <<< "$out" \
     && grep -q "(⚠ unparseable due date 2026-09-05 .*missing colon" <<< "$out" \
     && ok "full report: an unparseable Due: is tagged, not silently undated" || bad "report: $out"
 grep -q "(no due date) .*Due to a bug in prose" <<< "$out" && grep -q "(no due date) .*a malformed Due: is no longer silent" <<< "$out" \

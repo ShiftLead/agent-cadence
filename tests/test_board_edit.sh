@@ -169,7 +169,7 @@ for n in 1 2 3 4 5 6 7 8 9; do echo "- [x] $PAST (n/a) — closed $n. Closed: $T
 python3 "$NUDGE" --report --board "$AB" 2>&1 | grep -q "closed item(s) on the board" \
   && bad "archive prompt at 9 closed items" || ok "9 closed items: no archive prompt"
 echo "- [x] $PAST (n/a) — closed 10. Closed: $TODAY." >> "$AB"
-python3 "$NUDGE" --report --board "$AB" 2>&1 | grep -q "10 closed item(s) on the board — move them to docs/user_attention_archive.md" \
+python3 "$NUDGE" --report --board "$AB" 2>&1 | grep -qF '10 closed item(s) on the board — `board_edit.py archive` moves them to docs/user_attention_archive.md' \
   && ok "10 closed items: the report says to archive them" || bad "no archive prompt: $(python3 "$NUDGE" --report --board "$AB" 2>&1)"
 python3 "$NUDGE" --report --json --board "$AB" 2>&1 | python3 -c 'import json,sys; b=json.load(sys.stdin)["boards"][0]; assert b["archive"] and not b["items"], b' 2>/dev/null \
   && ok "--json carries the archive note; closed items are not items" || bad "--json archive slot"
