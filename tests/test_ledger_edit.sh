@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # TD-199: `ledger.py set`, `note` and `edit` change one open entry of a v2 ledger through
-# ledgerboard's edit_entry(), refusing what the gate would fail. Asserts: set changes a field in place
+# ledgerboard (note and edit its writer's plan_edit, TD-216; set edit_entry() until TD-218), refusing what the gate would fail. Asserts: set changes a field in place
 # and removes one with an empty value; note keeps the Status and adds a dated line to the Log (ledgerboard
 # v2.4); edit replaces one section and leaves the header and the other sections alone, and adds a missing Fix
 # after the Why; refusals leave the file untouched — an unknown Type, a wait in prose in a field (TD-166), a
@@ -110,6 +110,18 @@ lp set TD-099 --priority Low >/dev/null 2>"$TMP/err"; rc=$?
 lp set TD-001 >/dev/null 2>&1; r1=$?
 lp edit TD-001 --section Fix --from /dev/null >/dev/null 2>&1; r2=$?
 [ $r1 -eq 2 ] && [ $r2 -eq 2 ] && same TD-001.md && ok "set with no field and an empty edit are usage errors" || bad "usage: $r1 $r2"
+
+# --- TD-216/TD-222: an entry with a field below its header block, at origin and untouched, does not refuse a
+# note or an edit of another entry (ledgerboard v2.4's check() raises on it; the writer gates through the guard).
+O3="$TMP/o3"; W3="$TMP/w3"; mkrepo "$O3" "$W3"
+printf '## TD-006: below\n\n**Priority:** Low\n\n**Blocked by:** decision (Alex)\n\n**Why:** x.\n' > "$W3/docs/ledger/TD-006.md"
+git -C "$W3" add -A && git -C "$W3" commit -qm below && git -C "$W3" push -q origin main
+r1=$( (cd "$W3" && python3 "$LEDGER_PY" note TD-001 "still fine") >/dev/null 2>"$TMP/err"; echo $?)
+printf 'a new why.\n' > "$TMP/why.md"
+r2=$( (cd "$W3" && python3 "$LEDGER_PY" edit TD-001 --section Why --from "$TMP/why.md") >/dev/null 2>>"$TMP/err"; echo $?)
+[ "$r1" = 0 ] && [ "$r2" = 0 ] && grep -q 'still fine' "$W3/docs/ledger/TD-001.md" && grep -q 'a new why' "$W3/docs/ledger/TD-001.md" \
+  && ok "a below-block entry elsewhere, unchanged since origin, refuses no note or edit of another entry (TD-222)" \
+  || bad "below-block elsewhere: $r1 $r2 $(cat "$TMP/err")"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

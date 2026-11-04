@@ -420,8 +420,16 @@ def check(ledger: str, archive: str, old: str | None = None, roster: Roster | No
     ledgerboard flags it again (TD-222), the rest of the ledger is checked without those entries, and each
     is one ``check-refused`` flag — an error on an entry this edit wrote, standing ℹ on one ``old`` holds
     as it is (so a PR is never failed on an entry it did not touch, cadence.md §2.12's ``--since``)."""
+    return guarded_check(ledger, archive, old, (roster or Roster()).resolve, rank_text, today=today)
+
+
+def guarded_check(ledger: str, archive: str, old: str | None = None, resolve: LB.Resolve | None = None,
+                  rank_text: str | None = None, *, today: date | str | None = None) -> list[dict]:
+    """``check()`` with the resolver given as ledgerboard's ``check()`` takes it — so the package's ledger
+    writer gates through it too (bound as ``LBL.check`` below, TD-216: a below-block entry elsewhere must not
+    refuse an edit of another one). TD-222 removes both once ledgerboard flags the entry again."""
     def run(text: str, before: str | None) -> list[dict]:
-        return LB.check(text, archive, before, (roster or Roster()).resolve, rank_text=rank_text, today=_today(today))
+        return LB.check(text, archive, before, resolve, rank_text=rank_text, today=_today(today))
     try:
         return run(ledger, old)
     except LB.Refused as e:
@@ -1242,7 +1250,8 @@ def new(argv: list[str]) -> int:
 
 
 def edit(cmd: str, argv: list[str]) -> int:
-    """``ledger.py set|note|edit TD-n …``: one edit of an open entry through ``edit_entry()`` (TD-199)."""
+    """``ledger.py set|note|edit TD-n …``: one edit of an open entry (TD-199) — note and edit through ledgerboard's
+    writer (``_lb_edit``, TD-216), set through ``edit_entry()`` until TD-218."""
     ap = argparse.ArgumentParser(prog=f"ledger.py {cmd}", description={
         "set": "set an open entry's header fields (an empty value removes one)",
         "note": "append a dated line (the UTC day) to an open entry's Log",
@@ -1297,6 +1306,9 @@ def edit(cmd: str, argv: list[str]) -> int:
             f.write(out)
     print(path)
     return 0
+
+
+LBL.check = guarded_check  # the package writer's gate (``LBL._flags``) reads check() through this guard (TD-222)
 
 
 def _lb_edit(w: _Writer, cmd: str, tid: str, kw: dict) -> int:
