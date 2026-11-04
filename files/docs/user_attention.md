@@ -14,7 +14,7 @@ Kinds: `decide | act | look | watch | fyi` — optional, one word before the dat
 
 A question ends with its answers after `Due:` — `Answers: <answer> | <answer>.`, the one you recommend marked `Answers: <answer> (default) | <answer>.` The person's answer is appended by `scripts/board_edit.py decide`, never by hand: `Decided: <text> (by <person>) (YYYY-MM-DD).` — `<person>` is who answered, one of the `People:` line's names. A `look` (the person is asked to look at something live) ends with the fixed pair `Answers: Works | Not right: <what>.`; a `watch`, an `act` and an `fyi` carry none (cadence.md §3.5).
 
-Closing an entry never deletes it: `scripts/board_edit.py done --why <why>` ticks it and appends `Closed: YYYY-MM-DD — <why>.` A merge conflict here is resolved by keeping both sides; 10 or more closed entries are archived to `user_attention_archive.md` in a PR of their own.
+Closing an entry never deletes it: `scripts/board_edit.py done --why <why>` ticks it and appends `Closed: YYYY-MM-DD — <why>.` A merge conflict here is resolved by keeping both sides; the `done` that leaves 10 or more closed entries also moves them to `user_attention_archive.md`, in the same commit (`board_edit.py archive` does it for a board already over). A new entry is written by `scripts/board_edit.py add` (cadence.md §3.4–§3.5).
 
 Put a `People:` line above the first entry naming whose board it is — `People: alex`, or several separated by `, ` — so `scripts/board_edit.py decide` knows who answers (with one name it is the default; without the line every answer needs `--by`). Snoozing hides an item until a date (`board_edit.py snooze` writes `Hide until:`) and leaves its `Due:` alone; `board_edit.py due` moves the `Due:` (cadence.md §3).
 

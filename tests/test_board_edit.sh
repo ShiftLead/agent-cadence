@@ -297,14 +297,12 @@ print("ok")' 2>&1)
 "$EDIT" reply --board "$RBB" --line 7 --expect "$PAST" >/dev/null 2>&1; r2=$?
 "$EDIT" done --board "$RBB" --line 7 --expect "$PAST" --text x >/dev/null 2>&1; r3=$?
 [ "$r1$r2$r3" = 222 ] && ok "reply usage: --answer refused, --text required, --text on another action refused" || bad "reply usage: $r1 $r2 $r3"
-# --by defaults to the checkout's git user.name, else 'the person'
-git -C "$RB" config user.name "Robin Q"
-"$EDIT" reply --board "$RBB" --line 7 --expect "$PAST" --text "named" >/dev/null 2>&1
+# --by is never git's user.name (TD-206): a board with no People: line and no --by is refused
+git -C "$RB" config user.name "Robin Q"; cp "$RBB" "$TMP/before"
+"$EDIT" reply --board "$RBB" --line 7 --expect "$PAST" --text "named" >/dev/null 2>&1; rc=$?
 git -C "$RB" config --unset user.name
-"$EDIT" reply --board "$RBB" --line 7 --expect "$PAST" --text "unnamed" >/dev/null 2>&1
-sed -n 7p "$RBB" | grep -q " — Robin Q, $TODAY: named — the person, $TODAY: unnamed$" \
-  && [ "$(git -C "$RB" log -1 --format=%s)" = "board_edit: reply undated and unpunctuated. (session n/a)" ] \
-  && ok "reply --by defaults to git user.name, else 'the person'; an earlier reply's words stay out of the commit head" || bad "reply --by default: $(sed -n 7p "$RBB") / $(git -C "$RB" log -1 --format=%s)"
+[ $rc = 3 ] && cmp -s "$RBB" "$TMP/before" \
+  && ok "reply with no --by on a board with no People: line is refused, git's user.name unused" || bad "reply --by default rc=$rc: $(sed -n 7p "$RBB")"
 
 # --- 7c) who answered (ledgerboard v2.3): decide's --by is never git's user.name; a board whose People:
 #         line names one person defaults to them, one with none needs --by, a name off the line is refused
@@ -319,6 +317,13 @@ git -C "$PB" config user.name "Robin Q"
   && ok "decide on a one-person People: board defaults --by to that person, not git's user.name" || bad "decide People: default rc=$rc: $(sed -n 7p "$PBB")"
 "$EDIT" decide --board "$B" --line 9 --expect "$PAST" --answer a >/dev/null 2>&1; rc=$?
 [ $rc = 3 ] && ok "decide on a board with no People: line and no --by is refused" || bad "decide with no People: and no --by rc=$rc"
+"$EDIT" reply --board "$PBB" --line 7 --expect "$PAST" --text "after lunch" >/dev/null 2>&1; rc=$?
+[ $rc = 0 ] && sed -n 7p "$PBB" | grep -q " — Pat, $TODAY: after lunch\. Answers: merge (default) | hold\. Decided:" \
+  && ok "reply on a one-person People: board defaults --by to that person (TD-206)" || bad "reply People: default rc=$rc: $(sed -n 7p "$PBB")"
+printf '# board\n\nPeople: Pat, Sam\n\n## Needs the user\n\n- [ ] %s (n/a) — two people. Due: %s.\n' "$PAST" "$PAST" > "$PBB"
+git -C "$PB" commit -qam two; cp "$PBB" "$TMP/before"
+"$EDIT" reply --board "$PBB" --line 7 --expect "$PAST" --text "x" >/dev/null 2>&1; rc=$?
+[ $rc = 3 ] && cmp -s "$PBB" "$TMP/before" && ok "reply with no --by on a two-person People: board is refused" || bad "reply two-people rc=$rc"
 "$EDIT" snooze --board "$PBB" --line 7 --expect "$PAST" --to "$FUT" --by Pat >/dev/null 2>&1; [ $? = 2 ] \
   && ok "--by on snooze is a usage error" || bad "--by accepted on snooze"
 
