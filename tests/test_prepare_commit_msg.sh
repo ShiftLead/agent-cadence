@@ -165,5 +165,39 @@ AGENT_MODEL=claude-code/opus git commit -q --allow-empty --cleanup=strip -m "# o
 [ $rc -ne 0 ] && [ "$(body | head -1)" = "odd model" ] && ok "an empty message is still aborted with only a model set" \
   || bad "empty msg with model rc=$rc: '$(body)'"
 
+# --- 10) TD-235: the comment char as git >= 2.45 takes it — a string, multibyte included, under either
+# alias (the last set wins) — and compared as a whole prefix, so a comments-only message is still
+# aborted, under a UTF-8 locale and the C one alike; `auto` and an unset one read as `#`
+gv=$(git --version | awk '{print $3}')
+if [ "$(printf '2.45.0\n%s\n' "$gv" | sort -V | head -n 1)" = 2.45.0 ]; then
+  UL=""; locale -a 2>/dev/null | grep -qix 'c\.utf-\?8' && UL=C.UTF-8
+  for loc in ${UL:+"$UL"} C; do
+    for cfg in "core.commentChar §" "core.commentChar //" 'core.commentChar \' "core.commentString ;;"; do
+      key=${cfg%% *}; val=${cfg#* }
+      git config "$key" "$val"
+      before=$(git rev-parse HEAD)
+      LC_ALL=$loc AGENT_NAME=grinder-ao-1 AGENT_MODEL=m/x git commit -q --allow-empty --cleanup=strip -m "$val only a comment" 2>/dev/null; rc=$?
+      [ $rc -ne 0 ] && [ "$(git rev-parse HEAD)" = "$before" ] && ok "10 $key '$val' ($loc): a comments-only message is still aborted" \
+        || bad "10 $key '$val' ($loc) rc=$rc: '$(body)'"
+      LC_ALL=$loc AGENT_NAME=grinder-ao-1 git commit -q --allow-empty -m "real work" 2>/dev/null
+      [ "$(n_trailers "$T")" = 1 ] && [ "$(body | head -1)" = "real work" ] && ok "10 $key '$val' ($loc): real content still gets the co-author" \
+        || bad "10 $key '$val' ($loc) content: '$(body)'"
+      git config --unset-all "$key"
+    done
+  done
+  git config core.commentChar '§'; git config core.commentString '#'
+  printf '§ not a comment now\n' > "$TMP/m10"
+  (AGENT_NAME=grinder-ao-1 bash "$HOOK" "$TMP/m10") >/dev/null 2>&1
+  grep -qxF "$T" "$TMP/m10" && ok "10 commentChar then commentString: the last one set wins" || bad "10 last wins: $(cat "$TMP/m10")"
+  git config --unset-all core.commentChar; git config --unset-all core.commentString
+else
+  echo "SKIP: 10 git $gv predates 2.45, which first takes a multibyte core.commentChar"
+fi
+git config core.commentChar auto
+printf '# only a comment\n' > "$TMP/m10"
+(AGENT_NAME=grinder-ao-1 bash "$HOOK" "$TMP/m10") >/dev/null 2>&1
+[ "$(cat "$TMP/m10")" = "# only a comment" ] && ok "10 commentChar auto reads as #" || bad "10 auto: $(cat "$TMP/m10")"
+git config --unset-all core.commentChar
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -54,12 +54,16 @@ fi
 
 # A message with nothing but comments and blank lines is one git is about to abort as
 # empty — a trailer would turn that abort into a commit.
-cc="$(git config core.commentChar 2>/dev/null)"
-[ "${#cc}" -eq 1 ] || cc="#"
+# git >= 2.45 takes a string, multibyte included, under either alias, and the last one set wins (TD-235);
+# unset or `auto` (git picks a char per message) reads as `#`.
+cc="$(git config --get-regexp '^core\.comment(char|string)$' 2>/dev/null | tail -n 1)"
+cc="${cc#* }"
+case "$cc" in core.comment*|""|auto) cc="#" ;; esac
 # Everything below the scissors line (commit -v) is discarded by git, so it is not content.
-awk -v c="$cc" '
+CC="$cc" awk '
+    BEGIN { c = ENVIRON["CC"] }    # not -v, which would read a backslash in it as an escape
     $0 == c " ------------------------ >8 ------------------------" { exit }
-    NF && substr($0, 1, 1) != c { found = 1; exit }
+    NF && index($0, c) != 1 { found = 1; exit }    # a prefix of bytes, so a multibyte char compares whole
     END { exit !found }' "$msg" 2>/dev/null || exit 0
 
 [ -z "$name" ] || git interpret-trailers --in-place --if-exists addIfDifferent \
