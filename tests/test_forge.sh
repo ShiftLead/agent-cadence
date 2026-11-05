@@ -162,5 +162,12 @@ out=$(cd "$N" && python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import
 [ "$out" = "2026-01-02T03:04:05Z None" ] && grep -q -- '--json .*createdAt' "$GH_LOG" \
   && ok "7a pr() asks gh for createdAt and maps it to created_at" || bad "7a: $out $(cat "$GH_LOG")"
 
+# 8. TD-224: the record carries how many commits the PR had, asked of gh in PR_FIELDS; none asked, None
+: > "$GH_LOG"
+printf '{"number":8,"state":"MERGED","commits":[{"oid":"a"},{"oid":"b"}]}' > "$GH_PRVIEW"
+out=$(cd "$N" && python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import forge; b = forge.backend("."); r = b.pr(8); print(r["commits"], b.pr_commits(r), b.pr_commits(b.record({"number": 8})))' "$S" 2>&1)
+[ "$out" = "2 2 None" ] && grep -q -- '--json .*commits' "$GH_LOG" \
+  && ok "8a pr() asks gh for commits and counts them; a record without them gives None" || bad "8a: $out $(cat "$GH_LOG")"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

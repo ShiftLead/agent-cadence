@@ -31,12 +31,15 @@ judge() {  # $1 = state (open|merged), $2 = created_at
   python3 - "$R" "$1" "$2" "$S" <<'EOF'
 import sys
 root, state, created, s = sys.argv[1:]
+import os
 sys.path.insert(0, s)
 import check_cadence as C
 class Stub:
     cli = "gh"
     def comments(self, n):
         return []
+    def pr_commits(self, pr):  # TD-224: a merged PR's one-commit property is the forge's count
+        return pr.get("commits")
 C.FORGE = Stub()
 sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
 base = C.git(["rev-parse", "origin/main"], cwd=root).strip()
@@ -44,7 +47,8 @@ rng = f"{sha}^..{sha}" if state == "merged" else f"{base}..{sha}"
 files = sorted(set(C.git(["diff", "--name-only", rng], cwd=root).split()))
 subj = C.git(["log", "-1", "--format=%s", sha], cwd=root).strip()
 pr = {"number": 5, "ref": "#5", "state": state, "head_sha": sha, "merge_sha": sha, "files": files, "title": subj,
-      "created_at": created, "merged_at": "2026-01-15T12:00:00Z" if state == "merged" else None}
+      "created_at": created, "merged_at": "2026-01-15T12:00:00Z" if state == "merged" else None,
+      "commits": int(os.environ.get("COMMITS", "1"))}
 r = C.board_edit_or_review(pr, root)
 one = sorted(C.git(["diff-tree", "--no-commit-id", "--name-only", "-r", sha], cwd=root).split())
 cls, _ = C.classify_direct(root, sha, subj, one)
@@ -79,6 +83,9 @@ EOF2
 git -C "$R" switch -q main; git -C "$R" merge -q --squash topic >/dev/null 2>&1; git -C "$R" commit -qm "$DECIDE (#5)"
 IFS=$'\t' read -r st cls det <<< "$(judge merged 2026-01-15T09:00:00Z)"
 [ "$st" = pass ] && echo "$det" | grep -q "decide lift" && ok "the lift squash-merged (subject ending (#5)) passes" || bad "merged lift: $st $det"
+# TD-224: the same tip from a PR the forge says carried two commits (a rebase merge): not a lift
+IFS=$'\t' read -r st cls det <<< "$(COMMITS=2 judge merged 2026-01-15T09:00:00Z)"
+[ "$st" = fail ] && echo "$det" | grep -q "is not a decide lift" && ok "the same tip from a two-commit PR takes review (TD-224)" || bad "merged two-commit lift: $st $det"
 git -C "$R" reset -q --hard origin/main
 
 # opened two days after the answer's date: out of the window, so ordinary review — with no comment, a fail naming why

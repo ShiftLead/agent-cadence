@@ -238,10 +238,11 @@ class NoForge:
 
 
 # The fields check_cadence.py's rows read, in gh's names (the neutral record below maps them);
-# createdAt is a lift PR's lower bound, which ledgerboard's lift_pr_verdict() checks (TD-218).
+# createdAt is a lift PR's lower bound, which ledgerboard's lift_pr_verdict() checks (TD-218);
+# commits is how many the PR carried, which a tool carve-out reads for a merged PR (TD-224).
 PR_FIELDS = (
     "number,url,state,title,body,baseRefName,headRefName,headRefOid,mergedAt,mergeCommit,files,updatedAt,"
-    "isCrossRepository,createdAt"
+    "isCrossRepository,createdAt,commits"
 )
 # What every gh-driven caller's env adds: a call from a hook or a sweep must never prompt.
 _QUIET = {"GH_PROMPT_DISABLED": "1"}
@@ -416,10 +417,17 @@ class GitHub(_CLI):
             "files": [f.get("path") for f in p.get("files") or []],
             "updated_at": p.get("updatedAt"),
             "created_at": p.get("createdAt"),
+            # how many commits the PR carried (TD-224); None when gh was not asked for them
+            "commits": len(p["commits"]) if isinstance(p.get("commits"), list) else None,
         }
 
     def pr(self, n) -> dict:
         return self.record(self._json(["pr", "view", str(n), "--json", PR_FIELDS]))
+
+    @staticmethod
+    def pr_commits(pr: dict) -> int | None:
+        """How many commits the PR carried, from its record (pr() asks gh for them); None when unknown."""
+        return pr.get("commits")
 
     def prs_for_branch(self, branch: str, limit: int = 5) -> list[dict]:
         prs = self._json(["pr", "list", "--head", branch, "--state", "all", "--limit", str(limit),
@@ -1039,6 +1047,17 @@ class GitLab(_CLI):
 
     def commit_parents(self, sha: str) -> int:
         return len(self._get(f"{self.project}/repository/commits/{sha}").get("parent_ids") or [])
+
+    def pr_commits(self, pr: dict) -> int | None:
+        """How many commits the MR carried (TD-224): its commits list, which GitLab keeps after a
+        squash merge. Asked here rather than in pr(), whose other callers never need it."""
+        if pr.get("commits") is not None:
+            return pr["commits"]
+        n = pr.get("number")
+        if n is None:
+            return None
+        got = self._get(f"{self.project}/merge_requests/{int(n)}/commits?per_page=100", paginate=True)
+        return len(got) if isinstance(got, list) else None
 
     # -- CI: pipelines -------------------------------------------------------------------
 

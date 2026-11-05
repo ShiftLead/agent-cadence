@@ -44,6 +44,7 @@ name = {  # endpoint → fixture file
     r"projects/[^/]+/merge_requests/(\d+)$": r"mr_\1.json",
     r"projects/[^/]+/merge_requests/(\d+)/diffs$": r"diffs_\1.json",
     r"projects/[^/]+/merge_requests/(\d+)/notes$": r"notes_\1.json",
+    r"projects/[^/]+/merge_requests/(\d+)/commits$": r"mrcommits_\1.json",
     r"projects/[^/]+/members/all$": "members.json",
     r"projects/[^/]+/repository/commits/([\w%.-]+)$": r"commit_\1.json",
     r"projects/[^/]+/repository/tree$": "tree_" + ep.partition("?")[2].replace("%2F", "-") + ".json",
@@ -360,6 +361,26 @@ has "open [{'number': 11, 'head': 'lift/TD-3/until', 'files': ['a.txt', 'docs/le
 has "create https://gitlab.example/grp/thing/-/merge_requests/12" \
   && grep -q -- '-X POST -f source_branch=sweep/x -f target_branch=trunk -f title=a title -f description=a body' "$GLAB_LOG" \
   && ok "12f create_pr: POST merge_requests with source, target, title, description; its web_url" || bad "12f: $out | $(grep POST "$GLAB_LOG")"
+
+# --- 13) TD-224: how many commits an MR carried, from its commits list (paginated); a record that has the
+#     count is not asked again; an MR the forge cannot read is ForgeUnreadable, which check_cadence takes as None
+echo '[{"id":"a"},{"id":"b"}]' > "$FAKE/mrcommits_21.json"; echo '[{"id":"a"}]' > "$FAKE/mrcommits_22.json"
+echo 'glab: 404 Not Found (HTTP 404)' > "$FAKE/mrcommits_23.json.err"
+: > "$GLAB_LOG"
+out=$(cd "$S" && python3 - <<'PY' 2>&1
+import forge as F
+g = F.GitLab(slug="gitlab.example/grp/thing")
+try:
+    g.pr_commits({"number": 23}); gone = "no error"
+except F.ForgeUnreadable:
+    gone = "unreadable"
+print(g.pr_commits({"number": 21}), g.pr_commits({"number": 22}), g.pr_commits({"number": 24, "commits": 3}),
+      g.pr_commits({}), gone)
+PY
+)
+[ "$out" = "2 1 3 None unreadable" ] && grep -q "merge_requests/21/commits?per_page=100 --paginate" "$GLAB_LOG" \
+  && ! grep -q "merge_requests/24/commits" "$GLAB_LOG" \
+  && ok "13 pr_commits: an MR's commits counted from its paginated list; a known count is not asked again" || bad "13: $out | $(cat "$GLAB_LOG")"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
