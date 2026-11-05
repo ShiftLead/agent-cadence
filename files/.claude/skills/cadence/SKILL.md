@@ -1,6 +1,6 @@
 ---
 name: cadence
-description: Run the cadence check on this branch's PR (review evidence, squash, CI, base, ledger, board, worktree, pushed, deploy) — do the independent review and post its evidence comment if missing, then merge only when every row passes. Pass a PR number to check another PR, or "week" for every PR merged in the last 7 days.
+description: Run the cadence check on this branch's PR (review evidence, squash, CI, base, ledger, board, gates, worktree, pushed, deploy) — do the independent review and post its evidence comment if missing, then merge only when every row passes. Pass a PR number to check another PR, or "week" for every PR merged in the last 7 days.
 ---
 
 <!-- SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/.claude/skills/cadence/SKILL.md
