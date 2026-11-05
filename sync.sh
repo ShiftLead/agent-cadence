@@ -69,6 +69,7 @@ SYNC_FILES=(
     "scripts/agent_sessions.py"
     "scripts/forge.py"
     "scripts/event_checks.py"
+    "scripts/hostlog.py"
     "scripts/gate_sweep.py"
     "scripts/gate_sweep_timer.sh"
     "scripts/nudge_user_attention.py"
