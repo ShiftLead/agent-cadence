@@ -232,10 +232,11 @@ class NoForge:
 # --- GitHub -----------------------------------------------------------------------------
 
 
-# The fields check_cadence.py's rows read, in gh's names (the neutral record below maps them).
+# The fields check_cadence.py's rows read, in gh's names (the neutral record below maps them);
+# createdAt is a lift PR's lower bound, which ledgerboard's lift_pr_verdict() checks (TD-218).
 PR_FIELDS = (
     "number,url,state,title,body,baseRefName,headRefName,headRefOid,mergedAt,mergeCommit,files,updatedAt,"
-    "isCrossRepository"
+    "isCrossRepository,createdAt"
 )
 # What every gh-driven caller's env adds: a call from a hook or a sweep must never prompt.
 _QUIET = {"GH_PROMPT_DISABLED": "1"}
@@ -374,6 +375,7 @@ class GitHub(_CLI):
             "merge_sha": (p.get("mergeCommit") or {}).get("oid"),
             "files": [f.get("path") for f in p.get("files") or []],
             "updated_at": p.get("updatedAt"),
+            "created_at": p.get("createdAt"),
         }
 
     def pr(self, n) -> dict:

@@ -155,5 +155,12 @@ out=$(nl 3 "$(git -C "$N" rev-parse landed)" MERGED); rc=$?
 out=$(nl 5 0123456789abcdef0123456789abcdef01234567); rc=$?
 [ $rc = 2 ] && grep -q "cannot tell" <<< "$out" && ok "6c a head not fetched here: exit 2, cannot tell" || bad "6c rc=$rc: $out"
 
+# 7. the PR record carries created_at (TD-218: a lift PR's lower bound), asked of gh in PR_FIELDS
+: > "$GH_LOG"
+printf '{"number":7,"state":"OPEN","createdAt":"2026-01-02T03:04:05Z","mergedAt":null}' > "$GH_PRVIEW"
+out=$(cd "$N" && python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import forge; r = forge.backend(".").pr(7); print(r["created_at"], r["merged_at"])' "$S" 2>&1)
+[ "$out" = "2026-01-02T03:04:05Z None" ] && grep -q -- '--json .*createdAt' "$GH_LOG" \
+  && ok "7a pr() asks gh for createdAt and maps it to created_at" || bad "7a: $out $(cat "$GH_LOG")"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

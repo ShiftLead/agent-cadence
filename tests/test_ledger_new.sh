@@ -22,7 +22,7 @@ BY=$(printf %s fixture-session | sha256sum | cut -c1-12)
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
-TODAY=$(date +%F)
+TODAY=$(date -u +%F)   # new writes Added as the UTC day (TD-216)
 
 # origin (bare) seeded with a v2 ledger: TD-001 open, TD-002 archived; then a clone of it at $2.
 mkrepo() {  # $1 origin dir, $2 clone dir
