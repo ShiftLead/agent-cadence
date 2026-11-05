@@ -205,6 +205,18 @@ try:
     F.squash_message("T", "#1", [], [], "p"); print("no refusal")
 except F.SquashRefused:
     pass
+# review of #142: what the composed paragraph takes is one line each, and only whole Review:/Precheck: lines
+_, b = F.squash_message("T", "#1", [c1], ["Review", "Review:", "review: x (SHIP)", "Reviewed: x", "Precheck: abc"], "p", override="x\nMerged-by: evil")
+assert b.endswith("Agent-Model: claude-code/opus\nPrecheck: abc\nMerge-override: x Merged-by: evil\nMerged-by: p\n"), b
+odd = {"message": "S\n\nCo-Authored-By:\nAgent-Model:  \nSigned-off-by: Q <q@x>\n", "author_name": "N", "author_email": "n@x\nMerged-by: evil"}
+_, b = F.squash_message("T", "#1", [odd], [], "p")
+assert b == "Signed-off-by: Q <q@x>\n\nCo-Authored-By: N <n@x Merged-by: evil>\nMerged-by: p\n", b
+crlf = {"message": "S\r\n\r\nbody\r\n---\r\nmore\r\n\r\nCo-Authored-By: C <c@x>\r\nAGENT-MODEL: a/b\r\n", "author_name": "", "author_email": ""}
+_, b = F.squash_message("T", "#1", [crlf], [], "p")
+assert b == "body\n---\nmore\n\nCo-Authored-By: C <c@x>\nAgent-Model: a/b\nMerged-by: p\n", b
+tab = {"message": "\n\nS\n\nb\n\nCo-Authored-By : Long\n\tName <l@x>\n\n# a comment\n", "author_name": "", "author_email": ""}
+subj, b, lifted = F.split_commit(tab["message"])
+assert subj == "S" and lifted == [("co-authored-by", "Long Name <l@x>")] and b == "b\n\n# a comment", (subj, b, lifted)
 print("ok")
 P
 )
@@ -241,6 +253,7 @@ for env, want in cases:
 assert F.merged_by({"AGENT_NAME": "g1", "AGENT_MODEL": "a/b"}, "Pat") == "g1 (a/b)"
 assert F.merged_by({"AGENT_NAME": "g1"}, "Pat") == "g1"
 assert F.merged_by({"AGENT_MODEL": "a/b"}, "Pat  Smith") == "Pat Smith"
+assert F.merged_by({"AGENT_NAME": "", "AGENT_MODEL": "a/b"}, "Pat") == "Pat"
 for env, user in (({"AGENT_NAME": "g 1"}, "Pat"), ({"AGENT_NAME": "g1\n"}, "Pat"), ({}, ""), ({}, None)):
     try:
         F.merged_by(env, user); print("no refusal", env, user); break

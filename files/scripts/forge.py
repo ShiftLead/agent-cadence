@@ -1623,10 +1623,17 @@ def _parsed_trailers(message: str) -> list[tuple[str, str]]:
     return found
 
 
+def _one_line(value: str) -> str:
+    """`value` with every run of whitespace, line breaks included, one space: a composed trailer
+    value can never start a line of its own."""
+    return " ".join(value.split())
+
+
 def _paragraphs(text: str) -> list[list[str]]:
+    """Paragraphs as git splits them: lines on `\n` alone, blank when only space, tab or CR."""
     paras, cur = [], []
-    for line in text.splitlines():
-        if line.strip():
+    for line in text.split("\n"):
+        if line.strip(" \t\r"):
             cur.append(line)
         elif cur:
             paras.append(cur)
@@ -1640,13 +1647,17 @@ def split_commit(message: str) -> tuple[str, str, list[tuple[str, str]]]:
     """(subject, body, lifted) of one commit's message: the body keeps every line but the six keys
     of the trailer paragraph git finds (a carried key's (key, value) is in `lifted`, a written key's
     is dropped); a paragraph left empty is dropped. Lines git does not read as trailers stay text."""
-    lines = message.replace("\r\n", "\n").split("\n")
-    subject = lines[0].strip()
+    lines = message.replace("\r\n", "\n").lstrip("\n").split("\n")
+    subject = lines[0].strip(" \t\r")
     paras = _paragraphs("\n".join(lines[1:]))
     lifted: list[tuple[str, str]] = []
-    parsed = _parsed_trailers(message) if paras else []
+    # git looks past a trailing paragraph of comment lines for the trailer block
+    tail = len(paras)
+    while tail > 0 and all(line.startswith("#") for line in paras[tail - 1]):
+        tail -= 1
+    parsed = _parsed_trailers(message) if tail else []
     if parsed:
-        keep, last = [], paras[-1]
+        keep, last = [], paras[tail - 1]
         i = 0
         while i < len(last):
             j = i + 1
@@ -1656,12 +1667,12 @@ def split_commit(message: str) -> tuple[str, str, list[tuple[str, str]]]:
             m = _TRAILER_LINE_RE.match(whole)
             key = m.group(1).lower() if m else None
             if m and (key, " ".join(m.group(2).split())) in parsed and key in CARRIED + WRITTEN:
-                if key in CARRIED:
-                    lifted.append((key, m.group(2).strip()))
+                if key in CARRIED and m.group(2).strip():
+                    lifted.append((key, _one_line(m.group(2))))
             else:
                 keep.extend(last[i:j])
             i = j
-        paras = paras[:-1] + ([keep] if keep else [])
+        paras = paras[:tail - 1] + ([keep] if keep else []) + paras[tail:]
     body = "\n\n".join("\n".join(p) for p in paras)
     return subject, body, lifted
 
@@ -1694,14 +1705,17 @@ def squash_message(title: str, ref: str, commits: list[dict], gate: list[str], m
         else:
             parts.append(f"* {subject}" + (f"\n\n{body}" if body else ""))
     for c in commits:
-        name, email = " ".join((c.get("author_name") or "").split()), (c.get("author_email") or "").strip()
+        name, email = _one_line(c.get("author_name") or ""), _one_line(c.get("author_email") or "")
         if email and email.lower() not in {_email(v) for v in coauthors}:
             coauthors.append(f"{name} <{email}>" if name else f"<{email}>")
     trailers = [f"Co-Authored-By: {v}" for v in coauthors] + [f"Agent-Model: {v}" for v in models]
-    trailers += [line for line in gate if line.split(":", 1)[0] in ("Review", "Precheck")]
+    for line in gate:   # the gate file's Review: and Precheck: lines, each a whole trailer with a value
+        m = _TRAILER_LINE_RE.match(line)
+        if m and m.group(1) in ("Review", "Precheck") and m.group(2).strip():
+            trailers.append(f"{m.group(1)}: {_one_line(m.group(2))}")
     if override is not None:
-        trailers.append(f"Merge-override: {override}")
-    trailers.append(f"Merged-by: {merger}")
+        trailers.append(f"Merge-override: {_one_line(override)}")
+    trailers.append(f"Merged-by: {_one_line(merger)}")
     text = "\n\n".join(p for p in parts if p)
     body = (f"{text}\n\n" if text else "") + "\n".join(trailers) + "\n"
     return f"{title} ({ref})", body
