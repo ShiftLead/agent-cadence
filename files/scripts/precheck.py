@@ -184,7 +184,7 @@ def read_head(fg, n: int, root: str, fork_ok: bool = False) -> tuple[dict, str] 
 
 DRAIN = 5.0   # seconds the tee is given to read the rest once the command exits (TD-227)
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
-PYTEST_FAILED_RE = re.compile(r"(?:FAILED|ERROR) (\S+?)(?: - .*)?$")   # pytest's short test summary
+PYTEST_FAILED_RE = re.compile(r"(?:FAILED|ERROR) (\S+?(?:\[[^\]]*\])?)(?: - .*)?$")   # pytest's short test summary
 SUITES_FAILED_RE = re.compile(r"FAILED: (.+)$")                        # run_tests.sh's last line
 
 
@@ -198,7 +198,8 @@ def failed_names(line: str) -> list[str]:
         rest = m.group(1).strip()
         return [rest.split(" — ")[0]] if re.match(r"\d+ skip", rest) else rest.split()
     m = PYTEST_FAILED_RE.fullmatch(line)
-    return [m.group(1)] if m else []
+    # a node id is a path: `tests/x.py` or `…::test_a[p]`, never a bare word (`ERROR retrying`)
+    return [m.group(1)] if m and ("::" in m.group(1) or m.group(1).endswith(".py")) else []
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -341,9 +342,16 @@ def main(argv: list[str] | None = None) -> int:
         def tee() -> None:
             out = sys.stdout.buffer
             for raw in iter(p.stdout.readline, b""):
-                out.write(raw)
-                out.flush()
-                failures.extend(failed_names(raw.decode("utf-8", errors="replace")))
+                if out is not None:
+                    try:
+                        out.write(raw)
+                        out.flush()
+                    except OSError:   # our stdout closed (`| head`): keep draining, so the command never blocks
+                        out = None
+                try:
+                    failures.extend(failed_names(raw.decode("utf-8", errors="replace")))
+                except Exception:   # noqa: BLE001 — a name we cannot read never stops the drain
+                    pass
         reader = threading.Thread(target=tee, daemon=True)
         reader.start()
         try:

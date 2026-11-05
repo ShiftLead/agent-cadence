@@ -90,10 +90,17 @@ run --pr 7 >/dev/null; d=$(desc)
 run --pr 7 >/dev/null; d=$(desc)
 [ "${d#*s on *: }" = 'echo "FAILED tests/x.py::t"; true' ] \
   && ok "3e a passing run's description is as before, whatever its output" || bad "3e d='$d'"
-: > "$FAKE/posts"; cfg '(sleep 30 &) ; echo \"FAILED: test_bg.sh\"; exit 1'
+: > "$FAKE/posts"; cfg 'sleep 30 & echo $! > $FAKE_DIR/bg; echo \"FAILED: test_bg.sh\"; exit 1'
 t0=$(date +%s); run --pr 7 >/dev/null; t1=$(date +%s); d=$(desc)
-[ $((t1 - t0)) -lt 20 ] && [[ "$d" == *": test_bg.sh; "* ]] \
+[ $((t1 - t0)) -lt 20 ] && [[ "$d" == *": test_bg.sh; "* ]] && ! kill -0 "$(cat "$FAKE/bg")" 2>/dev/null \
   && ok "3f a grandchild holding the output open does not hold the precheck (killed once the drain lapses)" || bad "3f took $((t1-t0))s d='$d'"
+
+# 3g. a parametrized id with a space is named whole, a bare word after ERROR is not; and a closed stdout
+# (`| head`) never blocks the command — the tee keeps draining
+: > "$FAKE/posts"; cfg 'echo \"FAILED t.py::test_p[a b] - assert\"; echo \"ERROR retrying\"; seq 1 200000; exit 1'
+( cd "$R" && timeout 60 python3 "$SCRIPT" --pr 7 2>/dev/null | head -1 >/dev/null ); d=$(desc)
+[[ "$d" == *": t.py::test_p[a b]; echo"* ]] && [[ "$d" != *"retrying;"* ]] \
+  && ok "3g a bracketed id with a space named whole, a bare ERROR word not; a closed stdout does not block" || bad "3g d='$d'"
 
 # 4. passed but the status cannot be recorded: exit 3, saying so
 : > "$FAKE/posts"; cfg 'true'; touch "$FAKE/post_fails"

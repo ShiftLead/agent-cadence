@@ -365,9 +365,9 @@ class _CLI:
 
 
 class GitHub(_CLI):
-    STATUS_LIMIT = 140   # a commit status's description
     """Today's `gh` calls, moved (TD-103) — the argv of each is what the caller ran before,
     so the suites' `gh` shims answer them unchanged."""
+    STATUS_LIMIT = 140   # a commit status's description
 
     name = "github"
     cli = "gh"
@@ -753,12 +753,12 @@ _STATUS = {"success": ("completed", "success"), "failed": ("completed", "failure
 
 
 class GitLab(_CLI):
-    STATUS_LIMIT = 255   # a commit status's description (a longer one is refused)
     """`glab` against GitLab (TD-104), built on what a real project returned (glab 1.123.0,
     gitlab.com, 2026-10-13: the plan's *GitLab, as read*). Every call is `glab api` against
     the REST endpoints with the project named outright (`projects/<group%2Frepo>`, on
     `--hostname`), never glab's cwd placeholders, so a call answers for the repo the slug
     names wherever it runs."""
+    STATUS_LIMIT = 255   # a commit status's description (a longer one is refused)
 
     name = "gitlab"
     cli = "glab"
