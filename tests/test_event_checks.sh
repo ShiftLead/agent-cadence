@@ -147,7 +147,7 @@ res = E.results(text, E.Runner(top))
 body = LB._entry_texts(text)["TD-001"]
 out = LB.lift_gate(body, "event (merged)", "host-x", evidence=res[("TD-001", "merged")][1], today=today)
 print("lifted" if "gate lifted: event (merged) — by host-x; pr-merged passed; o/tgt#5" in out else "not lifted: " + out)
-board = "# Board\n\nPeople: paul\n\n## Open\n"
+board = "# Board\n\nPeople: alex\n\n## Open\n"
 sw = LB.sweep([text, arch], [("https://github.com/o/own.git", "own", board, "")], res, today, today, repo="o/own")
 print(sorted((x["id"], x["gate"]) for x in sw["lifts"]))
 print(res[("TD-002", "shut")], res[("TD-004", "lost")][0])
