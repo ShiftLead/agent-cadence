@@ -834,6 +834,137 @@ class GitLab(_CLI):
         rec["files"] = [d.get("new_path") for d in diffs or []]
         return rec
 
+    # -- event checks and the gate sweep's MRs (TD-228; ledgerboard's target design §4.2) ------
+    # Read from gitlab-org/gitlab-test with glab 1.123.0, 2026-11-05: a project, MR, commit or
+    # file the token cannot see or that is not there answers 404 ("404 … Not Found", the words on
+    # stderr ending "(HTTP 404)"); merge_base with a ref it cannot resolve answers 400 ("Could
+    # not find ref"); files/<path>/raw on a directory answers 404 like a missing file.
+
+    def _absent(self, endpoint: str, codes: tuple[int, ...] = (404,)) -> str | None:
+        """stdout of one GET; None when GitLab answers it has no such thing (an HTTP status in
+        ``codes``); ForgeUnreadable for anything else, output that is not text included."""
+        try:
+            rc, out, err = self.call(self._api(endpoint), env=_QUIET_GLAB)
+        except UnicodeError as e:
+            raise ForgeUnreadable(f"{self.cli} gave output that is not UTF-8 text ({e.reason})") from None
+        if rc == 0:
+            return out
+        if rc > 0 and any(f"HTTP {c}" in err for c in codes):
+            return None
+        msg = (err or out).strip()
+        raise ForgeUnreadable(msg.splitlines()[-1] if msg else f"{self.cli} failed")
+
+    def _object(self, out: str) -> dict:
+        try:
+            r = json.loads(out)
+        except ValueError as e:
+            raise ForgeUnreadable(f"{self.cli} gave unparseable JSON ({e})") from None
+        if not isinstance(r, dict):
+            raise ForgeUnreadable(f"{self.cli} gave {type(r).__name__}, not an object")
+        return r
+
+    def repo_info(self, slug: str) -> dict:
+        """{visibility: public | private | internal, default_branch} of ``slug`` (``host/group/repo``).
+        A project GitLab will not show is unreadable, never absent: 404 is missing and forbidden alike."""
+        g = self._project_for(slug)
+        out = g._absent(g.project)
+        if out is None:
+            raise ForgeUnreadable(f"{slug}: not found, or not visible to this token")
+        r = g._object(out)
+        vis = str(r.get("visibility") or "").lower()
+        if vis not in ("public", "private", "internal") or not r.get("default_branch"):
+            raise ForgeUnreadable(f"{slug}: the forge gave no visibility or default branch")
+        return {"visibility": vis, "default_branch": r["default_branch"]}
+
+    def pr_state_of(self, slug: str, n: int) -> str:
+        """merged | closed | open of MR ``!n`` in ``slug`` (opened and locked are open); one not found
+        is unreadable (§4.2: an error)."""
+        g = self._project_for(slug)
+        out = g._absent(f"{g.project}/merge_requests/{int(n)}")
+        if out is None:
+            raise ForgeUnreadable(f"{slug}!{int(n)}: not found, or not visible to this token")
+        state = str(g._object(out).get("state") or "").lower()
+        state = {"opened": "open", "locked": "open"}.get(state, state)
+        if state not in ("merged", "closed", "open"):
+            raise ForgeUnreadable(f"{slug}!{int(n)}: the forge gave state {state!r}")
+        return state
+
+    def ref_sha(self, slug: str, ref: str) -> str | None:
+        """The commit ``ref`` (a branch, a tag, a sha) names in ``slug``; None when it names none."""
+        g = self._project_for(slug)
+        out = g._absent(f"{g.project}/repository/commits/{quote(ref, safe='')}")
+        if out is None:
+            return None
+        sha = str(g._object(out).get("id") or "")
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise ForgeUnreadable(f"{slug}@{ref}: the forge gave no commit ({sha[:60]!r})")
+        return sha
+
+    def file_at(self, slug: str, path: str, sha: str) -> str | None:
+        """The text of ``path`` at commit ``sha`` in ``slug``; None when the commit has no such file. GitLab
+        answers a directory's raw read with the same 404 as a missing file, so a 404 asks the tree too:
+        a directory is unreadable, not a file, as on GitHub (a tree answer is a non-empty list)."""
+        g = self._project_for(slug)
+        ref = quote(sha, safe='')
+        out = g._absent(f"{g.project}/repository/files/{quote(path, safe='')}/raw?ref={ref}")
+        if out is None:
+            tree = g._absent(f"{g.project}/repository/tree?{urlencode({'path': path, 'ref': sha, 'per_page': 1})}")
+            try:
+                listing = json.loads(tree) if tree is not None else None
+            except ValueError:
+                listing = None
+            if isinstance(listing, list) and listing:
+                raise ForgeUnreadable(f"{slug}: {path} at {sha[:12]} is a directory, not a file")
+        return out
+
+    def includes(self, slug: str, sha: str, commit: str) -> bool | None:
+        """Whether ``commit`` is an ancestor of (or is) ``sha`` in ``slug``: their merge base is ``commit``
+        itself. None when GitLab cannot resolve either (400)."""
+        if not re.fullmatch(r"[0-9a-fA-F]{7,40}", commit):   # merge_base takes a branch too: only a sha is a commit
+            raise ForgeUnreadable(f"{slug}: {commit!r} is not a commit sha")
+        g = self._project_for(slug)
+        q = urlencode([("refs[]", commit), ("refs[]", sha)])
+        out = g._absent(f"{g.project}/repository/merge_base?{q}", (400, 404))
+        if out is None:
+            return None
+        base = str(g._object(out).get("id") or "")
+        if not re.fullmatch(r"[0-9a-f]{40}", base):
+            raise ForgeUnreadable(f"{slug}: merge_base gave no commit ({base[:60]!r})")
+        return base.startswith(commit.lower())
+
+    def open_prs_files(self, limit: int = 100) -> list[dict]:
+        """Open MRs of this project, each ``{number, head, files}`` (the gate sweep's idempotency): a
+        call for the list and one per MR for its files."""
+        q = urlencode({"state": "opened", "per_page": min(int(limit), 100)})
+        out = []
+        for m in (self._get(f"{self.project}/merge_requests?{q}") or [])[:limit]:
+            diffs = self._get(f"{self.project}/merge_requests/{int(m['iid'])}/diffs?per_page=100", paginate=True)
+            out.append({"number": m.get("iid"), "head": m.get("source_branch"),
+                        "files": [d.get("new_path") for d in diffs or []]})
+        return out
+
+    def pr_diff(self, n) -> str:
+        """MR ``!n``'s changes as one unified diff: each file's ``---``/``+++`` lines and its hunks. A file
+        GitLab leaves out (``too_large`` or ``collapsed``, its ``diff`` empty) makes it unreadable, never
+        a diff that silently lacks a line the gate sweep looks for."""
+        diffs = self._get(f"{self.project}/merge_requests/{int(n)}/diffs?per_page=100", paginate=True)
+        cut = [d.get("new_path") for d in diffs or [] if not d.get("diff") and (d.get("too_large") or d.get("collapsed"))]
+        if cut:
+            raise ForgeUnreadable(f"!{int(n)}: GitLab left out the diff of {', '.join(map(str, cut))} (too large)")
+        return "".join(f"--- a/{d.get('old_path')}\n+++ b/{d.get('new_path')}\n{d.get('diff') or ''}"
+                       + ("" if str(d.get("diff") or "").endswith("\n") else "\n") for d in diffs or [])
+
+    def create_pr(self, head: str, base: str, title: str, body: str) -> str:
+        """Open an MR from the pushed ``head`` onto ``base``; its URL (``web_url``). Not yet run against a
+        real project (TD-228: the shape is GitLab's documented create, its answer the MR object read)."""
+        out = self._run(self._api(f"{self.project}/merge_requests", "-X", "POST",
+                                  "-f", f"source_branch={head}", "-f", f"target_branch={base}",
+                                  "-f", f"title={title}", "-f", f"description={body}"), env=_QUIET_GLAB)
+        url = self._object(out).get("web_url")
+        if not url:
+            raise ForgeUnreadable("glab gave no web_url for the new MR")
+        return str(url)
+
     def prs_for_branch(self, branch: str, limit: int = 5) -> list[dict]:
         q = urlencode({"source_branch": branch, "state": "all", "order_by": "created_at",
                        "sort": "desc", "per_page": limit})
