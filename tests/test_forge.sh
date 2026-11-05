@@ -387,5 +387,20 @@ for lcmode in unset set; do
 done
 [ -n "$UL" ] || echo "SKIP: 11 ran under the C locale: no C.UTF-8 here, so the hook's LC_ALL=C window is not exercised"
 
+# 12. TD-232's Done when: a composed squash committed for real reads every key back through git's
+# own %(trailers:key=…) — the read check_cadence.py --since makes
+RT="$TMP/roundtrip"; git init -q -b main "$RT"
+(cd "$SQ" && python3 -I - "$S" "$RT/msg" <<'P2'
+import sys; sys.path.insert(0, sys.argv[1]); import forge as F
+c = {"message": "Work\n\nCo-Authored-By: A Bot <bot@x>\nAgent-Model: claude-code/opus\n", "author_name": "Pat", "author_email": "pat@x"}
+s, b = F.squash_message("Title", "#7", [c], ["Review: sonnet (SHIP)", "Precheck: abc"], "g1 (claude-code/opus)", override="3 ci — down")
+open(sys.argv[2], "w").write(s + "\n\n" + b)
+P2
+) && git -C "$RT" commit -q --allow-empty --no-verify -F "$RT/msg"
+rt=""; for k in Co-Authored-By Agent-Model Review Precheck Merge-override Merged-by; do
+  rt+="$k=$(git -C "$RT" log -1 --format="%(trailers:key=$k,valueonly,separator=;)")|"; done
+want="Co-Authored-By=A Bot <bot@x>;Pat <pat@x>|Agent-Model=claude-code/opus|Review=sonnet (SHIP)|Precheck=abc|Merge-override=3 ci — down|Merged-by=g1 (claude-code/opus)|"
+[ "$rt" = "$want" ] && ok "12 a committed squash reads every key back through %(trailers:key=…)" || bad "12: $rt"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
