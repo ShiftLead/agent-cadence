@@ -31,7 +31,9 @@ items surface in `/attention`'s full report.
 
 ## Needs Paul
 
-- [ ] decide 2026-11-04 (session `ao-agent-cadence-ac-grinder`) — What runs the gate sweep (gate_sweep.py --apply): leave it to a session run by hand, or give it a schedule? Context: TD-219. Due: 2026-11-12. Answers: By hand (default) | Daily, from a timer | At session start. Decided: Daily, from a timer (by Paul) (2026-11-04).
+- [ ] act 2026-11-04 (session `ao-agent-cadence-ac-grinder`) — Turn on the daily gate sweep you chose: in agent-cadence's main checkout, at a main that has gate_sweep_timer.sh, run `files/scripts/gate_sweep_timer.sh --write`, then the `systemctl --user` line it prints. Context: TD-219. Due: 2026-11-04.
+  - **Context:** The timer runs `git fetch origin`, then `gate_sweep.py --apply`, daily (Persistent: a missed day runs at the next boot); its PRs are reviewed and merged by sessions like any. Without --write it prints the units and writes nothing. Check it with `systemctl --user list-timers agent-cadence-gate-sweep-agent-cadence.timer`.
+- [x] decide 2026-11-04 (session `ao-agent-cadence-ac-grinder`) — What runs the gate sweep (gate_sweep.py --apply): leave it to a session run by hand, or give it a schedule? Context: TD-219. Due: 2026-11-12. Answers: By hand (default) | Daily, from a timer | At session start. Decided: Daily, from a timer (by Paul) (2026-11-04). Closed: 2026-11-04 — built gate_sweep_timer.sh (this PR): it writes the daily systemd user timer; enabling it is Paul's step, a new act line.
   - **Context:** TD-219 built the gate sweep: gate_sweep.py prints what ledgerboard sweep() would file, close and lift, and --apply opens the PRs (a tool PR per lift, one sweep PR for this repo board). The target design says the host runs it on a schedule; wiring one is yours.
   - **Question:** What runs the sweep?
   - **Recommended:** By hand — nothing in this repo carries an event or until gate yet, so a schedule would sweep an empty plan. Daily needs a timer outside the repo; at session start adds a forge call to every start.

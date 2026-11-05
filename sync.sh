@@ -70,6 +70,7 @@ SYNC_FILES=(
     "scripts/forge.py"
     "scripts/event_checks.py"
     "scripts/gate_sweep.py"
+    "scripts/gate_sweep_timer.sh"
     "scripts/nudge_user_attention.py"
     "scripts/board_edit.py"
     "scripts/ledger.py"
