@@ -421,6 +421,53 @@ expect("an old truncated .gz: an error, its records so far counted",
        case("oldtr", files={"a.gz": trunc}, repo=DIR, mtimes={"a.gz": NOW - 3600}, line='host-log s times 999 "boom"'),
        outcome="error", problem=has("ends early"))
 
+# --- hostile input (the security review of PR #135) ----------------------------------------------------------
+gz_bomb = gzip.compress(b"\n" * (64 * 1024 * 1024))
+t0 = time.monotonic()
+expect("a gzip member inside a plain tar is charged: past max_bytes, an error, quickly",
+       case("tarbomb", files={"a.tar.gz": tar_bytes([("a.log", gz_bomb)], comp="")}, repo=ARCH.replace('["**/*.log"]', '["**"]'),
+            host=LIM + "max_bytes = 1048576\n"), outcome="error", problem=has("max_bytes"))
+expect("... in well under its 30 s budget", {"s": time.monotonic() - t0}, s=lambda v: v < 20)
+for title, poison in [("a JSON line nested past the recursion limit", b"[" * 200_000 + b"\n"),
+                      ("a 400-digit epoch", jl({"at": 10 ** 400, "text": "boom"})),
+                      ("a negative huge epoch", jl({"at": -10 ** 30, "text": "boom"}))]:
+    expect(f"jsonl: {title} is skipped, and the three good records still pass",
+           case("poison", files={"ev.jsonl": jl(*[{"at": z(at(h)), "text": "boom"} for h in (1, 2, 3)]) + poison},
+                repo=JSONL.replace(', repo = "repo"', ""), line='host-log s times 3 "boom"'), outcome="passed", count=3)
+expect("lines: a year-1 time with an offset (out of range in UTC) is no timestamp, and the good records pass",
+       case("y1", files={"a.log": lines((1, "boom"), (2, "boom"), (3, "boom")) + b"0001-01-01T00:00:00+0100 x\n"},
+            repo=DIR.replace('at = ["%Y-%m-%dT%H:%M:%SZ"]', 'at = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z"]'),
+            line='host-log s times 3 "boom"'), outcome="passed")
+
+
+def encrypted_second(members):
+    b = bytearray(zip_bytes(members))
+    i = b.find(b"PK\x01\x02", b.find(b"PK\x01\x02") + 1)  # the second member's central directory entry
+    b[i + 8] |= 1  # its general-purpose flag: encrypted
+    return bytes(b)
+
+
+expect("an encrypted zip member after a good one: its error does not abort, and the good records pass",
+       case("enc", files={"a.zip": encrypted_second([("a.log", lines((1, "boom"), (2, "boom"), (3, "boom"))),
+                                                     ("b.log", lines((4, "boom")))])},
+            repo=ARCH, line='host-log s times 3 "boom"'), outcome="passed")
+expect("... and with N not reached it is the error",
+       case("enc2", files={"a.zip": encrypted_second([("a.log", lines((1, "boom"))), ("b.log", lines((4, "boom")))])},
+            repo=ARCH, line='host-log s times 3 "boom"'), outcome="error", problem=has("b.log"))
+t0 = time.monotonic()
+deep = "/".join(f"d{i}" for i in range(30))
+expect("a worst-case glob (many ** over a deep path) answers at once",
+       case("glob", files={f"{deep}/a.log": lines((1, "boom"))}, repo=DIR + 'match = ["**/**/**/**/**/**/**/**/**/**/zzz"]\n'),
+       outcome="not yet")
+expect("... in well under a second", {"s": time.monotonic() - t0}, s=lambda v: v < 2)
+expect("glob_match: ** spans zero or more segments; * never crosses /",
+       {"v": [H.glob_match(p, r) for p, r in [("**/*.log", "a.log"), ("**/*.log", "x/y/a.log"), ("*.log", "x/a.log"),
+                                               ("x/**", "x"), ("x/**/y", "x/y"), ("x/**/y", "x/a/b/y"), ("a?c", "abc")]]},
+       v=[True, True, False, True, True, True, True])
+padded = gzip.compress(lines((1, "boom"))) + b"\0" * 1024
+expect("a settled gzip with NUL padding after its end reads clean",
+       case("pad", files={"a.gz": padded}, repo=DIR, mtimes={"a.gz": NOW - 3600}), outcome="passed", problem=None)
+
 # --- counting -------------------------------------------------------------------------------------------------
 expect("times 3 met", case("t3", files={"a.log": lines((1, "boom"), (2, "boom"), (3, "boom"))}, repo=DIR,
        line='host-log s times 3 "boom"'), outcome="passed", count=3, evidence=f"s@{tok(at(3))}")

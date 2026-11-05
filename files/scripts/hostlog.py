@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/hostlog.py
+# Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """hostlog.py — the `host-log` check's reader (TD-230; ShiftLead/ledgerboard docs/plans/TD-045-host-log.md, rules 8–13).
 
 A ledger gate `event (<name>)` whose check is `host-log <source> [kind <k>] [times <N>] "<text>"` waits on an
@@ -355,14 +357,21 @@ def unused_keys(t: dict) -> list[str]:
 def glob_match(pattern: str, relpath: str) -> bool:
     """``pattern`` against a `/`-separated relative path, segment by segment: `*`, `?`, `[…]` as fnmatchcase
     reads them within a segment, and a segment exactly `**` matching zero or more whole segments."""
-    pat, segs = pattern.split("/"), relpath.split("/")
+    pat, segs = [], relpath.split("/")
+    for part in pattern.split("/"):
+        if not (part == "**" and pat and pat[-1] == "**"):  # consecutive ** are one
+            pat.append(part)
+    memo: dict[tuple[int, int], bool] = {}
 
-    def m(i: int, j: int) -> bool:
-        if i == len(pat):
-            return j == len(segs)
-        if pat[i] == "**":
-            return any(m(i + 1, k) for k in range(j, len(segs) + 1))
-        return j < len(segs) and fnmatch.fnmatchcase(segs[j], pat[i]) and m(i + 1, j + 1)
+    def m(i: int, j: int) -> bool:  # memoised: at most len(pat) * len(segs) states, never exponential
+        if (i, j) not in memo:
+            if i == len(pat):
+                memo[i, j] = j == len(segs)
+            elif pat[i] == "**":
+                memo[i, j] = m(i + 1, j) or (j < len(segs) and m(i, j + 1))
+            else:
+                memo[i, j] = j < len(segs) and fnmatch.fnmatchcase(segs[j], pat[i]) and m(i + 1, j + 1)
+        return memo[i, j]
     return m(0, 0)
 
 
@@ -426,6 +435,9 @@ class Budget:
         self.bytes += n
         if self.bytes > self.lim["max_bytes"]:
             raise LimitHit(f"max_bytes ({self.lim['max_bytes']}) reached")
+        self.tick()
+
+    def tick(self) -> None:
         if time.monotonic() > self.deadline:
             raise LimitHit(f"max_seconds ({self.lim['max_seconds']}) reached")
 
@@ -456,14 +468,16 @@ def _decompressor(kind: str):
 
 
 class Stream(io.RawIOBase):
-    """A byte stream through at most one decompression layer (each call's output bounded), its bytes charged
-    to the budget (unless ``charge`` is off: a tar member's bytes were charged as its archive was read) and
-    hashed as they are read. A compressed layer that ends early or is corrupt raises Truncated."""
+    """A byte stream through at most one decompression layer (each call's output bounded), every byte it
+    yields charged to the budget and hashed as it is read. (A tar's member bytes are charged twice, once as
+    the archive's and once as the member's: max_bytes then bounds half as much tar data, the safe side.)
+    A compressed layer that ends early or is corrupt raises Truncated; NUL padding after a stream's end
+    (a tar block's) is its end."""
 
     OUT = CHUNK * 4
 
-    def __init__(self, raw, kind: str | None, budget: Budget, head: bytes = b"", *, charge: bool = True) -> None:
-        self.raw, self.kind, self.budget, self.charge = raw, kind, budget, charge
+    def __init__(self, raw, kind: str | None, budget: Budget, head: bytes = b"") -> None:
+        self.raw, self.kind, self.budget = raw, kind, budget
         self.d = _decompressor(kind) if kind else None
         self.pending, self.tail, self.out = head, b"", b""
         self.eof = False
@@ -484,9 +498,13 @@ class Stream(io.RawIOBase):
         else:
             if self.d.eof:  # a stream ended: the next member of a multi-member file, or the end
                 data = (self.d.unused_data or b"") + self._input()
+                while data and not data.strip(b"\0"):  # NUL padding: read on, and end if only NULs remain
+                    self.budget.tick()
+                    data = self._input()
                 if not data:
                     self.eof = True
                     return b""
+                data = data.lstrip(b"\0")
                 self.d, self.tail = _decompressor(self.kind), b""
             elif (not self.tail) if self.kind == "gzip" else self.d.needs_input:
                 data = self._input()
@@ -502,8 +520,7 @@ class Stream(io.RawIOBase):
                     got = self.d.decompress(data, self.OUT)
             except (zlib.error, OSError, EOFError, lzma.LZMAError, ValueError) as e:
                 raise Truncated(f"the {self.kind} stream is corrupt: {e}") from None
-        if self.charge:
-            self.budget.take(len(got))
+        self.budget.take(len(got))
         return got
 
     def readinto(self, b) -> int:
@@ -558,7 +575,7 @@ def parse_iso_time(value: str, tz) -> datetime | None:
 
 def _epoch(v: float) -> datetime | None:
     try:
-        dt = datetime.fromtimestamp(v, timezone.utc)
+        dt = datetime.fromtimestamp(float(v), timezone.utc)
     except (ValueError, OverflowError, OSError):
         return None
     return dt
@@ -583,7 +600,10 @@ class Lines:
     def __init__(self, src: dict, tz, mtime: float, skip) -> None:
         self.formats = [(f, len(f.split()), not re.search(r"%[Yy]", f.replace("%%", ""))) for f in src["at"]]
         self.tz, self.kind, self.skip = tz, src.get("kind"), skip
-        self.mtime = datetime.fromtimestamp(mtime, timezone.utc)
+        try:
+            self.mtime = datetime.fromtimestamp(mtime, timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            self.mtime = datetime.now(timezone.utc)
         self.locked: tuple | None = None
 
     def _try(self, fmt: tuple, line: str) -> tuple[datetime, str] | None:
@@ -597,9 +617,9 @@ class Lines:
             try:
                 dt = (datetime.strptime(f"{y} {head}", f"%Y {f}") if y  # noqa: DTZ007  # zoned below: tz or %z
                       else datetime.strptime(head, f))  # noqa: DTZ007
-            except ValueError:
+                dt = (dt.replace(tzinfo=self.tz) if dt.tzinfo is None else dt).astimezone(timezone.utc)
+            except (ValueError, OverflowError):
                 continue
-            dt = (dt.replace(tzinfo=self.tz) if dt.tzinfo is None else dt).astimezone(timezone.utc)
             if y is not None and dt > self.mtime:
                 continue
             return dt, rest
@@ -639,14 +659,14 @@ def jsonl_records(lines, src: dict, tz, skip):
     for line in lines:
         try:
             obj = json.loads(line)
-        except ValueError:
+        except (ValueError, RecursionError):
             obj = None
         if not isinstance(obj, dict):
             skip("not-a-json-object")
             continue
         v = _dotted(obj, fields["at"])
         at = (parse_iso_time(v, tz) if isinstance(v, str)
-              else _epoch(float(v)) if isinstance(v, (int, float)) and not isinstance(v, bool) else None)
+              else _epoch(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None)
         if at is None:
             skip("unreadable-time")
             continue
@@ -703,6 +723,7 @@ class Reader:
         self.skipped: dict[str, int] = {}
         self.seen: set[str] = set()
         self.budget = Budget(limits, time.time())
+        self.listing: list[str] | None = None
 
     def skip(self, why: str, n: int = 1) -> None:
         self.skipped[why] = self.skipped.get(why, 0) + n
@@ -731,6 +752,7 @@ class Reader:
         match, ex = self.src.get("match", ["**/*"]), self.src.get("exclude", [])
         out = []
         for d, dirs, files in os.walk(top, followlinks=False):
+            self.budget.tick()
             dirs.sort()
             for f in sorted(files):
                 rel = os.path.relpath(os.path.join(d, f), top).replace(os.sep, "/")
@@ -741,7 +763,8 @@ class Reader:
     # --- the whole read ----------------------------------------------------------------------
     def run(self) -> None:
         listed = []
-        for p in self.candidates():
+        for p in self.listing if self.listing is not None else self.candidates():
+            self.budget.tick()
             real = os.path.realpath(p)
             try:
                 st = os.stat(real)
@@ -761,6 +784,8 @@ class Reader:
             except LimitHit as e:
                 self.errors.append(str(e))
                 return
+            except Exception as e:  # noqa: BLE001 — one file's failure is its error; the read goes on (rule 10)
+                self.errors.append(f"{p}: cannot be read: {type(e).__name__}: {e}")
 
     def one_file(self, p: str, real: str) -> None:
         problem, vis = self.roots.judge(real)
@@ -866,6 +891,7 @@ class Reader:
     def zip_members(self, p: str, fobj, members: list[str], vis: str, young: bool) -> None:
         with zipfile.ZipFile(fobj) as zf:
             for info in zf.infolist():
+                self.budget.tick()
                 if info.is_dir() or not any(glob_match(g, info.filename) for g in members):
                     continue
                 try:  # a zip member's time is local and zoneless: skipped only a day before the first instant
@@ -875,16 +901,21 @@ class Reader:
                 if mt is not None and mt < self.start - timedelta(days=1):
                     continue
                 self.budget.file()
-                with zf.open(info) as m:
-                    self.member(f"{p}!{info.filename}", m, (mt or self.start).timestamp() + 86400, vis, young,
-                                charge=True)
+                try:
+                    with zf.open(info) as m:
+                        self.member(f"{p}!{info.filename}", m, (mt or self.start).timestamp() + 86400, vis, young)
+                except LimitHit:
+                    raise
+                except Exception as e:  # noqa: BLE001 — encrypted, an unsupported method, a corrupt member
+                    self.errors.append(f"{p}!{info.filename}: cannot be read: {type(e).__name__}: {e}")
 
     def tar_members(self, p: str, stream, members: list[str], vis: str, young: bool) -> None:
         with tarfile.open(fileobj=stream, mode="r|") as tf:
             for ti in tf:
+                self.budget.tick()
                 if not any(glob_match(g, ti.name) for g in members):
                     continue
-                if not ti.isreg():
+                if not ti.isreg() or ti.issparse():  # a sparse member's holes are bytes nothing charged
                     self.skip("tar-member-not-regular")
                     continue
                 if ti.mtime < self.start.timestamp():
@@ -892,9 +923,9 @@ class Reader:
                 self.budget.file()
                 m = tf.extractfile(ti)
                 if m is not None:
-                    self.member(f"{p}!{ti.name}", m, ti.mtime, vis, young, charge=False)
+                    self.member(f"{p}!{ti.name}", m, ti.mtime, vis, young)
 
-    def member(self, name: str, m, mtime: float, vis: str, young: bool, *, charge: bool) -> None:
+    def member(self, name: str, m, mtime: float, vis: str, young: bool) -> None:
         """An archive member, read in memory, never extracted: one layer of its own compression."""
         head = m.read(512)
         kind = sniff(head)
@@ -904,7 +935,7 @@ class Reader:
         if kind == "zstd":
             self.errors.append(f"{name}: zstd, which the standard library cannot read")
             return
-        s = Stream(m, kind, self.budget, head, charge=charge)
+        s = Stream(m, kind, self.budget, head)
         if s.d is not None:
             try:
                 inner = read_n(s, 512)
@@ -1022,7 +1053,7 @@ def run_check(line: str, *, repo_text: str, host_path: str, repo: str, visibilit
         reader = Reader(src, name, repo, roots, lim, start, set(src.get("public_kinds", [])))
         base = os.path.expanduser(src["path"])
         anchor = os.path.dirname(base) if src["shape"] == "rotated" and not os.path.lexists(base) else base
-        reader.candidates()  # a missing path is a configuration error (rule 10)
+        reader.listing = reader.candidates()  # a missing path is a configuration error (rule 10)
         bad, vis = roots.judge(os.path.realpath(anchor))
         if bad:
             return result("error", problem=f"source {name}: {bad}")
