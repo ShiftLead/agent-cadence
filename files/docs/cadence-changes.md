@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-05 — A cadence merge is step 5's line: the gate's `--trailers`, `forge.py squash-message`, then `gh pr merge` with the composed message
+Do: merge through the procedure's step 5 line, run whole as one command (never a bare `gh pr merge <n> --squash`, never `--delete-branch`); an unknown that will not clear adds `--unverified "<why>"` to `squash-message`.
+See: procedures/cadence.md step 5; cadence.md §4.2 (the trailer paragraph, `Merged-by:`), §1.4; TD-233.
+
 ## 2026-11-05 — The commit hook reads the model in the C locale: a non-ASCII `Agent-Model:` is left out
 Do: keep `AGENT_MODEL` and the model file printable ASCII — the hook now strips, matches and counts 120 bytes in the C locale, as `forge.py squash-message` does for `Merged-by:`; under a UTF-8 locale a non-ASCII model was accepted before.
 See: cadence.md §9.9 (the reading), §7.9 (the parity pair); `git-hooks/prepare-commit-msg`; TD-232.
