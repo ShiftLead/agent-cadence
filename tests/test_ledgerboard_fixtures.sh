@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # The vendored ledgerboard (ShiftLead ADR 2026-10-12): the package files/scripts/ledgerboard/ (v2.3,
-# TD-213) is an intact release, every file of it the one tests/ledgerboard/MANIFEST names, every vendored file is as vendored, and the
+# TD-213) is an intact release, every file of it the one tests/ledgerboard.MANIFEST names (the fixtures' own MANIFEST, v2.5, is the release's), every vendored file is as vendored, and the
 # release's own fixtures pass against this repo's copy. vendor_ledgerboard.sh writes all three.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MOD="$DC/files/scripts/ledgerboard"
-MAN="$DC/tests/ledgerboard/MANIFEST"
+MAN="$DC/tests/ledgerboard.MANIFEST"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }

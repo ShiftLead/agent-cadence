@@ -10,6 +10,6 @@
 
 # This repo's own patterns, below the seed's (test_adopt.sh holds the lines above to files/.gitattributes).
 # ledgerboard's fixtures, byte for byte, never converted (TD-213): some are CRLF on purpose, inputs read
-# exactly as written, and tests/ledgerboard/MANIFEST hashes each. (The package itself, files/scripts/ledgerboard/,
+# exactly as written, and tests/ledgerboard.MANIFEST hashes each. (The package itself, files/scripts/ledgerboard/,
 # is LF throughout, so files/.gitattributes' LF rule leaves its bytes, and its release hashes, as they are.)
 tests/ledgerboard/** -text

@@ -112,7 +112,7 @@ lp set TD-001 >/dev/null 2>&1; r1=$?
 lp edit TD-001 --section Fix --from /dev/null >/dev/null 2>&1; r2=$?
 [ $r1 -eq 2 ] && [ $r2 -eq 2 ] && same TD-001.md && ok "set with no field and an empty edit are usage errors" || bad "usage: $r1 $r2"
 
-# --- TD-216/TD-222: an entry with a field below its header block, at origin and untouched, does not refuse a
+# --- TD-216/TD-222 (v2.5 flags it, no guard): an entry with a field below its header block, at origin and untouched, does not refuse a
 # note or an edit of another entry (ledgerboard v2.4's check() raises on it; the writer gates through the guard).
 O3="$TMP/o3"; W3="$TMP/w3"; mkrepo "$O3" "$W3"
 printf '## TD-006: below\n\n**Priority:** Low\n\n**Blocked by:** decision (Alex)\n\n**Why:** x.\n' > "$W3/docs/ledger/TD-006.md"

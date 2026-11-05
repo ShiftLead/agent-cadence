@@ -106,7 +106,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_sessions  # noqa: E402  # sibling SYNC script: the session adapter — who is running a lift (TD-218)
-import ledgerboard as LB  # noqa: E402  # sibling SYNC package: the board format (ShiftLead/ledgerboard v2.4)
+import ledgerboard as LB  # noqa: E402  # sibling SYNC package: the board format (ShiftLead/ledgerboard; the vendored tag is tests/ledgerboard.MANIFEST's)
 from ledgerboard import (  # noqa: E402,F401  # re-exported: tests reach them as board_edit.<name>
     Refused,
     edit_line,
