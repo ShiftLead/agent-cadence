@@ -101,12 +101,17 @@ all judged once before the take, under a provisional id, so a refusal spends no 
 id flags. It prints the path and commits nothing. Exit 0 written; 1 refused; 2 a usage error, a v1
 ledger (split first), or no id taken (exit 3's unreserved id is printed with the ``--claim`` to run).
 
-``set``, ``note`` and ``edit`` (TD-199) change one open entry through ledgerboard's ``edit_entry()``, in
-canonical form: ``set`` takes ``new``'s field flags (an empty value removes the field), ``note`` appends
-`` <today>: words`` to Status, ``edit`` replaces one section (or adds it where SPEC puts it). Each refuses
+``set``, ``note`` and ``edit`` (TD-199) change one open entry through ledgerboard's writer (``plan_edit()``),
+in canonical form: ``set`` takes ``new``'s field flags (an empty value removes the field), ``note`` appends
+a dated line to the Log, ``edit`` replaces one section (or adds it where SPEC puts it). Each refuses
 as ``new`` does — a flag the edit brings that the gate fails, a prose wait on the entry, a ``<repo>#TD-n``
 blocker ``set`` adds whose roster repo lacks it — and an entry ``canonical()`` refuses, with its hand fix;
-an archived entry is not edited. Exit 0 written; 1 refused; 2 a usage error, an unknown id, or a v1 ledger.
+an archived entry is not edited. A ``set`` whose Blocked by drops a ``decision (<person>)`` is that person's
+lift (TD-218, ``_set_lift``): it takes ``--by <person>`` (and ``--answer``, default ``Go``), is refused from
+any session but a person's own (``agent_sessions.person_session_refusal()``), logs ``gate lifted`` through
+ledgerboard's ``lift_gate()``, and answers the covering board item (``board.py decide --board-only``) — or
+logs why it could not. A reassign and an override through ``set`` are not taken yet. Exit 0 written; 1
+refused; 2 a usage error, an unknown id, or a v1 ledger; 4 a write failed.
 
 ``archive`` and ``reopen`` (TD-200) move one entry between the ledger and ``archive/``: ``edit_entry()``'s
 archived or reopened form, ``relink()`` for the other directory, then ``git mv`` (a rename for a file git
@@ -138,10 +143,9 @@ never a gate (cadence.md §7): ``--check`` is what lets a caller choose to gate 
 ``<repo>#TD-n`` ids the package names (its exit 3, ``needs:``) through the roster, as its ``--resolved``
 file, until none is needed. Their ``--json`` is one line. ``--check`` stays this script's: its ``--since``
 reads a git ref, and it adds the prose-wait, Ask, archive-loss, canonical-form and id flags to the package's.
-The reports, ``fmt``, ``note``, ``edit``, ``archive``, ``reopen``, ``new`` and ``renumber`` (TD-188) exit by the package's table: 0 ok,
-1 refused, 2 usage or unreadable, 3 needs (an id the run could not resolve, or an archive's cross-repo
-successor), 4 a write failed, every file restored. ``--check`` exits 1 when an error flag stands. ``set``
-keeps its own (above; no exit 4, a failed write raises) until TD-218.
+The reports, ``fmt``, ``set``, ``note``, ``edit``, ``archive``, ``reopen``, ``new`` and ``renumber`` (TD-188) exit by the
+package's table: 0 ok, 1 refused, 2 usage or unreadable, 3 needs (an id the run could not resolve, or an archive's
+cross-repo successor), 4 a write failed, every file restored. ``--check`` exits 1 when an error flag stands.
 """
 
 from __future__ import annotations
@@ -1218,8 +1222,9 @@ def new(argv: list[str]) -> int:
 
 
 def edit(cmd: str, argv: list[str]) -> int:
-    """``ledger.py set|note|edit TD-n …``: one edit of an open entry (TD-199) — note and edit through ledgerboard's
-    writer (``_lb_edit``, TD-216), set through ``edit_entry()`` until TD-218."""
+    """``ledger.py set|note|edit TD-n …``: one edit of an open entry (TD-199), through ledgerboard's writer
+    (``_lb_edit``, TD-216); a ``set`` that drops a ``decision (<person>)`` is the person's lift (``_set_lift``,
+    TD-218)."""
     ap = argparse.ArgumentParser(prog=f"ledger.py {cmd}", description={
         "set": "set an open entry's header fields (an empty value removes one)",
         "note": "append a dated line (the UTC day) to an open entry's Log",
@@ -1227,6 +1232,9 @@ def edit(cmd: str, argv: list[str]) -> int:
     ap.add_argument("id", metavar="TD-n")
     if cmd == "set":
         _field_flags(ap, {})
+        ap.add_argument("--by", help="who lifts the decision this Blocked by drops: that gate's person, from a "
+                                     "session they started (never git's user.name)")
+        ap.add_argument("--answer", help="the lifting answer (default Go): one of the covering board item's Lifts:")
     elif cmd == "note":
         ap.add_argument("words", help="the note, one line")
     else:
@@ -1241,6 +1249,8 @@ def edit(cmd: str, argv: list[str]) -> int:
         kw["fields"] = dict(given := _fields_given(ap, a))
         if not kw["fields"]:
             ap.error("give at least one field to set")
+        if a.answer is not None and a.by is None:
+            ap.error("--answer is a lift's: give --by, who answered")
     elif cmd == "note":
         kw.update(words=a.words, today=datetime.now(timezone.utc).date().isoformat())
     else:
@@ -1251,38 +1261,29 @@ def edit(cmd: str, argv: list[str]) -> int:
     w = _Writer.open(cmd, a.ledger)
     if isinstance(w, int):
         return w
-    if cmd != "set":   # TD-216: note and edit are the package's writer's; set waits for TD-218 (its --by gate route)
-        return _lb_edit(w, cmd, a.id, kw)
-    found = LB.entry_path(str(w.ledger), a.id, w.io[0])
-    if found is None:
-        return w.say(cmd, f"{a.id} is in neither {w.ledger} nor its archive", 2)
-    path = Path(found)
-    if path.parent.name == LB.LEDGER_ARCHIVE and path.parent != w.ledger:
-        return w.say(cmd, f"{a.id} is archived ({found}) — it is edited only once reopened", 2)
-    with open(path, encoding="utf-8", newline="") as f:
-        text = f.read()
-    try:
-        out = LB.edit_entry(text, "set" if cmd == "set" else cmd, **kw)
-    except LB.Refused as e:
-        return w.say(cmd, f"refused — {e}", 1)
-    tid = LB.entries(out)[0]["id"]
-    was = (LB.entries(text)[0]["fields"].get("blocked by") or "") if cmd == "set" else ""
-    if (cmd == "set" and w.xrepo_refused(_field_value(given, "blocked by"), was)) or w.refused(tid, path.name, out):
-        return w.say(cmd, f"nothing was written to {path}", 1)
-    if out != text:
-        with open(path, "w", encoding="utf-8", newline="") as f:
-            f.write(out)
-    print(path)
-    return 0
+    if cmd == "set":
+        if w.xrepo_refused(_field_value(given, "blocked by"), _blocked_raw(w, a.id)):
+            return w.say(cmd, "nothing was written", 1)
+        if a.by is not None:
+            return _set_lift(w, a.id, kw["fields"], a.by, a.answer)
+    return _lb_edit(w, cmd, a.id, kw)
+
+
+def _blocked_raw(w: "_Writer", tid: str) -> str:
+    """The open entry's Blocked by as written, or "" (an unknown or archived id is the writer's to refuse)."""
+    found = LB.entry_path(str(w.ledger), tid, w.io[0])
+    text = w.io[1](found) if found else None
+    return (LB.entries(text)[0]["blocked_raw"] or "") if text and LB.entries(text) else ""
 
 
 LBL.check = guarded_check  # the package writer's gate (``LBL._flags``) reads check() through this guard (TD-222)
 
 
-def _lb_edit(w: _Writer, cmd: str, tid: str, kw: dict) -> int:
-    """``note``/``edit`` through ledgerboard's ``plan_edit()`` (TD-216): the package reads, edits, gates against
-    the ledger at origin/<default> (``check()``, with this machine's roster resolving cross-repo items) and
-    writes; the date is its UTC day. Exit by the package's table: 1 refused, 2 unusable, 4 the write failed."""
+def _lb_plan(w: _Writer, cmd: str, tid: str, kw: dict) -> "LBL.Plan | int":
+    """One edit planned by ledgerboard's ``plan_edit()`` (TD-216): the package reads, edits and gates against
+    the ledger at origin/<default> (``check()``, with this machine's roster resolving cross-repo items); a
+    ``set`` is judged here too, as ``new`` is (``refused_changes()``: the prose waits and id flags the package
+    does not read). The plan, or the exit code, said: 1 refused, 2 unusable."""
     kw = {k: v for k, v in kw.items() if k != "today"}
     try:
         led, base = w.lb_ledgers()
@@ -1292,14 +1293,184 @@ def _lb_edit(w: _Writer, cmd: str, tid: str, kw: dict) -> int:
     except LB.Refused as e:
         w.say(cmd, f"refused — {e}", 1)
         return w.say(cmd, f"nothing was written to {LB.entry_path(str(w.ledger), tid, w.io[0])}", 1)
+    if cmd == "set" and plan.changes and w.refused_changes(
+            tid, {Path(p): t for p, t in plan.changes.items()}, notes=False):
+        return w.say(cmd, f"nothing was written to {LB.entry_path(str(w.ledger), tid, w.io[0])}", 1)
     for n in plan.info.get("notes", []):
         w.say(cmd, f"note — {n}", 0)
+    return plan
+
+
+def _lb_edit(w: _Writer, cmd: str, tid: str, kw: dict) -> int:
+    """``set``/``note``/``edit`` through ``_lb_plan()``, then written; the date is the UTC day. Exit by the
+    package's table: 1 refused, 2 unusable, 4 the write failed."""
+    plan = _lb_plan(w, cmd, tid, kw)
+    if isinstance(plan, int):
+        return plan
     try:
         LBL.apply(plan)
     except OSError as e:
         return w.say(cmd, f"the write failed, every file restored: {e}", 4)
     print(LB.entry_path(str(w.ledger), tid, w.io[0]))
     return 0
+
+
+BOARD_REL, BOARD_ARCHIVE_REL = "docs/user_attention.md", "docs/user_attention_archive.md"  # a repo's board (§3.4)
+
+
+def _boards(w: _Writer) -> tuple[list[tuple], dict[str, str], str]:
+    """What ``covers()`` reads for the ``set`` lift (TD-218; ledgerboard's target design §1.1): this repo's own
+    board as the working tree holds it, then every other roster repo's board at its origin/<default>, in
+    ``origin_key`` order — ``[(origin_url, basename, text, archive_text)]`` — with {board name: the repo
+    the ``; board <repo>`` Log text names, its lowercased ``origin_path`` else its basename} and this repo's."""
+    def origin(root: Path) -> str:
+        return (_git(root, "remote", "get-url", "origin") or "").strip()
+
+    def named(url: str, root: Path) -> tuple[str, str]:
+        return LB.origin_key(url) or root.name, LB.origin_path(url) or root.name
+
+    fread = fs_io()[1]
+    url = origin(w.root)
+    own = (url, w.root.name, fread(str(w.root / BOARD_REL)) or "", fread(str(w.root / BOARD_ARCHIVE_REL)) or "")
+    key, repo = named(url, w.root)
+    names = {key: repo}
+    others = []
+    for root in N.read_registry() or []:
+        if root.resolve() == w.root.resolve() or not root.is_dir():
+            continue
+        u = origin(root)
+        io = git_io(root, f"origin/{N.default_branch(root)}", "docs")
+        if io is None:
+            continue
+        text = io[1](BOARD_REL)
+        if text is None:
+            continue
+        k, r = named(u, root)
+        if k in names:
+            continue
+        names[k] = r
+        others.append((u, root.name, text, io[1](BOARD_ARCHIVE_REL) or ""))
+    others.sort(key=lambda b: named(b[0], Path(b[1]))[0])
+    return [own, *others], names, repo
+
+
+def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None) -> int:
+    """``set TD-n --blocked-by … --by <person> [--answer <label>]``: the person's lift of the one
+    ``decision (<person>)`` the new Blocked by drops (ledgerboard's target design §1.1, §3.1; TD-218). Refused
+    unless the running session is a person's own (``agent_sessions.person_session_refusal()``). The covering
+    board item is picked (``covers()``, open or decided: this repo's own board first — the item whose Context
+    names the entry, else the lowest item key — then the other roster boards in ``origin_key`` order), the
+    answer must be one of its ``Lifts:`` (``Go`` when it has none), and the Log's suffix follows from it:
+    none, the item on this board answered by ``board.py decide --board-only`` (the same label and ``by``);
+    ``shared board item left open`` when it still asks about other parts (answered all the same);
+    ``board <repo>`` when it is another repo's (nothing written there: the gate sweep audits it);
+    ``no board item`` when nothing covers. The ledger is written first and the board after it (the board
+    writer reads the ledger as it stands to decide the close); a board refusal puts the entry back. Nothing
+    is committed: the caller's PR carries both files, and takes ordinary review (it is no carve-out lift).
+    A reassign (one decision swapped for another) and an override are not taken here yet."""
+    import agent_sessions  # the session adapter: who is running this
+    from ledgerboard import board as LBB
+    label = " ".join((answer or "Go").split())
+    try:
+        led, _ = w.lb_ledgers()
+        path, archived = led.entry_file(LBL.tid_of(tid))
+    except LBL.Unusable as e:
+        return w.say("set", str(e), 2)
+    if archived:
+        return w.say("set", f"{tid} is archived ({path}) — a gate is lifted only on an open entry", 2)
+    text = led.files[path]
+    was = LBL._decisions(LB.entries(text)[0]["blocked_raw"])
+    value = _field_value(list(fields.items()), "blocked by")
+    now = LBL._decisions(value) if value is not None else was
+    norm = lambda g: " ".join(g.split()).lower()  # noqa: E731
+    gone = [g for g in was if norm(g) not in {norm(x) for x in now}]
+    added = [g for g in now if norm(g) not in {norm(x) for x in was}]
+    if len(gone) != 1:
+        return w.say("set", f"--by lifts one decision this Blocked by drops; it drops {len(gone)} "
+                            f"({', '.join(was) or 'the entry has none'}) — lift them one at a time", 2)
+    if added:
+        return w.say("set", "a reassign (one decision for another) is not taken here yet (TD-218): "
+                            "nothing was written", 1)
+    why = agent_sessions.person_session_refusal()
+    if why:
+        return w.say("set", f"refused — {why}; nothing was written", 1)
+    gate = gone[0]
+    person = gate[len("decision ("):-1]
+    by = person if " ".join(by.split()).lower() == person.lower() else by   # the Log and the board spell it as the gate does
+    try:
+        boards, names, repo = _boards(w)
+        got = [(b, it) for b, it, st in LB.covers(text, gate, boards, repo) if st in ("open", "decided")]
+    except LB.Refused as e:
+        return w.say("set", f"refused — the board items for {gate}: {e}", 1)
+    own = LB.origin_key(boards[0][0]) or boards[0][1]
+    order = [LB.origin_key(b[0]) or b[1] for b in boards]
+    me = _num(tid)
+
+    def rank(t: tuple) -> tuple:
+        b, it = t
+        ref = LB._item_gate(it.text)[0] or ""
+        direct = "#" not in ref and ID_ITEM_RE.match(ref) is not None and _num(ref) == me
+        return (order.index(b) if b in order else len(order), not (b == own and direct), LB.item_key(it.text))
+    pick = min(got, key=rank) if got else None
+    if pick is not None and pick[0] == own and "#" in (LB._item_gate(pick[1].text)[0] or ""):
+        return w.say("set", f"refused — the covering item names this entry as another repo's "
+                            f"({LB._item_gate(pick[1].text)[0]}), which the board writer will not answer here: "
+                            f"write its Context as a bare {LBL.tid_of(tid)} first, "
+                            f"then lift — nothing was written: {pick[1].text[:80]!r}", 1)
+    if pick is not None and not LB._lifting(label, pick[1].lifts):
+        return w.say("set", f"refused — {label!r} does not lift the covering item (its Lifts: "
+                            f"{', '.join(pick[1].lifts or ['Go'])}): {pick[1].text[:80]!r}", 1)
+    suffix = ("no board item" if pick is None else None if pick[0] == own else f"board {names.get(pick[0], pick[0])}")
+    kw = {"fields": fields, "by": by, "answer": label, "suffix": suffix}
+    plan = _lb_plan(w, "set", tid, kw)
+    if isinstance(plan, int):
+        return plan
+    if pick is not None and pick[0] == own:
+        item = pick[1]
+        after = _parts_after(led, item, {path: plan.changes.get(path, text)})
+        if not LB.closes(item, label, after):   # it still asks about other parts: answered, left open
+            plan = _lb_plan(w, "set", tid, {**kw, "suffix": "shared board item left open"})
+            if isinstance(plan, int):
+                return plan
+    try:
+        LBL.apply(plan)
+    except OSError as e:
+        return w.say("set", f"the write failed, every file restored: {e}", 4)
+    if pick is None or pick[0] != own:
+        print(path)
+        return 0
+    board = str(w.root / BOARD_REL)
+    try:
+        bplan = LBB.plan_edit(board, "decide", item.line, item.text.strip()[:40], answer=label,
+                              by=by, board_only=True, ledger=str(w.ledger))
+        LBB.apply(bplan)
+    except (LB.Refused, LBL.Unusable, OSError) as e:
+        try:
+            LBL.apply(LBL.Plan("set", None, {path: text}, {}))
+        except OSError as e2:
+            return w.say("set", f"the board refused ({e}), and putting {path} back failed: {e2}", 4)
+        return w.say("set", f"refused — the board half: {e}; {path} put back, nothing was written", 1)
+    print(path)
+    print(board)
+    return 0
+
+
+def _parts_after(led: "LBL.Ledger", item: "LB.BoardItem", changed: Mapping[str, str]) -> dict[str, str]:
+    """{TD-n: text} of the open entries a covering item asks about — its Context entry and its bare
+    ``Parts:`` — as the lift leaves them (``changed``: path to its new text), for ``closes()``."""
+    ref = LB._item_gate(item.text)[0] or ""
+    out = {}
+    for x in [ref, *item.parts]:
+        if "#" in x or not ID_ITEM_RE.match(x):
+            continue
+        try:
+            p, archived = led.entry_file(LBL.tid_of(x))
+        except LBL.Unusable:
+            continue
+        if not archived:
+            t = changed.get(p, led.files[p])
+            out[LB.entries(t)[0]["id"]] = t
+    return out
 
 
 def _overlay(io: tuple[LB.Ls, LB.Read], changes: Mapping[Path, str | None]) -> tuple[LB.Ls, LB.Read]:

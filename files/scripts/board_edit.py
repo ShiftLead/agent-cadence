@@ -37,6 +37,12 @@ decide  records the person's answer: ``Decided: TEXT (by NAME) (today).`` at the
         whose ``People:`` line names one person it defaults to them; otherwise it is
         required, and must be on that line. A decided item stays on the board, and stays
         due, until a session acts on it and closes it — the session's work order (cadence.md §3).
+        An item whose Context names one entry of this repo and its gate (``TD-n decision (<p>)``)
+        is the decide lift: a lifting answer also lifts the gate in ``docs/ledger/`` beside the
+        board, both files in the one commit (ledgerboard v2.4's ``decide_lift()``), and it is
+        refused unless the running session is a person's own (``agent_sessions``'
+        ``person_session_refusal()``, TD-218: no ``SHIFTLEAD_SESSION``, or a record ``ao`` says
+        a person started and drives).
 reply   appends what the person says back to the item's session, on the item's own line
         (TD-075): `` — NAME, today: TEXT``, after any earlier reply and ahead of the
         trailing ``Answers:``/``Decided:`` fields, which keep their place and their
@@ -99,6 +105,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import agent_sessions  # noqa: E402  # sibling SYNC script: the session adapter — who is running a lift (TD-218)
 import ledgerboard as LB  # noqa: E402  # sibling SYNC package: the board format (ShiftLead/ledgerboard v2.4)
 from ledgerboard import (  # noqa: E402,F401  # re-exported: tests reach them as board_edit.<name>
     Refused,
@@ -307,6 +314,10 @@ def main(argv: list[str] | None = None) -> int:
                              text=a.text, by=by, tool=a.tool, session=a.session)
         if a.action == "done":
             plan = with_archive(plan, str(board), archive)
+        if a.action == "decide" and plan.info.get("entries"):   # the two-file decide lift (TD-218)
+            why = agent_sessions.person_session_refusal()
+            if why:
+                raise Refused(f"the answer lifts {', '.join(plan.info['entries'])}: {why}")
         if root is not None:
             _clean(root, list(plan.changes))
     except Refused as e:
