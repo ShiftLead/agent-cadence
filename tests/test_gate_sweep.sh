@@ -134,5 +134,24 @@ git -C "$OWN" rm -q docs/user_attention.md; publish "$OWN"
 out=$(cd "$OWN" && python3 "$S/gate_sweep.py" 2>&1); rc=$?
 [ "$rc" = 2 ] && has "no plan — no docs/user_attention.md (origin/main)" && ok "6b no board of its own: no plan, exit 2" || bad "6b rc=$rc: $out"
 
+# 9. host-log (TD-230): the repo's log-sources.toml is read from origin/main, the tree the ledger came from,
+# never the checkout's edit; a gate with no outcome is left out of sweep()'s results
+board alex > "$OWN/docs/user_attention.md"
+LOGS="$TMP/hostlogs"; mkdir -p "$LOGS"
+AT=$(python3 -c 'from datetime import date, timedelta; print((date.today() - timedelta(days=1)).isoformat() + "T01:00:00Z")')
+printf '%s boom\n' "$AT" > "$LOGS/good.log"; printf '%s quiet\n' "$AT" > "$LOGS/bad.log"   # after PAST + 1
+src() { printf '[sources.app]\nshape = "file"\npath = "%s/%s"\nrecords = "lines"\nat = ["%%Y-%%m-%%dT%%H:%%M:%%SZ"]\n' "$LOGS" "$1"; }
+entry "$OWN" 8 "event (red)" "$(printf '**Event (red):** it fails.\ncheck: host-log app "boom"\n\n**Log:**\n- %s: gate added: event (red)' "$PAST")"
+src good.log > "$OWN/docs/ledger/log-sources.toml"; publish "$OWN"
+src bad.log > "$OWN/docs/ledger/log-sources.toml"   # the checkout's edit: never read
+printf '[repos."*"]\n[[allow]]\nroot = "%s"\nvisibility = "private"\n' "$LOGS" > "$AGENT_CADENCE_REG_DIR/host-log.toml"
+js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>&1)
+python3 -c 'import json,sys; d=json.loads(sys.argv[1]); c=[c for c in d["checks"] if c["id"]=="TD-008"][0]; assert c["outcome"]=="passed", c; assert any(l["id"]=="TD-008" for l in d["lifts"]), d["lifts"]' "$js" \
+  && ok "9a a host-log gate answered from origin/main's log-sources.toml, and lifted" || bad "9a: ${js:0:600}"
+rm "$AGENT_CADENCE_REG_DIR/host-log.toml"
+js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>&1)
+python3 -c 'import json,sys; d=json.loads(sys.argv[1]); c=[c for c in d["checks"] if c["id"]=="TD-008"][0]; assert c["outcome"] is None, c; assert not any(l["id"]=="TD-008" for l in d["lifts"]); assert not any("TD-008" in str(f) for f in d["to_file"].values()), d["to_file"]' "$js" \
+  && ok "9b no host file: no outcome — no lift, and nothing filed about it" || bad "9b: ${js:0:600}"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
