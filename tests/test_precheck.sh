@@ -123,7 +123,7 @@ for _ in $(seq 100); do [ -e "$FAKE/started" ] && break; sleep 0.1; done
 kill -KILL "$pid"; wait "$pid" 2>/dev/null
 left=$(ls -d "$T5"/precheck-* 2>/dev/null | head -1)
 mkdir -p "$T5/precheck-9-fresh" "$T5/keepme-old"; touch -d '2 days ago' "$T5/keepme-old"
-[ -n "$left" ] && touch -d '2 days ago' "$left"
+[ -n "$left" ] && find "$left" -depth -exec touch -h -d '2 days ago' {} +   # the whole tree a day old
 cfg 'true'
 out=$( cd "$R" && TMPDIR="$T5" python3 "$SCRIPT" --pr 7 --no-record 2>&1 ); rc=$?
 [ $rc -eq 0 ] && [ -n "$left" ] && [ ! -e "$left" ] && [ -d "$T5/precheck-9-fresh" ] && [ -d "$T5/keepme-old" ] \

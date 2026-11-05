@@ -111,32 +111,46 @@ out=$(CLAUDE_CODE_TMPDIR="$TMP/t9" python3 "$SCRIPT" --hook); rc=$?
 # 10. TD-223: past the threshold the user's own leftovers a day old are reaped — top-level tmp* and
 # precheck-*, pytest-* under pytest-of-<user>/, a read-only tree among them — and nothing else
 T="$TMP/t10"; mkdir -p "$T"
-old() { mkdir -p "$1" && touch -d '2 days ago' "$1"; }
-old "$T/tmp.old1"; mkdir -p "$T/precheck-7-x/head/cache/m"; touch "$T/precheck-7-x/head/cache/m/f"
-chmod -R a-w "$T/precheck-7-x/head/cache"; touch -d '2 days ago' "$T/precheck-7-x"
+old() { mkdir -p "$1" && age "$1"; }
+age() { find "$1" -depth -exec touch -h -d '2 days ago' {} +; }   # every entry of the tree, deepest first
+old "$T/tmp.AbCdE12345"; mkdir -p "$T/precheck-7-x/head/cache/m"; touch "$T/precheck-7-x/head/cache/m/f"
+chmod -R a-w "$T/precheck-7-x/head/cache"; age "$T/precheck-7-x"
+mkdir -p "$T/tmpab12cd34/deep"; age "$T/tmpab12cd34"; touch "$T/tmpab12cd34/deep/live"   # a live tree, written at depth
+old "$T/tmpnotes"   # a day old, named tmp* but not as tempfile or mktemp name a directory
 mkdir -p "$T/pytest-of-tester"; old "$T/pytest-of-tester/pytest-3"; old "$T/pytest-of-tester/other-old"
 mkdir -p "$T/tmp.fresh"; old "$T/claude-1000"; old "$T/keep-tmp.old"
 ln -s "$T/tmp.fresh" "$T/tmp.link"; touch -h -d '2 days ago' "$T/tmp.link"
 out=$(run --report 1000 900 1000 900 900); rc=$?   # under the threshold: nothing touched
-[ $rc -eq 0 ] && [ -d "$T/tmp.old1" ] && [ -d "$T/precheck-7-x" ] && ! grep -q reaped <<< "$out" \
+[ $rc -eq 0 ] && [ -d "$T/tmp.AbCdE12345" ] && [ -d "$T/precheck-7-x" ] && ! grep -q reaped <<< "$out" \
   && ok "10 under the threshold: nothing is reaped" || bad "10 rc=$rc $out $(ls "$T")"
 out=$(run --hook 1000 100 1000 900 900); rc=$?
-[ $rc -eq 0 ] && [ ! -e "$T/tmp.old1" ] && [ ! -e "$T/precheck-7-x" ] && [ ! -e "$T/pytest-of-tester/pytest-3" ] \
+[ $rc -eq 0 ] && [ ! -e "$T/tmp.AbCdE12345" ] && [ ! -e "$T/precheck-7-x" ] && [ ! -e "$T/pytest-of-tester/pytest-3" ] \
   && grep -q "reaped 3 of your own leftovers older than a day" <<< "$out" \
   && ok "10b past the threshold --hook reaps aged tmp*, precheck-* (read-only inside) and pytest-*, saying so" || bad "10b rc=$rc $out $(ls -R "$T")"
 [ -d "$T/tmp.fresh" ] && [ -d "$T/claude-1000" ] && [ -d "$T/keep-tmp.old" ] && [ -d "$T/pytest-of-tester/other-old" ] \
-  && [ -L "$T/tmp.link" ] && [ -d "$T" ] \
-  && ok "10c a fresh one, other names, a symlink and the directory itself are kept" || bad "10c $(ls -la "$T")"
+  && [ -L "$T/tmp.link" ] && [ -d "$T" ] && [ -e "$T/tmpab12cd34/deep/live" ] && [ -d "$T/tmpnotes" ] \
+  && ok "10c a fresh one, a live tree with an old top, tmp* not named as tempfile names it, other names, a symlink and the directory itself are kept" || bad "10c $(ls -la "$T")"
 other=$(python3 -c 'import os; print(os.getuid() + 1)')
-python3 - "$T" "$other" <<'PY' && ok "10d another user's entry is never reapable (its owner read as another uid)" || bad "10d"
+python3 - "$T" "$other" <<'PY' && ok "10d another user's entry, and a temp dir that is / or above home, are never reaped" || bad "10d"
 import os, sys
 sys.path.insert(0, os.path.dirname(os.environ["SCRIPT"]))
 import check_tmp as c
-d = sys.argv[1]; os.makedirs(f"{d}/tmp.theirs", exist_ok=True); os.utime(f"{d}/tmp.theirs", (0, 0))
+d = sys.argv[1]; os.makedirs(f"{d}/tmpzz99zz99", exist_ok=True); os.utime(f"{d}/tmpzz99zz99", (0, 0))
+assert f"{d}/tmpzz99zz99" in c.reapable(d)
 real = os.getuid
-assert f"{d}/tmp.theirs" in c.reapable(d)
 os.getuid = lambda: int(sys.argv[2])
 assert c.reapable(d) == [], c.reapable(d)
+os.getuid = real
+os.environ["HOME"] = d + "/inside"          # the temp dir is above home: no temp dir at all
+assert c.reapable(d) == [], "home"
+assert c.reapable("/") == [], "root"
+PY
+mkdir -p "$TMP/t10e/other"; old "$TMP/t10e/other/pytest-1"; ln -s "$TMP/t10e/other" "$TMP/t10e/pytest-of-tester"
+python3 - "$TMP/t10e" <<'PY' && ok "10e a pytest-of-<user> that is a symlink is not read" || bad "10e"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.environ["SCRIPT"]))
+import check_tmp as c
+assert c.reapable(sys.argv[1]) == [], c.reapable(sys.argv[1])
 PY
 
 echo; echo "$PASS passed, $FAIL failed"
