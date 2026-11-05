@@ -1066,7 +1066,11 @@ apr 14 ask-arch "$ARC"; out=$(arun --pr 14)
 # minus its merge-base's. Main holds unpadded TD-1..TD-3, and TD-10 only as an archive table row.
 IR="$TMP/idrepo"; git init -q --bare -b main "$IR.git"; git clone -q "$IR.git" "$IR" 2>/dev/null
 igit() { git -C "$IR" -c user.email=t@t -c user.name=t "$@"; }
-ient() { printf '\n## %s: entry\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** x.\n' "$1"; }
+ient() { # ient <id>[@<nonce>]: an entry, carrying that Id take when given
+  local id=${1%%@*} take=; [ "$id" = "$1" ] || take=${1#*@}
+  printf '\n## %s: entry\n\n**Priority:** Low\n**Status:** Open\n%s\n**Why:** x.\n' "$id" "${take:+**Id take:** $take
+}"; }
+nn() { printf '%032d' "$1" 2>/dev/null; }   # the fixture counter's nonce for the take whose LAST is $1
 mkdir -p "$IR/docs"; { printf '# ledger\n'; ient TD-1; ient TD-2; ient TD-3; } > "$IR/docs/technical_debt.md"
 printf '# archive\n\n| TD-10 | old | Low | done |\n' > "$IR/docs/technical_debt_archive.md"
 ( igit add -A && igit commit -qm base && git -C "$IR" push -q -u origin HEAD:main && git -C "$IR" fetch -q origin ) 2>/dev/null
@@ -1117,58 +1121,69 @@ idpr 34 id-d "TD-002: archived" "$D"; plist 34
 out=$(irun --pr 34); [ "$(rowstat "$out" ledger)" = PASS ] && ! irow "$out" | grep -q "⚠" \
   && ok "ids: an archive move and main merged into the head are not new ids" || bad "ids archive move: $(irow "$out")"
 # the counter on origin (TD-145): an id no take gave fails, whatever LAST says
-take_commit() {  # $1 = LAST, $2 = subject, $3 = parent (optional) -> the commit
+take_commit() {  # $1 = LAST, $2 = subject, $3 = parent (optional), $4 = a body line -> the commit; its take: is nn $1
     ( cd "$IR" && t=$(printf '100644 blob %s\tLAST\n' "$(printf '%s\n' "$1" | git hash-object -w --stdin)" | git mktree) \
-      && igit commit-tree "$t" ${3:+-p "$3"} -m "$2" -m "by: someone-else${4:+
+      && igit commit-tree "$t" ${3:+-p "$3"} -m "$2" -m "by: someone-else
+take: $(nn "$1")${4:+
 $4}" )
 }
 T12=$(take_commit 12 'TD-012 [skip ci]')
 ( cd "$IR" && git push -q -f origin "$T12:refs/heads/cadence/ledger-ids" )
-E=$(ibranch id-e origin/main 35 TD-012 TD-013)
+E=$(ibranch id-e origin/main 35 "TD-012@$(nn 12)" TD-013)
 idpr 35 id-e "TD-012: e" "$E"; plist 35
 out=$(irun --pr 35); rc=$?; [ "$(rowstat "$out" ledger)" = FAIL ] && [ $rc -eq 1 ] && irow "$out" | grep -q "TD-013 handed out by nobody" \
-  && ! irow "$out" | grep -q "TD-012 handed" && irow "$out" | grep -q -- "--claim" \
-  && ok "ids: a new id no take gave fails, naming --claim; one a take gave does not" || bad "ids counter: rc=$rc $(irow "$out")"
+  && ! irow "$out" | grep -q "TD-012" && irow "$out" | grep -q -- "--claim" \
+  && ok "ids: a new id no take gave fails, naming --claim; one a take gave (its Id take written) does not" || bad "ids counter: rc=$rc $(irow "$out")"
 # the #2370 shape: LAST has moved past the hand-typed id (a claim skipped 13–14), so LAST alone passed it
 T15=$(take_commit 15 'TD-015 [skip ci]' "$T12")
 ( cd "$IR" && git push -q -f origin "$T15:refs/heads/cadence/ledger-ids" )
 out=$(irun --pr 35); [ "$(rowstat "$out" ledger)" = FAIL ] && irow "$out" | grep -q "TD-013 handed out by nobody" \
   && ok "ids: a hand-typed id below a later LAST still fails — the takes decide, not LAST" || bad "ids below LAST: $(irow "$out")"
-# a range take gives each id in it; an id older than the counter's first take only warns
+# a range take gives each id in it, its one nonce passing for each; an id older than the counter's first take only warns
 T17=$(take_commit 17 'TD-013..TD-014 [skip ci]' "$T15")
 ( cd "$IR" && git push -q -f origin "$T17:refs/heads/cadence/ledger-ids" )
-J=$(ibranch id-j origin/main 40 TD-013 TD-009)
+J=$(ibranch id-j origin/main 40 "TD-013@$(nn 17)" "TD-014@$(nn 17)" TD-009)
 idpr 40 id-j "TD-013: j" "$J"; plist 40
 out=$(irun --pr 40); [ "$(rowstat "$out" ledger)" = PASS ] && irow "$out" | grep -q "⚠ TD-009 below the counter's first take (TD-012)" \
-  && ! irow "$out" | grep -q "handed out by nobody" \
-  && ok "ids: an id in a range take passes; one older than the counter warns" || bad "ids range/before: $(irow "$out")"
-irow "$out" | grep -q "no \*\*Id take:\*\* or \*\*Taken by:\*\* on TD-013" \
-  && ok "ids: an entry with neither Id take nor Taken by warns (TD-188: ledgerboard's judge_takes)" || bad "ids no taken-by: $(irow "$out")"
-# TD-145 slice 2: the entry's **Taken by:** against its take's by — the #2370 case fails, naming the by
-tbranch() { # tbranch <name> <n> <id> <taken-by> [preamble line]: a branch adding one entry with that field (none when empty)
+  && ! irow "$out" | grep -q "handed out by nobody\|Id take" \
+  && ok "ids: a range take's nonce passes for each of its ids; one older than the counter warns" || bad "ids range/before: $(irow "$out")"
+# TD-188 step 4: Id take is required, and Taken by is no longer read
+tbranch() { # tbranch <name> <n> <id> <taken-by> [preamble line] [id take]: a branch adding one entry with those fields (none when empty)
   ( cd "$IR" && git checkout -q -b "$1" origin/main && { [ -z "${5:-}" ] || sed -i "1a $5" docs/technical_debt.md; } \
-    && printf '\n## %s: entry\n\n**Priority:** Low\n**Status:** Open\n%s\n**Why:** x.\n' "$3" "${4:+**Taken by:** $4
+    && printf '\n## %s: entry\n\n**Priority:** Low\n**Status:** Open\n%s%s\n**Why:** x.\n' "$3" "${4:+**Taken by:** $4
+}" "${6:+**Id take:** $6
 }" >> docs/technical_debt.md \
     && igit commit -qam "$1" && git push -q origin "HEAD:refs/pull/$2/head" && git rev-parse HEAD )
 }
 K=$(tbranch id-k 41 TD-013 '`someone-else` (the take)'); idpr 41 id-k "TD-013: k" "$K"; plist 41
-out=$(irun --pr 41); [ "$(rowstat "$out" ledger)" = PASS ] && ! irow "$out" | grep -q "handed to\|⚠ TD-013" \
-  && irow "$out" | grep -q "a matching \*\*Taken by:\*\* but no \*\*Id take:\*\* on TD-013" \
-  && ok "ids: an entry whose Taken by is its take's by passes (the transition's ℹ asks for its Id take), a comment after the value read as free" || bad "ids taken-by match: $(irow "$out")"
-M=$(tbranch id-m 42 TD-013 me); idpr 42 id-m "TD-013: m" "$M"; plist 42
-out=$(irun --pr 42); rc=$?; [ "$(rowstat "$out" ledger)" = FAIL ] && [ $rc -eq 1 ] && irow "$out" | grep -q "TD-013 was handed to someone-else, not me" \
-  && ok "ids: an entry whose Taken by is not its take's by fails, naming the take's by (#2370)" || bad "ids taken-by mismatch: rc=$rc $(irow "$out")"
-Q=$(tbranch id-q 43 TD-013 '' 'Fields: Owner = grinder | designer'); idpr 43 id-q "TD-013: q" "$Q"; plist 43
-out=$(irun --pr 43); [ "$(rowstat "$out" ledger)" = PASS ] && ! irow "$out" | grep -q "no \*\*Taken by" \
-  && ok "ids: a ledger that declares Fields: is not told to write a field its format check would refuse" || bad "ids fields-declared: $(irow "$out")"
-# a take that names a branch: the default or the PR's own is silent, another warns
+out=$(irun --pr 41); rc=$?; [ "$(rowstat "$out" ledger)" = FAIL ] && [ $rc -eq 1 ] \
+  && irow "$out" | grep -q "no \*\*Id take:\*\* on TD-013 (handed out by someone-else" && irow "$out" | grep -q -- "--show TD-N" \
+  && ! irow "$out" | grep -q "$(nn 17)" \
+  && ok "ids: an entry with no Id take fails — a Taken by that matches is not read — naming the take, --show, and no nonce" || bad "ids no id-take: rc=$rc $(irow "$out")"
+M=$(tbranch id-m 42 TD-013 '' '' "$(nn 15)"); idpr 42 id-m "TD-013: m" "$M"; plist 42
+out=$(irun --pr 42); rc=$?; [ "$(rowstat "$out" ledger)" = FAIL ] && [ $rc -eq 1 ] \
+  && irow "$out" | grep -q "TD-013's Id take is the take of TD-015" && ! irow "$out" | grep -q "$(nn 15)" \
+  && ok "ids: an Id take of another id's take fails, naming both ids and no nonce" || bad "ids other take: rc=$rc $(irow "$out")"
+N2=$(tbranch id-n 45 TD-013 someone-else '' "$(nn 99)"); idpr 45 id-n "TD-013: n" "$N2"; plist 45
+out=$(irun --pr 45); rc=$?; [ "$(rowstat "$out" ledger)" = FAIL ] && [ $rc -eq 1 ] \
+  && irow "$out" | grep -q "TD-013's Id take names no take the counter holds" && ! irow "$out" | grep -q "$(nn 99)" \
+  && ok "ids: an Id take of no take fails, a matching Taken by beside it notwithstanding" || bad "ids no such take: rc=$rc $(irow "$out")"
+Q=$(tbranch id-q 43 TD-013 '' 'Fields: Owner = grinder | designer' "$(nn 17)"); idpr 43 id-q "TD-013: q" "$Q"; plist 43
+out=$(irun --pr 43); [ "$(rowstat "$out" ledger)" = PASS ] \
+  && ok "ids: an Id take passes in a ledger that declares Fields: (the field is the cadence's own)" || bad "ids fields-declared: $(irow "$out")"
+# a take that names a branch: id-branch is retired with Taken by (TD-188 step 4), so no take's branch warns
 T18=$(take_commit 18 'TD-018 [skip ci]' "$T17" "branch: main"); T19=$(take_commit 19 'TD-019 [skip ci]' "$T18" "branch: id-r")
 T20=$(take_commit 20 'TD-020 [skip ci]' "$T19" "branch: elsewhere")
-( cd "$IR" && git push -q -f origin "$T20:refs/heads/cadence/ledger-ids" )
-R=$(ibranch id-r origin/main 44 TD-018 TD-019 TD-020); idpr 44 id-r "TD-018: r" "$R"; plist 44
-out=$(irun --pr 44); [ "$(rowstat "$out" ledger)" = PASS ] && irow "$out" | grep -q "taken for another branch: TD-020 (elsewhere)" \
-  && ! irow "$out" | grep -q "another branch: [^;]*TD-01[89]" \
-  && ok "ids: a take for another branch warns; one for the default or this PR's branch does not" || bad "ids branch: $(irow "$out")"
+T21=$(take_commit 21 'TD-013 [skip ci]' "$T20")   # TD-013 handed out a second time
+( cd "$IR" && git push -q -f origin "$T21:refs/heads/cadence/ledger-ids" )
+R=$(ibranch id-r origin/main 44 "TD-018@$(nn 18)" "TD-019@$(nn 19)" "TD-020@$(nn 20)"); idpr 44 id-r "TD-018: r" "$R"; plist 44
+out=$(irun --pr 44); [ "$(rowstat "$out" ledger)" = PASS ] && ! irow "$out" | grep -q "another branch" \
+  && ok "ids: a take for another branch no longer warns (id-branch retired)" || bad "ids branch: $(irow "$out")"
+for t in 17 21; do
+  D2=$(tbranch "id-dbl$t" "4$t" TD-013 '' '' "$(nn $t)"); idpr "4$t" "id-dbl$t" "TD-013: dbl" "$D2"; plist "4$t"
+  out=$(irun --pr "4$t"); [ "$(rowstat "$out" ledger)" = PASS ] \
+    && ok "ids: either take of an id given twice passes (take $t)" || bad "ids double $t: $(irow "$out")"
+done
 plist 35
 # a counter holding no take it can read: said as such, never "nobody handed it out"
 ( cd "$IR" && git push -q -f origin "$(take_commit x bad):refs/heads/cadence/ledger-ids" )
