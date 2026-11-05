@@ -1103,8 +1103,25 @@ def validate(repo_path: str, ledger: str | None) -> tuple[list[str], list[str]]:
     """(problems, warnings) of the repo's file, and with ``ledger`` of its open entries' host-log checks."""
     try:
         text = Path(repo_path).read_text(encoding="utf-8") if os.path.exists(repo_path) else ""
-        rc = parse_toml(text, repo_path)
-    except (ConfigError, OSError) as e:
+    except (OSError, UnicodeDecodeError) as e:
+        return [f"{repo_path}: {e}"], []
+    led = None
+    if ledger:
+        try:
+            import ledgerboard.ledger as LBL
+            led = LBL.Ledger.open(ledger).texts()[0]
+        except Exception as e:  # noqa: BLE001 — a ledger that cannot be read fails validate
+            probs, warns = validate_text(text, repo_path, None)
+            return probs + [f"{ledger}: not read — {e}"], warns
+    return validate_text(text, repo_path, led)
+
+
+def validate_text(text: str, where: str, ledger_text: str | None) -> tuple[list[str], list[str]]:
+    """``validate()`` on texts: the repo file's ``text`` (``where`` names it in a problem) and, given, the
+    ledger's open text — so the merge gate can judge a commit's files without a checkout (TD-230)."""
+    try:
+        rc = parse_toml(text, where)
+    except ConfigError as e:
         return [str(e)], []
     probs, warns = repo_problems(rc), []
     if probs:
@@ -1123,14 +1140,9 @@ def validate(repo_path: str, ledger: str | None) -> tuple[list[str], list[str]]:
         if name in rc.get("sources", {}) and rc["sources"][name].get("enabled", True) is False \
                 and not any(t.get("enabled", True) for w, t in views if w != "defaults"):
             warns.append(f"source {name} is enabled = false in the defaults and enabled by no profile")
-    if ledger:
+    if ledger_text is not None:
         import event_checks as EC  # sibling SYNC script: the open entries' event gates, read once
-        try:
-            import ledgerboard.ledger as LBL
-            text = LBL.Ledger.open(ledger).texts()[0]
-        except Exception as e:  # noqa: BLE001 — a ledger that cannot be read fails validate
-            return probs + [f"{ledger}: not read — {e}"], warns
-        for g in EC.gates(text):
+        for g in EC.gates(ledger_text):
             c = g["check"]
             if c and c.get("type") == "host-log" and not c.get("problem") and c["source"] not in declared:
                 probs.append(f"{g['id']}: event ({g['name']}) names source {c['source']}, "

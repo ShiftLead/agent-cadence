@@ -119,6 +119,10 @@ Verify each before relying on it — several were true when written and may not 
   merge signal; 3 means look (CI running, all skipped, gh unreadable). The path here is
   `files/scripts/check_cadence.py`; the `/cadence` skill names `scripts/`, which is wrong in this
   repo (the synced skill text; the scripts live under `files/` here).
+- **A failing `person` row is the person's merge** (TD-230): a PR that changes one of the
+  person's paths (a ledger's log-sources.toml) fails it while open, so no session merges it —
+  Paul reads and merges it. The `sources` row beside it runs `files/scripts/hostlog.py`'s validate
+  on every ledger PR.
 - **This clone's hooks are TD-055 shims** in the clone's shared hooks dir (installed by Paul 2026-09-27;
   `core.hooksPath` unset): every worktree runs the main checkout's `files/scripts/git-hooks/`,
   whatever branch it is on. Changing this clone's git config stays Paul's step.
