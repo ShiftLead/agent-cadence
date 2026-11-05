@@ -357,6 +357,11 @@ class Roster:
             return None, (f"{len(hits)} roster repos are named {repo} — write owner/name")
         return hits[0], ""
 
+    def root(self, repo: str) -> tuple[Path | None, str]:
+        """(the roster clone a ``<repo>`` names, why not): an origin path matched exactly before a suffix,
+        a bare name by basename — as an id's ``<repo>`` resolves (event_checks.py, TD-219)."""
+        return self._find(repo)
+
     def _repo(self, root: Path) -> dict:
         if root not in self._read:
             branch = N.default_branch(root)
