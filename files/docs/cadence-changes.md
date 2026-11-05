@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-05 — A wait is a gate in `Blocked by` (`until <date>`, `event (<name>)`), never a `Waits:` line
+Do: write a date as `until YYYY-MM-DD`, a machine-checkable event as `event (<name>)` with an `**Event (<name>):**` check, a judgment as its own entry; progress as `ledger.py note` (the Log), Status a word and a date; no new `Taken by` or `hold`.
+See: cadence.md §2.14, §2.12; `gate_sweep.py` finds stuck gates; TD-220.
+
 ## 2026-11-05 — `ledger.py set` reassigns (`--why`) or overrides (`--override`) a decision, with the board notices
 Do: when the person is away, the person's own session reassigns (`--blocked-by "decision (<b>)" --by <who> --why …`) or overrides (`--blocked-by "" --by <who> --override "<why>"`); it closes a's item and files the fyi (and b's item) itself — never by hand.
 See: cadence.md §2.4; TD-218.
