@@ -1395,6 +1395,8 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None) -
     if why:
         return w.say("set", f"refused — {why}; nothing was written", 1)
     gate = gone[0]
+    person = gate[len("decision ("):-1]
+    by = person if " ".join(by.split()).lower() == person.lower() else by   # the Log and the board spell it as the gate does
     try:
         boards, names, repo = _boards(w)
         got = [(b, it) for b, it, st in LB.covers(text, gate, boards, repo) if st in ("open", "decided")]
@@ -1410,6 +1412,11 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None) -
         direct = "#" not in ref and ID_ITEM_RE.match(ref) is not None and _num(ref) == me
         return (order.index(b) if b in order else len(order), not (b == own and direct), LB.item_key(it.text))
     pick = min(got, key=rank) if got else None
+    if pick is not None and pick[0] == own and "#" in (LB._item_gate(pick[1].text)[0] or ""):
+        return w.say("set", f"refused — the covering item names this entry as another repo's "
+                            f"({LB._item_gate(pick[1].text)[0]}), which the board writer will not answer here: "
+                            f"write its Context as a bare {LBL.tid_of(tid)} first, "
+                            f"then lift — nothing was written: {pick[1].text[:80]!r}", 1)
     if pick is not None and not LB._lifting(label, pick[1].lifts):
         return w.say("set", f"refused — {label!r} does not lift the covering item (its Lifts: "
                             f"{', '.join(pick[1].lifts or ['Go'])}): {pick[1].text[:80]!r}", 1)
@@ -1429,8 +1436,8 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None) -
         LBL.apply(plan)
     except OSError as e:
         return w.say("set", f"the write failed, every file restored: {e}", 4)
-    print(path)
     if pick is None or pick[0] != own:
+        print(path)
         return 0
     board = str(w.root / BOARD_REL)
     try:
@@ -1443,6 +1450,7 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None) -
         except OSError as e2:
             return w.say("set", f"the board refused ({e}), and putting {path} back failed: {e2}", 4)
         return w.say("set", f"refused — the board half: {e}; {path} put back, nothing was written", 1)
+    print(path)
     print(board)
     return 0
 

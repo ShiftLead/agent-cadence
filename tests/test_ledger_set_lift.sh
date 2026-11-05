@@ -62,10 +62,12 @@ mkrepo() {  # $1 origin, $2 clone — the ledger and the board below; committed 
   entry "$L/TD-012.md" TD-012 "part two" '**Blocked by:** decision (Paul)\n**Part of:** TD-010\n'
   entry "$L/TD-020.md" TD-020 "elsewhere" '**Blocked by:** decision (Paul)\n'
   entry "$L/TD-021.md" TD-021 "two people" '**Blocked by:** decision (Paul), decision (Robin)\n'
+  entry "$L/TD-030.md" TD-030 "named as another's" '**Blocked by:** decision (Paul)\n'
   { printf '# Board\n\nPeople: Paul\n\n## Needs the user\n\n'
     item "TD-002 decision (Paul)" "" "Go (default) | Not yet"
     item "TD-003 decision (Paul)" "" "CSV (default) | JSON | Not yet" " Lifts: CSV | JSON."
     item "TD-010 decision (Paul)" ". Parts: TD-011, TD-012" "Go (default) | Not yet"
+    item "w#TD-030 decision (Paul)" "" "Go (default) | Not yet"
   } > "$TMP/seed/docs/user_attention.md"
   git -C "$TMP/seed" add -A; git -C "$TMP/seed" commit -qm seed
   git -C "$TMP/seed" push -q "$1" main; rm -rf "$TMP/seed"
@@ -140,6 +142,17 @@ EOF
 }
 t=$(tw); [ -z "$t" ] && ok "tripwire() passes the set lift with its board half" || bad "tripwire on own item: $t"
 reset
+
+# --- 4b) --by in another case is written as the gate spells it
+lp set TD-001 --blocked-by "" --by paul >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && logline TD-001 | grep -q 'by Paul;' && ok "--by paul is logged as the gate spells it (Paul)" \
+  || bad "by case (rc=$rc): $(cat "$TMP/err") $(logline TD-001)"
+reset
+# --- 4c) an item on this board naming the entry as <repo>#TD-n: refused before anything is written
+out=$(lp set TD-030 --blocked-by "" --by Paul 2>"$TMP/err"); rc=$?
+[ $rc -eq 1 ] && [ -z "$out" ] && same docs && grep -q 'bare TD-030' "$TMP/err" \
+  && ok "an own-board item naming the entry as w#TD-030 is refused, nothing written or printed" \
+  || bad "own #ref (rc=$rc): out=$out $(cat "$TMP/err")"
 
 # --- 5) Lifts: a label the item does not lift is refused; its non-default lifting label lifts
 lp set TD-003 --blocked-by "" --by Paul >/dev/null 2>"$TMP/err"; rc=$?
