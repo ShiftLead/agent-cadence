@@ -63,6 +63,8 @@ grep -qx 'OnCalendar=daily' <<<"$out" && grep -qx 'Persistent=true' <<<"$out" &&
     && ok "the timer is daily and persistent" || bad "timer: $out"
 grep -qxF "ExecStart=/usr/bin/env bash \"$TMP/canon/files/scripts/gate_sweep_timer.sh\" --run \"$TMP/canon\"" <<<"$out" \
     && ok "agent-cadence's own clone runs its checkout's script" || bad "canon ExecStart: $(grep ExecStart <<<"$out")"
+grep -qx 'Restart=on-failure' <<<"$out" && grep -qx 'RestartPreventExitStatus=2' <<<"$out" && grep -qx 'StartLimitBurst=4' <<<"$out" \
+    && ok "a failed run is retried, bounded, and exit 2 is not" || bad "restart lines: $out"
 grep -qxF "Environment=\"PATH=$PATH\"" <<<"$out" && ok "the unit carries PATH as it is now" || bad "PATH line: $(grep Environment <<<"$out")"
 
 # from a worktree, the unit names the main checkout
@@ -84,6 +86,9 @@ out=$(bash "$T" "$TMP/plain" 2>&1); rc=$?
 out=$(bash "$T" "$TMP/nowhere" 2>&1); rc=$?
 [ "$rc" = 2 ] && ok "a path that is no clone is refused" || bad "nowhere rc=$rc: $out"
 mkdir -p "$TMP/pct%x" && git init -q "$TMP/pct%x"
+mkdir -p "$TMP/dol\$x" && git init -q "$TMP/dol\$x"
+out=$(bash "$T" "$TMP/dol\$x" 2>&1); rc=$?
+[ "$rc" = 2 ] && grep -q 'cannot carry' <<<"$out" && ok "a path with \$ is refused" || bad "dollar rc=$rc: $out"
 out=$(bash "$T" "$TMP/pct%x" 2>&1); rc=$?
 [ "$rc" = 2 ] && grep -q 'cannot carry' <<<"$out" && ok "a path with % is refused" || bad "pct rc=$rc: $out"
 out=$(bash "$T" --bogus 2>&1); rc=$?
@@ -138,7 +143,10 @@ git -C "$TMP/canon" remote set-url origin "$TMP/gone.git"
 out=$(bash "$T" --run "$TMP/canon" 2>&1); rc=$?
 [ "$rc" = 1 ] && grep -q 'nothing swept' <<<"$out" && [ ! -s "$LOG" ] && ok "a failed fetch sweeps nothing, exit 1" || bad "fetch fail rc=$rc: $out / $(cat "$LOG")"
 out=$(bash "$T" --run "$TMP/plain" 2>&1); rc=$?
-[ "$rc" = 1 ] || [ "$rc" = 2 ] && ok "--run on a repo with no origin or sweep is not exit 0" || bad "plain --run rc=$rc: $out"
+[ "$rc" = 1 ] && grep -q 'nothing swept' <<<"$out" && ok "--run on a repo with no origin stops at the fetch, exit 1" || bad "plain --run rc=$rc: $out"
+git -C "$TMP/plain" remote add origin "$TMP/canon.git"
+out=$(bash "$T" --run "$TMP/plain" 2>&1); rc=$?
+[ "$rc" = 2 ] && grep -q 'no gate sweep' <<<"$out" && ok "--run on a fetched repo with no gate sweep is exit 2 (not retried)" || bad "plain sweep rc=$rc: $out"
 out=$(bash "$T" --run 2>&1); rc=$?
 [ "$rc" = 2 ] && ok "--run with no repo is a usage error" || bad "--run alone rc=$rc"
 

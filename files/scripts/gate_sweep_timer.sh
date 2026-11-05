@@ -15,7 +15,11 @@
 # - **With --write** it writes them under ${XDG_CONFIG_HOME:-~/.config}/systemd/user/ and prints the line
 #   that enables the timer. **It never runs systemctl**: enabling a timer on the machine is the person's
 #   step, run by hand. It refuses (exit 2) to replace a unit of that name that runs another repo's sweep.
-#   The units bake in PATH as it is now, so the timer finds the same git, gh, python3 and launcher.
+#   The units bake in PATH as it is now, so the timer finds the same git, gh, python3 and launcher —
+#   not credentials: a user service has no ssh agent or unlocked keyring, so an ssh origin needing an
+#   agent, or a gh token kept only in a keyring, fails there (the journal says so on the first run).
+#   A failed run (exit 1: the fetch before the network is up at boot, a forge error) is retried every
+#   10 minutes, at most 4 starts in 2 hours; exit 2 (nothing to sweep) is not retried.
 # - **--run REPO** is the service's command: `git fetch origin` in REPO (gate_sweep.py reads origin and
 #   fetches nothing), then the sweep with --apply, which opens its PRs from temporary worktrees and never
 #   touches REPO's checkout. A repo whose docs/cadence.toml pins agent-cadence (`[agent-cadence]`) runs
@@ -77,7 +81,7 @@ done
 
 repo="$(main_checkout "${REPO:-.}")" || { echo "gate_sweep_timer: ${REPO:-.} is not a checkout of a git clone" >&2; exit 2; }
 case "$repo$PATH" in
-    *%*|*\"*|*\\*|*$'\n'*) echo "gate_sweep_timer: $repo or PATH holds a character a unit line cannot carry (% \" \\ or a newline)" >&2; exit 2 ;;
+    *%*|*\"*|*\\*|*\$*|*$'\n'*) echo "gate_sweep_timer: $repo or PATH holds a character a unit line cannot carry (% \" \\ \$ or a newline)" >&2; exit 2 ;;
 esac
 if pinned "$repo"; then
     launcher="$(command -v agent-cadence)" || { echo "gate_sweep_timer: $repo pins agent-cadence and no launcher is on PATH — install it first" >&2; exit 2; }
@@ -93,6 +97,8 @@ name="agent-cadence-gate-sweep-$(basename "$repo" | tr -c 'A-Za-z0-9_.\n-' '_')"
 service="[Unit]
 Description=agent-cadence gate sweep of $repo (gate_sweep.py --apply)
 # Written by gate_sweep_timer.sh (agent-cadence, TD-219's board line); rewrite it with that script.
+StartLimitIntervalSec=2h
+StartLimitBurst=4
 
 [Service]
 Type=oneshot
@@ -100,6 +106,9 @@ WorkingDirectory=$repo
 Environment=\"PATH=$PATH\"
 ExecStart=$exec_start
 TimeoutStartSec=30min
+Restart=on-failure
+RestartSec=10min
+RestartPreventExitStatus=2
 "
 timer="[Unit]
 Description=agent-cadence gate sweep of $repo, daily
