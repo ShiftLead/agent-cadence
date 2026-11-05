@@ -2138,8 +2138,14 @@ def row_gates(pr, root):
     (uncovered_decisions' flags), which not every machine reads: those are a ⚠. On a merged PR every finding
     is a ⚠, never a fail — the gate is the merge, and a --since sweep would otherwise fail every PR merged
     before the row existed, which nobody can now amend (as TD-201's form check). Only this repo's own board is
-    read, so the verdict is the same on every machine. Forgeable: a well-formed hand edit passes, and review
-    is the backstop."""
+    read, so the verdict is the same on every machine. The migrate exemption reads the head commit's subject,
+    so it holds for a one-commit migrate PR (merged, its squash subject carries `(#n)` and is not exempt, but
+    merged findings only warn). An entry deleted outright, not archived, is not read by tripwire() (SPEC: it
+    reads an entry open at the base and at the head); the ledger row and review see that. Forgeable: a
+    well-formed hand edit passes, and review is the backstop.
+
+    The trees are lazy dicts (_DocsTree): ledgerboard reads them by iteration and .get(), which this serves;
+    .values() or .items() would see placeholders, so a ledgerboard that starts calling them needs this changed."""
     files = pr.get("files") or []
     if not (ledger_touched(files) or any(f.startswith(LEDGER_DIR + "/") for f in files)
             or BOARD in files or ARCHIVE in files):

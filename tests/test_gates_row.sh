@@ -62,6 +62,12 @@ git -C "$R" show origin/main:docs/ledger/TD-150.md > "$R/docs/ledger/TD-150.md"
 st=$(row open); [ "${st%% *}" = fail ] && ok "the row judges the commit, not the working tree" || bad "disk read: $st"
 git -C "$R" checkout -q -- docs
 
+# an open PR is judged on its merge-base, not its last commit: the gate dropped in commit 1, an unrelated commit 2
+case_pr "a gate removed by hand" "ledger: set TD-150 (session w-1)"
+echo z >> "$R/other.txt"; git -C "$R" commit -qam "unrelated"
+st=$(row open); [ "${st%% *}" = fail ] && echo "$st" | grep -q "TD-150 drops" \
+  && ok "a two-commit PR is judged from its merge-base (the gate dropped in its first commit fails)" || bad "two-commit: $st"
+
 # the one-time migrate commit is exempt, by its subject alone
 case_pr "a gate removed by hand" "ledger: migrate v2.4 (9 entries)"
 st=$(row open); [ "${st%% *}" = pass ] && ok "a gate removed in the migrate commit passes (exempt by subject)" || bad "migrate: $st"
