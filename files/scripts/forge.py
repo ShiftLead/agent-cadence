@@ -1542,6 +1542,171 @@ def origin_slug(root: "Path | str") -> str:
     raise ForgeUnreadable("origin names no repo the forge can be asked about")
 
 
+# --- The squash message (TD-232, TD-177's design: docs/plans/2026-10-31-merged-by-trailer.md, 2–3) ------
+# A cadence merge writes its own squash message, ending in one trailer paragraph that names who
+# wrote, reviewed, checked and merged the change. squash_message() is the pure part; the model and
+# the merger's name are read exactly as git-hooks/prepare-commit-msg reads them (cadence.md §9.9).
+
+class SquashRefused(Exception):
+    """The message cannot be composed (no name to merge under, a bad AGENT_NAME): no merge."""
+
+
+# The keys the composed paragraph carries. The first two are lifted out of each commit's own trailer
+# paragraph; the last four only the gate file and the command write, so a commit's copy is dropped.
+CARRIED = ("co-authored-by", "agent-model")
+WRITTEN = ("review", "precheck", "merged-by", "merge-override")
+_C_SPACE = b" \t\n\v\f\r"
+_MODEL_RE = re.compile(rb"[\x21-\x7e]+( [\x21-\x7e]+)*")
+_NAME_RE = re.compile(r"[A-Za-z0-9._-]+")
+MODEL_MAX = 120
+_TRAILER_LINE_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)[ \t]*:[ \t]*(.*)$")
+
+
+def agent_model(env: "dict | None" = None) -> str | None:
+    """The model the commit hook writes as `Agent-Model:`, read as it reads it (TD-177's design 3): the
+    first line of $AGENT_MODEL_FILE when it is a regular, readable file (an unterminated line counts,
+    NUL bytes dropped as bash's `read -r` drops them); an empty first line or file falls through to
+    $AGENT_MODEL; then C-locale blanks stripped at both ends, and the value kept only when it is
+    printable ASCII words single-spaced, at most 120 bytes. None otherwise — never a fallback after a
+    value fails."""
+    env = os.environ if env is None else env
+    raw = b""
+    path = env.get("AGENT_MODEL_FILE") or ""
+    if path and os.path.isfile(path) and os.access(path, os.R_OK):
+        try:
+            with open(path, "rb") as f:
+                raw = f.readline().split(b"\n", 1)[0].replace(b"\0", b"")
+        except OSError:
+            raw = b""
+    if not raw:
+        raw = os.fsencode(env.get("AGENT_MODEL") or "")
+    raw = raw.strip(_C_SPACE)
+    if len(raw) > MODEL_MAX or not _MODEL_RE.fullmatch(raw):
+        return None
+    return raw.decode("ascii")
+
+
+def merged_by(env: "dict | None" = None, user_name: str | None = None) -> str:
+    """The `Merged-by:` value: `<AGENT_NAME> (<model>)`, `<AGENT_NAME>` with no model, or the person's
+    git user.name with no AGENT_NAME. Raises SquashRefused for an AGENT_NAME that fails the hook's
+    check (never falling through to the person's name) or when there is no name at all."""
+    env = os.environ if env is None else env
+    name = env.get("AGENT_NAME") or ""
+    if name:
+        if not _NAME_RE.fullmatch(name):
+            raise SquashRefused(f"AGENT_NAME {name!r} is not [A-Za-z0-9._-]+ — a merge that cannot say "
+                                "who made it is not made")
+        model = agent_model(env)
+        return f"{name} ({model})" if model else name
+    who = " ".join((user_name or "").split())
+    if not who:
+        raise SquashRefused("no AGENT_NAME and no git user.name — a merge that cannot say who made it is not made")
+    return who
+
+
+def _parsed_trailers(message: str) -> list[tuple[str, str]]:
+    """(key lowercased, value) of each trailer git itself finds in `message` — `git interpret-trailers
+    --parse`, git's own rule for which last paragraph is a trailer block — with whitespace runs
+    collapsed so a folded line compares equal to its raw form."""
+    try:
+        out = subprocess.run(["git", "interpret-trailers", "--parse", "--no-divider"], input=message,
+                             capture_output=True, text=True, timeout=30, check=False)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise SquashRefused(f"git interpret-trailers could not run: {e}") from e
+    if out.returncode:
+        raise SquashRefused(f"git interpret-trailers failed: {out.stderr.strip()}")
+    found = []
+    for line in out.stdout.splitlines():
+        m = _TRAILER_LINE_RE.match(line)
+        if m:
+            found.append((m.group(1).lower(), " ".join(m.group(2).split())))
+    return found
+
+
+def _paragraphs(text: str) -> list[list[str]]:
+    paras, cur = [], []
+    for line in text.splitlines():
+        if line.strip():
+            cur.append(line)
+        elif cur:
+            paras.append(cur)
+            cur = []
+    if cur:
+        paras.append(cur)
+    return paras
+
+
+def split_commit(message: str) -> tuple[str, str, list[tuple[str, str]]]:
+    """(subject, body, lifted) of one commit's message: the body keeps every line but the six keys
+    of the trailer paragraph git finds (a carried key's (key, value) is in `lifted`, a written key's
+    is dropped); a paragraph left empty is dropped. Lines git does not read as trailers stay text."""
+    lines = message.replace("\r\n", "\n").split("\n")
+    subject = lines[0].strip()
+    paras = _paragraphs("\n".join(lines[1:]))
+    lifted: list[tuple[str, str]] = []
+    parsed = _parsed_trailers(message) if paras else []
+    if parsed:
+        keep, last = [], paras[-1]
+        i = 0
+        while i < len(last):
+            j = i + 1
+            while j < len(last) and last[j][:1] in (" ", "\t"):   # a folded continuation
+                j += 1
+            whole = " ".join(" ".join(last[i:j]).split())
+            m = _TRAILER_LINE_RE.match(whole)
+            key = m.group(1).lower() if m else None
+            if m and (key, " ".join(m.group(2).split())) in parsed and key in CARRIED + WRITTEN:
+                if key in CARRIED:
+                    lifted.append((key, m.group(2).strip()))
+            else:
+                keep.extend(last[i:j])
+            i = j
+        paras = paras[:-1] + ([keep] if keep else [])
+    body = "\n\n".join("\n".join(p) for p in paras)
+    return subject, body, lifted
+
+
+def _email(value: str) -> str:
+    m = re.search(r"<([^<>]*)>\s*$", value)
+    return (m.group(1) if m else value).strip().lower()
+
+
+def squash_message(title: str, ref: str, commits: list[dict], gate: list[str], merger: str,
+                   override: str | None = None) -> tuple[str, str]:
+    """(subject, body) of the squash: `<title> (<ref>)`; a one-commit PR's body is that commit's body,
+    a longer one's each commit oldest first as `* <subject>` then its body; then one blank line and
+    the trailer paragraph, last: Co-Authored-By (the commits' own, deduplicated on the address with
+    case ignored, then every commit author not yet named), Agent-Model (distinct, first seen), the
+    gate file's Review: and Precheck: lines, Merge-override: (with `override`, already one line), and
+    Merged-by: `merger`. `commits` are {message, author_name, author_email}, oldest first."""
+    if not commits:
+        raise SquashRefused("the PR has no commits to compose — a squash with no trailers is never written")
+    parts, coauthors, models = [], [], []
+    for c in commits:
+        subject, body, lifted = split_commit(c.get("message") or "")
+        for key, value in lifted:
+            if key == "co-authored-by" and _email(value) not in {_email(v) for v in coauthors}:
+                coauthors.append(value)
+            elif key == "agent-model" and value not in models:
+                models.append(value)
+        if len(commits) == 1:
+            parts.append(body)
+        else:
+            parts.append(f"* {subject}" + (f"\n\n{body}" if body else ""))
+    for c in commits:
+        name, email = " ".join((c.get("author_name") or "").split()), (c.get("author_email") or "").strip()
+        if email and email.lower() not in {_email(v) for v in coauthors}:
+            coauthors.append(f"{name} <{email}>" if name else f"<{email}>")
+    trailers = [f"Co-Authored-By: {v}" for v in coauthors] + [f"Agent-Model: {v}" for v in models]
+    trailers += [line for line in gate if line.split(":", 1)[0] in ("Review", "Precheck")]
+    if override is not None:
+        trailers.append(f"Merge-override: {override}")
+    trailers.append(f"Merged-by: {merger}")
+    text = "\n\n".join(p for p in parts if p)
+    body = (f"{text}\n\n" if text else "") + "\n".join(trailers) + "\n"
+    return f"{title} ({ref})", body
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
     ap = argparse.ArgumentParser(description="the forge adapter (TD-103)")

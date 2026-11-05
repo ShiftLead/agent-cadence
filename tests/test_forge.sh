@@ -169,5 +169,88 @@ out=$(cd "$N" && python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import
 [ "$out" = "2 2 None" ] && grep -q -- '--json .*commits' "$GH_LOG" \
   && ok "8a pr() asks gh for commits and counts them; a record without them gives None" || bad "8a: $out $(cat "$GH_LOG")"
 
+# 9. TD-232 (TD-177's design 2–3): the squash message composed for a cadence merge, and the model and
+# merger read as the commit hook reads them. Pure: no forge, no merge.
+SQ="$TMP/sq"; mkdir -p "$SQ"
+py() { (cd "$SQ" && python3 -I - "$S" "$@"); }
+out=$(py <<'P'
+import sys, subprocess; sys.path.insert(0, sys.argv[1]); import forge as F
+c1 = {"message": "Fix a thing\n\nBody one.\n\nCo-Authored-By: A Bot <bot@x>\nAgent-Model: claude-code/opus\n", "author_name": "Pat", "author_email": "pat@x"}
+c2 = {"message": "Second\n\nbody text\n---------\n\nco-authored-by: A BOT <BOT@X>\nAgent-Model: codex/gpt\nAgent-Model: claude-code/opus\nMerged-by: forged\nReview: forged (SHIP)\n", "author_name": "Pat", "author_email": "PAT@x"}
+s, b = F.squash_message("Title", "#7", [c1, c2], ["pr 7", "expect abc", "Review: sonnet (BLOCK)", "Review: sonnet (FIXED)", "Precheck: abc", "Merged-by: gate"], "g1 (claude-code/opus)")
+msg = s + "\n\n" + b
+parsed = subprocess.run(["git", "interpret-trailers", "--parse"], input=msg, capture_output=True, text=True).stdout
+want = ("Co-Authored-By: A Bot <bot@x>\nCo-Authored-By: Pat <pat@x>\nAgent-Model: claude-code/opus\nAgent-Model: codex/gpt\n"
+        "Review: sonnet (BLOCK)\nReview: sonnet (FIXED)\nPrecheck: abc\nMerged-by: g1 (claude-code/opus)\n")
+assert s == "Title (#7)", s
+assert parsed == want, parsed
+assert b.endswith(want), b
+assert b.startswith("* Fix a thing\n\nBody one.\n\n* Second\n\nbody text\n---------\n\n"), b
+assert "forged" not in b and "gate" not in b, b
+s, b = F.squash_message("T", "!3", [c1], [], "p")
+assert s == "T (!3)" and b == "Body one.\n\nCo-Authored-By: A Bot <bot@x>\nCo-Authored-By: Pat <pat@x>\nAgent-Model: claude-code/opus\nMerged-by: p\n", b
+# git's own rule: a mixed last paragraph is a trailer block only with a trailer git knows and a quarter trailers
+mixed = {"message": "S\n\ntext one\nSigned-off-by: X <x@x>\nCo-Authored-By: M <m@x>\n", "author_name": "", "author_email": ""}
+_, b = F.squash_message("T", "#1", [mixed], [], "p")
+assert b.startswith("text one\nSigned-off-by: X <x@x>\n\nCo-Authored-By: M <m@x>\nMerged-by: p"), b
+prose = {"message": "S\n\nwe paired with\nCo-Authored-By: M <m@x>\non this one\n", "author_name": "", "author_email": ""}
+_, b = F.squash_message("T", "#1", [prose], [], "p")
+assert b == "we paired with\nCo-Authored-By: M <m@x>\non this one\n\nMerged-by: p\n", b
+folded = {"message": "S\n\nCo-Authored-By: Long\n  Name <l@x>\nAgent-Model: a/b\n", "author_name": "", "author_email": ""}
+_, b = F.squash_message("T", "#1", [folded], [], "p")
+assert b == "Co-Authored-By: Long Name <l@x>\nAgent-Model: a/b\nMerged-by: p\n", b
+_, b = F.squash_message("T", "#1", [c1], [], "p", override="3 ci — the precheck host is down")
+assert "\nMerge-override: 3 ci — the precheck host is down\nMerged-by: p\n" in b, b
+try:
+    F.squash_message("T", "#1", [], [], "p"); print("no refusal")
+except F.SquashRefused:
+    pass
+print("ok")
+P
+)
+[ "$out" = ok ] && ok "9a squash_message: subject, the one- and many-commit shapes, one trailer paragraph last (git parses every key), co-authors deduplicated with case ignored plus commit authors, two models, gate lines only Review/Precheck, a commit's own Merged-by/Review dropped, ---- stays text, git's mixed-paragraph rule, a folded line joined, Merge-override, no commits refused" || bad "9a: $out"
+
+out=$(py "$SQ" <<'P'
+import sys, os; sys.path.insert(0, sys.argv[1]); import forge as F
+d = sys.argv[2]
+def f(name, data):
+    p = os.path.join(d, name); open(p, "wb").write(data); return p
+cases = [
+    ({"AGENT_MODEL": "claude-code/opus"}, "claude-code/opus"),
+    ({"AGENT_MODEL_FILE": f("m1", b"codex/gpt-5\nignored\n"), "AGENT_MODEL": "x/y"}, "codex/gpt-5"),
+    ({"AGENT_MODEL_FILE": f("m2", b"\r\n"), "AGENT_MODEL": "x/y"}, None),          # a CR is not empty: stripped, then fails
+    ({"AGENT_MODEL_FILE": f("m3", b"\nnext\n"), "AGENT_MODEL": "x/y"}, "x/y"),     # an empty first line falls through
+    ({"AGENT_MODEL_FILE": f("m4", b""), "AGENT_MODEL": "x/y"}, "x/y"),             # an empty file too
+    ({"AGENT_MODEL_FILE": f("m5", b"  a/b c\r\n")}, "a/b c"),                       # CRLF and edge blanks stripped
+    ({"AGENT_MODEL_FILE": f("m6", b"a/b")}, "a/b"),                                 # an unterminated line counts
+    ({"AGENT_MODEL_FILE": f("m7", b"ab\0cd\n")}, "abcd"),                           # NUL dropped, as read -r drops it
+    ({"AGENT_MODEL_FILE": f("m8", b"\va/b\f\n")}, "a/b"),                           # \v and \f are C-locale blanks
+    ({"AGENT_MODEL": "a  b"}, None),                                                # two spaces
+    ({"AGENT_MODEL": "a\tb"}, None),                                                # a tab inside
+    ({"AGENT_MODEL": " a/b"}, None),                                           # a non-ASCII space at an edge
+    ({"AGENT_MODEL": "modèle"}, None),                                              # non-ASCII
+    ({"AGENT_MODEL_FILE": f("m9", b"a\xffb\n")}, None),                             # invalid UTF-8
+    ({"AGENT_MODEL": "m" * 120}, "m" * 120),
+    ({"AGENT_MODEL": "m" * 121}, None),
+    ({"AGENT_MODEL_FILE": f("m10", b"bad  value\n"), "AGENT_MODEL": "x/y"}, None),  # a failing value never falls back
+    ({"AGENT_MODEL_FILE": d, "AGENT_MODEL": "x/y"}, "x/y"),                         # a directory is not a file
+]
+for env, want in cases:
+    got = F.agent_model(env)
+    assert got == want, (env, got, want)
+assert F.merged_by({"AGENT_NAME": "g1", "AGENT_MODEL": "a/b"}, "Pat") == "g1 (a/b)"
+assert F.merged_by({"AGENT_NAME": "g1"}, "Pat") == "g1"
+assert F.merged_by({"AGENT_MODEL": "a/b"}, "Pat  Smith") == "Pat Smith"
+for env, user in (({"AGENT_NAME": "g 1"}, "Pat"), ({"AGENT_NAME": "g1\n"}, "Pat"), ({}, ""), ({}, None)):
+    try:
+        F.merged_by(env, user); print("no refusal", env, user); break
+    except F.SquashRefused:
+        pass
+else:
+    print("ok")
+P
+)
+[ "$out" = ok ] && ok "9b agent_model and merged_by read as the hook reads (file first, empty falls through, C-locale strip, NUL dropped, ASCII words single-spaced, 120 bytes, no fallback after a fail); a bad AGENT_NAME or no name refuses" || bad "9b: $out"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
