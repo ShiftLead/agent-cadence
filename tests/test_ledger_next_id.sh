@@ -505,5 +505,52 @@ printf 'review-outcomes = "maybe"\n' > "$W/docs/cadence.toml"
 out=$(take "$W"); rc=$?
 [ "$rc" = 0 ] && ! grep -qF "did a design miss it" "$TMP/err" && ok "21g a value that is not on or off: no question" || bad "21g rc=$rc $(cat "$TMP/err")"
 
+# 22. TD-188 step 4: --without-take lists the open PRs whose new entries carry no Id take (the bump prints it)
+mkrepo "$O" "$W"
+prwith() { # prwith <n> <id> <header line or empty>: PR n adds that entry
+  git clone -q "$O" "$TMP/pr"; printf '\n## %s: t\n\n**Priority:** Low\n%s\n**Why:** x.\n' "$2" "${3:+$3
+}" >> "$TMP/pr/docs/technical_debt.md"
+  git -C "$TMP/pr" commit -qam "pr$1"; git -C "$TMP/pr" push -q "$O" "HEAD:refs/pull/$1/head"; rm -rf "$TMP/pr"; }
+prwith 11 TD-200 "**Id take:** 0123456789abcdef0123456789abcdef"
+prwith 12 TD-201 "**Taken by:** someone"
+prwith 13 TD-202 ""
+cat > "$TMP/bin/gh" <<'EOF2'
+#!/usr/bin/env bash
+case "$*" in
+  "auth status"*) exit 0 ;;
+  "pr list"*) echo '[{"number":11,"title":"a"},{"number":12,"title":"b"},{"number":13,"title":"c"}]' ;;
+  *) echo "gh shim: unexpected $*" >&2; exit 1 ;;
+esac
+EOF2
+chmod +x "$TMP/bin/gh"
+before=$(git -C "$O" rev-parse -q --verify refs/heads/cadence/ledger-ids || echo none)
+out=$(CADENCE_FORGE=github take "$W" --without-take); rc=$?
+[ "$rc" = 0 ] && [ "$out" = "#12: TD-201
+#13: TD-202" ] && [ "$(git -C "$O" rev-parse -q --verify refs/heads/cadence/ledger-ids || echo none)" = "$before" ] \
+  && ok "22 --without-take names the PRs whose new entries lack Id take (Taken by or nothing), and takes no id" \
+  || bad "22 rc=$rc out='$out' $(cat "$TMP/err")"
+out=$(CADENCE_FORGE=github take "$W" --without-take --json); rc=$?
+[ "$rc" = 0 ] && python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert d["prs"] == {"#12": ["TD-201"], "#13": ["TD-202"]}, d' "$out" \
+  && ok "22b --json: {prs: {#n: [ids]}, unread, notes}" || bad "22b rc=$rc $out"
+out=$(take "$W" --without-take --count 2); rc=$?
+[ "$rc" = 2 ] && grep -q "takes nothing" "$TMP/err" && ok "22c --without-take with a take's option: a usage error" || bad "22c rc=$rc $(cat "$TMP/err")"
+# 22d. the same in a v2 ledger (a docs/ledger/ directory, one file an entry)
+rm -rf "$O" "$W" "$TMP/seed"; git init -q --bare -b main "$O"; git init -q -b main "$TMP/seed"; mkdir -p "$TMP/seed/docs/ledger/archive"
+printf '# Ledger\n\nLedgerboard: 2\n' > "$TMP/seed/docs/ledger/README.md"
+printf '## TD-001: t\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** x.\n' > "$TMP/seed/docs/ledger/TD-001.md"
+git -C "$TMP/seed" add -A; git -C "$TMP/seed" commit -qm seed; git -C "$TMP/seed" push -q "$O" main; rm -rf "$TMP/seed"
+git clone -q "$O" "$W"
+for c in "11 TD-200 **Id take:** 0123456789abcdef0123456789abcdef" "12 TD-201 **Taken by:** someone"; do
+  set -- $c; n=$1 id=$2; shift 2
+  git clone -q "$O" "$TMP/pr"; printf '## %s: t\n\n**Priority:** Low\n**Status:** Open\n%s\n\n**Why:** x.\n' "$id" "$*" > "$TMP/pr/docs/ledger/$id.md"
+  git -C "$TMP/pr" add -A; git -C "$TMP/pr" commit -qm "pr$n"; git -C "$TMP/pr" push -q "$O" "HEAD:refs/pull/$n/head"; rm -rf "$TMP/pr"
+done
+sed -i 's/{"number":13,"title":"c"}/{"number":13,"title":"c"},{"number":14,"title":"gone"}/' "$TMP/bin/gh"
+out=$(CADENCE_FORGE=github take "$W" --without-take --ledger docs/ledger --archive docs/ledger/archive); rc=$?
+[ "$rc" = 0 ] && [ "$out" = "#12: TD-201" ] && grep -q "open PRs not read: .*#13" "$TMP/err" \
+  && ok "22d a v2 ledger: the PR with no Id take is named, and a PR whose head origin lacks is said unread" \
+  || bad "22d rc=$rc out='$out' $(cat "$TMP/err")"
+rm -f "$TMP/bin/gh"
+
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

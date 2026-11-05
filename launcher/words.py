@@ -444,6 +444,41 @@ def _hand_off(source, new):
     return 2   # not reached
 
 
+def _without_take(bare, old, new, root):
+    """TD-188 step 4: on the bump that crosses it (the old pin's ``ledger_next_id.py`` has no
+    ``--without-take``, so its gate still took ``Taken by``, at every pin before the step), the open PRs
+    whose new entries carry no ``**Id take:**``, which the ``ledger`` row fails from this pin — listed by
+    the new pin's own ``ledger_next_id.py --without-take`` (this tree, once the bump has handed off to it),
+    read in the consumer. A listing that cannot be had is a warning; the bump is written already."""
+    import subprocess
+    rc, was = _git("--git-dir", bare, "show", f"{old}:files/scripts/ledger_next_id.py")
+    script = os.path.join(TREE, "files", "scripts", "ledger_next_id.py")
+    if rc != 0 or "without-take" in was:
+        return
+    if os.path.basename(TREE) != new or not os.path.isfile(script):
+        print("warning: the open PRs were not read for a missing Id take (this bump runs the old pin's code): "
+              "run `agent-cadence run ledger_next_id.py --without-take` once the bump is merged", file=sys.stderr)
+        return
+    head = ("open PRs whose new entries carry no **Id take:** (TD-188 step 4: the `ledger` row fails them "
+            "from this pin; add the line each take printed, `ledger_next_id.py --show TD-N` to recover it):")
+    try:
+        r = subprocess.run([sys.executable, script, "--without-take"], cwd=root, capture_output=True,
+                           text=True, timeout=180, check=False, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        print(f"warning: the open PRs were not read for a missing Id take ({e})", file=sys.stderr)
+        return
+    if r.returncode != 0:
+        print(f"warning: the open PRs were not read for a missing Id take: {r.stderr.strip() or r.returncode}",
+              file=sys.stderr)
+        return
+    lines = [ln for ln in r.stdout.splitlines() if ln.strip()]
+    print(head if lines else head.removesuffix(":") + ": none")
+    for ln in lines:
+        print(f"- {ln}")
+    for ln in r.stderr.splitlines():
+        print(f"warning: {ln}", file=sys.stderr)
+
+
 def w_bump(args):
     if len(args) > 1 or (args and args[0].startswith("-")):
         return fail("bump takes at most one tag or commit")
@@ -557,6 +592,7 @@ def w_bump(args):
     print("cadence-changes since the old pin:" if fresh else "cadence-changes since the old pin: none")
     for h in fresh:
         print(f"- {h}")
+    _without_take(bare, old, new, root)
     if pointers:
         print("skill pointers (TD-158: an unedited one follows the pin):")
         for rel, action, _, why in pointers:
