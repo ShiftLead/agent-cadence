@@ -57,16 +57,15 @@ a written Pickable that disagrees with the derived one, and — when the ledger 
 at all — a header field that is neither the cadence's nor declared. Standing flags are counted, not
 printed. The ids the edit adds (in the ledger or archive, in neither at REF) are judged against the
 counter's takes on origin, as the cadence check's ``ledger`` row judges them (TD-145, cadence.md §2.10):
-ledgerboard's ``judge_takes()`` through ``ledger_next_id.judge()`` (TD-188): an id no take gave, an ``**Id take:**``
-that is another id's take's nonce or no take's, and (with no ``Id take``) a ``**Taken by:**`` that is not its
-take's ``by``, are errors; an id older than the counter, a matching ``Taken by`` with no ``Id take``, an entry
-with neither, a take for another branch than this one or the default, and a counter origin did not give are ℹ lines. ``--json``: ``{"flags": [{"level": error|info, "id", "field", "kind", "text", "standing"}],
+ledgerboard's ``judge_takes()`` through ``ledger_next_id.judge()`` (TD-188): an id no take gave, an entry
+with no ``**Id take:**``, and one that is another id's take's nonce or no take's are errors (``Taken by``,
+retired, is not read); an id older than the counter and a counter origin did not give are ℹ lines. ``--json``: ``{"flags": [{"level": error|info, "id", "field", "kind", "text", "standing"}],
 "errors": N}`` — key on ``kind`` and ``field``, never on the sentence. Kinds: fields-decl, below-header,
 type, vocabulary, blocked-item, cross-repo, blocked-unknown, blockers-archived, pickable-disagrees,
 undeclared-field, rank (a rank file line), prose-wait (TD-166: a header field that names an id after *waits on/for* or *blocked by*
 while its Blocked by does not), no-ask (TD-122: an entry waiting on the person — Owner: person or a
-decision holder's name, decision (<who>), an **Answers:** line — with no **Ask:** line in its body), and the ids' id-untaken, id-take, id-taken-by, id-before-counter,
-id-no-take, id-no-taken-by, id-branch, id-by-unhashed, id-counter; with ``--since``, archive-loss (an id archived at REF that is now in
+decision holder's name, decision (<who>), an **Answers:** line — with no **Ask:** line in its body), and the ids' id-untaken, id-take, id-before-counter,
+id-no-take, id-by-unhashed, id-counter; with ``--since``, archive-loss (an id archived at REF that is now in
 neither the ledger nor the archive, TD-179), archive-reopened (ℹ: one back in the ledger) and, in a v2
 ledger, not-canonical (TD-201: an entry file that differs from the merge-base's, or is new, and is not in
 ledgerboard's canonical form — it names ``ledger.py fmt TD-n``, or the hand fix for one ``canonical()`` refuses). ``check_cadence.py``'s ``ledger`` row runs the same field check on a PR's ledger edit.
@@ -93,8 +92,8 @@ would change and writes nothing. Exit 1 when an entry was refused, or under ``--
 ``--part-of``, ``--location``; ``--field NAME=VALUE`` for a repo's own) and ``--why``, ``--fix``,
 ``--done-when`` each from a file or ``-`` for stdin. The id is a take from the counter
 (``ledger_next_id.py``, ``--by`` passed through) and ``Id take`` its nonce; ``--id TD-n`` files under an
-id already taken (written at §2.2's width, ``TD-3`` as ``TD-003``), ``Id take`` that take's nonce (``Taken by``
-its ``by`` only for a take with no nonce, made before the counter wrote one) — judged as
+id already taken (written at §2.2's width, ``TD-3`` as ``TD-003``), ``Id take`` that take's nonce (a take
+with none, made before the counter wrote one, is refused as the gate fails it) — judged as
 the gate judges it, so in a repo whose counter has no take yet an id nobody took is not caught. It refuses the write on every flag the entry brings
 that ``--check --since origin/<default>`` counts as an error (``cross-repo`` a note), on a wait written in
 prose (``prose-wait``), and on a ``<repo>#TD-n`` blocker whose roster repo was read and has no such entry —
@@ -680,9 +679,8 @@ def _at_ref(ledger: Path, ref: str, archive: Path | None = None) -> tuple[tuple[
 def id_flags(ledger: Path, archive: Path, text: str, arch: str, ref: str) -> list[dict]:
     """TD-145: the ids this edit adds — in the ledger or archive and in neither at ``ref`` — judged
     against the counter's takes on origin (``ledger_next_id.judge()``, the cadence check's ``ledger``
-    row's own, ledgerboard's ``judge_takes()``, TD-188): an id nobody handed out, an ``**Id take:**`` of
-    another id's take or of none, or (with no ``Id take``) a ``**Taken by:**`` naming another, is an
-    error. The one call here that asks origin, and only when the edit adds an id; a repo with no
+    row's own, ledgerboard's ``judge_takes()``, TD-188): an id nobody handed out, an entry with no
+    ``**Id take:**``, or one of another id's take or of none, is an error. The one call here that asks origin, and only when the edit adds an id; a repo with no
     counter, or no ``origin`` remote, is judged by nothing, and a counter origin did not give is an ℹ line."""
     import ledger_next_id as X  # sibling SYNC script: the counter's reader (it imports this one)
     root, _, _ = _rel(ledger)
@@ -1163,12 +1161,11 @@ def new(argv: list[str]) -> int:
     except LBL.Unusable as e:
         return w.say("new", str(e), 2)
 
-    def render(tid: str, take: str | None, taken_by: str | None) -> "LBL.Plan | int":
+    def render(tid: str, take: str | None) -> "LBL.Plan | int":
         """The package writer's plan for the entry (TD-188): ``plan_new()`` writes the take's nonce as ``Id
-        take``; ``Taken by`` only for a take that carries no nonce (one made before the counter wrote one)."""
-        extra = [("Taken by", taken_by)] if taken_by and not take else []
+        take``, and never ``Taken by`` (retired, step 4)."""
         try:
-            plan = LBL.plan_new(led, tid, a.title, fields + extra, sections, take=take, base=base,
+            plan = LBL.plan_new(led, tid, a.title, fields, sections, take=take, base=base,
                                 resolve=w.roster.resolve)
             out = next(t for t in plan.changes.values() if t is not None)
             if LB.canonical(out) != out:
@@ -1184,7 +1181,7 @@ def new(argv: list[str]) -> int:
 
     # Everything but the id is judged first, under a provisional one, so a refusal spends no take.
     provisional = LBL.tid_of(f"TD-{max(known, default=0) + 1}")   # at §2.2's width, as plan_new() writes it
-    plan = render(provisional, None, None)
+    plan = render(provisional, None)
     if isinstance(plan, int):
         return plan
     if w.refused(provisional, f"{provisional}.md", text_of(plan), with_ids=False, notes=False):  # notes once, below
@@ -1198,8 +1195,7 @@ def new(argv: list[str]) -> int:
         takes, why = X.counter_takes(w.root)
         if takes is None:
             return w.say("new", f"refused — {why}, so {tid}'s take cannot be named", 2)
-        given = takes.get(_num(tid)) or {}
-        take, taken_by = given.get("take"), given.get("by")
+        take = (takes.get(_num(tid)) or {}).get("take")
     else:
         cmd = [sys.executable, str(Path(__file__).with_name("ledger_next_id.py")), "--json", "--ledger", w.rel]
         r = subprocess.run(cmd + (["--by", a.by] if a.by else []), cwd=w.root, capture_output=True, text=True,
@@ -1214,8 +1210,8 @@ def new(argv: list[str]) -> int:
                                 f"with `ledger_next_id.py --claim {t}`, then run again with --id {t}", 2)
         if r.returncode != 0 or not res.get("ids"):
             return w.say("new", f"no id was taken — {res.get('why')}", 2)
-        tid, take, taken_by = res["ids"][0], res.get("id_take"), res.get("taken_by")
-    plan = render(tid, take, taken_by)
+        tid, take = res["ids"][0], res.get("id_take")
+    plan = render(tid, take)
     if isinstance(plan, int) or w.refused(tid, f"{tid}.md", text_of(plan)):
         return w.say("new", f"{tid} is taken and nothing was written — fix the above, then run again with --id {tid}", 1)
     path = w.ledger / f"{tid}.md"
@@ -1860,16 +1856,14 @@ def renumber(argv: list[str]) -> int:
     except LBL.Unusable as e:
         return w.say("renumber", str(e), 2)
 
-    def plan(tid: str, take: str | None, taken_by: str | None) -> "LBL.Plan | int":
+    def plan(tid: str, take: str | None) -> "LBL.Plan | int":
         """The package writer's renumber (TD-188): the file, its heading, every Blocked by, Part of and Log
         ``while`` naming it, its rank line and the ledger's links to it; the take's nonce written as ``Id
-        take``, ``Taken by`` only for a take that carries no nonce. The exit code (said) when refused."""
+        take``, and a ``Taken by`` the old id carried dropped (retired, step 4). The exit code (said) when refused."""
         try:
             p = LBL.plan_renumber(led, a.old, tid, take=take, base=base, resolve=w.roster.resolve)
-            dst = p.info["moved"]["to"]   # a Taken by the old id carried names another take: replaced or dropped
-            if taken_by and not take:
-                p.changes[dst] = LB.edit_entry(p.changes[dst], "set", fields={"Taken by": taken_by})
-            elif "taken by" in (LB.entries(p.changes[dst])[0]["fields"] if LB.entries(p.changes[dst]) else {}):
+            dst = p.info["moved"]["to"]   # a Taken by the old id carried names another take: dropped
+            if "taken by" in (LB.entries(p.changes[dst])[0]["fields"] if LB.entries(p.changes[dst]) else {}):
                 p.changes[dst] = LB.edit_entry(p.changes[dst], "set", fields={"Taken by": ""})
             return p
         except LBL.Unusable as e:
@@ -1884,7 +1878,7 @@ def renumber(argv: list[str]) -> int:
     provisional = LBL.tid_of(a.new or f"TD-{max(known, default=0) + 1}")   # at §2.2's width, as the package writes it
     if a.new and _num(a.new) in known:
         return w.say("renumber", f"{a.new} is in the ledger or its archive already", 2)
-    p = plan(provisional, None, None)
+    p = plan(provisional, None)
     if isinstance(p, int):
         return w.say("renumber", "no id was taken and nothing was written", p)
     if w.refused_changes(provisional, changes_of(p), with_ids=False, notes=False):
@@ -1892,8 +1886,7 @@ def renumber(argv: list[str]) -> int:
 
     takes, why = X.counter_takes(w.root)
     if a.new and takes and _num(a.new) in takes:
-        given = takes[_num(a.new)]
-        tid, take, taken_by = X.tid(_num(a.new)), given.get("take"), given.get("by")
+        tid, take = X.tid(_num(a.new)), takes[_num(a.new)].get("take")
     else:
         cmd = [sys.executable, str(Path(__file__).with_name("ledger_next_id.py")), "--json", "--ledger", w.rel]
         cmd += (["--claim", a.new] if a.new else []) + (["--by", a.by] if a.by else [])
@@ -1904,8 +1897,8 @@ def renumber(argv: list[str]) -> int:
             res = {"ids": [], "why": (r.stderr.strip() or f"exit {r.returncode}")}
         if r.returncode != 0 or not res.get("ids"):
             return w.say("renumber", f"no id was taken — {res.get('why') or why}; nothing was written", 2)
-        tid, take, taken_by = res["ids"][0], res.get("id_take"), res.get("taken_by")
-    p = plan(tid, take, taken_by)
+        tid, take = res["ids"][0], res.get("id_take")
+    p = plan(tid, take)
     if isinstance(p, int) or w.refused_changes(tid, changes_of(p)):
         return w.say("renumber", f"{tid} is taken and nothing was written — fix the above, then run again "
                                  f"with {old} {tid}", 1)

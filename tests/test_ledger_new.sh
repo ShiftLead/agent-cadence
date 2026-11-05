@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # TD-198: `ledger.py new` files one entry in a v2 ledger from flags, its id from the counter.
 # Asserts: an entry from flags is written in canonical form, passes `--check --since` and
-# `fmt --check`, and carries the take's nonce as `Id take` (TD-188; `Taken by` only for a take with no
-# nonce); two news take two ids; a body from stdin works;
+# `fmt --check`, and carries the take's nonce as `Id take` (TD-188; never `Taken by`, and a take with no
+# nonce is refused); two news take two ids; a body from stdin works;
 # what the gate would fail is refused before any take (an unknown Type, a prose wait), and so is a
 # cross-repo blocker its roster repo does not have; --id files under a taken id and refuses an
 # untaken one; a v1 ledger, two stdin sections and missing --priority/--why are usage errors.
@@ -142,18 +142,16 @@ lp new --title x --priority Low --why - </dev/null >/dev/null 2>&1; r4=$?
 [ $r1 -eq 2 ] && [ $r2 -eq 2 ] && [ $r3 -eq 2 ] && [ $r4 -eq 2 ] && [ "$(last "$O")" = "$((10#${t2#TD-}))" ] \
   && ok "two stdin sections, no --priority, no --why and an empty Why are usage errors, before any take" || bad "usage: $r1 $r2 $r3 $r4"
 
-# --- 7) A take with no nonce (made before the counter wrote one): --id writes its by as Taken by, which the gate accepts.
+# --- 7) A take with no nonce (made before the counter wrote one): no Id take can name it, so --id is refused (TD-188 step 4).
 tip=$(git -C "$O" rev-parse refs/heads/cadence/ledger-ids)
 blob=$(echo 90 | git -C "$O" hash-object -w --stdin)
 tree=$(printf '100644 blob %s\tLAST\n' "$blob" | git -C "$O" mktree)
 c=$(printf 'TD-090 [skip ci]\n\nby: old-take\n' | git -C "$O" commit-tree "$tree" -p "$tip")
 git -C "$O" update-ref refs/heads/cadence/ledger-ids "$c" "$tip"
 out=$(lp new --id TD-090 --title "old take" --priority Low --why "$TMP/why.md" 2>"$TMP/err"); rc=$?
-c=$(lp --check --since origin/main 2>&1)   # TD-005's other#TD-001 errs here, the roster emptied above: judge TD-090's lines
-[ $rc -eq 0 ] && grep -qx '\*\*Taken by:\*\* old-take' "$out" && ! grep -q 'Id take' "$out" \
-  && grep -q 'ℹ a matching \*\*Taken by:\*\* but no \*\*Id take:\*\* on TD-090' <<<"$c" && ! grep -q '⚠.*TD-090' <<<"$c" \
-  && ok "--id under a take with no nonce writes its by as Taken by, and the gate passes it" \
-  || bad "no-nonce take (rc=$rc check=$rc1): $(cat "$TMP/err") $c"
+[ $rc -eq 1 ] && [ -z "$out" ] && grep -q 'no \*\*Id take:\*\* on TD-090' "$TMP/err" && grep -q 'nothing was written' "$TMP/err" \
+  && ok "--id under a take with no nonce is refused (the gate requires Id take), writing nothing" \
+  || bad "no-nonce take (rc=$rc): out=$out $(cat "$TMP/err")"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -45,9 +45,10 @@ says ``ledger-ids-host = "off"``). The cadence check's ``ledger`` row and ``ledg
 them through ``judge()`` (TD-145), which is ledgerboard's ``judge_takes()`` (TD-188) over ``read_takes()``
 (each commit read by its ``parse_take()``): a new id in a PR that no take gave fails; an entry's
 ``**Id take:**`` is judged alone where present (another id's take's nonce, or no take's, fails naming both
-ids, never the nonce); without one, a ``**Taken by:**`` that is not its take's ``by`` fails naming the ``by``,
-a matching one warns asking for the ``Id take``, and neither warns, one whose take names a branch that is neither the default nor the PR's
-warns, and one whose take's ``by`` is a bare session id (a UUID) or an email address warns (TD-195). A reserved take prints the line to write in each entry's header: ``**Taken by:** <by>``.
+ids, never the nonce); a new id's entry without one fails (``id-no-take``, TD-188 step 4 — ``**Taken by:**``,
+retired, is no longer read), each failure pointing at ``--show``; and one whose take's ``by`` is a bare session
+id (a UUID) or an email address warns (TD-195). A reserved take prints the line to write in each entry's
+header: ``**Id take:** <nonce>``.
 
 ``--claim TD-N`` takes exactly that id, for one the fallback printed and could not reserve: the same
 push, refused with exit 2 when a take already gave TD-N (naming the take's by, date and short sha, never its
@@ -56,9 +57,9 @@ nonce) or main holds it. ``--show TD-N`` prints the ``**Id take:**`` line of the
 the line recovers it and a hand-off passes ``--by`` (TD-188). ``LAST`` becomes the
 higher of N and the tip's, so a later take still goes above both.
 
-Output: the ids, one a line, and on stderr the ``**Id take:**`` and ``**Taken by:**`` lines when reserved; ``--json``:
-``{ids, reserved, taken_by, id_take, why, unread, warnings}`` (``taken_by`` the take's ``by``, ``id_take`` its nonce
-— the entry's ``**Id take:**``, TD-188 — both null when nothing was reserved). Exit 0 reserved
+Output: the ids, one a line, and on stderr the ``**Id take:**`` line when reserved; ``--json``:
+``{ids, reserved, taken_by, id_take, why, unread, warnings}`` (``taken_by`` the take's ``by``, information only,
+``id_take`` its nonce — the entry's ``**Id take:**``, TD-188 — both null when nothing was reserved). Exit 0 reserved
 on the counter; 3 printed but not reserved (the fallback); 2 refused, nothing printed (a fetch of
 ``origin/<default>`` failed, so main cannot be the floor; or 30 seconds of a moving tip) — with
 ``--json`` the object still prints, its ``ids`` empty and ``why`` saying why.
@@ -304,7 +305,7 @@ def counter_takes(root: Path) -> tuple[dict[int, dict] | None, str]:
 def default_by(root: Path) -> str:
     """TD-195: the take's ``by`` when no ``--by`` is given: the first 12 hex digits of the sha256 of the
     session's id, else of ``git config user.email``, else ``unknown``. One session's takes still share
-    a ``by``, so an entry's ``**Taken by:**`` matches its take, and hashing an id again says locally
+    a ``by`` (``--show`` finds the caller's own take by it), and hashing an id again says locally
     whether a session made a take; the id and the address themselves never reach the counter."""
     for raw in (os.environ.get("CLAUDE_CODE_SESSION_ID", "").strip(),
                 git(root, "config", "user.email").stdout.strip()):
@@ -317,16 +318,19 @@ def judge(new: set[int], takes: dict[int, dict], texts: list[str], branch: str, 
           ) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """New ids against the counter's takes, for the cadence check's ``ledger`` row and ``ledger.py --check
     --since`` alike (TD-145): ledgerboard's ``judge_takes()`` (TD-188), with the transition's
-    ``accept_taken_by`` — an entry's ``Id take`` is judged alone where it is present; where it is absent a
-    ``Taken by`` naming its take's ``by`` passes with a warning, one naming another fails. ``texts`` are the
+    ``Id take`` required (TD-188 step 4: ``accept_taken_by`` off, so ``Taken by`` is not read) — a new id's
+    entry with none fails ``id-no-take``, one naming another id's take or no take fails ``id-take``, each
+    pointing at ``--show``; ledgerboard's ``id-branch`` warning is retired here with it. ``texts`` are the
     ledger and archive holding the new entries, ``branch`` the one they are for, ``default`` the default
     branch; ``takes`` a ``read_takes()`` map (its ``.all``, else its distinct values). Returns (fails, warns),
     each a list of (kind, text)."""
     every = getattr(takes, "all", None) or list({id(t): t for t in takes.values()}.values())
     every = [t if t.get("ids") else {**t, "ids": [n for n, v in takes.items() if v is t]} for t in every]
-    fails, warns = L.LB.judge_takes(new, every, texts, branch, default, accept_taken_by=True)
-    here = {"id-untaken": " (here: `ledger_next_id.py`, and `ledger_next_id.py --claim TD-N` for a printed one; cadence §2.10)"}
-    return [(k, t + here.get(k, "")) for k, t in fails], warns
+    fails, warns = L.LB.judge_takes(new, every, texts, branch, default, accept_taken_by=False)
+    show = " (a session that lost its line: `ledger_next_id.py --show TD-N`; cadence §2.10)"
+    here = {"id-untaken": " (here: `ledger_next_id.py`, and `ledger_next_id.py --claim TD-N` for a printed one; cadence §2.10)",
+            "id-no-take": show, "id-take": show}
+    return [(k, t + here.get(k, "")) for k, t in fails], [(k, t) for k, t in warns if k != "id-branch"]
 
 
 def read_last(root: Path, tip: str) -> str | None:
@@ -588,10 +592,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         for n in res["ids"]:
             print(tid(n))
-        if res["taken_by"]:
-            take_line = f"`**Id take:** {res['id_take']}` and " if res.get("id_take") else ""
-            print(f"ledger_next_id: write {take_line}`**Taken by:** {res['taken_by']}` in each entry's header "
+        if res.get("id_take"):
+            print(f"ledger_next_id: write `**Id take:** {res['id_take']}` in each entry's header "
                   "(cadence §2.10)", file=sys.stderr)
+        elif res["reserved"]:
+            print("ledger_next_id: this take carries no nonce, so no **Id take:** can name it and the gate will "
+                  "fail the entry — take a new id (cadence §2.10)", file=sys.stderr)
         for w in res["warnings"]:
             print(f"ledger_next_id: {w}", file=sys.stderr)
         if res["unread"]:

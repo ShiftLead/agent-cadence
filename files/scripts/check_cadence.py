@@ -1150,7 +1150,7 @@ def ledger_ids_check(pr, root):
     A new id no take on the counter gave (origin's cadence/ledger-ids, cadence §2.10) fails: nobody
     handed it out (TD-145 — it was a warning above LAST, which a hand-typed id below a later LAST
     passed); one below the counter's first take predates the counter and warns; an entry's
-    ``**Taken by:**`` is judged against its take. Those counter checks are ledger_next_id.judge(),
+    ``**Id take:**`` is required and judged against its takes (TD-188 step 4). Those counter checks are ledger_next_id.judge(),
     which ``ledger.py --check --since`` runs too. Reads commits, never the working tree."""
     if not root or pr["state"] != "open" or not ledger_touched(pr.get("files")):
         return [], []
@@ -1175,7 +1175,8 @@ def ledger_ids_check(pr, root):
     fails, warns = [], []
     on_main = sorted(new & X.ids_at(r, default_ref(root), *LEDGER_FILES))
     if on_main:
-        fails.append(f"{', '.join(map(X.tid, on_main))} already on {default_ref(root)}")
+        fails.append(f"{', '.join(map(X.tid, on_main))} already on {default_ref(root)} — renumber it "
+                     "from `ledger_next_id.py` or the front end")
     prs, unread = X.read_prs(r, *LEDGER_FILES, base=True, be=FORGE)
     for n, rec in sorted(prs.items()):
         if n == pr["number"] or rec["base"] is None:
@@ -1187,7 +1188,8 @@ def ledger_ids_check(pr, root):
         if shared:
             both -= X.ids_at(r, shared.strip(), *LEDGER_FILES)
         if both:
-            fails.append(f"{', '.join(map(X.tid, sorted(both)))} also added by {FORGE.ref(n)}")
+            fails.append(f"{', '.join(map(X.tid, sorted(both)))} also added by {FORGE.ref(n)} — renumber it "
+                         "from `ledger_next_id.py` or the front end")
     me = FORGE.ref(pr["number"])
     unread = [u for u in unread if u != me and not u.startswith(me + " ")]
     if unread:
@@ -1217,8 +1219,8 @@ def row_ledger(pr, root=None):
         return row(
             "ledger",
             "fail",
-            f"this PR adds an id that is not its own: {'; '.join(fails)} — renumber it from "
-            "`ledger_next_id.py` or the front end (cadence §2.10)" + "".join(f"; ⚠ {w}" for w in warns)
+            f"this PR's new ids fail the counter's checks: {'; '.join(fails)} (cadence §2.10)"
+            + "".join(f"; ⚠ {w}" for w in warns)
             + (f"; also {len(errors)} bad field(s): {errors[0]}" if errors else ""),
         )
     if warns:

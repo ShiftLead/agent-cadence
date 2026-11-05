@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-05 — A new entry needs its `**Id take:**`: the gate fails one without it, and `Taken by` is no longer read
+Do: write the `**Id take:** <nonce>` line your take printed (`ledger.py new` and `renumber` write it); lost it, `ledger_next_id.py --show TD-N`; never write `Taken by`. An open PR whose new entries carry only `Taken by` fails its `ledger` row: add the line.
+See: cadence.md §2.10; TD-188 step 4.
+
 ## 2026-11-05 — A daily gate sweep is a systemd user timer `gate_sweep_timer.sh --write` makes
 Do: where the person picks *daily* for a repo's gate sweep, run `gate_sweep_timer.sh --write` (without it, it prints the units) and put the `systemctl --user` line it prints on the board for them — no session enables a timer.
 See: cadence.md §2.14; `gate_sweep_timer.sh`; the board line of 2026-11-04 (TD-219).
