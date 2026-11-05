@@ -638,7 +638,7 @@ out=$(run --pr 7)
 
 # --- 12) --branch resolves the open PR for a head; --json shape
 printf '[{"number":5,"state":"OPEN"}]' > "$FAKE/prlist_head.json"
-out=$(run --branch topic5 --json); echo "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["prs"][0]["pr"]==5 and d["verdict"]=="pass" and {r["rule"] for r in d["prs"][0]["rows"]}=={"pr","review","ci","base","ledger","board","worktree","pushed","deploy"}' && ok "--branch + --json" || bad "--branch json: $out"
+out=$(run --branch topic5 --json); echo "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["prs"][0]["pr"]==5 and d["verdict"]=="pass" and {r["rule"] for r in d["prs"][0]["rows"]}=={"pr","review","ci","base","ledger","board","gates","worktree","pushed","deploy"}' && ok "--branch + --json" || bad "--branch json: $out"
 # 12b) the person's cadence layers (TD-126): one line after the rows, a "layers" key in --json;
 # the verdict never moves, and a machine with none set prints nothing of them
 printf '[{"number":5,"state":"OPEN"}]' > "$FAKE/prlist_head.json"

@@ -113,6 +113,15 @@ never a fake pass):
               An entry the edit adds or changes that waits on the person (Owner:
               person, decision (<who>), an **Answers:** line) with no **Ask:** line
               in its body is a ⚠ in the detail, never a fail (TD-122).
+    gates     a PR that touches the ledger or the board: ledgerboard's tripwire() and
+              uncovered_decisions() (SPEC *The merge gate's verdicts*, v2.4) over its
+              merge-base (merged: its merge commit's parent) and head, this repo's own
+              board alone (TD-218). A `decision (<p>)` an open entry loses with no
+              answer, reassign or override for it fails; so does one it gains with no
+              board item to answer, and a new gate item none of whose answers lifts.
+              A lift by another than the gate's person, and coverage resting on
+              another repo's board, are a ⚠ (review decides); on a merged PR every
+              finding is a ⚠ (the gate is the merge, as TD-201's). cadence §3.4.
     worktree  a merged PR's local worktree is gone or reapable (clean including
               untracked, and landed by the §1 scoped diff); it is normal for it to
               still exist until the anchor's next pull, so existing is not the fault
@@ -2063,6 +2072,123 @@ def row_board(pr, root):
                + (f" — ℹ {'; '.join(infos)}" if infos else ""))
 
 
+class _DocsTree(dict):
+    """A commit's ``docs/`` tree as ledgerboard's merge-gate verdicts take it (SPEC *The merge gate's verdicts*):
+    each path to its text. The keys are every blob under ``docs/``; a text is read when asked (ledger.py's
+    git_io, one ``cat-file --batch`` per directory), so a verdict reading the ledger and the board never reads
+    the rest of ``docs/``."""
+
+    def __init__(self, root, sha):
+        super().__init__()
+        here = os.path.dirname(os.path.abspath(__file__))
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        from pathlib import Path
+
+        import ledger as L  # sibling SYNC script
+        self.ok = True
+        io = L.git_io(Path(root), sha, "docs")
+        names = git(["ls-tree", "-r", "-z", "--name-only", "--full-tree", sha, "docs"], cwd=root)
+        if io is None or names is None:
+            self.ok = False
+            return
+        self._read = io[1]
+        for path in names.split("\0"):
+            if path:
+                dict.__setitem__(self, path, None)
+
+    def __getitem__(self, path):
+        if not dict.__contains__(self, path):
+            raise KeyError(path)
+        text = dict.__getitem__(self, path)
+        if text is None:
+            text = self._read(path)
+            if text is None:
+                raise KeyError(path)
+            dict.__setitem__(self, path, text)
+        return text
+
+    def get(self, path, default=None):
+        try:
+            return self[path]
+        except KeyError:
+            return default
+
+
+def this_repo(root):
+    """The ``repo`` ledgerboard's verdicts name this repo by: its origin's path (origin_path(), lowercased),
+    else its checkout's basename (SPEC *The gate sweep*)."""
+    url = (git(["remote", "get-url", "origin"], cwd=root) or "").strip()
+    return _lb().origin_path(url) or os.path.basename(os.path.abspath(root))
+
+
+# the tripwire's flags a review weighs rather than a fail (ledgerboard's target design §6: "a by other than
+# the gate's person is flagged, and review decides")
+TRIPWIRE_REVIEW = ("tripwire-by",)
+
+
+def row_gates(pr, root):
+    """TD-218, ledgerboard v2.4 (SPEC *The merge gate's verdicts*): the gates row. On a PR that touches the
+    ledger or the board, ledgerboard's tripwire() — each `decision (<p>)` an entry open at the base and at the
+    head loses that the diff does not account for (an answer on this repo's board, a reassign or an override)
+    — and uncovered_decisions() — each `decision (<p>)` the PR adds with no board item to answer, and each new
+    gate item none of whose answers lifts — over the PR's merge-base (merged: its merge commit's parent) and
+    head. Every refusal and every tripwire flag fails the row, but a lift by someone other than the gate's
+    person (`tripwire-by`), which review decides, and coverage resting on another repo's board
+    (uncovered_decisions' flags), which not every machine reads: those are a ⚠. On a merged PR every finding
+    is a ⚠, never a fail — the gate is the merge, and a --since sweep would otherwise fail every PR merged
+    before the row existed, which nobody can now amend (as TD-201's form check). Only this repo's own board is
+    read, so the verdict is the same on every machine. Forgeable: a well-formed hand edit passes, and review
+    is the backstop."""
+    files = pr.get("files") or []
+    if not (ledger_touched(files) or any(f.startswith(LEDGER_DIR + "/") for f in files)
+            or BOARD in files or ARCHIVE in files):
+        return row("gates", "na", "the PR touches neither the ledger nor the board")
+    if not root:
+        return row("gates", "unknown", "no clone to read the gates' change from")
+    if pr["state"] == "merged":
+        new = pr.get("merge_sha")
+        old = f"{new}^" if new else None
+    else:
+        new = pr.get("head_sha")
+        old = None
+    if not new:
+        return row("gates", "unknown", f"{FORGE.cli if FORGE else 'the forge'} gave no commit")
+    if git(["cat-file", "-e", f"{new}^{{commit}}"], cwd=root) is None:
+        fetch_once(root)
+        if git(["cat-file", "-e", f"{new}^{{commit}}"], cwd=root) is None:
+            # merged, the row only warns (below), so a commit out of reach is not checked, as the ledger row's
+            return row("gates", "na" if pr["state"] == "merged" else "unknown",
+                       f"gates not checked: {new[:7]} is not in this clone")
+    if old is None:
+        mb = git(["merge-base", default_ref(root), new], cwd=root)
+        if not mb:
+            return row("gates", "unknown", f"no merge-base of {new[:7]} with {default_ref(root)}")
+        old = mb.strip()
+    base, head = _DocsTree(root, old), _DocsTree(root, new)
+    if not (base.ok and head.ok):
+        return row("gates", "unknown", f"the tree at {old[:7]} or {new[:7]} is unreadable")
+    lb = _lb()
+    repo = this_repo(root)
+    subject = (git(["log", "-1", "--format=%s", new], cwd=root) or "").strip()
+    try:
+        trip = lb.tripwire(base, head, subject, repo)
+        refusals, flags = lb.uncovered_decisions(base, head, [], repo)
+    except lb.Refused as e:  # a repo name outside the grammar, or a tree the format refuses
+        return row("gates", "unknown", f"gates not checked: {e}")
+    fails = [t for k, t in trip if k not in TRIPWIRE_REVIEW] + [t for _, t in refusals]
+    warns = [t for k, t in trip if k in TRIPWIRE_REVIEW] + [t for _, t in flags]
+    if pr["state"] == "merged":  # as TD-201's form check: a sweep would fail every PR merged before the rule
+        warns, fails = [*fails, *warns], []
+    tail = "".join(f"; ⚠ {w}" for w in warns)
+    if fails:
+        more = f" (+{len(fails) - 2} more)" if len(fails) > 2 else ""
+        return row("gates", "fail", "; ".join(fails[:2]) + more
+                   + " (ledgerboard SPEC *The merge gate's verdicts*: a gate is lifted by its person's answer)" + tail)
+    return row("gates", "pass", "every decision gate removed is accounted for, and every one added has a board item"
+               + tail)
+
+
 def _tool_pr_commit(pr, root):
     """(sha, files) of the one commit that is a tool-made PR's whole change, or None. That commit is
     the whole PR only when it is one commit: merged, a single-parent squash whose subject ends `(#n)`
@@ -2231,6 +2357,7 @@ def check_pr(number, root):
         ("base", lambda: row_base(pr, root)),
         ("ledger", lambda: row_ledger(pr, root)),
         ("board", lambda: row_board(pr, root)),
+        ("gates", lambda: row_gates(pr, root)),
         ("worktree", lambda: row_worktree(pr, root)),
         ("pushed", lambda: row_pushed(pr, root)),
         ("deploy", lambda: row_deploy(pr, root)),
