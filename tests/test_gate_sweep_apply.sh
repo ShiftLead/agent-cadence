@@ -2,7 +2,8 @@
 # TD-219 (slice 3): gate_sweep.py --apply and ledger.py lift. Each host lift is its own tool PR on
 # lift/TD-n/<gate> (ledgerboard's target design §4.4): nothing when that PR is open or another open PR's diff
 # already lifts the gate, an act item when its PR was closed unmerged. This repo's own board items and closes
-# are one sweep PR on sweep/<date>; another repo's board is skipped (TD-229). The checkout is left as it was.
+# are one sweep PR on sweep/<date>; another roster repo's board gets one PR in that repo, on
+# notices/<repo>-sweep-<date> (TD-229), never on a board more visible than this repo. The checkout is left as it was.
 #
 # Offline: origin's fetch URL is only named (never fetched); its push URL is a bare repo here. `gh` is a PATH
 # shim: `api` answers from fixture files, `pr list|diff|create` from $FIX and a log.
@@ -22,7 +23,8 @@ bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
 BIN="$TMP/bin"; FIX="$TMP/fix"; mkdir -p "$BIN" "$FIX"
 cat > "$BIN/gh" <<'SHIM'
 #!/usr/bin/env bash
-echo "$*" >> "$GH_LOG"
+pre=""; case "$PWD" in "$OTH"|"$OTH"/*) pre=oth_ ;; esac   # gh run in the other repo's clone
+echo "${pre:+oth: }$*" >> "$GH_LOG"
 k() { printf %s "$1" | tr '/?=' '___'; }
 case "$1 $2" in
   "api "*)
@@ -30,17 +32,18 @@ case "$1 $2" in
     [ -e "$FIX/$(k "$2")" ] && { cat "$FIX/$(k "$2")"; exit 0; } ;;
   "pr list")
     if [ "$5" = --search ]; then cat "$FIX/search.json" 2>/dev/null || echo '[]'; exit 0; fi
-    if [ "$3" = --head ]; then cat "$FIX/head_$(k "$4")" 2>/dev/null || echo '[]'; else cat "$FIX/open.json" 2>/dev/null || echo '[]'; fi
+    if [ "$3" = --head ]; then cat "$FIX/head_$(k "$4")" 2>/dev/null || echo '[]'; else cat "$FIX/${pre}open.json" 2>/dev/null || echo '[]'; fi
     exit 0 ;;
   "pr diff") cat "$FIX/diff_$3"; exit 0 ;;
   "pr create")
     [ -e "$FIX/create_fail" ] && { echo "pull request create failed: GraphQL: boom" >&2; exit 1; }
-    n=$(( $(grep -c '^pr create' "$GH_LOG") + 100 )); echo "https://github.com/o/own/pull/$n"; exit 0 ;;
+    n=$(( $(grep -c 'pr create' "$GH_LOG") + 100 )); r=own; [ -n "$pre" ] && r=oth; echo "https://github.com/o/$r/pull/$n"; exit 0 ;;
 esac
 echo "gh-shim: unhandled: $*" >&2; exit 64
 SHIM
 chmod +x "$BIN/gh"
-export PATH="$BIN:$PATH" GH_LOG="$TMP/gh.log" FIX
+OTH="$TMP/oth"
+export PATH="$BIN:$PATH" GH_LOG="$TMP/gh.log" FIX OTH
 fx() { printf '%s' "$2" > "$FIX/$(printf %s "$1" | tr '/?=' '___')"; }
 fx repos/o/own '{"visibility":"private","default_branch":"main"}'
 fx repos/o/oth '{"visibility":"private","default_branch":"main"}'
@@ -64,8 +67,15 @@ mkrepo() {
 publish() { git -C "$1" add -A && git -C "$1" commit -qm fixture && git -C "$1" update-ref refs/remotes/origin/main HEAD; }
 OWN="$TMP/own"; mkrepo "$OWN" https://github.com/o/own.git
 BARE="$TMP/own.git"; git init -q --bare "$BARE"; git -C "$OWN" remote set-url --push origin "$BARE"
-OTH="$TMP/oth"; mkrepo "$OTH" https://github.com/o/oth.git
-board sam > "$OTH/docs/user_attention.md"
+mkrepo "$OTH" https://github.com/o/oth.git
+OBARE="$TMP/oth.git"; git init -q --bare "$OBARE"; git -C "$OTH" remote set-url --push origin "$OBARE"
+OSTALE=$(python3 - "$S" "$TODAY" <<'PY'
+import sys; sys.path.insert(0, sys.argv[1]); import ledgerboard as LB
+print(LB.item_line("Lift of event (gone) on o/own#TD-007 was closed", sys.argv[2], sys.argv[2], "s", None,
+                   "o/own#TD-007 event (gone) lift", kind="act"))
+PY
+)
+board sam "$OSTALE" > "$OTH/docs/user_attention.md"
 STALE=$(python3 - "$S" "$TODAY" <<'PY'
 import sys; sys.path.insert(0, sys.argv[1]); import ledgerboard as LB
 print(LB.item_line("Lift of event (gone) on TD-007 was closed", sys.argv[2], sys.argv[2], "s", None,
@@ -74,11 +84,11 @@ PY
 )
 board alex "$STALE" > "$OWN/docs/user_attention.md"
 entry "$OWN" 1 "decision (alex)" '**Ask:** Ship the thing?'
-entry "$OWN" 2 "decision (sam)" '**Ask:** Rename it?'
+entry "$OWN" 2 "decision (sam)" '**Ask:** Rename it, as TD-002 says?'
 entry "$OWN" 3 "until $PAST"
 entry "$OWN" 4 "event (landed)" "$(printf '**Event (landed):** the PR lands.\ncheck: pr-merged o/oth#3')"
 entry "$OWN" 7 -
-publish "$OWN"; publish "$OTH"
+publish "$OWN"; publish "$OTH"; git -C "$OTH" push -q "$OBARE" HEAD:refs/heads/main
 git -C "$OWN" push -q "$BARE" HEAD:refs/heads/main
 before=$(git -C "$OWN" rev-parse HEAD); : > "$GH_LOG"
 
@@ -100,8 +110,15 @@ b=$(shown "sweep/$TODAY:docs/user_attention.md")
 grep -q 'Ship the thing?.*Context: TD-001 decision (alex)' <<< "$b" && ok "3a the sweep PR files this board's decide item" || bad "3a: $b / $out"
 grep -q '^- \[x\] .*Lift of event (gone) on TD-007 was closed.*Closed: .* the gate sweep' <<< "$b" \
   && ok "3b ... and closes an item whose gate is gone" || bad "3b: $b"
-! grep -q 'Rename it' <<< "$b" && has "file on github.com/o/oth: 1 item(s) skipped — another repo's board is written by a PR there (TD-229)" \
-  && ok "3c another repo's board: skipped, said, TD-229" || bad "3c: $out"
+ob=$(git -C "$OBARE" show "notices/o-own-sweep-$TODAY:docs/user_attention.md" 2>/dev/null)
+! grep -q 'Rename it' <<< "$b" && grep -q 'Rename it, as o/own#TD-002 says?.*Context: o/own#TD-002 decision (sam)' <<< "$ob" \
+  && has "board github.com/o/oth: opened https://github.com/o/oth/pull/" \
+  && ok "3c another repo's board: its item in a PR there, on notices/o-own-sweep-<date>, the entry named o/own#TD-n" || bad "3c: $out / $ob"
+grep -q "^oth: pr create --head notices/o-own-sweep-$TODAY --base main --title board: o/own's gate sweep $TODAY — 1 filed" "$GH_LOG" \
+  && [ "$(git -C "$OBARE" diff --name-only main "notices/o-own-sweep-$TODAY")" = docs/user_attention.md ] \
+  && [ "$(git -C "$OTH" worktree list | wc -l)" = 1 ] && [ -z "$(git -C "$OTH" branch --list 'notices/*')" ] \
+  && grep -q '^- \[x\] .*Lift of event (gone) on o/own#TD-007 was closed.*Closed: .* the gate sweep of o/own' <<< "$ob" \
+  && ok "3e ... opened on that repo's forge, its board alone (a close there too), its clone left as it was" || bad "3e: $(grep 'oth:' "$GH_LOG") / $(git -C "$OTH" worktree list)"
 [ "$(git -C "$BARE" diff --name-only main "sweep/$TODAY")" = docs/user_attention.md ] && ok "3d the sweep PR changes the board alone" || bad "3d"
 [ "$(git -C "$OWN" rev-parse HEAD)" = "$before" ] && [ -z "$(git -C "$OWN" status --porcelain)" ] \
   && [ "$(git -C "$OWN" worktree list | wc -l)" = 1 ] && [ -z "$(git -C "$OWN" branch --list 'lift/*' 'sweep/*')" ] \
@@ -110,8 +127,11 @@ grep -q '^- \[x\] .*Lift of event (gone) on TD-007 was closed.*Closed: .* the ga
 
 # 5. idempotent: the PRs open, a second run opens nothing
 printf '[{"number":100,"headRefName":"lift/TD-003/until","files":[]},{"number":101,"headRefName":"lift/TD-004/landed","files":[]},{"number":102,"headRefName":"sweep/%s","files":[]}]' "$TODAY" > "$FIX/open.json"
-n0=$(grep -c '^pr create' "$GH_LOG")
+printf '[{"number":55,"headRefName":"notices/o-own-sweep-%s","files":[]}]' "$TODAY" > "$FIX/oth_open.json"
+n0=$(grep -c '^pr create' "$GH_LOG"); m0=$(grep -c '^oth: pr create' "$GH_LOG")
 out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
+[ "$(grep -c '^oth: pr create' "$GH_LOG")" = "$m0" ] && has "board github.com/o/oth: an earlier sweep PR #55 from this repo is open there" \
+  && ok "5b an earlier sweep PR from this repo open on the other repo: nothing opened there, said" || bad "5b: $out"
 [ "$(grep -c '^pr create' "$GH_LOG")" = "$n0" ] && has "lift TD-003 until $PAST: PR #100 is open — nothing to do" \
   && has "board: an earlier sweep PR #102 is open" && ok "5a a second run: nothing opened, each open PR named" || bad "5a: $out"
 
@@ -162,6 +182,16 @@ has "lift TD-003 until $PAST: not done — git push lift/TD-003/until:" && has "
   && ok "9b a branch on origin with no PR: never forced over, named to delete" || bad "9b: $out"
 [ "$(git -C "$OWN" worktree list | wc -l)" = 1 ] && [ -z "$(git -C "$OWN" branch --list 'lift/*' 'sweep/*')" ] && [ -z "$(ls "$TMP" | grep gate-sweep-)" ] \
   && ok "9c after the failures: no worktree, branch or temp dir left" || bad "9c: $(git -C "$OWN" worktree list; git -C "$OWN" branch)"
+
+# 10. a board more visible than this repo is never written: its items carry this repo's entries' words
+rm -f "$FIX/oth_open.json"; git -C "$OBARE" branch -q -D "notices/o-own-sweep-$TODAY"
+fx repos/o/oth '{"visibility":"public","default_branch":"main"}'
+m0=$(grep -c '^oth: pr create' "$GH_LOG")
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
+has "board github.com/o/oth: not written — o/oth is public, more visible than this repo (private)" \
+  && [ "$(grep -c '^oth: pr create' "$GH_LOG")" = "$m0" ] && [ -z "$(git -C "$OBARE" branch --list 'notices/*')" ] \
+  && ok "10a a public repo's board, a private repo's sweep: not written, said" || bad "10a: $out"
+fx repos/o/oth '{"visibility":"private","default_branch":"main"}'
 
 # 7. ledger.py lift: a host's lift only
 W="$TMP/w"; git clone -q -b main "$BARE" "$W" 2>/dev/null

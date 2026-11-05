@@ -37,8 +37,13 @@ column), from temporary worktrees at ``origin/<default>`` — the checkout it ru
   v2.4's Context reader names no ``until`` gate, so its sweep never closes such an item for an ``until``.)
 - **This repo's own board** gets the items to file and the closes as one sweep PR on ``sweep/<UTC date>``
   (each item due today, under the session ``$SHIFTLEAD_SESSION`` else ``gate-sweep``); while an earlier
-  ``sweep/…`` PR is open, nothing more is filed. Items and closes on **another repo's board** are skipped and
-  said: they are a PR in that repo, TD-229.
+  ``sweep/…`` PR is open, nothing more is filed.
+- **Another roster repo's board** gets its items and closes as one PR in that repo (TD-229, as ``ledger.py
+  set``'s notices do): a temporary worktree of its clone at its ``origin/<default>``, the branch
+  ``notices/<this repo>-sweep-<UTC date>``, opened on that repo's forge and left for its review; each item's
+  ``Context:`` (and a bare ``TD-n`` in its words) names ``<this repo>#TD-n``. Nothing while an earlier such
+  PR from this repo is open there, and nothing on a board more visible than this repo (the items carry this
+  repo's entries' words); each is said.
 - The PRs are reviewed and merged like any (cadence.md §4). Findings reach the person as every board item
   does, through the session-start report. A push is never forced: a branch left on origin with no PR is
   named, to delete; a PR the forge would not open has its pushed branch deleted again. **What runs the sweep is the person's choice** (cadence.md §2.14): by hand,
@@ -258,6 +263,71 @@ def _closes(board: str, keys: list[str]) -> list[tuple[int, str, str]]:
     return out
 
 
+OTHER_BRANCH = "notices/"        # a PR on another repo's board: notices/<this repo>-sweep-<UTC date> (TD-229)
+
+
+def _other_board(top: Path, repo: str, board: str, root: str | None, items: list[dict], keys: list[str], be, *,
+                 today_local: date, today_utc: date, by: str) -> str:
+    """File ``items`` on, and close ``keys`` on, another roster repo's ``board`` by a PR in that repo (TD-229, as
+    ``ledger.py set``'s notices do since TD-226): a temporary worktree of its clone at ``root``, at its
+    ``origin/<default>``, pushed on ``notices/<this repo>-sweep-<UTC date>`` and opened on that repo's forge, left
+    open for its review. Nothing while an earlier such PR from this repo is open there, and nothing written to a
+    board more visible than this repo (an item carries this repo's entry's words). One line: what was done."""
+    n = f"{len(items)} to file, {len(keys)} to close"
+    if not root:
+        return f"board {board}: not done — no clone of it on this machine's roster ({n})"
+    root_p = Path(root)
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", repo).strip("-")
+    prefix = f"{OTHER_BRANCH}{slug}-sweep-"
+    try:
+        theirs, mine = LB.origin_path(origin_url(root_p)), LB.origin_path(origin_url(top))
+        if not (theirs and mine):
+            raise F.ForgeUnreadable("an origin names no forge repo")
+        vis = {s: be.repo_info(s)["visibility"] for s in (mine, theirs)}
+        if E.VISIBILITY[vis[theirs]] > E.VISIBILITY[vis[mine]]:
+            return (f"board {board}: not written — {theirs} is {vis[theirs]}, more visible than this repo "
+                    f"({vis[mine]}), and its items carry this repo's entries' words ({n})")
+        be2 = F.backend(root_p, cwd=root_p)   # gh infers the repo from its directory: that repo's
+        earlier = [q for q in be2.open_prs_files() if str(q["head"] or "").startswith(prefix)]
+        if earlier:
+            return (f"board {board}: an earlier sweep PR #{earlier[0]['number']} from this repo is open there — "
+                    f"merge or close it, then sweep ({n} wait)")
+        default = N.default_branch(root_p)
+        branch = f"{prefix}{today_utc.isoformat()}"
+        session = os.environ.get("SHIFTLEAD_SESSION", "").strip() or "gate-sweep"
+        with Scratch(root_p, f"origin/{default}", branch) as wt:
+            path = str(wt / LB.BOARD_PATH)
+            for it in items:
+                # sweep() writes the Context as <repo>#TD-n; a bare TD-n in the words would read as that repo's own
+                m = re.match(r"\S+#(TD-\d+)\b", it["context"])
+                bare = re.compile(rf"(?<![#\w]){re.escape(m.group(1))}\b") if m else None
+                fix = (lambda x: bare.sub(f"{repo}#{m.group(1)}", x)) if bare else (lambda x: x)
+                detail = ({k: [fix(x) for x in v] if isinstance(v, list) else fix(v)
+                           for k, v in it["detail"].items()} if it["detail"] else None)
+                LBB.apply(LBB.plan_add(path, fix(it["text"]), due=today_local.isoformat(), context=it["context"],
+                                       kind=it["kind"], answers=it["answers"], default=it["default"],
+                                       detail=detail, lifts=it["lifts"], session=session, host=by,
+                                       today=today_local, tool="gate-sweep"))
+            closed = 0
+            for key in keys:   # one at a time: each close may move the lines below it
+                hit = _closes(LBB.read(path), [key])
+                if hit:
+                    line, expect, _ = hit[0]
+                    LBB.apply(LBB.plan_edit(path, "done", line, expect, today=today_local, tool="gate-sweep",
+                                            why=f"the gate sweep of {repo}: its condition no longer holds"))
+                    closed += 1
+            subject = f"board: {repo}'s gate sweep {today_utc.isoformat()} — {len(items)} filed, {closed} closed"
+            body = "\n".join([f"The gate sweep of {repo} (its TD-219; ledgerboard's target design §3.2) found items "
+                              "that belong on this repo's board, whose `People:` names the person (TD-229).", ""]
+                             + [f"- file: [{it['kind']}] {it['text']} — Context: {it['context']}" for it in items]
+                             + [f"- close: {k}" for k in keys]
+                             + ["", "Review it like any PR (cadence.md §4)."])
+            url = _ship(root_p, wt, be2, branch, default, subject, body)
+        return f"board {board}: opened {url}"
+    except (RuntimeError, LB.Refused, F.ForgeUnreadable, KeyError, OSError, subprocess.SubprocessError) as e:
+        return f"board {board}: not done — {e}"
+
+
 def apply(top: Path, p: dict, be, *, today_local: date, today_utc: date, by: str) -> list[str]:
     """Make the plan's writes on this repo's forge (§4.4): each lift as its own tool PR, and the items and
     closes on this repo's own board as one sweep PR. What was done or skipped, one line each; RuntimeError /
@@ -328,15 +398,23 @@ def apply(top: Path, p: dict, be, *, today_local: date, today_utc: date, by: str
         except (RuntimeError, F.ForgeUnreadable, OSError, subprocess.SubprocessError) as e:
             said.append(f"lift {tid} {gate}: not done — {e}")
 
+    roots: dict[str, str] = {}   # each board's clone: the first on the roster of its origin with a board, as plan()
+    for root in N.read_registry() or []:
+        k = LB.origin_key(origin_url(root))
+        if k and k != own and k not in roots and k in {*p["to_file"], *p["to_close"]}:
+            try:
+                if board_of(root)[0] is not None:
+                    roots[k] = str(root)
+            except Unreadable:
+                continue
+    for board in sorted({*p["to_file"], *p["to_close"]} - {own}):
+        got, ks = list(p["to_file"].get(board, [])), list(p["to_close"].get(board, []))
+        if got or ks:
+            said.append(_other_board(top, p["repo"], board, roots.get(board), got, ks, be,
+                                     today_local=today_local, today_utc=today_utc, by=by))
+
     items = list(p["to_file"].get(own, [])) + extra
     keys = list(p["to_close"].get(own, []))
-    for board, got in p["to_file"].items():
-        if board != own:
-            said.append(f"file on {board}: {len(got)} item(s) skipped — another repo's board is written by a "
-                        "PR there (TD-229)")
-    for board, got in p["to_close"].items():
-        if board != own:
-            said.append(f"close on {board}: {len(got)} item(s) skipped — another repo's board (TD-229)")
     if not (items or keys):
         return said
     earlier = [q for q in opened if str(q["head"] or "").startswith(SWEEP_BRANCH)]
