@@ -96,10 +96,40 @@ out=$(cd "$OWN" && python3 "$S/gate_sweep.py" 2>&1)
 ! has "Ship the thing?" && ok "5a a decision with an open item on its board: nothing filed" || bad "5a: $out"
 has "2 board(s) read" && ok "5b another worktree of this repo is not read as a second board" || bad "5b: $out"
 
+# 7. a board's archive is read: an item there answered "Not yet" within the window is not asked again
+L2=$(cd "$OWN" && python3 - "$S" <<'PY2'
+import sys; sys.path.insert(0, sys.argv[1]); import ledgerboard as LB, datetime as d
+t = d.date.today(); it = LB._sweep_item("uncovered", "TD-002", "o/own#TD-002", "decision (sam)", ask="Rename it?", title="entry 2")
+line = LB.item_line(it.pop("text"), t.isoformat(), t.isoformat(), "s", None, **it).split("\n")[0]
+print(LB.edit_line(line, "decide", answer="Not yet", by="sam", today=t, close=True))
+PY2
+)
+grep -q 'Closed: .* kept waiting' <<< "$L2" || bad "7 fixture: $L2"
+printf '# Archive\n\n%s\n' "$L2" > "$OTH/docs/user_attention_archive.md"; publish "$OTH"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" 2>&1)
+! has "Rename it?" && ok "7a an item closed in the other board's archive, answered Not yet: not re-filed" || bad "7a: $out"
+
+# 8. a board that is there and cannot be read is named, never read as absent; a clone with no origin/main reads its work tree
+blob=$(git -C "$OTH" rev-parse origin/main:docs/user_attention.md)
+mv "$OTH/.git/objects/${blob:0:2}/${blob:2}" "$TMP/blob.bak"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" 2>&1); rc=$?
+[ "$rc" = 0 ] && grep -q "⚠ board not read: oth (origin/main): docs/user_attention.md is there and could not be read" <<< "$out" \
+  && ok "8a an unreadable board: left out and named" || bad "8a rc=$rc: $out"
+mv "$TMP/blob.bak" "$OTH/.git/objects/${blob:0:2}/${blob:2}"
+NEW="$TMP/new"; mkrepo "$NEW" https://github.com/o/new.git; board sam > "$NEW/docs/user_attention.md"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" 2>&1)
+has "board github.com/o/new (working tree)" && has "board github.com/o/oth (origin/main)" \
+  && ok "8b each board says where it was read: a clone with no origin/main, its work tree" || bad "8b: $out"
+blob=$(git -C "$OWN" rev-parse origin/main:docs/ledger/TD-001.md)
+mv "$OWN/.git/objects/${blob:0:2}/${blob:2}" "$TMP/blob.bak"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" 2>&1); rc=$?
+[ "$rc" = 2 ] && has "no plan — own: docs/ledger/TD-001.md is there and could not be read" && ok "8c an unreadable entry of this ledger: no plan, exit 2" || bad "8c rc=$rc: $out"
+mv "$TMP/blob.bak" "$OWN/.git/objects/${blob:0:2}/${blob:2}"
+
 # 6. --json, and no own board
 js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>/dev/null)
-python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert d["repo"]=="o/own" and d["source"]=="origin/main"; assert {"id":"TD-003","gate":"until '"$PAST"'","kind":"until","evidence":"date reached"} in d["lifts"]; assert "github.com/o/oth" in d["to_file"]; assert any(c["id"]=="TD-004" and c["outcome"]=="passed" for c in d["checks"])' "$js" \
-  && ok "6a --json: repo, source, checks, to_file and lifts" || bad "6a: ${js:0:400}"
+python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert d["repo"]=="o/own" and d["source"]=="origin/main"; assert {"id":"TD-003","gate":"until '"$PAST"'","kind":"until","evidence":"date reached"} in d["lifts"]; assert d["unread"] == [] and {"board":"github.com/o/oth","source":"origin/main"} in d["boards"]; assert "github.com/o/own" in d["to_file"]; assert any(c["id"]=="TD-004" and c["outcome"]=="passed" for c in d["checks"])' "$js" \
+  && ok "6a --json: repo, source, boards with their sources, unread, checks, to_file and lifts" || bad "6a: ${js:0:400}"
 git -C "$OWN" rm -q docs/user_attention.md; publish "$OWN"
 out=$(cd "$OWN" && python3 "$S/gate_sweep.py" 2>&1); rc=$?
 [ "$rc" = 2 ] && has "no plan — no docs/user_attention.md (origin/main)" && ok "6b no board of its own: no plan, exit 2" || bad "6b rc=$rc: $out"

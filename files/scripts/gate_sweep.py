@@ -20,7 +20,9 @@ a pure function; this script is the I/O around it:
   host rules and four outcomes), and its outcomes are ``sweep()``'s ``results``.
 - **What it prints.** The plan: each item to file (on which board, its kind, text and ``Context:``), each
   item to close (by board and key), and each host lift (``until`` reached, an event passed, with its
-  evidence). ``--json``: ``{repo, source, boards, checks, to_file, to_close, lifts}``.
+  evidence). ``--json``: ``{repo, source, boards: [{board, source}], unread, checks, to_file, to_close, lifts}``.
+  A board that is there and cannot be read (a git call failed or timed out) is left out and named under
+  ``unread``, never read as absent; this repo's own ledger or board unreadable is no plan at all.
 
 **It writes nothing.** Filing the items, closing them and opening the lift PRs (``lift/TD-n/<gate>``,
 idempotent, §4.4), and when the sweep runs, are TD-219's next slice. The re-ask window and the event age
@@ -46,29 +48,44 @@ import ledgerboard as LB  # noqa: E402  # sibling SYNC file: the formats and swe
 import nudge_user_attention as N  # noqa: E402  # sibling SYNC script: the roster and default-branch readers
 
 
+class Unreadable(Exception):
+    """A tree or file that is there and could not be read (a git call failed or timed out): never read as absent."""
+
+
 def tree_io(root: Path) -> tuple[tuple[LB.Ls, LB.Read], str]:
-    """((ls, read) over ``root``'s ``origin/<default>`` where it exists, else its working tree; its name)."""
+    """((ls, read) over ``root``'s ``origin/<default>`` where it exists, else its working tree; its name).
+    Unreadable when the ref exists and its tree cannot be listed: never a silent fall back to the work tree."""
     ref = f"origin/{N.default_branch(root)}"
     if L._git(root, "rev-parse", "--verify", "-q", ref) is not None:
         io = L.git_io(root, ref, "docs")
-        if io is not None:
-            return io, ref
+        if io is None:
+            raise Unreadable(f"{root.name}: {ref}'s tree could not be listed")
+        return io, ref
     fls, fread = L.fs_io()
     return ((lambda p: fls(str(root / p))), (lambda p: fread(str(root / p)))), "working tree"
+
+
+def read(io: tuple[LB.Ls, LB.Read], path: str, where: str) -> str | None:
+    """``path``'s text; None when the tree has no such file; Unreadable when it has and the read failed."""
+    text = io[1](path)
+    if text is None and Path(path).name in (io[0](str(Path(path).parent)) or []):
+        raise Unreadable(f"{where}: {path} is there and could not be read")
+    return text
 
 
 def origin_url(root: Path) -> str:
     return (L._git(root, "remote", "get-url", "origin") or "").strip()
 
 
-def board_of(root: Path) -> tuple | None:
-    """``(origin_url, basename, text, archive_text)`` of the board at ``root``, as ``sweep()`` takes it; None
-    when it has none."""
-    io, _ = tree_io(root)
-    text = io[1](LB.BOARD_PATH)
+def board_of(root: Path) -> tuple[tuple | None, str]:
+    """(``(origin_url, basename, text, archive_text)`` of the board at ``root``, as ``sweep()`` takes it, or None
+    when it has none; where it was read). Unreadable when the board or its archive is there and cannot be read."""
+    io, source = tree_io(root)
+    where = f"{root.name} ({source})"
+    text = read(io, LB.BOARD_PATH, where)
     if text is None:
-        return None
-    return (origin_url(root), root.name, text, io[1](LB.BOARD_ARCHIVE_PATH) or "")
+        return None, source
+    return (origin_url(root), root.name, text, read(io, LB.BOARD_ARCHIVE_PATH, where) or ""), source
 
 
 def plan(top: Path, roster: list[Path], runner: E.Runner, *, today_utc: date, today_local: date,
@@ -78,28 +95,47 @@ def plan(top: Path, roster: list[Path], runner: E.Runner, *, today_utc: date, to
     Raises LB.Refused when it cannot be made."""
     url = origin_url(top)
     repo = LB.origin_path(url) or top.name
-    io, source = tree_io(top)
-    rel = L.ledger_at(top, io)
-    text, arch = L.read_pair(rel, L.ARCHIVE_REL if rel == L.LEDGER_REL else None, io)
+    try:
+        io, source = tree_io(top)
+        rel = L.ledger_at(top, io)
+        arel = L.ARCHIVE_REL if rel == L.LEDGER_REL else None
+        if rel == L.LEDGER_REL:
+            read(io, rel, top.name)
+            read(io, arel, top.name)
+        else:   # every entry file and archived one: a failed read is no plan, never a missing entry
+            for d in (rel, f"{rel}/{LB.LEDGER_ARCHIVE}"):
+                for name in io[0](d) or []:
+                    read(io, f"{d}/{name}", top.name)
+        text, arch = L.read_pair(rel, arel, io)
+        own, _ = board_of(top)
+    except Unreadable as e:
+        raise LB.Refused(str(e)) from None
     if text is None:
         raise LB.Refused(f"no ledger at {rel} ({source})")
-    own = board_of(top)
     if own is None:
         raise LB.Refused(f"no {LB.BOARD_PATH} ({source}): the sweep's event items go on this repo's own board")
     boards, seen = [own], {LB.origin_key(url) or str(top.resolve())}
+    read_from = [{"board": LB.origin_key(url) or top.name, "source": source}]
+    unread: list[str] = []
     for root in roster:
         key = LB.origin_key(origin_url(root)) or str(root.resolve())
         if key in seen:
             continue   # this repo's other worktrees, and a second clone of one repo, are read once
+        try:
+            b, src = board_of(root)
+        except Unreadable as e:
+            unread.append(str(e))   # left out, and said: it may hold the item that covers a gate
+            continue
+        if b is None:
+            continue   # no board there: a later clone of the same origin may still have one
         seen.add(key)
-        b = board_of(root)
-        if b is not None:
-            boards.append(b)
+        boards.append(b)
+        read_from.append({"board": LB.origin_key(b[0]) or b[1], "source": src})
     checks = [{**g, **runner.run(g)} for g in E.gates(text)]
     results = {(c["id"], c["name"]): (c["outcome"], c["evidence"]) for c in checks}
     out = LB.sweep([text, arch], boards, results, today_utc, today_local, reask_days=reask_days,
                    event_age_days=event_age_days, repo=repo)
-    return {"repo": repo, "source": source, "boards": [LB.origin_key(b[0]) or b[1] for b in boards],
+    return {"repo": repo, "source": source, "boards": read_from, "unread": unread,
             "checks": [{k: c[k] for k in ("id", "name", "outcome", "evidence", "why")} for c in checks], **out}
 
 
@@ -122,6 +158,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(p, indent=2, ensure_ascii=False, default=str))
         return 0
     print(f"gate sweep of {p['repo']} ({p['source']}; {len(p['boards'])} board(s) read) — a plan: nothing written")
+    for b in p["boards"]:
+        print(f"  board {b['board']} ({b['source']})")
+    for u in p["unread"]:
+        print(f"  ⚠ board not read: {u} — an item there is not seen, so the plan may file it again")
     for c in p["checks"]:
         print(f"  check {c['id']} event ({c['name']}): {c['outcome']} — {c['evidence'] or c['why']}")
     for board, items in p["to_file"].items():
