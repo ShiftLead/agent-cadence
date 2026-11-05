@@ -901,14 +901,27 @@ class GitLab(_CLI):
         return sha
 
     def file_at(self, slug: str, path: str, sha: str) -> str | None:
-        """The text of ``path`` at commit ``sha`` in ``slug``; None when the commit has no such file
-        (GitLab answers a directory the same 404, so a directory reads as not there yet)."""
+        """The text of ``path`` at commit ``sha`` in ``slug``; None when the commit has no such file. GitLab
+        answers a directory's raw read with the same 404 as a missing file, so a 404 asks the tree too:
+        a directory is unreadable, not a file, as on GitHub (a tree answer is a non-empty list)."""
         g = self._project_for(slug)
-        return g._absent(f"{g.project}/repository/files/{quote(path, safe='')}/raw?ref={quote(sha, safe='')}")
+        ref = quote(sha, safe='')
+        out = g._absent(f"{g.project}/repository/files/{quote(path, safe='')}/raw?ref={ref}")
+        if out is None:
+            tree = g._absent(f"{g.project}/repository/tree?{urlencode({'path': path, 'ref': sha, 'per_page': 1})}")
+            try:
+                listing = json.loads(tree) if tree is not None else None
+            except ValueError:
+                listing = None
+            if isinstance(listing, list) and listing:
+                raise ForgeUnreadable(f"{slug}: {path} at {sha[:12]} is a directory, not a file")
+        return out
 
     def includes(self, slug: str, sha: str, commit: str) -> bool | None:
         """Whether ``commit`` is an ancestor of (or is) ``sha`` in ``slug``: their merge base is ``commit``
         itself. None when GitLab cannot resolve either (400)."""
+        if not re.fullmatch(r"[0-9a-fA-F]{7,40}", commit):   # merge_base takes a branch too: only a sha is a commit
+            raise ForgeUnreadable(f"{slug}: {commit!r} is not a commit sha")
         g = self._project_for(slug)
         q = urlencode([("refs[]", commit), ("refs[]", sha)])
         out = g._absent(f"{g.project}/repository/merge_base?{q}", (400, 404))
@@ -931,8 +944,13 @@ class GitLab(_CLI):
         return out
 
     def pr_diff(self, n) -> str:
-        """MR ``!n``'s changes as one unified diff: each file's ``---``/``+++`` lines and its hunks."""
+        """MR ``!n``'s changes as one unified diff: each file's ``---``/``+++`` lines and its hunks. A file
+        GitLab leaves out (``too_large`` or ``collapsed``, its ``diff`` empty) makes it unreadable, never
+        a diff that silently lacks a line the gate sweep looks for."""
         diffs = self._get(f"{self.project}/merge_requests/{int(n)}/diffs?per_page=100", paginate=True)
+        cut = [d.get("new_path") for d in diffs or [] if not d.get("diff") and (d.get("too_large") or d.get("collapsed"))]
+        if cut:
+            raise ForgeUnreadable(f"!{int(n)}: GitLab left out the diff of {', '.join(map(str, cut))} (too large)")
         return "".join(f"--- a/{d.get('old_path')}\n+++ b/{d.get('new_path')}\n{d.get('diff') or ''}"
                        + ("" if str(d.get("diff") or "").endswith("\n") else "\n") for d in diffs or [])
 

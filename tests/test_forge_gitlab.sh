@@ -45,7 +45,8 @@ name = {  # endpoint → fixture file
     r"projects/[^/]+/merge_requests/(\d+)/diffs$": r"diffs_\1.json",
     r"projects/[^/]+/merge_requests/(\d+)/notes$": r"notes_\1.json",
     r"projects/[^/]+/members/all$": "members.json",
-    r"projects/[^/]+/repository/commits/(\w+)$": r"commit_\1.json",
+    r"projects/[^/]+/repository/commits/([\w%.-]+)$": r"commit_\1.json",
+    r"projects/[^/]+/repository/tree$": "tree_" + ep.partition("?")[2].replace("%2F", "-") + ".json",
     r"projects/[^/]+/pipelines$": "pipelines.json",
     r"projects/[^/]+/pipelines/(\d+)$": r"pipeline_\1.json",
     r"projects/[^/]+/pipelines/(\d+)/jobs$": r"jobs_\1.json",
@@ -311,13 +312,15 @@ A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; Bs=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 echo '{"visibility":"internal","default_branch":"trunk","id":7}' > "$FAKE/project.json"
 echo '{"iid":5,"state":"merged"}' > "$FAKE/mr_5.json"; echo '{"iid":6,"state":"locked"}' > "$FAKE/mr_6.json"
 echo '{"iid":7,"state":"closed"}' > "$FAKE/mr_7.json"
-echo "{\"id\":\"$A\"}" > "$FAKE/commit_trunk.json"
+echo "{\"id\":\"$A\"}" > "$FAKE/commit_trunk.json"; echo "{\"id\":\"$Bs\"}" > "$FAKE/commit_release%2F1.0.json"
+echo '[{"type":"blob","path":"docs/sub/a.md"}]' > "$FAKE/tree_path=docs-sub&ref=$A&per_page=1.json"
 printf 'version "v2.4"\n' > "$FAKE/file_docs%2Fv.txt"
 echo "{\"id\":\"$Bs\"}" > "$FAKE/merge_base_bbbbbbb_$A.json"            # bbbbbbb is an ancestor of A
 echo "{\"id\":\"$Bs\"}" > "$FAKE/merge_base_ccccccc_$A.json"            # ccccccc is not: the base is another commit
 echo 'glab: Could not find ref: ddddddd (HTTP 400)' > "$FAKE/merge_base_ddddddd_$A.json.err"
 echo '[{"iid":11,"source_branch":"lift/TD-3/until"}]' > "$FAKE/mrlist.json"
-echo '[{"old_path":"docs/ledger/TD-003.md","new_path":"docs/ledger/TD-003.md","diff":"@@ -1 +1 @@\n-x\n+- 2026-01-01: gate lifted: until 2026-01-01 — by h; date reached\n"}]' > "$FAKE/diffs_11.json"
+echo '[{"old_path":"a.txt","new_path":"a.txt","diff":"@@ -1 +1 @@\n-a\n+b"},{"old_path":"docs/ledger/TD-003.md","new_path":"docs/ledger/TD-003.md","diff":"@@ -1 +1 @@\n-x\n+- 2026-01-01: gate lifted: until 2026-01-01 — by h; date reached\n"}]' > "$FAKE/diffs_11.json"
+echo '[{"old_path":"big.md","new_path":"big.md","diff":"","too_large":true,"collapsed":true}]' > "$FAKE/diffs_13.json"
 echo '{"iid":12,"web_url":"https://gitlab.example/grp/thing/-/merge_requests/12"}' > "$FAKE/mr_create.json"
 : > "$GLAB_LOG"
 out=$(cd "$S" && python3 - <<'PY' 2>&1
@@ -330,11 +333,16 @@ def err(f, *a):
         return f"error {e}"
 print("info", g.repo_info(s))
 print("pr", g.pr_state_of(s, 5), g.pr_state_of(s, 6), g.pr_state_of(s, 7), err(g.pr_state_of, s, 8))
-print("ref", g.ref_sha(s, "trunk"), g.ref_sha(s, "later"))
+print("ref", g.ref_sha(s, "trunk"), g.ref_sha(s, "later"), g.ref_sha(s, "release/1.0"))
 print("file", repr(g.file_at(s, "docs/v.txt", "a" * 40)), g.file_at(s, "docs/none.txt", "a" * 40))
-print("inc", g.includes(s, "a" * 40, "bbbbbbb"), g.includes(s, "a" * 40, "ccccccc"), g.includes(s, "a" * 40, "ddddddd"))
+print("dir", err(g.file_at, s, "docs/sub", "a" * 40))
+print("inc", g.includes(s, "a" * 40, "bbbbbbb"), g.includes(s, "a" * 40, "ccccccc"), g.includes(s, "a" * 40, "ddddddd"),
+      err(g.includes, s, "a" * 40, "main"))
 print("open", g.open_prs_files())
-print("diff", "gate lifted: until 2026-01-01" in g.pr_diff(11) and g.pr_diff(11).startswith("--- a/docs/ledger/TD-003.md\n+++ b/"))
+import re
+d = g.pr_diff(11)
+print("diff", bool(re.search(r"^\+- 2026-01-01: gate lifted: until 2026-01-01 ", d, re.M)) and "\n+b\n--- a/docs/ledger/TD-003.md\n+++ b/" in d)
+print("cut", err(g.pr_diff, 13))
 print("create", g.create_pr("sweep/x", "trunk", "a title", "a body"))
 PY
 )
@@ -343,11 +351,12 @@ has "info {'visibility': 'internal', 'default_branch': 'trunk'}" \
   && ok "12a repo_info: visibility and default branch (a 404 is an error: the MR case below)" || bad "12a: $out"
 has "pr merged open closed error gitlab.example/grp/thing!8: not found" \
   && ok "12b pr_state_of: merged, locked as open, closed; an MR not found is an error" || bad "12b: $out"
-has "ref $A None" && has "file 'version \"v2.4\"\\n' None" \
-  && ok "12c ref_sha and file_at: a ref or file not there yet reads None (not yet)" || bad "12c: $out"
-has "inc True False None" && ok "12d includes: merge_base equal to the commit is an ancestor; a ref it cannot resolve (400) is None" || bad "12d: $out"
-has "open [{'number': 11, 'head': 'lift/TD-3/until', 'files': ['docs/ledger/TD-003.md']}]" && has "diff True" \
-  && ok "12e open_prs_files and pr_diff: the sweep finds an open lift MR and its logged lift" || bad "12e: $out"
+has "ref $A None $Bs" && has "file 'version \"v2.4\"\\n' None" && has "dir error gitlab.example/grp/thing: docs/sub at aaaaaaaaaaaa is a directory" \
+  && grep -q "repository/commits/release%2F1.0$" "$GLAB_LOG" && grep -q "files/docs%2Fv.txt/raw?ref=$A$" "$GLAB_LOG" \
+  && ok "12c ref_sha (a slash ref encoded) and file_at (at the sha asked): not there yet is None; a directory is an error" || bad "12c: $out"
+has "inc True False None error gitlab.example/grp/thing: 'main' is not a commit sha" && ok "12d includes: merge_base equal to the commit is an ancestor; a ref it cannot resolve (400) is None" || bad "12d: $out"
+has "open [{'number': 11, 'head': 'lift/TD-3/until', 'files': ['a.txt', 'docs/ledger/TD-003.md']}]" && has "diff True" && has "cut error !13: GitLab left out the diff of big.md" \
+  && ok "12e open_prs_files and pr_diff: the sweep finds an open lift MR and its logged lift; a left-out diff is an error" || bad "12e: $out"
 has "create https://gitlab.example/grp/thing/-/merge_requests/12" \
   && grep -q -- '-X POST -f source_branch=sweep/x -f target_branch=trunk -f title=a title -f description=a body' "$GLAB_LOG" \
   && ok "12f create_pr: POST merge_requests with source, target, title, description; its web_url" || bad "12f: $out | $(grep POST "$GLAB_LOG")"
