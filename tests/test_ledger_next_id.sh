@@ -534,6 +534,22 @@ out=$(CADENCE_FORGE=github take "$W" --without-take --json); rc=$?
   && ok "22b --json: {prs: {#n: [ids]}, unread, notes}" || bad "22b rc=$rc $out"
 out=$(take "$W" --without-take --count 2); rc=$?
 [ "$rc" = 2 ] && grep -q "takes nothing" "$TMP/err" && ok "22c --without-take with a take's option: a usage error" || bad "22c rc=$rc $(cat "$TMP/err")"
+# 22d. the same in a v2 ledger (a docs/ledger/ directory, one file an entry)
+rm -rf "$O" "$W" "$TMP/seed"; git init -q --bare -b main "$O"; git init -q -b main "$TMP/seed"; mkdir -p "$TMP/seed/docs/ledger/archive"
+printf '# Ledger\n\nLedgerboard: 2\n' > "$TMP/seed/docs/ledger/README.md"
+printf '## TD-001: t\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** x.\n' > "$TMP/seed/docs/ledger/TD-001.md"
+git -C "$TMP/seed" add -A; git -C "$TMP/seed" commit -qm seed; git -C "$TMP/seed" push -q "$O" main; rm -rf "$TMP/seed"
+git clone -q "$O" "$W"
+for c in "11 TD-200 **Id take:** 0123456789abcdef0123456789abcdef" "12 TD-201 **Taken by:** someone"; do
+  set -- $c; n=$1 id=$2; shift 2
+  git clone -q "$O" "$TMP/pr"; printf '## %s: t\n\n**Priority:** Low\n**Status:** Open\n%s\n\n**Why:** x.\n' "$id" "$*" > "$TMP/pr/docs/ledger/$id.md"
+  git -C "$TMP/pr" add -A; git -C "$TMP/pr" commit -qm "pr$n"; git -C "$TMP/pr" push -q "$O" "HEAD:refs/pull/$n/head"; rm -rf "$TMP/pr"
+done
+sed -i 's/{"number":13,"title":"c"}/{"number":13,"title":"c"},{"number":14,"title":"gone"}/' "$TMP/bin/gh"
+out=$(CADENCE_FORGE=github take "$W" --without-take --ledger docs/ledger --archive docs/ledger/archive); rc=$?
+[ "$rc" = 0 ] && [ "$out" = "#12: TD-201" ] && grep -q "open PRs not read: .*#13" "$TMP/err" \
+  && ok "22d a v2 ledger: the PR with no Id take is named, and a PR whose head origin lacks is said unread" \
+  || bad "22d rc=$rc out='$out' $(cat "$TMP/err")"
 rm -f "$TMP/bin/gh"
 
 echo "---- $PASS passed, $FAIL failed"
