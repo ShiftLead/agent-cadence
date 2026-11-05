@@ -71,6 +71,37 @@ out=$(run --pr 7); rc=$?
   && grep -q "state=failure -f context=cadence/precheck -f description=exit 4 in " "$FAKE/posts" && [ "$(wts)" = 1 ] \
   && ok "3 fails: exit 1, a failure status with the exit code, worktree removed" || bad "3 rc=$rc $out / $(cat "$FAKE/posts")"
 
+# 3b. TD-227: a red status names the failing tests ahead of the command — pytest's short summary
+# (FAILED/ERROR <nodeid>, ANSI colours stripped) and run_tests.sh's FAILED: line — every line still printed
+desc() { sed -n 's/.* -f description=//p' "$FAKE/posts" | tail -1; }
+: > "$FAKE/posts"; cfg 'printf \"\\033[31mFAILED tests/a.py::test_one - assert 1\\033[0m\\nERROR tests/b.py::test_two\\nok\\n\"; exit 1'
+out=$(run --pr 7); rc=$?; d=$(desc)
+[ $rc -eq 1 ] && grep -q "FAILED tests/a.py::test_one - assert 1" <<< "$out" && grep -q "^ok$" <<< "$out" \
+  && [[ "$d" == "exit 1 in "*"s on "*": tests/a.py::test_one, tests/b.py::test_two; printf"* ]] && [ ${#d} -le 140 ] \
+  && ok "3b pytest's failures named ahead of the command, the output still printed, within 140" || bad "3b rc=$rc d='$d' $out"
+: > "$FAKE/posts"; cfg 'echo \"FAILED: test_a.sh test_b.sh\"; exit 1'
+run --pr 7 >/dev/null; d=$(desc)
+[[ "$d" == "exit 1 in "*": test_a.sh, test_b.sh; echo"* ]] && ok "3c run_tests.sh's FAILED: suites named" || bad "3c d='$d'"
+: > "$FAKE/posts"; cfg 'for i in $(seq 1 30); do echo \"FAILED tests/test_long_module_name.py::test_case_$i\"; done; exit 1'
+run --pr 7 >/dev/null; d=$(desc)
+[ ${#d} -eq 140 ] && [[ "$d" == *"…" ]] && [[ "$d" == *"test_case_1, "* ]] \
+  && ok "3d a long list is cut with … at the forge's 140" || bad "3d len=${#d} d='$d'"
+: > "$FAKE/posts"; cfg 'echo \"FAILED tests/x.py::t\"; true'
+run --pr 7 >/dev/null; d=$(desc)
+[ "${d#*s on *: }" = 'echo "FAILED tests/x.py::t"; true' ] \
+  && ok "3e a passing run's description is as before, whatever its output" || bad "3e d='$d'"
+: > "$FAKE/posts"; cfg 'sleep 30 & echo $! > $FAKE_DIR/bg; echo \"FAILED: test_bg.sh\"; exit 1'
+t0=$(date +%s); run --pr 7 >/dev/null; t1=$(date +%s); d=$(desc)
+[ $((t1 - t0)) -lt 20 ] && [[ "$d" == *": test_bg.sh; "* ]] && ! kill -0 "$(cat "$FAKE/bg")" 2>/dev/null \
+  && ok "3f a grandchild holding the output open does not hold the precheck (killed once the drain lapses)" || bad "3f took $((t1-t0))s d='$d'"
+
+# 3g. a parametrized id with a space is named whole, a bare word after ERROR is not; and a closed stdout
+# (`| head`) never blocks the command — the tee keeps draining
+: > "$FAKE/posts"; cfg 'echo \"FAILED t.py::test_p[a b] - assert\"; echo \"ERROR retrying\"; seq 1 200000; exit 1'
+( cd "$R" && timeout 60 python3 "$SCRIPT" --pr 7 2>/dev/null | head -1 >/dev/null ); d=$(desc)
+[[ "$d" == *": t.py::test_p[a b]; echo"* ]] && [[ "$d" != *"retrying;"* ]] \
+  && ok "3g a bracketed id with a space named whole, a bare ERROR word not; a closed stdout does not block" || bad "3g d='$d'"
+
 # 4. passed but the status cannot be recorded: exit 3, saying so
 : > "$FAKE/posts"; cfg 'true'; touch "$FAKE/post_fails"
 out=$(run --pr 7); rc=$?; rm -f "$FAKE/post_fails"
