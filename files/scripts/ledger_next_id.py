@@ -54,7 +54,9 @@ header: ``**Id take:** <nonce>``.
 push, refused with exit 2 when a take already gave TD-N (naming the take's by, date and short sha, never its
 nonce) or main holds it. ``--show TD-N`` prints the ``**Id take:**`` line of the caller's own take of TD-N
 (its ``by``: ``--by``, else the default) and refuses another's the same way (exit 2), so a session that lost
-the line recovers it and a hand-off passes ``--by`` (TD-188). ``LAST`` becomes the
+the line recovers it and a hand-off passes ``--by`` (TD-188). ``--without-take`` takes nothing: it lists the open
+PRs whose new entries carry no ``**Id take:**`` (``#N: TD-a, TD-b`` a line; ``--json`` ``{prs, unread, notes}``),
+which the gate fails — ``agent-cadence bump`` prints it on the bump that crosses TD-188 step 4. ``LAST`` becomes the
 higher of N and the tip's, so a later take still goes above both.
 
 Output: the ids, one a line, and on stderr the ``**Id take:**`` line when reserved; ``--json``:
@@ -333,6 +335,34 @@ def judge(new: set[int], takes: dict[int, dict], texts: list[str], branch: str, 
     return [(k, t + here.get(k, "")) for k, t in fails], [(k, t) for k, t in warns if k != "id-branch"]
 
 
+def without_take(root: Path, ledger: str, archive: str) -> tuple[dict[int, list[int]], list[str], list[str]]:
+    """TD-188 step 4: the open PRs whose new entries carry no ``**Id take:**``, which the gate now fails —
+    ``({pr: [ids]}, unread, notes)``. A PR's new ids are its head's less its merge-base's (``read_prs``);
+    an entry is read from the head's ledger and archive. ``agent-cadence bump`` prints it on the bump
+    that crosses this step, so the person sees which PRs need the line before they fail."""
+    notes: list[str] = []
+    prs, unread = read_prs(root, ledger, archive, base=True, notes=notes)
+    out: dict[int, list[int]] = {}
+    for n, rec in sorted(prs.items()):
+        new = rec["head"] - (rec["base"] or set())
+        if rec["base"] is None or not new:
+            continue
+        under = os.path.commonpath([PurePosixPath(x).parent.as_posix() for x in (ledger, archive)])
+        io = L.git_io(root, rec["sha"], "" if under in (".", "") else under)
+        if io is None:
+            unread.append(f"#{n}")
+            continue
+        text, arch = L.read_pair(*L.layout_at(ledger, archive, io), io)
+        fields = {}
+        for t in (text or "", arch or ""):
+            for e in L.LB.entries(t):
+                fields.setdefault(int(re.sub(r"\D", "", e["id"]) or 0), e["fields"])
+        bare = sorted(i for i in new if i in fields and not (fields[i].get("id take") or "").strip())
+        if bare:
+            out[n] = bare
+    return out, unread, notes
+
+
 def read_last(root: Path, tip: str) -> str | None:
     """The counter's ``LAST`` at ``tip``, as text (None: absent); ledgerboard's ``next_id()`` reads it (TD-217)."""
     r = git(root, "show", f"{tip}:{L.LB.COUNTER_FILE}")
@@ -552,8 +582,27 @@ def main(argv: list[str] | None = None) -> int:
                     help="take exactly this id (one the fallback printed), if no take gave it and main lacks it")
     ap.add_argument("--show", metavar="TD-N",
                     help="print the **Id take:** line of the take that gave TD-N, when it is your own (--by)")
+    ap.add_argument("--without-take", action="store_true",
+                    help="list the open PRs whose new entries carry no **Id take:** (TD-188 step 4), and take nothing")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
+    if a.without_take:
+        if a.show is not None or a.claim is not None or a.count != 1 or a.floor is not None or a.prs or a.branch or a.by:
+            ap.error("--without-take reads the open PRs; it takes nothing, so no other option applies")
+        top = git(Path.cwd(), "rev-parse", "--show-toplevel")
+        if top.returncode != 0 or not top.stdout.strip():
+            print("ledger_next_id: not inside a git work tree", file=sys.stderr)
+            return 2
+        prs, unread, notes = without_take(Path(top.stdout.strip()), a.ledger, a.archive)
+        if a.json:
+            print(json.dumps({"prs": {f"#{n}": [tid(i) for i in ids] for n, ids in prs.items()},
+                              "unread": unread, "notes": notes}, indent=1))
+        else:
+            for n, ids in prs.items():
+                print(f"#{n}: {', '.join(map(tid, ids))}")
+            for m in notes + ([f"open PRs not read: {', '.join(unread)}"] if unread else []):
+                print(f"ledger_next_id: {m}", file=sys.stderr)
+        return 0
     if a.show is not None:
         m = re.fullmatch(r"(?:TD-)?(\d+)", a.show.strip())
         if not m or int(m.group(1)) < 1:

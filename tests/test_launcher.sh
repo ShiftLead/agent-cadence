@@ -369,5 +369,22 @@ out=$(cd "$RH" && timeout 60 python3 "$L" bump "$H5" 2>&1); rc=$?
   && ok "bump to a target needing a newer launcher: refused at the hand-off, nothing written" || bad "bump hand-off interface: rc=$rc $out"
 
 echo
+# TD-188 step 4: the bump that crosses it (the old pin's gate took Taken by) lists the open PRs whose new
+# entries carry no Id take, by the new tree's ledger_next_id.py --without-take; a later bump does not
+SK="$TMP/srck"; git init -q -b main "$SK"; mkdir -p "$SK/launcher" "$SK/files/scripts"
+cp "$DC/launcher/words.py" "$DC/launcher/agent_cadence.py" "$SK/launcher/"; echo 1 > "$SK/launcher/INTERFACE"
+printf 'judge_takes(accept_taken_by=True)\n' > "$SK/files/scripts/ledger_next_id.py"
+git -C "$SK" add -A && git -C "$SK" commit -qm k1; K1=$(git -C "$SK" rev-parse HEAD)
+printf 'import os, sys\nassert sys.argv[1:] == ["--without-take"], sys.argv\nprint("#7: TD-009 cwd=" + os.getcwd())\n' > "$SK/files/scripts/ledger_next_id.py"
+git -C "$SK" commit -qam k2; K2=$(git -C "$SK" rev-parse HEAD)
+echo z > "$SK/z"; git -C "$SK" add z && git -C "$SK" commit -qm k3; K3=$(git -C "$SK" rev-parse HEAD)
+RK="$TMP/crossed"; git init -q -b main "$RK"; mkdir -p "$RK/docs"
+printf '[agent-cadence]\nsource = "file://%s"\nref = "%s"\n' "$SK" "$K1" > "$RK/docs/cadence.toml"
+out=$(dc "$RK" bump "$K2"); rc=$?
+[ $rc -eq 0 ] && [[ "$out" == *"open PRs whose new entries carry no **Id take:**"* ]] && [[ "$out" == *"- #7: TD-009 cwd=$RK"* ]] \
+  && ok "bump across TD-188 step 4 lists the open PRs with no Id take, read in the consumer" || bad "bump id take: rc=$rc $out"
+out=$(dc "$RK" bump "$K3"); rc=$?
+[ $rc -eq 0 ] && [[ "$out" != *"Id take"* ]] && ok "a bump past that step lists nothing" || bad "bump id take later: rc=$rc $out"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

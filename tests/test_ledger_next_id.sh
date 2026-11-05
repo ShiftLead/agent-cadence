@@ -505,5 +505,36 @@ printf 'review-outcomes = "maybe"\n' > "$W/docs/cadence.toml"
 out=$(take "$W"); rc=$?
 [ "$rc" = 0 ] && ! grep -qF "did a design miss it" "$TMP/err" && ok "21g a value that is not on or off: no question" || bad "21g rc=$rc $(cat "$TMP/err")"
 
+# 22. TD-188 step 4: --without-take lists the open PRs whose new entries carry no Id take (the bump prints it)
+mkrepo "$O" "$W"
+prwith() { # prwith <n> <id> <header line or empty>: PR n adds that entry
+  git clone -q "$O" "$TMP/pr"; printf '\n## %s: t\n\n**Priority:** Low\n%s\n**Why:** x.\n' "$2" "${3:+$3
+}" >> "$TMP/pr/docs/technical_debt.md"
+  git -C "$TMP/pr" commit -qam "pr$1"; git -C "$TMP/pr" push -q "$O" "HEAD:refs/pull/$1/head"; rm -rf "$TMP/pr"; }
+prwith 11 TD-200 "**Id take:** 0123456789abcdef0123456789abcdef"
+prwith 12 TD-201 "**Taken by:** someone"
+prwith 13 TD-202 ""
+cat > "$TMP/bin/gh" <<'EOF2'
+#!/usr/bin/env bash
+case "$*" in
+  "auth status"*) exit 0 ;;
+  "pr list"*) echo '[{"number":11,"title":"a"},{"number":12,"title":"b"},{"number":13,"title":"c"}]' ;;
+  *) echo "gh shim: unexpected $*" >&2; exit 1 ;;
+esac
+EOF2
+chmod +x "$TMP/bin/gh"
+before=$(git -C "$O" rev-parse -q --verify refs/heads/cadence/ledger-ids || echo none)
+out=$(CADENCE_FORGE=github take "$W" --without-take); rc=$?
+[ "$rc" = 0 ] && [ "$out" = "#12: TD-201
+#13: TD-202" ] && [ "$(git -C "$O" rev-parse -q --verify refs/heads/cadence/ledger-ids || echo none)" = "$before" ] \
+  && ok "22 --without-take names the PRs whose new entries lack Id take (Taken by or nothing), and takes no id" \
+  || bad "22 rc=$rc out='$out' $(cat "$TMP/err")"
+out=$(CADENCE_FORGE=github take "$W" --without-take --json); rc=$?
+[ "$rc" = 0 ] && python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert d["prs"] == {"#12": ["TD-201"], "#13": ["TD-202"]}, d' "$out" \
+  && ok "22b --json: {prs: {#n: [ids]}, unread, notes}" || bad "22b rc=$rc $out"
+out=$(take "$W" --without-take --count 2); rc=$?
+[ "$rc" = 2 ] && grep -q "takes nothing" "$TMP/err" && ok "22c --without-take with a take's option: a usage error" || bad "22c rc=$rc $(cat "$TMP/err")"
+rm -f "$TMP/bin/gh"
+
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
