@@ -12,6 +12,8 @@
 # $AGENT_MODEL_FILE when it is set and readable (the orchestrator rewrites it on a model
 # switch), else $AGENT_MODEL (the one declared at launch); neither set, no trailer. It is
 # written with `--if-exists replace`, so an amend after a switch names the new model alone.
+# It is read in the C locale, exactly as `forge.py squash-message` reads it for `Merged-by:`
+# (TD-232; the two are a parity pair, cadence.md §7.9, and §9.9 states the reading once).
 #
 # The domain: $AGENT_DOMAIN, else git config cadence.agentDomain (repo or global), else
 # shiftlead.placeholder.
@@ -39,11 +41,17 @@ if [ -n "${AGENT_MODEL_FILE:-}" ] && [ -f "$AGENT_MODEL_FILE" ] && [ -r "$AGENT_
     IFS= read -r model < "$AGENT_MODEL_FILE" 2>/dev/null
 fi
 model="${model:-${AGENT_MODEL:-}}"
+# The C locale for the strip, the match and the length (TD-232, cadence.md §9.9), so the reading
+# is the one forge.py's squash-message makes whatever the session's locale: ASCII blanks only,
+# printable ASCII only, 120 bytes. Set as a shell variable — no child runs before it is put back.
+lc_was="${LC_ALL+set}" lc_old="${LC_ALL-}"
+LC_ALL=C
 model="${model%"${model##*[![:space:]]}"}"     # trailing blanks and a CRLF's CR,
 model="${model#"${model%%[![:space:]]*}"}"     # then leading ones
 # one token or a few words of printable text: anything else (a control character, a long
-# blob) is not a model name, and adds nothing
+# blob, a non-ASCII byte) is not a model name, and adds nothing
 [[ "$model" =~ ^[[:graph:]]+( [[:graph:]]+)*$ ]] && [ "${#model}" -le 120 ] || model=""
+if [ -n "$lc_was" ]; then LC_ALL="$lc_old"; else unset LC_ALL; fi
 [ -n "$msg" ] && [ -f "$msg" ] && [ -r "$msg" ] && [ -w "$msg" ] || exit 0
 if [ -n "$name" ]; then
     domain="${AGENT_DOMAIN:-$(git config cadence.agentDomain 2>/dev/null)}"
