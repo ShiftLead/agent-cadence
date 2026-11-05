@@ -2,13 +2,16 @@
 # TD-218: `ledger.py set TD-n --blocked-by … --by <person> [--answer <label>]` is the person's lift of a
 # `decision (<person>)` (ledgerboard's target design §1.1, §3.1). Asserts: dropping a decision without --by is
 # refused; the session attestation (agent_sessions.person_session_refusal) refuses an unattended session, a
-# session with controllers, an `ao` that cannot answer and a session `ao` does not list, and passes a person's
+# session with controllers, one holding a seat, an `ao` that cannot answer and a session `ao` does not list, and passes a person's
 # own session and a terminal with no SHIFTLEAD_SESSION; the covering item on this repo's board is answered by
 # the board writer's --board-only half (Decided, closed — lifted) and the Log carries no suffix; a label not in
 # the item's Lifts: is refused, an either/or item's non-default lifting label lifts; a parent snapshot whose
 # other part still carries the gate is answered and left open (`shared board item left open`); an item only on
 # another roster repo's board logs `board <repo>` and writes no board; no item logs `no board item`; a reassign
-# and a two-decision drop are refused; ledgerboard's tripwire() passes each lift as the PR would carry it; and
+# (--why) is refused when the new person has no board, and otherwise closes a's item as moved, files b's decide
+# item and a's fyi; an override (--override) is refused when a has no board, and otherwise closes a's item and
+# files a's fyi; a two-decision drop is refused; ledgerboard's tripwire() (and uncovered_decisions() for the
+# reassign) passes each route as the PR would carry it; and
 # board_edit.py decide's two-file lift is attested the same way.
 # Offline: origins are local bare repos, `ao` a PATH shim, the roster a temp dir; HOME/XDG are temp dirs.
 set -u
@@ -35,6 +38,7 @@ cat > "$TMP/bin/ao" <<'EOF'
 case "${AO_MODE:-person}" in
   person) echo '[{"id":"s-me","by_person":true,"unattended":false,"seat":null,"controllers":[]}]' ;;
   grinder) echo '[{"id":"s-me","by_person":false,"unattended":true,"seat":null,"controllers":["mgr"]}]' ;;
+  seat) echo '[{"id":"s-me","by_person":true,"unattended":false,"seat":{"trigger":"asks"},"controllers":[]}]' ;;
   driven) echo '[{"id":"s-me","by_person":true,"unattended":false,"seat":null,"controllers":["mgr"]}]' ;;
   other) echo '[{"id":"s-else","by_person":true,"unattended":false,"seat":null,"controllers":[]}]' ;;
   down) echo 'host agent is down' >&2; exit 3 ;;
@@ -63,8 +67,9 @@ mkrepo() {  # $1 origin, $2 clone — the ledger and the board below; committed 
   entry "$L/TD-012.md" TD-012 "part two" '**Blocked by:** decision (Robin)\n**Part of:** TD-010\n'
   entry "$L/TD-020.md" TD-020 "elsewhere" '**Blocked by:** decision (Robin)\n'
   entry "$L/TD-021.md" TD-021 "two people" '**Blocked by:** decision (Robin), decision (Sam)\n'
+  entry "$L/TD-031.md" TD-031 "nobody's board" '**Blocked by:** decision (Kim)\n'
   entry "$L/TD-030.md" TD-030 "named as another's" '**Blocked by:** decision (Robin)\n'
-  { printf '# Board\n\nPeople: Robin\n\n## Needs the user\n\n'
+  { printf '# Board\n\nPeople: Robin, Sam\n\n## Needs the user\n\n'
     item "TD-002 decision (Robin)" "" "Go (default) | Not yet"
     item "TD-003 decision (Robin)" "" "CSV (default) | JSON | Not yet" " Lifts: CSV | JSON."
     item "TD-010 decision (Robin)" ". Parts: TD-011, TD-012" "Go (default) | Not yet"
@@ -98,7 +103,7 @@ lp set TD-001 --blocked-by "" --answer Go >/dev/null 2>&1; rc=$?
 [ $rc -eq 2 ] && same docs && ok "--answer without --by is a usage error" || bad "--answer alone rc=$rc"
 
 # --- 2) the attestation: only a person's own session lifts
-for mode in grinder driven other down; do
+for mode in grinder driven seat other down; do
   AO_MODE=$mode SHIFTLEAD_SESSION=s-me lp set TD-001 --blocked-by "" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
   [ $rc -eq 1 ] && same docs && grep -q 'refused' "$TMP/err" \
     && ok "an attested lift is refused for a session that is $mode, writing nothing" || bad "attest $mode (rc=$rc): $(cat "$TMP/err")"
@@ -138,6 +143,23 @@ for d, _, fs in os.walk("docs"):
         head[os.path.join(d, f)] = open(os.path.join(d, f), encoding="utf-8").read()
 for k, t in LB.tripwire(base, head, "ledger: set", "w"):
     print(k, t)
+EOF
+  )
+}
+uc() {  # ledgerboard's uncovered_decisions on the same trees: its refusals and flags, one per line
+  (cd "$W" && python3 - "$DC/files/scripts" <<'EOF'
+import os, subprocess, sys
+sys.path.insert(0, sys.argv[1]); import ledgerboard as LB
+def tree(ref):
+    names = subprocess.run(["git", "ls-tree", "-r", "--name-only", ref, "docs"], capture_output=True, text=True).stdout.split()
+    return {p: subprocess.run(["git", "show", f"{ref}:{p}"], capture_output=True, text=True).stdout for p in names}
+head = {}
+for d, _, fs in os.walk("docs"):
+    for f in fs:
+        head[os.path.join(d, f)] = open(os.path.join(d, f), encoding="utf-8").read()
+refusals, flags = LB.uncovered_decisions(tree("origin/main"), head, [], "w")
+for r in [*refusals, *flags]:
+    print(r)
 EOF
   )
 }
@@ -184,10 +206,35 @@ git -C "$TMP/tools" diff --quiet; rc3=$?
   || bad "elsewhere (rc=$rc): $(cat "$TMP/err") | $(logline TD-020) | $(tw)"
 reset
 
-# --- 8) a reassign and a two-decision drop are not taken
-lp set TD-001 --blocked-by "decision (Sam)" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 1 ] && same docs && grep -q 'reassign' "$TMP/err" \
-  && ok "a reassign through set is refused here, writing nothing" || bad "reassign (rc=$rc): $(cat "$TMP/err")"
+# --- 8) the reassign and the override, with the board notices they owe; a two-decision drop is refused
+lp set TD-001 --blocked-by "decision (Kim)" --by Robin --why "Kim owns exports now" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -q 'Kim has no board' "$TMP/err" \
+  && ok "a reassign to a person with no board is refused, writing nothing" || bad "reassign no board (rc=$rc): $(cat "$TMP/err")"
+lp set TD-002 --blocked-by "decision (Sam)" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -qi 'why' "$TMP/err" \
+  && ok "a reassign without --why is refused, writing nothing" || bad "reassign no why (rc=$rc): $(cat "$TMP/err")"
+lp set TD-002 --blocked-by "decision (Sam)" --by Robin --why "Sam owns exports now" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && grep -qx '\*\*Blocked by:\*\* decision (Sam)' "$L/TD-002.md" \
+  && grep -q "^- $TODAY: gate reassigned: decision (Robin) → decision (Sam) — by Robin; Sam owns exports now" "$L/TD-002.md" \
+  && grep -q "^- \[x\] .*Context: TD-002 decision (Robin)\..*Closed: $LOCAL — moved to decision (Sam) by Robin\.$" "$B" \
+  && grep -q '^- \[ \] decide .*Context: TD-002 decision (Sam)\. Due: ' "$B" \
+  && grep -q '^- \[ \] fyi .*TD-002.s decision moved from you to Sam, by Robin: Sam owns exports now.* Context: TD-002\.' "$B" \
+  && [ -z "$(tw)" ] && [ -z "$(uc)" ] \
+  && ok "a reassign: Log, a's item closed as moved, b's decide item filed, a's fyi; tripwire and coverage pass" \
+  || bad "reassign (rc=$rc): $(cat "$TMP/err") | $(grep -n 'TD-002' "$B") | $(tw) | $(uc)"
+reset
+lp set TD-031 --blocked-by "" --by Robin --override "Kim is away" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -q 'Kim has no board' "$TMP/err" \
+  && ok "an override whose person has no board to notify is refused, writing nothing" || bad "override no board (rc=$rc): $(cat "$TMP/err")"
+lp set TD-002 --blocked-by "" --by Sam --override "Robin is away a month" --answer Go >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 2 ] && same docs && ok "an override takes no --answer (a usage error), writing nothing" || bad "override answer (rc=$rc): $(cat "$TMP/err")"
+lp set TD-002 --blocked-by "" --by Sam --override "Robin is away a month" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && ! grep -q 'Blocked by' "$L/TD-002.md" && grep -q "^- $TODAY: .*override: Robin is away a month" "$L/TD-002.md" \
+  && grep -q "^- \[x\] .*Context: TD-002 decision (Robin)\..*Closed: $LOCAL — lifted by override by Sam\.$" "$B" \
+  && grep -q "^- \[ \] fyi .*TD-002.s decision (Robin) was lifted by override, by Sam: Robin is away a month" "$B" \
+  && [ -z "$(tw)" ] && ok "an override: Log, a's item closed, a's fyi; the tripwire passes" \
+  || bad "override (rc=$rc): $(cat "$TMP/err") | $(grep -n 'TD-002' "$B" "$L/TD-002.md") | $(tw)"
+reset
 lp set TD-021 --blocked-by "" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 2 ] && same docs && grep -q 'one at a time' "$TMP/err" \
   && ok "dropping two decisions at once is refused: one at a time" || bad "two (rc=$rc): $(cat "$TMP/err")"
