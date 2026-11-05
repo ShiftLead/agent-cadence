@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The vendored ledgerboard (ShiftLead ADR 2026-10-12): the package files/scripts/ledgerboard/ (v2.3,
-# TD-213) is an intact release, every file of it the one tests/ledgerboard.MANIFEST names (the fixtures' own MANIFEST, v2.5, is the release's), every vendored file is as vendored, and the
+# The vendored ledgerboard (ShiftLead ADR 2026-10-12): the package files/scripts/ledgerboard/ (since v2.3,
+# TD-213; the tag vendored is the MANIFEST's) is an intact release, every file of it the one tests/ledgerboard.MANIFEST names (the fixtures' own MANIFEST, v2.5, is the release's), every vendored file is as vendored, and the
 # release's own fixtures pass against this repo's copy. vendor_ledgerboard.sh writes all three.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
