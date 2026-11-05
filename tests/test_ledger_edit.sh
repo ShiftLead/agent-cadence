@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # TD-199: `ledger.py set`, `note` and `edit` change one open entry of a v2 ledger through
-# ledgerboard (note and edit its writer's plan_edit, TD-216; set edit_entry() until TD-218), refusing what the gate would fail. Asserts: set changes a field in place
+# ledgerboard's writer (plan_edit: note and edit since TD-216, set since TD-218, whose lift route is
+# tests/test_ledger_set_lift.sh's), refusing what the gate would fail. Asserts: set changes a field in place
 # and removes one with an empty value; note keeps the Status and adds a dated line to the Log (ledgerboard
 # v2.4); edit replaces one section and leaves the header and the other sections alone, and adds a missing Fix
 # after the Why; refusals leave the file untouched — an unknown Type, a wait in prose in a field (TD-166), a

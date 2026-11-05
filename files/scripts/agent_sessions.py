@@ -28,6 +28,7 @@ Stdlib only; imported by the scripts beside it.
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
@@ -944,3 +945,47 @@ def project_dirs(repo: Path) -> list[Path]:
 
 # Claude Code's own worktree layout, <repo>/.claude/worktrees/<name>, munged
 WORKTREE_MARKER = "--claude-worktrees-"
+
+
+# --- who is running this: the attestation a gate route asks for (TD-218; ledgerboard's target design §1.1, §3.1)
+
+AO_TIMEOUT = 20  # s for `ao status --json`; a host that cannot answer in that refuses (fail closed)
+
+
+def person_session_refusal(env: "dict | None" = None) -> "str | None":
+    """Why the running process may not lift, reassign or override a gate — None when it may. Only a session a
+    person started and is driving writes one (target design §3.1, *Who may do any of this*): with no
+    ``SHIFTLEAD_SESSION`` in the environment this is a person's own terminal, and it passes; with one, that
+    record in ``ao status --json`` must be the person's own (``by_person`` true, ``unattended`` false, no seat,
+    no controllers), and when ``ao`` cannot answer, or does not know the record, it is refused (fail closed).
+
+    It is forgeable — ``env -u SHIFTLEAD_SESSION`` passes it — and is no proof of who ran it: what catches a
+    forged lift is review of the diff and the merge gate's tripwire (check_cadence.py's gates row), as the
+    design says. It keeps an unattended session that follows its brief from lifting a person's gate."""
+    sid = (os.environ if env is None else env).get("SHIFTLEAD_SESSION", "").strip()
+    if not sid:
+        return None
+    try:
+        r = subprocess.run(["ao", "status", "--json"], capture_output=True, text=True, timeout=AO_TIMEOUT,
+                           check=False)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return f"SHIFTLEAD_SESSION is {sid}, and `ao status --json` could not run ({e.__class__.__name__})"
+    try:
+        records = json.loads(r.stdout) if r.returncode == 0 else None
+    except ValueError:
+        records = None
+    if isinstance(records, dict):
+        records = records.get("sessions")
+    if not isinstance(records, list):
+        return f"SHIFTLEAD_SESSION is {sid}, and `ao status --json` gave no session list (exit {r.returncode})"
+    rec = next((x for x in records if isinstance(x, dict) and x.get("id") == sid), None)
+    if rec is None:
+        return f"SHIFTLEAD_SESSION is {sid}, which `ao status --json` does not list"
+    why = [w for w, bad in (("not started by a person", rec.get("by_person") is not True),
+                            ("unattended", rec.get("unattended") is not False),
+                            ("holds a seat", bool(rec.get("seat"))),
+                            (f"has controllers ({', '.join(map(str, rec.get('controllers') or []))})",
+                             bool(rec.get("controllers")))) if bad]
+    if why:
+        return f"session {sid} is {'; '.join(why)} — only a person's own session lifts a person's gate"
+    return None
