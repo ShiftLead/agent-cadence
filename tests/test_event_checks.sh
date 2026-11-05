@@ -33,6 +33,17 @@ done
 echo "gh-shim: unhandled: $*" >&2; exit 64
 SHIM
 chmod +x "$BIN/gh"
+cat > "$BIN/glab" <<'SHIM'
+#!/usr/bin/env bash
+# GitLab (TD-228): the one project and MR 4e reads, in the shapes gitlab-org/gitlab-test gave
+echo "$*" >> "$GH_LOG"
+case "$*" in
+  "api --hostname gitlab.com projects/g%2Flab") echo '{"visibility":"public","default_branch":"main"}' ;;
+  "api --hostname gitlab.com projects/g%2Flab/merge_requests/1") echo '{"iid":1,"state":"merged"}' ;;
+  *) echo "glab-shim: unhandled: $*" >&2; exit 64 ;;
+esac
+SHIM
+chmod +x "$BIN/glab"
 export PATH="$BIN:$PATH" GH_LOG="$TMP/gh.log" FIX
 fx() { printf '%s' "$2" > "$FIX/$(printf %s "$1" | tr '/?=' '___')"; }   # fx <api path> <answer>
 fx404() { : > "$FIX/$(printf %s "$1" | tr '/?=' '___').${2:-404}"; }
@@ -123,7 +134,7 @@ grep -q '^TD-007 event (secret): error — o/priv is private, less visible' <<< 
 ! grep -q 'repos/o/priv/pulls' "$GH_LOG" && ok "4b the refused check asks the private repo nothing past its visibility" || bad "4b: $(grep priv "$GH_LOG")"
 grep -q '^TD-008 event (stray): error — o/off: not on this machine.s roster' <<< "$out" && ok "4c a repo off the roster: an error" || bad "4c: $(line TD-008)"
 ! grep -q 'o/off' "$GH_LOG" && ok "4d the forge is never asked about a repo off the roster" || bad "4d: $(grep o/off "$GH_LOG")"
-grep -q '^TD-009 event (lab): error — event checks on gitlab are not built yet' <<< "$out" && ok "4e a GitLab repo: an error, saying it is not built" || bad "4e: $(line TD-009)"
+want "4e a GitLab repo's check: read through glab (TD-228), passed" "TD-009 event (lab):" "passed — g/lab#1"
 grep -q '^TD-013 event (behind): not yet — aaa1111: o/tgt release/1 .* does not include it' <<< "$out" && ok "3e ref-includes, behind: not yet" || bad "3e: $(line '(behind)')"
 grep -q '^TD-013 event (ambiguous): error — ' <<< "$out" && ok "3f a 422 from compare (an ambiguous commit): an error, not not yet" || bad "3f: $(line '(ambiguous)')"
 grep -q '^TD-013 event (down): error — gh: Not Found (HTTP 500)' <<< "$out" && ok "1e a forge failure (HTTP 500): an error, never not yet" || bad "1e: $(line '(down)')"
@@ -154,7 +165,7 @@ print(res[("TD-002", "shut")], res[("TD-004", "lost")][0])
 PY
 )
 grep -q '^lifted$' <<< "$py" && ok "6a lift_gate() accepts the runner's pr-merged evidence" || bad "6a: $py"
-grep -qF "[('TD-001', 'event (merged)'), ('TD-005', 'event (has)'), ('TD-006', 'event (in)')]" <<< "$py" \
+grep -qF "[('TD-001', 'event (merged)'), ('TD-005', 'event (has)'), ('TD-006', 'event (in)'), ('TD-009', 'event (lab)')]" <<< "$py" \
   && ok "6b sweep() lifts exactly the passed gates from results()" || bad "6b: $py"
 grep -qF "('impossible', None) error" <<< "$py" && ok "6c results() pairs each outcome with its evidence" || bad "6c: $py"
 
