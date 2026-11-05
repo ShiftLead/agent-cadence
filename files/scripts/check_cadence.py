@@ -2614,7 +2614,7 @@ def body_review(root, sha):
 
 def merged_outside(root, results):
     """TD-234 (TD-177's design 4): the window's merged PRs whose squash commit carries no
-    `Merged-by:` — merged around the procedure's step 5 line (the web UI, a bare `gh pr merge`, a
+    `Merged-by:` — merged around the procedure's step 5 line (the web UI, a bare forge merge command, a
     session on an older pin; git cannot say which). A detector, never a verdict. Only merges after
     the first commit on the default branch with a non-empty `Merged-by:` are judged, read through
     git's own trailer parser (`%(trailers:key=…)`, the key matched as git matches it), never a grep
