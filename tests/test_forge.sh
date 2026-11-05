@@ -343,5 +343,64 @@ P
 )
 [ "$out" = "$(printf "['old', 'new']\nraised")" ] && ok "10n GitLab's commit list is read oldest first, and a page it cannot read raises" || bad "10n: $out"
 
+# 11. TD-232: the parity pair (cadence.md §7.9, §9.9) — one set of environments fed to the commit hook
+# and to forge.py's agent_model(), each case's expected model stated, under a UTF-8 session locale (the
+# hook's LC_ALL=C window is what makes them agree) with LC_ALL unset and with it set.
+HOOK="$DC/files/scripts/git-hooks/prepare-commit-msg"
+PH="$TMP/parity"; git init -q -b main "$PH"
+if locale -a 2>/dev/null | grep -qix 'c\.utf-\?8'; then UL=C.UTF-8; else UL=""; fi
+hook_model() {  # the model the hook writes into a fresh message, or empty
+  printf 'subject\n' > "$PH/msg"
+  (cd "$PH" && AGENT_NAME=g1 bash "$HOOK" "$PH/msg") >/dev/null 2>&1
+  git interpret-trailers --parse < "$PH/msg" | sed -n 's/^Agent-Model: //p'
+}
+py_model() { (cd "$PH" && python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import forge; print(forge.agent_model() or "")' "$S"); }
+MF="$PH/model"
+a120=$(printf 'a%.0s' $(seq 120))
+# name | model file bytes (printf format; "-" none) | AGENT_MODEL (printf format) | expected
+cases=(
+  "two spaces|-|claude  code/opus|"
+  "one space|-|claude code/opus|claude code/opus"
+  "a tab|-|claude\tcode|"
+  "VT at the edge|-|\vclaude-code/opus\v|claude-code/opus"
+  "U+2003 at the edge|-|claude-code/opus\xe2\x80\x83|"
+  "non-ASCII|-|claude-code/caf\xc3\xa9|"
+  "invalid UTF-8 in the file|m/\xff\n|env/m|"
+  "a NUL in the file|ab\0cd\n|env/m|abcd"
+  "120 bytes|-|$a120|$a120"
+  "121 bytes|-|${a120}a|"
+  "a CRLF file|m/crlf\r\nsecond\n|env/m|m/crlf"
+  "an unterminated line|m/last|env/m|m/last"
+  "an empty first line falls through|\nm/second\n|env/m|env/m"
+)
+for lcmode in unset set; do
+  for c in "${cases[@]}"; do
+    IFS='|' read -r cname cfile cenv cwant <<< "$c"
+    if [ "$cfile" = "-" ]; then rm -f "$MF"; else printf "$cfile" > "$MF"; fi
+    envv=$(printf "$cenv")
+    if [ "$lcmode" = set ]; then lcset=(LC_ALL="${UL:-C}"); else lcset=(); fi
+    h=$(env -u LC_ALL LANG="${UL:-C}" "${lcset[@]}" AGENT_MODEL="$envv" AGENT_MODEL_FILE="$MF" bash -c "$(declare -f hook_model); PH='$PH' HOOK='$HOOK' hook_model")
+    p=$(env -u LC_ALL LANG="${UL:-C}" "${lcset[@]}" AGENT_MODEL="$envv" AGENT_MODEL_FILE="$MF" bash -c "$(declare -f py_model); PH='$PH' S='$S' py_model")
+    [ "$h" = "$cwant" ] && [ "$p" = "$cwant" ] && ok "11 parity, LC_ALL $lcmode: $cname — both write '${cwant:0:24}'" \
+      || bad "11 parity, LC_ALL $lcmode: $cname — hook '$h', forge.py '$p', want '$cwant'"
+  done
+done
+[ -n "$UL" ] || echo "SKIP: 11 ran under the C locale: no C.UTF-8 here, so the hook's LC_ALL=C window is not exercised"
+
+# 12. TD-232's Done when: a composed squash committed for real reads every key back through git's
+# own %(trailers:key=…) — the read check_cadence.py --since makes
+RT="$TMP/roundtrip"; git init -q -b main "$RT"
+(cd "$SQ" && python3 -I - "$S" "$RT/msg" <<'P2'
+import sys; sys.path.insert(0, sys.argv[1]); import forge as F
+c = {"message": "Work\n\nCo-Authored-By: A Bot <bot@x>\nAgent-Model: claude-code/opus\n", "author_name": "Pat", "author_email": "pat@x"}
+s, b = F.squash_message("Title", "#7", [c], ["Review: sonnet (SHIP)", "Precheck: abc"], "g1 (claude-code/opus)", override="3 ci — down")
+open(sys.argv[2], "w").write(s + "\n\n" + b)
+P2
+) && git -C "$RT" commit -q --allow-empty --no-verify -F "$RT/msg"
+rt=""; for k in Co-Authored-By Agent-Model Review Precheck Merge-override Merged-by; do
+  rt+="$k=$(git -C "$RT" log -1 --format="%(trailers:key=$k,valueonly,separator=;)")|"; done
+want="Co-Authored-By=A Bot <bot@x>;Pat <pat@x>|Agent-Model=claude-code/opus|Review=sonnet (SHIP)|Precheck=abc|Merge-override=3 ci — down|Merged-by=g1 (claude-code/opus)|"
+[ "$rt" = "$want" ] && ok "12 a committed squash reads every key back through %(trailers:key=…)" || bad "12: $rt"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

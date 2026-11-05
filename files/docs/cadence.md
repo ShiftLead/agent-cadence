@@ -166,6 +166,7 @@ How this repo runs day-to-day with one human (the repo owner — “the user” 
   | a procedure's two skill pointers, identical but for the header's own path (§7.4, TD-127) | `.claude/skills/<name>/SKILL.md` (Claude Code reads it) | `.agents/skills/<name>/SKILL.md` (Codex and Gemini CLI read it) | `tests/test_parity.sh` (6 and 6b: every procedure has both, and they match) |
   | nested-worktree depth | `hydrate_worktree.sh` `find_nested_worktrees` (`nested_depth()`: 3, or the deepest path in `docs/nested-repos.txt`) | `reap_worktrees.sh` `ignored_blockers()` (the same `nested_depth()`, verbatim) | `tests/test_reap_worktrees.sh` cases 20, 20a, 20b |
   | `Harvested:` stamp (a header line of the person's own layer file, §7.13) | `memory_harvest.py` `stamp_line()`, `write_stamp()` (the `stamp` subcommand, `docs/procedures/memory-harvest.md`'s last step), importing `HARVEST_RE` | `nudge_user_attention.py` `HARVEST_RE`, `harvest_note()`, threshold `HARVEST_STALE_DAYS` (the attention report's *your cadence layers* section); `cadence_layer.py` `rules()` skips the line | `tests/test_parity.sh` (format, the threshold, the layer reader's skip), `tests/test_memory_harvest.sh` (the writer in a layer file) |
+  | the `Agent-Model:` value and the agent's name (§9.9: the model file's first line, else `$AGENT_MODEL`; C-locale blanks stripped, printable ASCII words single-spaced, ≤120 bytes; `AGENT_NAME` `[A-Za-z0-9._-]+`) | `git-hooks/prepare-commit-msg` (writes `Agent-Model:` and the co-author) | `forge.py` `agent_model()`, `merged_by()`, `_C_SPACE`, `_MODEL_RE`, `MODEL_MAX`, `_NAME_RE` (writes `Merged-by:` in `squash-message`, TD-232) | `tests/test_forge.sh` 11 (one set of environments fed to both) |
 - **§7.10** **A gotcha a test can pin gets a test, not just a memory.** When the failure class is behavioral, the pin is a **runtime canary**, and the memory names the *trigger conditions* that should invoke it.
 - **§7.11** **A test that asserts against the current date derives its fixtures from the current date** (TD-24 in the private dev-cadence repo).
 - **§7.12** **Gates judge the index; detectors judge the disk.** A **gate** blocks something (a commit, a push, a merge) and considers only what is entering the repo — `git ls-files`, not a filesystem walk. A **detector** hunts for lost or stranded work and walks the disk, untracked files first. Never mix the two in one check.
@@ -265,6 +266,13 @@ How this repo runs day-to-day with one human (the repo owner — “the user” 
   already in the message's trailer block, so an amend after a switch names the new model alone
   (one typed into the body above it is left as text). It needs no `AGENT_NAME`
   and never calls the orchestrator.
+  **The reading (TD-232)**, which the hook and `forge.py squash-message` (its `Merged-by:`) share — a
+  parity pair (§7.9): the first line of `$AGENT_MODEL_FILE` when it is a regular, readable file (an
+  unterminated line counts; NUL bytes dropped), else `$AGENT_MODEL` — an empty first line falls
+  through; then, in the C locale whatever the session's, leading and trailing blanks (space, tab, LF,
+  VT, FF, CR) stripped, and the value kept only when it is printable ASCII words single-spaced, at most
+  120 bytes. A value that fails is left out, with no fallback. `AGENT_NAME` is `[A-Za-z0-9._-]+`: the
+  hook leaves out a co-author that fails, and `squash-message` refuses the merge.
 - **§9.10** **Machine-locality assumption:** `~/.config` (or `$XDG_CONFIG_HOME`) is private to one machine — not NFS-shared across hosts and not bind-mounted into devcontainers; a devcontainer needs a *persisted* `~/.config` volume for its registry to survive rebuilds. A lost roster degrades to silence — never a false warning.
 - **§9.11** Reader semantics: a missing registry file means "no roster on this machine" (features
   fall back to current-repo scope), not an error; roster lines whose path is gone or isn't
