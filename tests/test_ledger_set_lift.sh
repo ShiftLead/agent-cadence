@@ -49,7 +49,7 @@ chmod +x "$TMP/bin/ao"
 # `gh pr create` for the notices PR in another roster repo (TD-226): logged; $GH_FAIL refuses it.
 cat > "$TMP/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-echo "$*" >> "$GH_LOG"
+echo "$*" >> "$GH_LOG"; pwd -P >> "$GH_LOG.pwd"
 [ "$1 $2" = "pr create" ] || { echo "gh-shim: unhandled: $*" >&2; exit 64; }
 [ -n "${GH_FAIL:-}" ] && { echo "pull request create failed: GraphQL: boom" >&2; exit 1; }
 echo "https://github.com/o/tools/pull/$(grep -c '^pr create' "$GH_LOG")"
@@ -270,33 +270,36 @@ out=$(lp set TD-002 --blocked-by "decision (Lee)" --by Robin --why "Lee owns exp
   && grep -q "^- \[x\] .*Context: TD-002 decision (Robin)\..*Closed: $LOCAL — moved to decision (Lee) by Robin\.$" "$B" \
   && grep -q '^- \[ \] fyi .*TD-002.s decision moved from you to Lee, by Robin' "$B" \
   && ! grep -q 'Context: TD-002 decision (Lee)' "$B" \
-  && onb notices/w-TD-002 | grep -q '^- \[ \] decide .*Context: w#TD-002 decision (Lee)\. Due: ' \
-  && [ "$(onb notices/w-TD-002 | grep -c '^- \[')" -eq 2 ] \
-  && grep -q '^pr create --head notices/w-TD-002 --base main --title board: w#TD-002 decision (Robin) moved to decision (Lee)' "$GH_LOG" \
+  && onb notices/w-TD-002-lee | grep -q '^- \[ \] decide .*Context: w#TD-002 decision (Lee)\. Due: ' \
+  && onb notices/w-TD-002-lee | grep -q "w#TD-002.s decision moved from Robin to you" \
+  && ! onb notices/w-TD-002-lee | grep -q "[^#]TD-002" \
+  && [ "$(sort -u "$GH_LOG.pwd")" = "$(cd "$TMP/tools" && pwd -P)" ] \
+  && [ "$(onb notices/w-TD-002-lee | grep -c '^- \[')" -eq 2 ] \
+  && grep -q '^pr create --head notices/w-TD-002-lee --base main --title board: w#TD-002 decision (Robin) moved to decision (Lee)' "$GH_LOG" \
   && [ "$(printf '%s\n' "$out" | tail -1)" = "https://github.com/o/tools/pull/1" ] \
-  && [ -z "$(git -C "$TMP/tools" status --porcelain)" ] && ! git -C "$TMP/tools" rev-parse -q --verify notices/w-TD-002 >/dev/null \
+  && [ -z "$(git -C "$TMP/tools" status --porcelain)" ] && ! git -C "$TMP/tools" rev-parse -q --verify notices/w-TD-002-lee >/dev/null \
   && ! uc | grep -q "decision-uncovered" \
   && ok "a reassign to a person on another roster board: a's notices here, b's decide item there by a PR left open" \
-  || bad "reassign elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-002 | tail -2) | $(cat "$GH_LOG")"
+  || bad "reassign elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-002-lee | tail -2) | $(cat "$GH_LOG")"
 reset
 out=$(lp set TD-040 --blocked-by "" --by Robin --override "Lee is away" 2>"$TMP/err"); rc=$?
 [ $rc -eq 0 ] && ! grep -q 'Blocked by' "$L/TD-040.md" && same docs/user_attention.md \
-  && onb notices/w-TD-040 | grep -q "^- \[ \] fyi .*TD-040.s decision (Lee) was lifted by override, by Robin: Lee is away.* Context: w#TD-040\." \
-  && grep -q '^pr create --head notices/w-TD-040 ' "$GH_LOG" \
+  && onb notices/w-TD-040-override | grep -q "^- \[ \] fyi .*TD-040.s decision (Lee) was lifted by override, by Robin: Lee is away.* Context: w#TD-040\." \
+  && grep -q '^pr create --head notices/w-TD-040-override ' "$GH_LOG" \
   && ok "an override for a person on another roster board: the fyi there by a PR, this board untouched" \
-  || bad "override elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-040 | tail -1)"
+  || bad "override elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-040-override | tail -1)"
 reset
 out=$(lp set TD-020 --blocked-by "decision (Sam)" --by Robin --why "Sam owns it now" 2>"$TMP/err"); rc=$?
 [ $rc -eq 0 ] && grep -q '^- \[ \] decide .*Context: TD-020 decision (Sam)\. Due: ' "$B" \
   && grep -q '^- \[ \] fyi .*TD-020.s decision moved from you to Sam' "$B" \
-  && onb notices/w-TD-020 | grep -q "^- \[x\] .*Context: w#TD-020 decision (Robin)\..*Closed: $LOCAL — moved to decision (Sam) by Robin\.$" \
-  && [ "$(onb notices/w-TD-020 | grep -c '^- \[')" -eq 1 ] && grep -q '^pr create --head notices/w-TD-020 ' "$GH_LOG" \
+  && onb notices/w-TD-020-sam | grep -q "^- \[x\] .*Context: w#TD-020 decision (Robin)\..*Closed: $LOCAL — moved to decision (Sam) by Robin\.$" \
+  && [ "$(onb notices/w-TD-020-sam | grep -c '^- \[')" -eq 1 ] && grep -q '^pr create --head notices/w-TD-020-sam ' "$GH_LOG" \
   && ok "a reassign whose old item is on another roster board: closed there as moved, by a PR left open" \
-  || bad "close elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-020)"
+  || bad "close elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-020-sam)"
 reset
-git -C "$TMP/o2" branch -q -D notices/w-TD-040
+git -C "$TMP/o2" branch -q -D notices/w-TD-040-override
 GH_FAIL=1 lp set TD-040 --blocked-by "" --by Robin --override "Lee is away" >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 1 ] && same docs && grep -q 'boom' "$TMP/err" && ! onb notices/w-TD-040 >/dev/null \
+[ $rc -eq 1 ] && same docs && grep -q 'boom' "$TMP/err" && ! onb notices/w-TD-040-override >/dev/null \
   && ok "a notices PR the forge refuses: both files here put back, the pushed branch deleted again" \
   || bad "notices refused (rc=$rc): $(cat "$TMP/err")"
 

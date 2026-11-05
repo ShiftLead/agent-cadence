@@ -1641,7 +1641,8 @@ def _notices_pr(root: Path, specs: list[dict], closes: list, done_why: str, me: 
     """File ``specs`` on another roster repo's board, and close ``closes`` there (items as read at its
     ``origin/<default>``), by a PR in that repo (TD-226): a temporary worktree at that ref (gate_sweep.py's
     ``Scratch``, its checkout never touched), each close a ``done`` (which keeps every line where it was), each
-    item added with ``Context:`` naming ``<repo>#TD-n``, pushed on ``notices/<repo>-<TD-n>`` and opened on that repo's forge —
+    item added with ``Context:`` (and any bare ``TD-n`` in its words) naming ``<repo>#TD-n``, pushed on
+    ``notices/<repo>-<TD-n>-<new person | override>`` and opened on that repo's forge (``gh`` run there) —
     left open for its review, never merged from here. Its URL; RuntimeError (or the forge's) when it could not."""
     # sibling SYNC scripts, imported here: gate_sweep imports this module
     import forge as F
@@ -1649,9 +1650,11 @@ def _notices_pr(root: Path, specs: list[dict], closes: list, done_why: str, me: 
     from ledgerboard import board as LBB
     xid = f"{repo}#{me}"
     default = N.default_branch(root)
-    branch = f"notices/{re.sub(r'[^A-Za-z0-9._-]+', '-', repo).strip('-')}-{me}"
+    slug = lambda s: re.sub(r"[^A-Za-z0-9._-]+", "-", s).strip("-")   # noqa: E731
+    branch = f"notices/{slug(repo)}-{me}-{slug(to[len('decision ('):-1]).lower() if to else 'override'}"
+    bare = re.compile(rf"(?<![#\w]){re.escape(me)}\b")   # a bare TD-n on that board would read as its own
     try:
-        be = F.backend(root)
+        be = F.backend(root, cwd=root)   # gh infers the repo from its directory: that repo's, never this one
     except F.ForgeUnreadable as e:
         raise RuntimeError(f"{root.name}'s forge: {e}") from None
     with G.Scratch(root, f"origin/{default}", branch) as wt:
@@ -1661,6 +1664,10 @@ def _notices_pr(root: Path, specs: list[dict], closes: list, done_why: str, me: 
         for spec in specs:
             s = dict(spec)
             s["context"] = re.sub(r"^TD-\d+", xid, s["context"])
+            s["text"] = bare.sub(xid, s["text"])
+            if s.get("detail"):
+                s["detail"] = {k: [bare.sub(xid, x) for x in v] if isinstance(v, list) else bare.sub(xid, v)
+                               for k, v in s["detail"].items()}
             LBB.apply(LBB.plan_add(board, s.pop("text"), **s))
         what = f"moved to {to}" if to else "lifted by override"
         subject = f"board: {xid} {gate} {what} — the notices ({repo}'s ledger.py set)"
@@ -1672,8 +1679,8 @@ def _notices_pr(root: Path, specs: list[dict], closes: list, done_why: str, me: 
                   "merged, and close it if that one is closed. Review it like any PR (cadence.md §4).")
         try:
             return G._ship(root, wt, be, branch, default, subject, body)
-        except F.ForgeUnreadable as e:
-            raise RuntimeError(str(e)) from None
+        except (F.ForgeUnreadable, RuntimeError) as e:
+            raise RuntimeError(str(e).replace(" and sweep again", f" in {root.name}, and run set again")) from None
 
 
 def _still_asked(led: "LBL.Ledger", item: "LB.BoardItem", tid: str, gate: str) -> bool:
