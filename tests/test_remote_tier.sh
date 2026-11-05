@@ -7,6 +7,7 @@ export TZ=UTC  # TD-209: `date -d 'N days'` from now is N×24h, an hour short ac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NEW="$ROOT/files/scripts/nudge_user_attention.py"
 TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home"; mkdir -p "$HOME"
 export XDG_CONFIG_HOME="$TMP/config"
 REG_DIR="$XDG_CONFIG_HOME/agent-cadence"; REG="$REG_DIR/repos.txt"
@@ -202,6 +203,5 @@ out=$(run)
 if echo "$out" | grep -q "== someorg/theirs" && ! grep -q "api user " "$FAKE/calls.log"; then
   ok "owner filter scans that owner only"; else bad "owner filter: $(cat "$FAKE/calls.log")"; fi
 
-rm -rf "$TMP"
 echo; echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
