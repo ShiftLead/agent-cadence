@@ -25,7 +25,7 @@ re-runs: ``<repo>#<n>`` for ``pr-merged``, ``<repo>@<sha>`` for the others), **n
 **The host's rules** (§4.4): a check reaches a repo only when it is on this machine's roster
 (``$AGENT_CADENCE_REG_DIR`` honoured) *and* at least as visible as this ledger's own repo — a public
 ledger's checks reach only public repos, since a public lift PR would leak one bit of a private one per
-sweep. Anything either rule refuses, or a forge this cannot ask yet (only github.com is built), is an
+sweep. Anything either rule refuses, or a forge this cannot ask yet (github.com and GitLab are built, TD-228; a GitHub Enterprise host is not), is an
 error. Each forge call is bounded by ``--timeout`` (default 30s), and a call past it is an error.
 
 This is read-only: it lifts nothing and files nothing. It is the event runner the gate sweep feeds to
