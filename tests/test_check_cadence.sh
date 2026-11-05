@@ -1253,5 +1253,45 @@ pr 37 MERGED id-a "TD-011: a" docs/technical_debt.md; sethead 37 "$A" "$A"; comm
 out=$(irun --pr 37); ! irow "$out" | grep -q "already on\|also added\|⚠" && ok "ids: a merged PR's ids are not judged" || bad "ids merged: $(irow "$out")"
 printf '[]' > "$FAKE/prlist_since.json"
 
+# --- TD-234: --since lists a merge made around step 5's line — a squash with no Merged-by: after the
+# first one that has it, read through git's own trailer parser; a tool carve-out apart, an unreadable
+# merge counted, never listed; nothing judged before the first Merged-by:
+MO="$TMP/mo"; git init -q --bare -b main "$MO.git"; git clone -q "$MO.git" "$MO" 2>/dev/null
+mgit() { git -C "$MO" -c user.email=t@t -c user.name=t "$@"; }
+mc() { mgit commit -q --allow-empty -m "$1" && mgit rev-parse HEAD; }
+mgit checkout -q -b main 2>/dev/null
+mc base >/dev/null
+s1=$(mc "old (#1)")
+s2=$(mc "$(printf 'mentions it (#2)\n\nThe body says Merged-by: x in its text.\n\nMore text.')")
+s3=$(mc "$(printf 'first through the line (#3)\n\nbody\n\nMerged-by: g1 (a/b)')")
+s4=$(mc "bypass (#4)")
+s5=$(mc "a tool's board edit (#5)")
+s6=$(mc "$(printf 'lower case (#6)\n\nmerged-by: g2')")
+mgit push -q origin HEAD:main
+mo() { (cd "$MO" && python3 -I - "$DC/files/scripts" "$@" <<'P2'
+import json, sys; sys.path.insert(0, sys.argv[1]); import check_cadence as C
+shas = sys.argv[2:]
+res = [{"pr": i + 1, "state": "MERGED", "merge_sha": s, "rows": [{"rule": "review", "carve_out": "board-edit" if i == 4 else None}]}
+       for i, s in enumerate(shas)]
+res += [{"pr": 7, "state": "MERGED", "merge_sha": "0" * 40, "rows": []}, {"pr": 8, "state": "OPEN", "merge_sha": None, "rows": []}]
+print(json.dumps(C.merged_outside(".", res), sort_keys=True))
+P2
+); }
+out=$(mo "$s1" "$s2" "$s3" "$s4" "$s5" "$s6")
+want='{"before": 2, "cutoff": "'"${s3:0:7}"'", "listed": [4], "ref": "origin/main", "tool": [5], "unreadable": [7]}'
+[ "$out" = "$want" ] && ok "TD-234 merged_outside: after the first Merged-by: (not a body that mentions it), a bypass listed, a tool merge apart, an unreadable one counted, lower-case merged-by: read as git reads it, an open PR skipped" \
+  || bad "TD-234 merged_outside: $out (want $want)"
+M2="$TMP/mo2"; git init -q --bare -b main "$M2.git"; git clone -q "$M2.git" "$M2" 2>/dev/null
+git -C "$M2" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "b (#1)"; git -C "$M2" push -q origin HEAD:main
+out=$(cd "$M2" && python3 -I -c 'import json, sys; sys.path.insert(0, sys.argv[1]); import check_cadence as C
+sha = C.git(["rev-parse", "HEAD"], cwd=".").strip()
+print(json.dumps(C.merged_outside(".", [{"pr": 1, "state": "MERGED", "merge_sha": sha, "rows": []}])["listed"]), C.merged_outside(".", [])["cutoff"])' "$DC/files/scripts")
+[ "$out" = "[] None" ] && ok "TD-234 merged_outside: a repo that never merged through the line lists nothing" || bad "TD-234 no cutoff: $out"
+printf '[]' > "$FAKE/prlist_since.json"
+out=$( cd "$MO" && python3 "$SCRIPT" --since 1d 2>&1 ); jout=$( cd "$MO" && python3 "$SCRIPT" --since 1d --json 2>&1 )
+echo "$out" | grep -q "^Merged outside step 5 (no Merged-by:, after ${s3:0:7}) — none" \
+  && printf '%s' "$jout" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["merged_outside"] == [] and d["outside"]["cutoff"] == sys.argv[1]' "${s3:0:7}" 2>/dev/null \
+  && ok "TD-234 --since prints the section and carries merged_outside in --json" || bad "TD-234 --since: $(echo "$out" | tail -3)"
+
 echo; echo "$PASS passed, $FAIL failed"
 [ $FAIL -eq 0 ]

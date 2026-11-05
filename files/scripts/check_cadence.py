@@ -190,6 +190,13 @@ empty. JSON: "direct": {"ref", "status", "detail", "commits": [{"sha", "subject"
 "class", "status", "detail"}]}, or null with no clone to read. "acknowledged": the
 numbers of the PRs whose every fail is an acknowledged one (present when there are any).
 
+And a third, *merged outside step 5* (TD-234, cadence §4.2): the window's merged PRs whose squash
+commit carries no `Merged-by:`, judged only after the first commit on the default branch with a
+non-empty one (read by git's trailer parser, `%(trailers:key=Merged-by,valueonly)`); a PR passed
+by a tool carve-out listed apart, a merge commit not on that history here counted as unreadable.
+A detector: it never moves the verdict or the exit. JSON: "merged_outside" (the PR numbers) and
+"outside": {"ref", "cutoff", "listed", "tool", "unreadable", "before"}, or null with no clone.
+
 Exit: 0 every row pass or na; 1 any fail; 2 nothing could be checked (no gh, a gh
 error, no PR, or an empty window); 3 no fail, but at least one row is `unknown` (CI
 still running, check runs or comments unreadable, a `--since` window truncated) —
@@ -2603,6 +2610,76 @@ def body_review(root, sha):
     return hits[-1].group("verdict").upper(), hits[-1].group("rest").strip(" ·-")
 
 
+def merged_outside(root, results):
+    """TD-234 (TD-177's design 4): the window's merged PRs whose squash commit carries no
+    `Merged-by:` — merged around the procedure's step 5 line (the web UI, a bare `gh pr merge`, a
+    session on an older pin; git cannot say which). A detector, never a verdict. Only merges after
+    the first commit on the default branch with a non-empty `Merged-by:` are judged, read through
+    git's own trailer parser (`%(trailers:key=…)`, the key matched as git matches it), never a grep
+    of the message, which would match one that only mentions the key. A PR passed by a tool
+    carve-out (its review row's `carve_out`) is listed apart as a tool merge; a merge commit not
+    on the default branch's history here is counted unreadable, never listed. None with no clone."""
+    if not root:
+        return None
+    ref = default_ref(root)
+    log = git(["log", "--first-parent", "--format=%H%x00%(trailers:key=Merged-by,valueonly,separator=%x20)%x1e", ref],
+              cwd=root)
+    out = {"ref": ref, "cutoff": None, "listed": [], "tool": [], "unreadable": [], "before": 0}
+    if log is None:
+        out["error"] = f"git log {ref} failed"
+        return out
+    order, cutoff = {}, None   # sha -> index, newest first; cutoff: the oldest with a Merged-by
+    for i, rec in enumerate(r for r in log.split("\x1e") if r.strip()):
+        sha, _, value = rec.strip("\n").partition("\0")
+        order[sha] = (i, bool(value.strip()))
+        if value.strip():
+            cutoff = (i, sha)
+    if cutoff is None:
+        return out
+    out["cutoff"] = cutoff[1][:7]
+    for res in results:
+        if res.get("state") != "MERGED":
+            continue
+        sha = res.get("merge_sha") or ""
+        where = order.get(sha)
+        if where is None:
+            out["unreadable"].append(res["pr"])
+            continue
+        idx, has = where
+        if idx > cutoff[0]:
+            out["before"] += 1
+            continue
+        if has:
+            continue
+        if any(r.get("carve_out") for r in res.get("rows", []) if r.get("rule") == "review"):
+            out["tool"].append(res["pr"])
+        else:
+            out["listed"].append(res["pr"])
+    return out
+
+
+def print_outside(mo):
+    if mo is None:
+        print("merged outside step 5: n/a — no clone here to read")
+        return
+    if mo.get("error"):
+        print(f"merged outside step 5: unknown — {mo['error']}")
+        return
+    if mo["cutoff"] is None:
+        print(f"merged outside step 5: none judged — no commit on {mo['ref']} carries Merged-by: yet "
+              "(cadence §4.2: the list starts at the first merge through step 5's line)")
+        return
+    nums = lambda ns: ", ".join(f"#{n}" for n in ns) or "none"   # noqa: E731
+    print(f"Merged outside step 5 (no Merged-by:, after {mo['cutoff']}) — {nums(mo['listed'])}"
+          " (a detector, cadence §4.2: read it against the repo's own merge rule)")
+    if mo["tool"]:
+        print(f"  tool merges (a carve-out, cadence §4.5): {nums(mo['tool'])}")
+    if mo["unreadable"]:
+        print(f"  unreadable (merge commit not on {mo['ref']} here): {nums(mo['unreadable'])}")
+    if mo["before"]:
+        print(f"  {mo['before']} merged before the cutoff, not judged")
+
+
 def check_pr(number, root):
     pr = FORGE.pr(number)
     rows = []
@@ -2630,6 +2707,7 @@ def check_pr(number, root):
         "title": pr["title"],
         "state": pr["state"].upper(),   # the JSON's form since before TD-103: OPEN | MERGED | CLOSED
         "head_sha": pr.get("head_sha"),  # the one read the rows judged (TD-231's `expect`)
+        "merge_sha": pr.get("merge_sha"),  # the commit it landed as (TD-234's read of its Merged-by:)
         "rows": rows,
         "verdict": verdict(rows),
     }
@@ -2815,6 +2893,7 @@ def main(argv=None):
     truncated = bool(args.since) and len(numbers) >= SINCE_LIMIT
     # TD-040: the window's commits that no PR made — the carve-outs' audit
     direct = direct_commits(root, since_date(args.since)) if args.since else None
+    outside = merged_outside(root, results) if args.since else None   # TD-234: never moves the verdict
     dstat = direct["status"] if direct else None
     overall = "pass"
     if any(r["verdict"] == "fail" for r in results) or dstat == "fail":
@@ -2831,6 +2910,8 @@ def main(argv=None):
         out = {"prs": results, "verdict": overall}
         if args.since:
             out["direct"] = direct
+            out["merged_outside"] = outside["listed"] if outside else []
+            out["outside"] = outside
         if truncated:
             out["truncated"] = SINCE_LIMIT
         if acked:
@@ -2844,6 +2925,7 @@ def main(argv=None):
             print("no PRs in the window")
         if args.since:
             print_direct(direct)
+            print_outside(outside)
         if acked:
             nfail = sum(r["verdict"] == "fail" for r in results)
             print(

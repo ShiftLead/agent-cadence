@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-05 — The weekly read lists merges made around step 5's line
+Do: read `check_cadence.py --since`'s *merged outside step 5* section (`merged_outside` in `--json`) against your repo's merge rule — a squash with no `Merged-by:` went around the line; it is a detector, never a fail.
+See: cadence.md §4.2; `check_cadence.py` `merged_outside()`; TD-234.
+
 ## 2026-11-05 — A cadence merge is step 5's line: the gate's `--trailers`, `forge.py squash-message`, then `gh pr merge` with the composed message
 Do: merge through the procedure's step 5 line, run whole as one command (never a bare `gh pr merge <n> --squash`, never `--delete-branch`); an unknown that will not clear adds `--unverified "<why>"` to `squash-message`.
 See: procedures/cadence.md step 5; cadence.md §4.2 (the trailer paragraph, `Merged-by:`), §1.4; TD-233.
