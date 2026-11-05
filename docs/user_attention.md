@@ -31,6 +31,7 @@ items surface in `/attention`'s full report.
 
 ## Needs Paul
 
+- [ ] act 2026-11-05 (session `ao-agent-cadence-ac-grinder`) — Lift TD-177's decision (paul) field and archive it: your Go (2026-11-05) was built as TD-231–TD-234, and its live check TD-236 held (#148's squash reads back every trailer, Merged-by: last). An unattended session cannot lift your field (TD-218). Context: TD-177. Due: 2026-11-05.
 - [ ] act 2026-11-05 (session `ao-agent-cadence-ac-grinder`) — Edit CLAUDE.md's merge line (the 'From a worktree, never gh pr merge --delete-branch' bullet) to name the procedure's step 5 line: check_cadence.py --trailers, forge.py squash-message, then gh pr merge with the composed message — an unattended session does not edit CLAUDE.md's rules. Context: TD-233. Due: 2026-11-07.
 - [ ] act 2026-11-04 (session `ao-agent-cadence-ac-grinder`) — Turn on the daily gate sweep you chose: in agent-cadence's main checkout, at a main that has gate_sweep_timer.sh, run `files/scripts/gate_sweep_timer.sh --write`, then the `systemctl --user` line it prints. Context: TD-219. Due: 2026-11-04.
   - **Context:** The timer runs `git fetch origin`, then `gate_sweep.py --apply`, daily (Persistent: a missed day runs at the next boot); its PRs are reviewed and merged by sessions like any. Without --write it prints the units and writes nothing. Check it with `systemctl --user list-timers agent-cadence-gate-sweep-agent-cadence.timer`.
