@@ -4,7 +4,8 @@
 # Copies, from ShiftLead/ledgerboard at <tag> (v2.3 or later: the package, TD-213):
 #   ledgerboard/*.py -> files/scripts/ledgerboard/   (SYNC files: the module and its board writer, board.py)
 #   fixtures/        -> tests/ledgerboard/           (tooling: never synced)
-# and writes tests/ledgerboard/MANIFEST (the tag, its commit, a sha256 per file). Refuses a
+# and writes tests/ledgerboard.MANIFEST (the tag, its commit, a sha256 per file) beside the fixtures, whose own
+# MANIFEST (v2.5) is the release's and is kept as shipped. Refuses a
 # package file whose release header is not <tag>'s or not intact, and a package file that is not in
 # sync.sh's SYNC_FILES (a new one is added there and to the README's table in the same PR). Commit the
 # result and PR it; a consumer takes it by its next pin bump. Tooling at the repo root, beside sync.sh.
@@ -44,8 +45,8 @@ cp -R "$TMP/fixtures" "$DC/tests/ledgerboard"
     echo "# Written by vendor_ledgerboard.sh — do not edit by hand."
     echo "tag: $tag"
     echo "commit: $commit"
-    (cd "$DC" && find files/scripts/ledgerboard tests/ledgerboard -type f ! -name MANIFEST ! -path '*/__pycache__/*' | LC_ALL=C sort \
+    (cd "$DC" && find files/scripts/ledgerboard tests/ledgerboard -type f ! -path '*/__pycache__/*' | LC_ALL=C sort \
         | while read -r f; do echo "file: $f $(sha256sum "$f" | cut -d' ' -f1)"; done)
-} > "$DC/tests/ledgerboard/MANIFEST"
+} > "$DC/tests/ledgerboard.MANIFEST"
 python3 "$DC/tests/ledgerboard/run.py" --module "$DC/files/scripts/ledgerboard"
 echo "vendored ledgerboard $tag ($commit) — commit it and PR it; a consumer takes it by its next pin bump"

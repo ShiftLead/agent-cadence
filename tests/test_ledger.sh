@@ -278,27 +278,28 @@ printf '# rank\nTD-035: 0h\nTD-033: 1i\n' > "$RK/technical_debt_rank.yml"
 python3 "$LEDGER_PY" --ledger "$RK/technical_debt.md" --archive "$TMP/none.md" --pickable | grep -q "^  TD-035 " \
   && ok "--pickable prints rank order too" || bad "--pickable rank: $(python3 "$LEDGER_PY" --ledger "$RK/technical_debt.md" --archive "$TMP/none.md" --pickable)"
 printf 'TD-035 0h\n' > "$RK/technical_debt_rank.yml"
-# TD-222: ledgerboard v2.4's check() raises on TD-036's below-the-block line; ledger.py names it as one error
+# TD-222: ledgerboard v2.5 flags TD-036's below-the-block line itself (v2.4 raised; ledger.py's guard is gone)
 python3 "$LEDGER_PY" --ledger "$RK/technical_debt.md" --archive "$TMP/none.md" --check --json \
-  | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if [f for f in d["flags"] if f["kind"] == "check-refused" and f["level"] == "error" and f["id"] == "TD-036"] else 1)' \
-  && ok "--check names an entry ledgerboard v2.4's check() refuses as one error, not a traceback (TD-222)" \
-  || bad "check-refused: $(python3 "$LEDGER_PY" --ledger "$RK/technical_debt.md" --archive "$TMP/none.md" --check 2>&1)"
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); k=[f["kind"] for f in d["flags"] if f["id"] == "TD-036"]; sys.exit(0 if "below-header" in k and "check-refused" not in k else 1)' \
+  && ok "--check: the package flags an entry with a field below its header block, no guard's check-refused (TD-222)" \
+  || bad "below-header: $(python3 "$LEDGER_PY" --ledger "$RK/technical_debt.md" --archive "$TMP/none.md" --check 2>&1)"
 chk222=$(python3 - "$DC/files/scripts" <<'PY'
 import sys; sys.path.insert(0, sys.argv[1]); import ledger as L
 bad = "## TD-036: below\n\n**Priority:** Low\n\n**Blocked by:** decision (Alex)\n\n"
 other = "## TD-040: other\n\n**Priority:** Low\n**Blocked by:** TD-999\n\n**Why:** w.\n\n"
 old = "# L\n\n" + bad + other
 r = {(x["id"], x["kind"]): x for x in L.check(old, "", old)}
-assert (r[("TD-036", "check-refused")]["level"], r[("TD-036", "check-refused")]["standing"]) == ("info", True), r
-assert any(k[0] == "TD-040" for k in r), r   # the rest of the ledger is still checked
+assert r[("TD-036", "below-header")]["standing"] is True, r
+assert not any(k[1] == "check-refused" for k in r), r
+assert any(k[0] == "TD-040" for k in r), r   # the rest of the ledger is checked
 edited = old.replace("**Priority:** Low\n\n**Blocked by:** decision", "**Priority:** High\n\n**Blocked by:** decision")
 r = {(x["id"], x["kind"]): x for x in L.check(edited, "", old)}
-assert (r[("TD-036", "check-refused")]["level"], r[("TD-036", "check-refused")]["standing"]) == ("error", False), r
+assert r[("TD-036", "below-header")]["standing"] is False, r
 print("ok")
 PY
 )
-[ "$chk222" = ok ] && ok "a refused entry unchanged since --since is standing ℹ, an edited one an error; the rest is still checked (TD-222)" \
-  || bad "check-refused scope: $chk222"
+[ "$chk222" = ok ] && ok "a below-block entry unchanged since --since is standing, an edited one not; the rest is checked (TD-222)" \
+  || bad "below-header scope: $chk222"
 RK2="$TMP/rank2"; mkdir -p "$RK2"; cp "$RK/technical_debt_rank.yml" "$RK2/"
 sed '/^## TD-036:/,$d' "$RK/technical_debt.md" > "$RK2/technical_debt.md"
 python3 "$LEDGER_PY" --ledger "$RK2/technical_debt.md" --archive "$TMP/none.md" --check --json \

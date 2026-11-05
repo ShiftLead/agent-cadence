@@ -154,7 +154,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import functools
 import json
 import os
 import re
@@ -435,57 +434,12 @@ def pickable(ledger: str, archive: str, roster: Roster | None = None, undeclared
                        today=_today(today))
 
 
-def _log_refused(text: str) -> dict[str, str]:
-    """id -> entry text, for each entry whose Log ledgerboard v2.4 refuses to read (TD-222)."""
-    out = {}
-    for tid, t in LB._entry_texts(text).items():
-        try:
-            LB.log_lines(t)
-        except LB.Refused:
-            out[tid] = t
-    return out
-
-
 def check(ledger: str, archive: str, old: str | None = None, roster: Roster | None = None,
           rank_text: str | None = None, today: date | str | None = None) -> list[dict]:
     """ledgerboard's check (--check's flags, the rank file's too), with this machine's roster resolving cross-repo items.
-    ledgerboard v2.4's check() raises Refused on an entry with a field below its header block (its Log
-    reader, ``reassigns()``, refuses the entry where v2.3 flagged it), stopping the whole check: until
-    ledgerboard flags it again (TD-222), the rest of the ledger is checked without those entries, and each
-    is one ``check-refused`` flag — an error on an entry this edit wrote, standing ℹ on one ``old`` holds
-    as it is (so a PR is never failed on an entry it did not touch, cadence.md §2.12's ``--since``)."""
-    return guarded_check(ledger, archive, old, (roster or Roster()).resolve, rank_text, today=today)
-
-
-def guarded_check(ledger: str, archive: str, old: str | None = None, resolve: LB.Resolve | None = None,
-                  rank_text: str | None = None, *, today: date | str | None = None) -> list[dict]:
-    """``check()`` with the resolver given as ledgerboard's ``check()`` takes it — so the package's ledger
-    writer gates through it too (bound as ``LBL.check`` below, TD-216: a below-block entry elsewhere must not
-    refuse an edit of another one). TD-222 removes both once ledgerboard flags the entry again."""
-    def run(text: str, before: str | None) -> list[dict]:
-        return LB.check(text, archive, before, resolve, rank_text=rank_text, today=_today(today))
-    try:
-        return run(ledger, old)
-    except LB.Refused as e:
-        why = str(e)
-    bad = _log_refused(ledger)
-    if not bad:
-        return [{"level": "error", "id": None, "field": "ledger", "kind": "check-refused", "standing": False,
-                 "text": f"⚠ the ledger: not checked — {why} (ledgerboard v2.4's check() stops on it)"}]
-    strip = lambda text: functools.reduce(lambda t, x: t.replace(x, ""), _log_refused(text).values(), text)  # noqa: E731
-    try:
-        recs = [r for r in run(strip(ledger), strip(old) if old is not None else None)
-                if not any(re.search(rf"\b{re.escape(tid)}\b", r["text"]) for tid in bad)]
-    except LB.Refused as e2:
-        recs = [{"level": "error", "id": None, "field": "ledger", "kind": "check-refused", "standing": False,
-                 "text": f"⚠ the ledger: not checked — {e2} (ledgerboard v2.4's check() stops on it)"}]
-    was = LB._entry_texts(old) if old is not None else {}
-    for tid, text in bad.items():
-        standing = old is not None and was.get(tid) == text
-        recs.append({"level": "info" if standing else "error", "id": tid, "field": "ledger", "kind": "check-refused",
-                     "standing": standing, "text": f"{'ℹ' if standing else '⚠'} {tid}: not checked — {why} "
-                                                   "(ledgerboard v2.4's check() stops on it, TD-222)"})
-    return recs
+    (v2.5 flags a field below an entry's header block, ``below-header``, where v2.4 raised; ledger.py's guard
+    for v2.4 is gone, TD-222.)"""
+    return LB.check(ledger, archive, old, (roster or Roster()).resolve, rank_text=rank_text, today=_today(today))
 
 
 # TD-166: a wait on another entry belongs in Blocked by (cadence.md §2.4), where --pickable resolves it; one
@@ -1250,7 +1204,7 @@ def edit(cmd: str, argv: list[str]) -> int:
     a = ap.parse_args(argv)
     if not ID_ITEM_RE.match(a.id):
         ap.error(f"an entry's id is TD-n, not {a.id!r}")
-    kw: dict = {}
+    kw: dict = {"today": datetime.now(timezone.utc).date().isoformat()}  # the UTC day; v2.5 dates a gate a set adds
     if cmd == "set":
         kw["fields"] = dict(given := _fields_given(ap, a))
         if not kw["fields"]:
@@ -1263,7 +1217,7 @@ def edit(cmd: str, argv: list[str]) -> int:
         if a.why is not None and a.answer is not None:
             ap.error("--why is a reassign's and --answer a lift's: give one")
     elif cmd == "note":
-        kw.update(words=a.words, today=datetime.now(timezone.utc).date().isoformat())
+        kw.update(words=a.words)
     else:
         kw.update(section=a.section, words=_read_body(ap, "--from", a.src).strip())
         if not kw["words"]:
@@ -1325,15 +1279,11 @@ def _blocked_raw(w: "_Writer", tid: str) -> str:
     return (LB.entries(text)[0]["blocked_raw"] or "") if text and LB.entries(text) else ""
 
 
-LBL.check = guarded_check  # the package writer's gate (``LBL._flags``) reads check() through this guard (TD-222)
-
-
 def _lb_plan(w: _Writer, cmd: str, tid: str, kw: dict) -> "LBL.Plan | int":
     """One edit planned by ledgerboard's ``plan_edit()`` (TD-216): the package reads, edits and gates against
     the ledger at origin/<default> (``check()``, with this machine's roster resolving cross-repo items); a
     ``set`` is judged here too, as ``new`` is (``refused_changes()``: the prose waits and id flags the package
     does not read). The plan, or the exit code, said: 1 refused, 2 unusable."""
-    kw = {k: v for k, v in kw.items() if k != "today"}
     try:
         led, base = w.lb_ledgers()
         plan = LBL.plan_edit(led, cmd, tid, base=base, resolve=w.roster.resolve, **kw)
