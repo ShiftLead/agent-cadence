@@ -105,6 +105,31 @@ for sig in TERM HUP; do
     && ok "5c SIG$sig mid-run: exit $want, the command's grandchild killed, the clean worktree and its temp dir removed, nothing recorded" \
     || bad "5c SIG$sig rc=$rc (want $want) inrun=$inrun wts=$(wts)/$WT0 tmp=$(ls -A "$T5") $(cat "$TMP/out5c")"
 done
+# 5e. TD-223: a command that leaves a read-only directory in the worktree (a module cache): the clean
+# worktree and its temp dir are still removed
+T5="$TMP/tmp5e"; mkdir -p "$T5"; WT0=$(wts)
+cfg 'mkdir -p cache/m && touch cache/m/f && chmod -R a-w cache'
+out=$( cd "$R" && TMPDIR="$T5" python3 "$SCRIPT" --pr 7 --no-record 2>&1 ); rc=$?
+[ $rc -eq 0 ] && [ -z "$(ls -A "$T5")" ] && [ "$(wts)" = "$WT0" ] && ! grep -q "could not remove" <<< "$out" \
+  && ok "5e a read-only directory the command left: the worktree and its temp dir are removed all the same" \
+  || { chmod -R u+w "$T5" 2>/dev/null; bad "5e rc=$rc tmp=$(ls -A "$T5") wts=$(wts)/$WT0 $out"; }
+# 5f. TD-223: a SIGKILL skips every cleanup; the next precheck reaps this user's precheck-* older than a
+# day (and prunes the clone's entry), and leaves a fresh one and any other name alone
+T5="$TMP/tmp5f"; mkdir -p "$T5"; WT0=$(wts)
+cfg 'touch $FAKE_DIR/started; exec sleep 3'; rm -f "$FAKE/started"   # its own session: a bounded orphan once the parent is killed
+( cd "$R" && exec env TMPDIR="$T5" python3 "$SCRIPT" --pr 7 --no-record ) > "$TMP/out5f" 2>&1 &
+pid=$!
+for _ in $(seq 100); do [ -e "$FAKE/started" ] && break; sleep 0.1; done
+kill -KILL "$pid"; wait "$pid" 2>/dev/null
+left=$(ls -d "$T5"/precheck-* 2>/dev/null | head -1)
+mkdir -p "$T5/precheck-9-fresh" "$T5/keepme-old"; touch -d '2 days ago' "$T5/keepme-old"
+[ -n "$left" ] && touch -d '2 days ago' "$left"
+cfg 'true'
+out=$( cd "$R" && TMPDIR="$T5" python3 "$SCRIPT" --pr 7 --no-record 2>&1 ); rc=$?
+[ $rc -eq 0 ] && [ -n "$left" ] && [ ! -e "$left" ] && [ -d "$T5/precheck-9-fresh" ] && [ -d "$T5/keepme-old" ] \
+  && [ "$(wts)" = "$WT0" ] && grep -q "removed 1 clean worktree(s) older than a day" <<< "$out" \
+  && ok "5f a SIGKILLed run's worktree is reaped by the next run once a day old, its clone entry pruned; fresh and other names kept" \
+  || bad "5f rc=$rc left=$left now=$(ls "$T5") wts=$(wts)/$WT0 $out"
 # 5d. a SIGHUP the caller ignores (`nohup`) stays ignored: the precheck runs to the end and records
 cfg 'touch $FAKE_DIR/started; sleep 1'
 : > "$FAKE/posts"; rm -f "$FAKE/started"

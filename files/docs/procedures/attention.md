@@ -54,7 +54,7 @@ unauthenticated, per-repo 403/5xx, truncated listing, budget exhaustion) degrade
 
 ## Present
 
-The **temp filesystem** line from `check_tmp.py --report` goes after the boards. It always gives one line of inode and space use for the temp directory every session on this machine shares. Past 80% it adds the largest directories and the cleanups. Show the cleanups as commands for the person to run, and never run one yourself: the directory is shared, and the files may be other sessions'.
+The **temp filesystem** line from `check_tmp.py --report` goes after the boards. It always gives one line of inode and space use for the temp directory every session on this machine shares. Past 80% it first reaps the user's own aged `tmp*`, `precheck-*` and `pytest-*` and says so (TD-223), then adds the largest directories and the cleanups. Show the reaped line as it is, and the cleanups as commands for the person to run, and never run one yourself: the directory is shared, and the files may be other sessions'.
 
 A **your cadence layers** section at the end names one of your own layers (cadence.md §9.18) whose layer file has an uncommitted edit, or whose clone has a commit not pushed. That edit is on this machine alone, so say to commit and push it in that repo. The same section says when the last memory harvest (its `Harvested:` stamp in the layer file, cadence.md §7.13) is over a month old: offer `/memory-harvest`, which the person starts in any cadence repo.
 

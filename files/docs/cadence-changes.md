@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-05 — `check_tmp.py` reaps the user's own aged `tmp*`, `precheck-*` and `pytest-*` past 80%
+Do: nothing by hand for those — past its threshold the SessionStart hook and `/attention` remove this user's entries of those names a day old and say so; every other leftover is still a printed cleanup for the person.
+See: cadence.md §3.9; `check_tmp.py`, `precheck.py`; TD-223.
+
 ## 2026-11-05 — A new entry needs its `**Id take:**`: the gate fails one without it, and `Taken by` is no longer read
 Do: write the `**Id take:** <nonce>` line your take printed (`ledger.py new` and `renumber` write it); lost it, `ledger_next_id.py --show TD-N`; never write `Taken by`. An open PR whose new entries carry only `Taken by` fails its `ledger` row: add the line.
 See: cadence.md §2.10; TD-188 step 4.

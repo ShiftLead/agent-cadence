@@ -20,17 +20,24 @@ The directory is the one Claude Code uses: $CLAUDE_CODE_TMPDIR, else $TMPDIR, el
 CRITICAL_PERCENT the line says sessions are about to fail. --report's walk counts entries under
 each top-level directory, one pass, stopped at WALK_BUDGET seconds (a count cut short says so).
 
-Nothing is ever removed: the directory is shared and its files are other sessions'. The
-cleanups are printed as commands for the person. Always exits 0 — a detector, never a gate
-(cadence §7). Stdlib only.
+Past WARN_PERCENT both modes reap the running user's own known leftovers (TD-223): an entry directly
+under the temp directory (never the directory itself) owned by this user, unchanged for REAP_AGE
+seconds (a day), and named ``tmp*`` (tempfile's and mktemp's) or ``precheck-*`` (precheck.py's clean
+worktrees), and ``pytest-*`` under ``pytest-of-<user>/`` — read-only directories made writable first.
+It says what it removed and the entries it freed. Nothing else is removed: the directory is shared,
+and every other file may be another session's, so the rest stays a printed cleanup for the person.
+Always exits 0 — a detector, never a gate (cadence §7). Stdlib only.
 """
 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import math
 import os
 import shlex
+import shutil
+import stat
 import sys
 import time
 
@@ -38,6 +45,8 @@ WARN_PERCENT = 80
 CRITICAL_PERCENT = 95
 WALK_BUDGET = 10.0   # seconds for --report's walk
 TOP = 5              # directories --report names
+REAP_AGE = 86400     # seconds an entry is left unchanged before it is reaped (TD-223)
+REAP_PATTERNS = ("tmp*", "precheck-*")   # top-level names reaped; and pytest-* under pytest-of-<user>/
 
 
 def tmp_dir() -> str:
@@ -116,6 +125,90 @@ def largest(path: str, budget: float | None = None) -> tuple[list[tuple[int, str
     return counts, done
 
 
+def force_rmtree(path: str) -> bool:
+    """Remove ``path`` whole, a read-only directory under it made writable first (a module cache, a
+    chmod'd fixture — what ``shutil.rmtree(ignore_errors=True)`` gives up on, TD-223). True when it
+    is gone. A symlink is removed, never followed."""
+    if os.path.islink(path) or not os.path.isdir(path):
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            return False
+        return True
+    for d, dirs, _ in os.walk(path):
+        for name in [d, *(os.path.join(d, x) for x in dirs)]:
+            try:
+                st = os.lstat(name)
+                if stat.S_ISDIR(st.st_mode) and (st.st_mode & 0o700) != 0o700:
+                    os.chmod(name, st.st_mode | 0o700)
+            except OSError:
+                pass
+    shutil.rmtree(path, ignore_errors=True)
+    return not os.path.lexists(path)
+
+
+def _entries(path: str) -> int:
+    n, stack = 1, [path]
+    while stack:
+        try:
+            with os.scandir(stack.pop()) as it:
+                for e in it:
+                    n += 1
+                    if e.is_dir(follow_symlinks=False):
+                        stack.append(e.path)
+        except OSError:
+            pass
+    return n
+
+
+def reapable(path: str, patterns: tuple[str, ...] = REAP_PATTERNS, now: float | None = None) -> list[str]:
+    """The user's own known leftovers in the temp directory ``path`` (TD-223): entries directly under it
+    named by ``patterns``, and ``pytest-*`` under ``pytest-of-<user>/``, owned by this user and unchanged
+    (their own mtime) for REAP_AGE seconds. Never ``path`` itself, never another user's, never a symlink."""
+    now = time.time() if now is None else now
+    uid, user = os.getuid(), os.environ.get("USER") or os.environ.get("LOGNAME") or ""
+    found = []
+
+    def scan(d: str, pats: tuple[str, ...]) -> None:
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    if not any(fnmatch.fnmatchcase(e.name, p) for p in pats) or e.is_symlink():
+                        continue
+                    st = e.stat(follow_symlinks=False)
+                    if st.st_uid == uid and now - st.st_mtime >= REAP_AGE:
+                        found.append(e.path)
+        except OSError:
+            pass
+    scan(path, patterns)
+    if user:
+        scan(os.path.join(path, f"pytest-of-{user}"), ("pytest-*",))
+    return sorted(found)
+
+
+def reap(path: str, patterns: tuple[str, ...] = REAP_PATTERNS) -> tuple[list[str], int, list[str]]:
+    """Remove ``reapable(path)``: (removed, entries freed, not removed)."""
+    removed, freed, failed = [], 0, []
+    for e in reapable(path, patterns):
+        n = _entries(e) if os.path.isdir(e) else 1
+        if force_rmtree(e):
+            removed.append(e)
+            freed += n
+        else:
+            failed.append(e)
+    return removed, freed, failed
+
+
+def reaped_line(removed: list[str], freed: int, failed: list[str]) -> str | None:
+    if not removed and not failed:
+        return None
+    out = (f"  reaped {len(removed)} of your own leftovers older than a day ({freed:,} entries): "
+           + ", ".join(os.path.basename(r) for r in removed[:5]) + (" …" if len(removed) > 5 else "")) if removed else "  reaped nothing"
+    return out + (f"; could not remove {', '.join(failed[:3])}" if failed else "") + " (TD-223)"
+
+
 def cleanups(path: str) -> list[str]:
     user = os.environ.get("USER") or os.environ.get("LOGNAME") or "$USER"
     q = shlex.quote
@@ -140,18 +233,24 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{path}: cannot read its filesystem's use — not checked")
         return 0
     over = max(u["inodes"], u["space"]) >= WARN_PERCENT
+    said = reaped_line(*reap(path)) if over else None
     if a.hook:
         if over:
             print(line(path, u))
+            if said:
+                print(said)
         return 0
     print(line(path, u))
+    if said:
+        print(said)
     if over:
         counts, done = largest(path)
         if counts:
             print(f"  the largest directories in {path}, by entries" + ("" if done else f" (the walk stopped at {WALK_BUDGET:.0f}s: counts are at least these, and later directories were not read)") + ":")
             for n, name in counts[:TOP]:
                 print(f"    {n:>10,}  {path}/{name}")
-        print("  cleanups for the person to run (never run by a session — the files may be other sessions'):")
+        print("  cleanups for the person to run (never run by a session — the files may be other sessions'; "
+              "the user's own aged tmp*, precheck-* and pytest-* are reaped above):")
         for c in cleanups(path):
             print(f"    {c}")
     return 0
