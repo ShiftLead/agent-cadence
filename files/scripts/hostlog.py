@@ -442,6 +442,19 @@ class Budget:
             raise LimitHit(f"max_seconds ({self.lim['max_seconds']}) reached")
 
 
+def zip_entries(raw, size: int) -> int | None:
+    """A zip's entry count from its end-of-central-directory record, read before the directory is parsed
+    (None when it cannot be found, or the zip64 marker stands in it: the size charge bounds those)."""
+    tail = min(size, 22 + 65535)
+    raw.seek(size - tail)
+    data = raw.read(tail)
+    i = data.rfind(b"PK\x05\x06")
+    if i < 0 or len(data) < i + 12:
+        return None
+    n = int.from_bytes(data[i + 10:i + 12], "little")
+    return None if n == 0xFFFF else n
+
+
 class Truncated(Exception):
     """A compressed stream that ends early or is corrupt."""
 
@@ -724,6 +737,7 @@ class Reader:
         self.seen: set[str] = set()
         self.budget = Budget(limits, time.time())
         self.listing: list[str] | None = None
+        self.keep = None  # run_check's: drops, as it reads, a record count_host_log would never count
 
     def skip(self, why: str, n: int = 1) -> None:
         self.skipped[why] = self.skipped.get(why, 0) + n
@@ -755,6 +769,7 @@ class Reader:
             self.budget.tick()
             dirs.sort()
             for f in sorted(files):
+                self.budget.tick()
                 rel = os.path.relpath(os.path.join(d, f), top).replace(os.sep, "/")
                 if any(glob_match(g, rel) for g in match) and not any(glob_match(g, rel) for g in ex):
                     out.append(os.path.join(d, f))
@@ -871,6 +886,11 @@ class Reader:
                 outer.out = inner + outer.out
                 self.tar_members(p, outer, members, vis, young)
             elif kind == "zip":
+                size = os.fstat(raw.fileno()).st_size
+                self.budget.take(size)  # the central directory is parsed whole: its file is charged first
+                n = zip_entries(raw, size)
+                if n is not None and n > self.lim["max_files"]:
+                    raise LimitHit(f"max_files ({self.lim['max_files']}) reached: {p} holds {n} entries")
                 raw.seek(0)
                 self.zip_members(p, raw, members, vis, young)
             elif kind == "tar":
@@ -962,7 +982,8 @@ class Reader:
                 if "repo" in fields and (r["repo"] is None or r["repo"].casefold() != self.repo.casefold()):
                     continue
                 r["public"] = vis == "public" or (r["kind"] is not None and r["kind"] in self.public_kinds)
-                got.append(r)
+                if self.keep is None or self.keep(r):  # a record that cannot count is not held (memory)
+                    got.append(r)
         except Truncated as e:
             whole = False
             if young and compressed:
@@ -1051,6 +1072,9 @@ def run_check(line: str, *, repo_text: str, host_path: str, repo: str, visibilit
     try:
         start = LB.first_instant(since)
         reader = Reader(src, name, repo, roots, lim, start, set(src.get("public_kinds", [])))
+        reader.keep = lambda r: (r["at"] >= start and isinstance(r["text"], str) and chk["text"] in r["text"]
+                                 and (chk["kind"] is None or r["kind"] == chk["kind"])
+                                 and (not public_only or r["public"] is True))
         base = os.path.expanduser(src["path"])
         anchor = os.path.dirname(base) if src["shape"] == "rotated" and not os.path.lexists(base) else base
         reader.listing = reader.candidates()  # a missing path is a configuration error (rule 10)
@@ -1063,6 +1087,8 @@ def run_check(line: str, *, repo_text: str, host_path: str, repo: str, visibilit
         reader.run()
     except ConfigError as e:
         return result("error", problem=str(e))
+    except LimitHit as e:  # a limit met while listing, before any file was read
+        return result("error", skipped=reader.skipped, problem=str(e))
     except (LB.Refused, ValueError) as e:
         return result("error", problem=str(e))
     counted = LB.count_host_log(reader.records, chk, since, public_only=public_only)

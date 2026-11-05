@@ -468,6 +468,37 @@ padded = gzip.compress(lines((1, "boom"))) + b"\0" * 1024
 expect("a settled gzip with NUL padding after its end reads clean",
        case("pad", files={"a.gz": padded}, repo=DIR, mtimes={"a.gz": NOW - 3600}), outcome="passed", problem=None)
 
+expect("a zip holding more entries than max_files is refused before its directory is parsed",
+       case("manyzip", files={"a.zip": zip_bytes([(f"e{i}", b"") for i in range(50)] + [("r.log", lines((1, "boom")))])},
+            repo=ARCH, host=LIM + "max_files = 20\n"), outcome="error", problem=has("holds 51 entries"))
+calls = {"n": 0}
+
+
+def late_clock():
+    calls["n"] += 1
+    return 0.0 if calls["n"] == 1 else 1e9  # the budget's start, then always past its deadline
+
+
+H.time.monotonic = late_clock
+expect("a limit met while listing, before any file is read: an error outcome, not a crash",
+       case("listlim", files={"a.log": lines((1, "boom"))}, repo=DIR), outcome="error", problem=has("max_seconds"))
+H.time.monotonic = _mono
+recs_seen = {}
+_rs = H.Reader.read_stream
+
+
+def spy(self, *a, **k):
+    _rs(self, *a, **k)
+    recs_seen["n"] = len(self.records)
+
+
+H.Reader.read_stream = spy
+expect("records that cannot count are not held",
+       case("keep", files={"ev.jsonl": jl(*[{"at": z(at(1)), "text": "other"}] * 500, {"at": z(at(2)), "text": "boom"})},
+            repo=JSONL.replace(', repo = "repo"', "")), outcome="passed", count=1)
+expect("... (one record held, not 501)", recs_seen, n=1)
+H.Reader.read_stream = _rs
+
 # --- counting -------------------------------------------------------------------------------------------------
 expect("times 3 met", case("t3", files={"a.log": lines((1, "boom"), (2, "boom"), (3, "boom"))}, repo=DIR,
        line='host-log s times 3 "boom"'), outcome="passed", count=3, evidence=f"s@{tok(at(3))}")
