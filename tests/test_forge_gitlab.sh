@@ -188,8 +188,8 @@ echo '[]' > "$FAKE/statuses_$HEAD_SHA.json"
 [ "$(get ci <<< "$(rows 6)")" = "fail not green on ${HEAD_SHA:0:7}: pipeline 2948924546 (external); ⚠ no \`precheck\` in docs/cadence.toml — the merge gate is a CI run that spends the shared Actions minutes; set it (cadence §4.12)" ] && ok "4h'' an external pipeline whose statuses did not come back is kept, never dropped" || bad "4h'': $(get ci <<< "$(rows 6)")"
 echo '{"id": 1, "status": "failed", "name": "cadence/precheck"}' > "$FAKE/status_post.json"
 (cd "$R" && python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import forge; forge.backend(".").set_status(sys.argv[2], False, "cadence/precheck", "x" * 300)' "$S" "$HEAD_SHA") 2>&1
-python3 -c 'import json,sys; a=json.load(open(sys.argv[1])); assert "-X" in a and a[a.index("-X")+1]=="POST" and f"projects/grp%2Fsub%2Fthing/statuses/{sys.argv[2]}" in a and "state=failed" in a and "name=cadence/precheck" in a and ("description=" + "x"*255) in a, a' "$FAKE/post.args" "$HEAD_SHA" \
-    && ok "4i set_status: POST statuses/<sha>, state=failed (GitLab's word), name, the description capped at 255" || bad "4i: $(cat "$FAKE/post.args" 2>&1)"
+python3 -c 'import json,sys; a=json.load(open(sys.argv[1])); assert "-X" in a and a[a.index("-X")+1]=="POST" and f"projects/grp%2Fsub%2Fthing/statuses/{sys.argv[2]}" in a and "state=failed" in a and "name=cadence/precheck" in a and ("description=" + "x"*254 + "\u2026") in a, a' "$FAKE/post.args" "$HEAD_SHA" \
+    && ok "4i set_status: POST statuses/<sha>, state=failed (GitLab's word), name, the description cut to 255 with … (TD-227)" || bad "4i: $(cat "$FAKE/post.args" 2>&1)"
 
 # 4j. TD-118's Done when: precheck.py --pr on a GitLab MR records cadence/precheck, and the ci
 # row passes on it. A `git` shim answers only the head fetch (origin is a GitLab URL nobody

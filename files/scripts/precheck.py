@@ -68,6 +68,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -179,6 +180,25 @@ def read_head(fg, n: int, root: str, fork_ok: bool = False) -> tuple[dict, str] 
         print(f"precheck: cannot fetch PR {n}'s head {sha[:7]} from origin ({why})", file=sys.stderr)
         return 2
     return pr, sha
+
+
+DRAIN = 5.0   # seconds the tee is given to read the rest once the command exits (TD-227)
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+PYTEST_FAILED_RE = re.compile(r"(?:FAILED|ERROR) (\S+?)(?: - .*)?$")   # pytest's short test summary
+SUITES_FAILED_RE = re.compile(r"FAILED: (.+)$")                        # run_tests.sh's last line
+
+
+def failed_names(line: str) -> list[str]:
+    """The failing tests one output line names (TD-227): pytest's short-summary ``FAILED <nodeid>`` (and
+    ``ERROR <nodeid>``), or ``run_tests.sh``'s ``FAILED: <suite> …`` — its skip line read as one name.
+    Any other line names none, so a command of another kind records nothing extra."""
+    line = ANSI_RE.sub("", line).strip()
+    m = SUITES_FAILED_RE.fullmatch(line)
+    if m:
+        rest = m.group(1).strip()
+        return [rest.split(" — ")[0]] if re.match(r"\d+ skip", rest) else rest.split()
+    m = PYTEST_FAILED_RE.fullmatch(line)
+    return [m.group(1)] if m else []
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -312,9 +332,29 @@ def main(argv: list[str] | None = None) -> int:
         env = {k: v for k, v in os.environ.items() if k != "CADENCE_REPO_ROOT"}
         # its own session, so a stop takes the command's whole process group with it, never leaving a
         # grandchild (the suite, a `sleep`) running in a worktree that is about to be removed
-        p = subprocess.Popen(["bash", "-c", cmd], cwd=wt, env=env, stdin=subprocess.DEVNULL, start_new_session=True)
+        # TD-227: its output is teed (stderr merged in, every byte still printed) so a red status can
+        # name the failing tests
+        p = subprocess.Popen(["bash", "-c", cmd], cwd=wt, env=env, stdin=subprocess.DEVNULL, start_new_session=True,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        failures: list[str] = []
+
+        def tee() -> None:
+            out = sys.stdout.buffer
+            for raw in iter(p.stdout.readline, b""):
+                out.write(raw)
+                out.flush()
+                failures.extend(failed_names(raw.decode("utf-8", errors="replace")))
+        reader = threading.Thread(target=tee, daemon=True)
+        reader.start()
         try:
             rc = p.wait()
+            reader.join(DRAIN)
+            if reader.is_alive():   # a grandchild still holds the output open: the command is over, so it goes
+                try:
+                    os.killpg(p.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                reader.join(DRAIN)
         except BaseException:
             try:
                 os.killpg(p.pid, signal.SIGKILL)
@@ -341,7 +381,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"precheck: {verdict} in {took:.0f}s, on {sha}")
     if a.no_record:
         return 0 if ok else 1
-    desc = f"{'passed' if ok else f'exit {rc}'} in {took:.0f}s on {socket.gethostname()}: {cmd}"
+    named = "" if ok or not failures else ", ".join(dict.fromkeys(failures)) + "; "
+    desc = f"{'passed' if ok else f'exit {rc}'} in {took:.0f}s on {socket.gethostname()}: {named}{cmd}"
     if fork:
         desc = f"--fork-ok, a fork's head: {desc}"
     try:

@@ -72,6 +72,11 @@ NOT_FOUND = -4   # a remote-tier probe's rc for "the forge says there is no such
 _NOT_STARTED = "The job was not started because"
 
 
+def fit(text: str, limit: int) -> str:
+    """``text`` within ``limit`` characters, a cut one ending in ``…`` (TD-227), never sliced bare."""
+    return text if len(text) <= limit else text[:max(limit - 1, 0)].rstrip() + "…"
+
+
 class ForgeUnreadable(Exception):
     pass
 
@@ -360,6 +365,7 @@ class _CLI:
 
 
 class GitHub(_CLI):
+    STATUS_LIMIT = 140   # a commit status's description
     """Today's `gh` calls, moved (TD-103) — the argv of each is what the caller ran before,
     so the suites' `gh` shims answer them unchanged."""
 
@@ -551,7 +557,7 @@ class GitHub(_CLI):
         commit after the session ends. GitHub caps the description at 140 characters."""
         self._run(["api", "-X", "POST", f"repos/{{owner}}/{{repo}}/statuses/{sha}",
                    "-f", f"state={'success' if ok else 'failure'}", "-f", f"context={context}",
-                   "-f", f"description={description[:140]}"], env=_QUIET)
+                   "-f", f"description={fit(description, self.STATUS_LIMIT)}"], env=_QUIET)
 
     @staticmethod
     def head_ref(n) -> str:
@@ -747,6 +753,7 @@ _STATUS = {"success": ("completed", "success"), "failed": ("completed", "failure
 
 
 class GitLab(_CLI):
+    STATUS_LIMIT = 255   # a commit status's description (a longer one is refused)
     """`glab` against GitLab (TD-104), built on what a real project returned (glab 1.123.0,
     gitlab.com, 2026-10-13: the plan's *GitLab, as read*). Every call is `glab api` against
     the REST endpoints with the project named outright (`projects/<group%2Frepo>`, on
@@ -1104,7 +1111,7 @@ class GitLab(_CLI):
         one is refused, read 2026-10-15)."""
         self._run(self._api(f"{self.project}/statuses/{sha}", "-X", "POST",
                             "-f", f"state={'success' if ok else 'failed'}", "-f", f"name={context}",
-                            "-f", f"description={description[:255]}"), env=_QUIET_GLAB)
+                            "-f", f"description={fit(description, self.STATUS_LIMIT)}"), env=_QUIET_GLAB)
 
     @staticmethod
     def ci_runs_registered(sha: str) -> list[dict]:
