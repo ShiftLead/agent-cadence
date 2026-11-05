@@ -40,6 +40,17 @@ read*).
                                        open (merged, closed), 2 when git
                                        here cannot tell (its head not fetched, no origin/<base>)
 
+    forge.py squash-message N --gate FILE --out DIR [--unverified WHY]
+                                       compose PR N's squash message (TD-177's design 2, TD-232):
+                                       DIR/subject, DIR/body (its last paragraph the trailers:
+                                       Co-Authored-By, Agent-Model, the gate file's Review: and
+                                       Precheck:, Merge-override: with --unverified, Merged-by:)
+                                       and DIR/sha (the gate's head). Merges nothing; exit 2 and
+                                       nothing written when it refuses: no gate file, another
+                                       PR's, no head, an unverified one without --unverified (or
+                                       --unverified on one that passed), a bad AGENT_NAME or no
+                                       name at all, commits it cannot read whole
+
     forge.py in-flight TD-NNN          is the entry already being worked (cadence.md §2.9): the PRs
                                        naming it in any state, origin's branches naming it, and its
                                        Status on origin/<default> (fetched); exit 1 when an open or
@@ -476,6 +487,26 @@ class GitHub(_CLI):
 
     def commit_parents(self, sha: str) -> int:
         return len(self._json(["api", f"repos/{{owner}}/{{repo}}/commits/{sha}"]).get("parents", []))
+
+    def commit_list(self, n) -> list[dict]:
+        """The PR's commits, oldest first, as squash_message() takes them (TD-232). GitHub's list
+        stops at 250, so its length is compared with the PR's own `commits` count: a mismatch raises
+        ForgeUnreadable, and a longer PR is never squashed with part of its trailers."""
+        try:
+            raw = _pages(self._run(["api", "--paginate", f"repos/{{owner}}/{{repo}}/pulls/{n}/commits"]))
+        except ValueError as e:
+            raise ForgeUnreadable(f"{self.cli} gave unparseable JSON ({e})") from None
+        count = self._json(["api", f"repos/{{owner}}/{{repo}}/pulls/{n}"]).get("commits")
+        if not isinstance(count, int) or count != len(raw):
+            raise ForgeUnreadable(f"{self.ref(n)} lists {len(raw)} commit(s) but counts {count} — "
+                                  "not every commit could be read")
+        out = []
+        for c in raw:
+            commit = c.get("commit") or {}
+            author = commit.get("author") or {}
+            out.append({"message": commit.get("message") or "", "author_name": author.get("name") or "",
+                        "author_email": author.get("email") or ""})
+        return out
 
     # -- CI ----------------------------------------------------------------------------------
 
@@ -1047,6 +1078,16 @@ class GitLab(_CLI):
 
     def commit_parents(self, sha: str) -> int:
         return len(self._get(f"{self.project}/repository/commits/{sha}").get("parent_ids") or [])
+
+    def commit_list(self, n) -> list[dict]:
+        """The MR's commits, oldest first, as squash_message() takes them (TD-232). GitLab lists them
+        newest first and with no cap or count to compare, so `--paginate` reading every page is the
+        check: a page that cannot be read raises ForgeUnreadable."""
+        got = self._get(f"{self.project}/merge_requests/{int(n)}/commits?per_page=100", paginate=True)
+        if not isinstance(got, list):
+            raise ForgeUnreadable(f"{self.ref(n)}'s commits are not a list")
+        return [{"message": c.get("message") or "", "author_name": c.get("author_name") or "",
+                 "author_email": c.get("author_email") or ""} for c in reversed(got)]
 
     def pr_commits(self, pr: dict) -> int | None:
         """How many commits the MR carried (TD-224): its commits list, which GitLab keeps after a
@@ -1721,6 +1762,57 @@ def squash_message(title: str, ref: str, commits: list[dict], gate: list[str], m
     return f"{title} ({ref})", body
 
 
+def read_gate(path: str, n: int) -> tuple[str, list[str], str | None]:
+    """(expect, its lines, the unverified line's `<exit> <rows>` or None) of the gate file
+    `check_cadence.py --pr <n> --trailers` wrote. Raises SquashRefused when there is no such file,
+    it is empty (the gate could not read the PR), it is another PR's, or it names no head."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.read().split("\n")
+    except (OSError, ValueError) as e:
+        raise SquashRefused(f"no gate file to compose from ({e}) — run check_cadence.py --pr {n} --trailers FILE") from None
+    lines = [ln for ln in lines if ln.strip()]
+    if not lines:
+        raise SquashRefused("the gate file is empty: the cadence check could not read the PR — nothing is composed")
+    if f"pr {n}" not in lines[:1]:
+        raise SquashRefused(f"the gate file is not PR {n}'s (it starts {lines[0][:40]!r})")
+    expect = next((ln[7:].strip() for ln in lines if ln.startswith("expect ")), "")
+    if not re.fullmatch(r"[0-9a-f]{7,64}", expect):
+        raise SquashRefused("the gate file names no head (`expect <sha>`) — nothing is composed")
+    unverified = next((ln[11:].strip() for ln in lines if ln.startswith("unverified ")), None)
+    return expect, lines, unverified
+
+
+def squash_files(f, n: int, gate: str, out: str, why: str | None, env: "dict | None" = None) -> None:
+    """`forge.py squash-message`: DIR/subject, DIR/body and DIR/sha for PR n, composed from the gate
+    file and the PR's commits (TD-177's design 2). Merges nothing. Raises SquashRefused or
+    ForgeUnreadable with the reason when it composes nothing."""
+    expect, lines, unverified = read_gate(gate, n)
+    override = None
+    if unverified is not None:
+        if why is None:
+            raise SquashRefused(f"the gate did not pass (unverified {unverified}) — compose only with "
+                                "--unverified \"<why>\", said in the PR")
+        why_line = _one_line(why).encode("utf-8")[:200].decode("utf-8", "ignore").strip()
+        if not why_line:
+            raise SquashRefused("--unverified needs a why")
+        override = f"{_one_line(unverified)} — {why_line}"
+    elif why is not None:
+        raise SquashRefused("--unverified with a gate file that passed: there is nothing to override")
+    if not hasattr(f, "commit_list"):
+        raise SquashRefused("this forge has no PR commits to compose from")
+    pr = f.pr(n)
+    commits = f.commit_list(n)
+    user = subprocess.run(["git", "config", "user.name"], capture_output=True, text=True,
+                          check=False).stdout.strip()
+    subject, body = squash_message(_one_line(pr.get("title") or ""), f.ref(n), commits, lines,
+                                   merged_by(env, user), override)
+    os.makedirs(out, exist_ok=True)
+    for name, text in (("subject", subject), ("body", body), ("sha", expect)):
+        with open(os.path.join(out, name), "w", encoding="utf-8") as fh:
+            fh.write(text)
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
     ap = argparse.ArgumentParser(description="the forge adapter (TD-103)")
@@ -1741,7 +1833,19 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument("number", type=int)
     i = sub.add_parser("in-flight")
     i.add_argument("id")
+    q = sub.add_parser("squash-message")
+    q.add_argument("number", type=int)
+    q.add_argument("--gate", required=True, help="the file check_cadence.py --pr N --trailers wrote")
+    q.add_argument("--out", required=True, help="the directory to write subject, body and sha into")
+    q.add_argument("--unverified", metavar="WHY", help="compose a gate file that did not pass, saying why")
     a = ap.parse_args(argv)
+    if a.cmd == "squash-message":
+        try:
+            squash_files(backend("."), a.number, a.gate, a.out, a.unverified)
+        except (SquashRefused, ForgeUnreadable) as e:
+            print(f"squash-message: refused — {e}", file=sys.stderr)
+            return 2
+        return 0
     if a.cmd == "in-flight":
         try:
             out, rc = in_flight(".", a.id)

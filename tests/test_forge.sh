@@ -265,5 +265,71 @@ P
 )
 [ "$out" = ok ] && ok "9b agent_model and merged_by read as the hook reads (file first, empty falls through, C-locale strip, NUL dropped, ASCII words single-spaced, 120 bytes, no fallback after a fail); a bad AGENT_NAME or no name refuses" || bad "9b: $out"
 
+# 10. TD-232: `forge.py squash-message` against a gh shim for the reads — it writes subject, body and
+# sha, calls no merge, and refuses what it cannot compose whole.
+B2="$TMP/bin2"; mkdir -p "$B2"; QF="$TMP/q"; mkdir -p "$QF"
+cat > "$B2/gh" <<'SHIM'
+#!/usr/bin/env bash
+echo "$*" >> "$GH_LOG"
+case "$*" in
+  "pr view"*) cat "$QF/pr.json" ;;
+  "api --paginate repos/{owner}/{repo}/pulls/"*"/commits") cat "$QF/commits.json" ;;
+  "api repos/{owner}/{repo}/pulls/"*) cat "$QF/count.json" ;;
+  *) echo "gh-shim2: unhandled: $*" >&2; exit 64 ;;
+esac
+SHIM
+chmod +x "$B2/gh"
+Q="$TMP/qrepo"; git init -q -b main "$Q"; git -C "$Q" remote add origin git@github.com:o/r.git
+git -C "$Q" config user.name "Pat Person"
+echo '{"number":9,"title":"Add a thing","state":"OPEN","headRefOid":"abc1234","commits":[{},{}]}' > "$QF/pr.json"
+# gh --paginate writes the pages back to back
+printf '%s%s' '[{"commit":{"message":"one\n\nCo-Authored-By: g1 <g1@x>\nAgent-Model: a/b\n","author":{"name":"Pat","email":"pat@x"}}}]' \
+  '[{"commit":{"message":"two\n\nbody two\n","author":{"name":"Pat","email":"pat@x"}}}]' > "$QF/commits.json"
+echo '{"commits":2}' > "$QF/count.json"
+printf 'pr 9\nexpect abc1234\nReview: sonnet (SHIP)\nPrecheck: abc1234\n' > "$QF/gate"
+sq() { (cd "$Q" && PATH="$B2:$PATH" QF="$QF" python3 "$S/forge.py" squash-message "$@" 2>&1); }
+: > "$GH_LOG"; out=$(env -u AGENT_MODEL_FILE AGENT_NAME=g1 AGENT_MODEL=a/b bash -c "$(declare -f sq); S='$S' Q='$Q' QF='$QF' B2='$B2' sq 9 --gate '$QF/gate' --out '$QF/o1'"); rc=$?
+want=$(printf '* one\n\n* two\n\nbody two\n\nCo-Authored-By: g1 <g1@x>\nCo-Authored-By: Pat <pat@x>\nAgent-Model: a/b\nReview: sonnet (SHIP)\nPrecheck: abc1234\nMerged-by: g1 (a/b)')
+[ $rc -eq 0 ] && [ "$(cat "$QF/o1/subject")" = "Add a thing (#9)" ] && [ "$(cat "$QF/o1/body")" = "$want" ] && [ "$(cat "$QF/o1/sha")" = abc1234 ] \
+  && ! grep -qE "^pr merge|/merge( |$)" "$GH_LOG" \
+  && ok "10a squash-message writes subject, body (pages joined, trailers last, Merged-by with the model) and sha, and calls no merge" || bad "10a rc=$rc $out | $(cat "$QF/o1/body" 2>/dev/null) | $(cat "$GH_LOG")"
+out=$(env -u AGENT_NAME -u AGENT_MODEL -u AGENT_MODEL_FILE bash -c "$(declare -f sq); S='$S' Q='$Q' QF='$QF' B2='$B2' sq 9 --gate '$QF/gate' --out '$QF/o2'"); rc=$?
+[ $rc -eq 0 ] && [ "$(tail -1 "$QF/o2/body")" = "Merged-by: Pat Person" ] && ok "10b no AGENT_NAME: Merged-by is git's user.name" || bad "10b rc=$rc $out"
+out=$(env AGENT_NAME=g1 AGENT_MODEL=x/y AGENT_MODEL_FILE="$QF/model" bash -c "printf 'a/file\n' > '$QF/model'; $(declare -f sq); S='$S' Q='$Q' QF='$QF' B2='$B2' sq 9 --gate '$QF/gate' --out '$QF/o3'"); rc=$?
+[ $rc -eq 0 ] && [ "$(tail -1 "$QF/o3/body")" = "Merged-by: g1 (a/file)" ] && ok "10c AGENT_MODEL_FILE takes precedence over AGENT_MODEL" || bad "10c rc=$rc $out"
+refuse() {  # <label> <expect-in-stderr> <args...>
+  local label=$1 want=$2; shift 2; rm -rf "$QF/or"
+  out=$(env AGENT_NAME="${AN-g1}" bash -c "$(declare -f sq); S='$S' Q='$Q' QF='$QF' B2='$B2' sq $*"); rc=$?
+  [ $rc -eq 2 ] && echo "$out" | grep -q -- "$want" && [ ! -e "$QF/or/body" ] && ok "$label" || bad "$label: rc=$rc $out"
+}
+refuse "10d no gate file refuses" "no gate file" 9 --gate "$QF/none" --out "$QF/or"
+: > "$QF/empty"; refuse "10e an empty gate file (the gate could not read the PR) refuses" "is empty" 9 --gate "$QF/empty" --out "$QF/or"
+printf 'pr 8\nexpect abc1234\n' > "$QF/g8"; refuse "10f another PR's gate file refuses" "not PR 9's" 9 --gate "$QF/g8" --out "$QF/or"
+printf 'pr 9\nReview: x (SHIP)\n' > "$QF/gnx"; refuse "10g a gate file with no expect refuses" "names no head" 9 --gate "$QF/gnx" --out "$QF/or"
+printf 'pr 9\nexpect abc1234\nunverified 3 ci\n' > "$QF/gu"; refuse "10h an unverified gate file refuses without --unverified" "did not pass" 9 --gate "$QF/gu" --out "$QF/or"
+refuse "10i --unverified with a gate file that passed refuses" "nothing to override" 9 --gate "$QF/gate" --out "$QF/or" --unverified "'because'"
+AN="g 1" refuse "10j a bad AGENT_NAME refuses, never the person's name" "is not \[A-Za-z0-9._-\]" 9 --gate "$QF/gate" --out "$QF/or"
+echo '{"commits":3}' > "$QF/count.json"; refuse "10k a list shorter than the PR's count refuses" "lists 2 commit(s) but counts 3" 9 --gate "$QF/gate" --out "$QF/or"
+echo '{"commits":0}' > "$QF/count.json"; echo '[]' > "$QF/commits.json"; refuse "10l zero commits refuse" "no commits" 9 --gate "$QF/gate" --out "$QF/or"
+printf '%s%s' '[{"commit":{"message":"one\n","author":{"name":"Pat","email":"pat@x"}}}]' '[{"commit":{"message":"two\n","author":{"name":"Pat","email":"pat@x"}}}]' > "$QF/commits.json"
+echo '{"commits":2}' > "$QF/count.json"
+out=$(env AGENT_NAME=g1 bash -c "$(declare -f sq); S='$S' Q='$Q' QF='$QF' B2='$B2' sq 9 --gate '$QF/gu' --out '$QF/o4' --unverified \"\$(printf 'the host\nis down')\""); rc=$?
+[ $rc -eq 0 ] && grep -qx "Merge-override: 3 ci — the host is down" "$QF/o4/body" && [ "$(grep -c . "$QF/o4/body")" -ge 3 ] && ! grep -q '^Review:' "$QF/o4/body" \
+  && ok "10m --unverified composes an unverified gate file, its why on one Merge-override line" || bad "10m rc=$rc $out $(cat "$QF/o4/body" 2>/dev/null)"
+out=$(cd "$Q" && python3 -I - "$S" <<'P'
+import sys; sys.path.insert(0, sys.argv[1]); import forge as F
+g = F.GitLab(slug="gitlab.com/o/r")
+g._get = lambda ep, paginate=False: [{"message": "new", "author_name": "B", "author_email": "b@x"}, {"message": "old", "author_name": "A", "author_email": "a@x"}] if paginate and "/commits" in ep else None
+print([c["message"] for c in g.commit_list(4)])
+def boom(ep, paginate=False): raise F.ForgeUnreadable("page 2: HTTP 502")
+g._get = boom
+try:
+    g.commit_list(4); print("no raise")
+except F.ForgeUnreadable:
+    print("raised")
+P
+)
+[ "$out" = "$(printf "['old', 'new']\nraised")" ] && ok "10n GitLab's commit list is read oldest first, and a page it cannot read raises" || bad "10n: $out"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
