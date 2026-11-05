@@ -237,7 +237,9 @@ def unanswered(text: str, checks: list[dict], boards: list, repo: str, today_utc
                        "detail": None, "lifts": None})
     closing = [LB.item_key(r["line"]) for r in reads
                if r["own"] and r["state"] in ("open", "decided") and r["ctx"] is not None
-               and r["ctx"][2] == UNANSWERED and r["ctx"][:2] not in silent]
+               and r["ctx"][2] == UNANSWERED and r["ctx"][:2] not in silent
+               # a work order (decided, not waiting-only) waits for whoever acts on it, as sweep()'s closes do
+               and not (r["item"].decided and not LB.waiting_only(r["item"].decided[0]))]
     return filing, list(dict.fromkeys(closing))
 
 

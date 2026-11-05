@@ -195,6 +195,33 @@ board alex "$W" > "$OWN/docs/user_attention.md"; rm "$OWN/docs/ledger/TD-009.md"
 js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>&1)
 python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert len(d["to_close"].get("github.com/o/own", [])) == 1, d["to_close"]' "$js" \
   && ok "10f the gate on no open entry: its item is closed" || bad "10f: ${js:0:800}"
+# 10g-i: the age boundary, this host answering, and a decided work order
+EXACT=$(python3 -c 'from datetime import datetime, timezone, timedelta; print(datetime.now(timezone.utc).date() - timedelta(days=30))')
+entry "$OWN" 9 "event (quiet)" "$(printf '**Event (quiet):** it pages.\ncheck: host-log pager "page"\n\n**Log:**\n- %s: gate added: event (quiet)' "$EXACT")"
+board alex > "$OWN/docs/user_attention.md"; publish "$OWN"
+js=$(cd "$OWN" && TZ=UTC python3 "$S/gate_sweep.py" --json 2>&1)
+python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert not any("No host has answered" in str(f) for f in d["to_file"].values()), d["to_file"]' "$js" \
+  && ok "10g a gate exactly the event age old: not yet past it, nothing filed" || bad "10g: ${js:0:600}"
+entry "$OWN" 9 "event (quiet)" "$(printf '**Event (quiet):** it pages.\ncheck: host-log pager "page"\n\n**Log:**\n- %s: gate added: event (quiet)' "$OLD")"
+printf '%s quiet\n' "$AT" > "$LOGS/pager.log"
+printf '[sources.pager]\nshape = "file"\npath = "%s/pager.log"\nrecords = "lines"\nat = ["%%Y-%%m-%%dT%%H:%%M:%%SZ"]\n' "$LOGS" > "$OWN/docs/ledger/log-sources.toml"
+board alex "$W" > "$OWN/docs/user_attention.md"; publish "$OWN"
+printf '[repos."*"]\n[[allow]]\nroot = "%s"\nvisibility = "private"\n' "$LOGS" > "$AGENT_CADENCE_REG_DIR/host-log.toml"
+js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>&1)
+python3 -c 'import json,sys; d=json.loads(sys.argv[1]); c=[c for c in d["checks"] if c["id"]=="TD-009"][0]; assert c["outcome"]=="not yet", c; f=str(d["to_file"]); assert "No host has answered" not in f and "Still waiting on event (quiet) for TD-009" in f, f; assert len(d["to_close"].get("github.com/o/own", [])) == 1, d["to_close"]' "$js" \
+  && ok "10h this host answers an old gate: sweep() asks Still waiting, the warning is closed" || bad "10h: ${js:0:800}"
+rm "$AGENT_CADENCE_REG_DIR/host-log.toml"
+WD=$(cd "$OWN" && python3 - "$S" "$W" <<'PY'
+import sys, datetime as d; sys.path.insert(0, sys.argv[1]); import ledgerboard as LB
+print(LB.edit_line(sys.argv[2].split("\n")[0], "decide", answer="Declare it", by="alex", today=d.date.today()))
+PY
+)
+grep -q 'Decided: ' <<< "$WD" || bad "10i fixture: $WD"
+S3=$(itm "Event check broken on TD-009: the check for event (quiet) errors." "TD-009 event (quiet)")
+board alex "$(printf '%s\n%s' "$WD" "$S3")" > "$OWN/docs/user_attention.md"; publish "$OWN"
+js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>&1)
+python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert d["to_close"].get("github.com/o/own", []) == [], d["to_close"]' "$js" \
+  && ok "10i a warning decided as a work order: left for whoever acts on it, never closed by the sweep" || bad "10i: ${js:0:800}"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
