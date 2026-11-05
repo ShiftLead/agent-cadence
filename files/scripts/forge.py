@@ -334,6 +334,17 @@ class _CLI:
     def includes(self, slug: str, sha: str, commit: str) -> bool | None:
         raise ForgeUnreadable(self._no_events())
 
+    # -- the gate sweep's PRs (TD-219): this repo's own, from its checkout --------------------
+
+    def open_prs_files(self, limit: int = 100) -> list[dict]:
+        raise ForgeUnreadable(self._no_events())
+
+    def pr_diff(self, n) -> str:
+        raise ForgeUnreadable(self._no_events())
+
+    def create_pr(self, head: str, base: str, title: str, body: str) -> str:
+        raise ForgeUnreadable(self._no_events())
+
     def missing(self) -> str | None:
         """Why the CLI cannot be run at all, or None."""
         from shutil import which
@@ -698,6 +709,21 @@ class GitHub(_CLI):
         if status not in ("ahead", "identical", "behind", "diverged"):
             raise ForgeUnreadable(f"{slug}: compare gave status {status!r}")
         return status in ("ahead", "identical")
+
+    def open_prs_files(self, limit: int = 100) -> list[dict]:
+        """Open PRs of the repo here, each ``{number, head, files}`` (the gate sweep's idempotency, TD-219)."""
+        return [{"number": p.get("number"), "head": p.get("headRefName"),
+                 "files": [f.get("path") for f in p.get("files") or []]}
+                for p in self._json(["pr", "list", "--state", "open", "--limit", str(limit),
+                                     "--json", "number,headRefName,files"])]
+
+    def pr_diff(self, n) -> str:
+        return self._run(["pr", "diff", str(int(n))], env=_QUIET)
+
+    def create_pr(self, head: str, base: str, title: str, body: str) -> str:
+        """Open a PR from the pushed ``head`` onto ``base``; its URL."""
+        return self._run(["pr", "create", "--head", head, "--base", base, "--title", title, "--body", body],
+                         env=_QUIET).strip().splitlines()[-1]
 
 
 # --- GitLab -----------------------------------------------------------------------------

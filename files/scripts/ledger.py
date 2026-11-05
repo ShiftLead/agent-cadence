@@ -8,6 +8,7 @@
     ledger.py fmt [TD-n …] [--check]
     ledger.py new --title T --priority P --why FILE|- [--fix FILE|-] [--done-when FILE|-] [--type …] [--id TD-n] …
     ledger.py set TD-n --FIELD VALUE …  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|-
+    ledger.py lift TD-n --gate "event (<name>)"|"until D" --by HOST [--evidence E]   (a host's lift, TD-219)
 
 An entry may carry one optional field, between **Status:** and **Location:** (cadence.md §2):
 
@@ -1282,6 +1283,44 @@ def edit(cmd: str, argv: list[str]) -> int:
     return _lb_edit(w, cmd, a.id, kw)
 
 
+def lift(argv: list[str]) -> int:
+    """``ledger.py lift TD-n --gate "<gate>" --by <host> [--evidence <repo>#<n>|<repo>@<sha>]``: a host's lift
+    (TD-219; ledgerboard's target design §4.2, §3.2): an ``event (<name>)`` whose check passed, with its evidence,
+    or an ``until D`` that is reached, written by ledgerboard's ``plan_lift()`` (``lift_gate()``: the gate
+    removed and a ``gate lifted`` Log line in its fixed shape). The gate sweep's lift PRs are made with it. A
+    person's lift is ``set --by`` (TD-218) or the board's decide, never this: it takes no answer."""
+    ap = argparse.ArgumentParser(prog="ledger.py lift", description="a host's lift of an event or until gate")
+    ap.add_argument("id", metavar="TD-n")
+    ap.add_argument("--gate", required=True, help='"event (<name>)" or "until YYYY-MM-DD"')
+    ap.add_argument("--by", required=True, help="the host's token ([A-Za-z0-9_.@/-])")
+    ap.add_argument("--evidence", help="an event's: <repo>#<n> (pr-merged) or <repo>@<sha>, where the check passed")
+    ap.add_argument("--ledger", help="a v2 directory; default: docs/ledger/ at the work tree's top")
+    a = ap.parse_args(argv)
+    if not ID_ITEM_RE.match(a.id):
+        ap.error(f"an entry's id is TD-n, not {a.id!r}")
+    if a.gate.strip().lower().startswith("decision"):
+        ap.error("a decision is lifted by its person: ledger.py set --by, or the board's decide")
+    w = _Writer.open("lift", a.ledger)
+    if isinstance(w, int):
+        return w
+    try:
+        led, base = w.lb_ledgers()
+        plan = LBL.plan_lift(led, a.id, a.gate, a.by, evidence=a.evidence, base=base, resolve=w.roster.resolve,
+                             today=datetime.now(timezone.utc).date().isoformat())
+    except LBL.Unusable as e:
+        return w.say("lift", str(e), 2)
+    except LB.Refused as e:
+        return w.say("lift", f"refused, nothing written — {e}", 1)
+    for n in plan.info.get("notes", []):
+        w.say("lift", f"note — {n}", 0)
+    try:
+        LBL.apply(plan)
+    except OSError as e:
+        return w.say("lift", f"the write failed, every file restored: {e}", 4)
+    print(LB.entry_path(str(w.ledger), a.id, w.io[0]))
+    return 0
+
+
 def _blocked_raw(w: "_Writer", tid: str) -> str:
     """The open entry's Blocked by as written, or "" (an unknown or archived id is the writer's to refuse)."""
     found = LB.entry_path(str(w.ledger), tid, w.io[0])
@@ -1820,6 +1859,8 @@ def main(argv: list[str] | None = None) -> int:
         return move(argv[0], argv[1:])
     if argv[:1] == ["renumber"]:
         return renumber(argv[1:])
+    if argv[:1] == ["lift"]:
+        return lift(argv[1:])
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--pickable", nargs="?", const=True, default=None, metavar="yes|no",
                     help="alone: print the pick order, the blocked entries and the flags; "
