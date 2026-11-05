@@ -319,6 +319,47 @@ printf 'ledger-ids-host = "on"\n' > "$R/docs/cadence.toml"
 out=$(run --pr 31); [ "$(rowstat "$out" ci)" = PASS ] && ok "ci: no precheck set: the row reads as before" || bad "ci no precheck: $(cirow "$out")"
 rm -f "$R/docs/cadence.toml"
 
+# TD-231 (TD-177's design, Design 1): --trailers FILE hands the merge what the gate saw. Every run
+# empties FILE first; exit 0 writes the verified form, any other exit the unverified one, and a run
+# that could not read the PR nothing.
+GF="$TMP/gate"
+printf 'precheck = "make check"\n' > "$R/docs/cadence.toml"; st cadence/precheck success
+comments 31 "$(c 'cadence-review: BLOCK · sonnet · code · 2 findings' "$(ts '4 hours ago')" "$(ts '4 hours ago')")" \
+  "$(c 'cadence-review: FIXED · opus-4 · code · 2 findings' "$BEFORE" "$BEFORE")" "$(c 'cadence-review: SHIP · docs · 0 findings' "$BEFORE" "$BEFORE")"
+echo stale > "$GF"; out=$(run --pr 31 --trailers "$GF"); rc=$?
+want=$(printf 'pr 31\nexpect hhh2222\nReview: sonnet (BLOCK)\nReview: opus-4 (FIXED)\nReview: unknown (SHIP)\nPrecheck: hhh2222\n')
+[ $rc -eq 0 ] && [ "$(cat "$GF")" = "$want" ] && ok "--trailers: a passing PR writes pr, expect, each listed review in posted order (BLOCK then FIXED), unknown for a skipped model, and Precheck" \
+  || bad "--trailers pass: rc=$rc $(cat "$GF") / $out"
+ls "$TMP" | grep -q 'gate\.tmp' && bad "--trailers left its temporary file" || ok "--trailers: written whole, no temporary file left"
+comments 31 "$(c 'cadence-review: SHIP ·  · code · 0' "$BEFORE" "$BEFORE")"
+out=$(run --pr 31 --trailers "$GF"); grep -qx 'Review: unknown (SHIP)' "$GF" && ok "--trailers: an empty model field is unknown" || bad "--trailers empty model: $(cat "$GF")"
+comments 31 "$(c 'cadence-review: SHIP' "$BEFORE" "$BEFORE")"
+out=$(run --pr 31 --trailers "$GF"); grep -qx 'Review: unknown (SHIP)' "$GF" && ok "--trailers: a bare verdict is unknown" || bad "--trailers bare verdict: $(cat "$GF")"
+comments 31 "$(c 'cadence-review: SHIP · sonnet · code · 0' "$BEFORE" "$BEFORE")"
+st other/ci success; printf 'ledger-ids-host = "on"\n' > "$R/docs/cadence.toml"
+out=$(run --pr 31 --trailers "$GF"); rc=$?
+[ $rc -eq 0 ] && ! grep -q '^Precheck:' "$GF" && grep -qx 'Review: sonnet (SHIP)' "$GF" && ok "--trailers: no precheck set, no Precheck line" || bad "--trailers no precheck: rc=$rc $(cat "$GF")"
+printf 'precheck = "make check"\n' > "$R/docs/cadence.toml"; st cadence/precheck failure
+echo stale > "$GF"; out=$(run --pr 31 --trailers "$GF"); rc=$?
+[ $rc -eq 1 ] && [ "$(cat "$GF")" = "$(printf 'pr 31\nexpect hhh2222\nunverified 1 ci\n')" ] \
+  && ok "--trailers: a failing PR writes the unverified form naming the failing row, no Review or Precheck" || bad "--trailers fail: rc=$rc $(cat "$GF")"
+pr 31 OPEN topic31 "TD-001: open, precheck" src/a.py; out=$(run --pr 31 --trailers "$GF"); rc=$?
+[ $rc -eq 1 ] && [ "$(tail -1 "$GF")" = "unverified 1 ci,ledger" ] && ok "--trailers: two failing rows are both named, in row order" || bad "--trailers two fails: rc=$rc $(cat "$GF")"
+pr 31 OPEN topic31 "open, precheck" src/a.py
+st cadence/precheck pending; out=$(run --pr 31 --trailers "$GF"); rc=$?
+[ $rc -eq 3 ] && [ "$(tail -1 "$GF")" = "unverified 3 ci" ] && ok "--trailers: exit 3 names the unknown rows" || bad "--trailers unknown: rc=$rc $(cat "$GF")"
+echo stale > "$GF"; out=$(run --pr 9931 --trailers "$GF"); rc=$?
+[ $rc -eq 2 ] && [ ! -s "$GF" ] && ok "--trailers: a PR that cannot be read leaves FILE empty (exit 2)" || bad "--trailers unreadable: rc=$rc [$(cat "$GF")]"
+echo stale > "$GF"; out=$(run --since 1d --trailers "$GF"); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q -- "--trailers takes --pr only" && [ ! -s "$GF" ] && ok "--trailers: refused outside --pr, FILE emptied" || bad "--trailers --since: rc=$rc $out"
+out=$(run --pr 31 --json); printf '%s' "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d["prs"][0]; r=[x for x in p["rows"] if x["rule"]=="review"][0]; assert p["head_sha"]=="hhh2222" and r["reviews"]==[{"model":"sonnet","verdict":"SHIP"}] and "carve_out" not in r' \
+  && ok "--json: the PR's head_sha and the review row's reviews, no carve_out on a commented review" || bad "--json reviews: $out"
+rm -f "$FAKE/statuses_hhh2222.json"; comments 1 "$(c 'cadence-review: SHIP · sonnet · code · 0' "$BEFORE" "$BEFORE")" "$(c 'cadence-review: FIXED · opus · code · late' "$AFTER" "$AFTER")"
+out=$(run --pr 1 --trailers "$GF"); rc=$?
+[ $rc -eq 0 ] && [ "$(cat "$GF")" = "$(printf 'pr 1\nexpect hhh2222\nReview: sonnet (SHIP)\n')" ] \
+  && ok "--trailers: a merged PR lists only the reviews before its merge, and no Precheck" || bad "--trailers merged: rc=$rc $(cat "$GF") / $out"
+rm -f "$R/docs/cadence.toml" "$FAKE/statuses_hhh2222.json"
+
 _out=$out   # the TD-148 block below reads PR 31's run above
 # TD-186: run from a checkout of the PR's branch whose tip the forge's head lacks (a push it has
 # not seen yet), the row is unknown — a stale head's green is not the PR's
@@ -829,6 +870,9 @@ bepr 21 "$btitle" "$bsha" docs/user_attention.md
 out=$( cd "$D" && python3 "$SCRIPT" --pr 21 2>&1 ); rc=$?
 [ "$(rowstat "$out" review)" = PASS ] && echo "$out" | grep -q "cadence §4.5 carve-out" && [ $rc -eq 0 ] \
   && ok "a tool-made board PR (board_edit.py's message, one item) passes review with no comment, rc 0" || bad "board-edit PR rc=$rc: $out"
+out=$( cd "$D" && python3 "$SCRIPT" --pr 21 --json 2>&1 )
+printf '%s' "$out" | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["prs"][0]["rows"] if x["rule"]=="review"][0]; assert r["carve_out"]=="board-edit" and "reviews" not in r' \
+  && ok "TD-231: the board-edit PR's review row carries carve_out board-edit and lists no reviews" || bad "carve_out board-edit: $out"
 out=$( cd "$D" && python3 "$SCRIPT" --since 1d --json 2>&1 )
 printf '%s' "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert not [c for c in d["direct"]["commits"] if c["subject"].endswith("(#21)")], d["direct"]' 2>/dev/null \
   && ok "its squash is a PR's, never listed among the direct commits" || bad "board-edit squash listed as direct: $out"
@@ -900,6 +944,9 @@ bepr 31 "$qt" "$qsha" "$RANKF"
 out=$( cd "$D" && python3 "$SCRIPT" --pr 31 2>&1 ); rc=$?
 [ "$(rowstat "$out" review)" = PASS ] && [ "$(rowstat "$out" ledger)" = NA ] && echo "$out" | grep -q "queue-edit" && [ $rc -eq 0 ] \
   && ok "a tool-made rank PR (queue: subject, the rank file alone, new file with its header) passes review with no comment, ledger row n/a" || bad "queue-edit PR rc=$rc: $out"
+out=$( cd "$D" && python3 "$SCRIPT" --pr 31 --json 2>&1 )
+printf '%s' "$out" | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["prs"][0]["rows"] if x["rule"]=="review"][0]; assert r["carve_out"]=="queue-edit"' \
+  && ok "TD-231: the rank PR's review row carries carve_out queue-edit" || bad "carve_out queue-edit: $out"
 bepr 32 "$qt" "$qsha" "$RANKF" scripts/x.sh                                  # more than the rank file
 out=$( cd "$D" && python3 "$SCRIPT" --pr 32 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && [ "$(rowstat "$out" ledger)" = FAIL ] \

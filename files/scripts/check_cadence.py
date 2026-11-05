@@ -16,6 +16,27 @@ for the two that were skipped.
                                      (run verdict pass | fail | unknown | none — one per exit
                                      code 0 | 1 | 3 | 2; none = an empty --since window), and
                                      "layers" when this machine sets any (TD-126)
+    --pr N --trailers FILE           also hand the merge what the gate saw (TD-231, TD-177's design,
+                                     docs/plans/2026-10-31-merged-by-trailer.md): see "The gate file"
+
+The gate file (--trailers, --pr only; with --branch or --since a usage error, exit 2). Every run
+first empties FILE, then writes it whole (a temporary name, then renamed):
+
+    exit 0       pr <n>
+                 expect <sha>                     the head the rows judged, from the PR's one read
+                 Review: <model> (<verdict>)      one per `cadence-review:` comment the review row
+                                                  lists, in the order posted; <model> is the text
+                                                  before the first `·` after the verdict, or
+                                                  `unknown` when that is empty, `code` or `docs`
+                 Precheck: <sha>                  when the repo sets `precheck` and the head's
+                                                  cadence/precheck status reads success
+    exit 1 or 3  pr <n>, expect <sha>, unverified <exit> <the failing rows' names, comma-separated, or ->
+                 (exit 3: the unknown rows), and no Review: or Precheck:
+    exit 2       nothing: the PR could not be read, so FILE stays empty and no merge is composed
+
+The lines are attested, not verified, like the review row they come from (cadence §4.9). A
+review row passed by a tool carve-out lists no comments and carries "carve_out" (board-edit or
+queue-edit) in --json. The check stays a reader: it merges nothing.
 
 The person's cadence layers on this machine (cadence_layer.py, cadence.md §9.18) are reported
 after the rows — one line, which layers and what each changes by § — and never move a verdict:
@@ -461,7 +482,17 @@ def row_review(pr):
         tail += f"; {len(odd)} not read, its verdict not SHIP, FIXED or BLOCK: " + ", ".join(
             w for _, w in odd
         )
-    return row("review", "pass", f"{verdict} · {rest} · {when}{tail} (self-attested)")
+    out = row("review", "pass", f"{verdict} · {rest} · {when}{tail} (self-attested)")
+    out["reviews"] = [{"model": review_model(r), "verdict": v} for _, _, v, r in seen]
+    return out
+
+
+def review_model(rest):
+    """The reviewer's model in a `cadence-review:` line's rest (stripped of ` ·-`): the text before
+    its first `·`, stripped of spaces — `unknown` where that is empty, or is `code` or `docs` (a
+    comment that skipped the model field). For the gate file's `Review:` lines (TD-231)."""
+    model = rest.split("·", 1)[0].strip()
+    return "unknown" if model in ("", "code", "docs") else model
 
 
 def odd_verdict(body):
@@ -950,6 +981,7 @@ def _judge_runs(pr, sha, runs, required=None, runs_unread=False):
 def _judge(pr, sha, runs):
     # TD-117: a repo with `precheck` set is judged by it. An open PR whose head carries no
     # cadence/precheck status has not been checked, whatever else ran — no evidence, not a pass.
+    want = None
     if pr["state"] == "open":
         want, unread = _precheck()
         if unread:
@@ -964,6 +996,16 @@ def _judge(pr, sha, runs):
         if want and not any(r.get("name") == PRECHECK for r in runs):
             return row("ci", "unknown", f"precheck is set (docs/cadence.toml) and {sha[:7]} carries no "
                        f"{PRECHECK} status — run {RUN_PRECHECK} --pr {pr.get('number')}")
+    out = _judge_read(pr, sha, runs)
+    # TD-231: the head the precheck passed, for the gate file's `Precheck:` — the status itself,
+    # read as this row read it, never the row's verdict (which can also pass on check runs)
+    if want and any(r.get("name") == PRECHECK and r.get("status") == "completed"
+                    and r.get("conclusion") == "success" for r in runs):
+        out["precheck"] = sha
+    return out
+
+
+def _judge_read(pr, sha, runs):
     if not runs:
         coming = _ci_coming(pr, sha) if pr["state"] == "open" else None
         if coming:
@@ -2437,12 +2479,15 @@ def row_board_edit_pr(pr, root):
     sha, files = found
     cls, _ = classify_direct(root, sha, pr["title"], files)
     if cls == "board-archive":
-        return row("review", "pass", "tool-made board archive (cadence §3.4, §4.5 carve-out): board_edit.py's "
-                   "message, the writer's archive at the threshold — no comment needed")
-    if cls != "board-edit":
+        out = row("review", "pass", "tool-made board archive (cadence §3.4, §4.5 carve-out): board_edit.py's "
+                  "message, the writer's archive at the threshold — no comment needed")
+    elif cls == "board-edit":
+        out = row("review", "pass", "tool-made board edit (cadence §4.5 carve-out): board_edit.py's message, "
+                  "one item's line — the person's action is the review; no comment needed")
+    else:
         return None
-    return row("review", "pass", "tool-made board edit (cadence §4.5 carve-out): board_edit.py's message, "
-               "one item's line — the person's action is the review; no comment needed")
+    out["carve_out"] = "board-edit"
+    return out
 
 
 def row_queue_edit_pr(pr, root):
@@ -2476,8 +2521,10 @@ def row_queue_edit_pr(pr, root):
     if any(f.startswith("⚠") for f in flags):
         return None
     n = len({m.group(1) for m in map(_lb().RANK_LINE_RE.match, removed + [a for _, a in added]) if m})
-    return row("review", "pass", f"tool-made rank edit (queue-edit, cadence §2.4): {pr['title'].split(' (')[0]} — "
-               f"{rank} alone, {n} line(s) — the person's move is the review; no comment needed")
+    out = row("review", "pass", f"tool-made rank edit (queue-edit, cadence §2.4): {pr['title'].split(' (')[0]} — "
+              f"{rank} alone, {n} line(s) — the person's move is the review; no comment needed")
+    out["carve_out"] = "queue-edit"
+    return out
 
 
 def board_edit_or_review(pr, root):
@@ -2582,6 +2629,7 @@ def check_pr(number, root):
         "url": pr["url"],
         "title": pr["title"],
         "state": pr["state"].upper(),   # the JSON's form since before TD-103: OPEN | MERGED | CLOSED
+        "head_sha": pr.get("head_sha"),  # the one read the rows judged (TD-231's `expect`)
         "rows": rows,
         "verdict": verdict(rows),
     }
@@ -2681,6 +2729,38 @@ def layers_report():
         return {"error": f"{type(e).__name__}: {e}"}, None
 
 
+def write_whole(path, text):
+    """Write `text` to `path` whole: a temporary name beside it, then renamed over it."""
+    tmp = f"{path}.tmp{os.getpid()}"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def gate_file(res, code):
+    """The gate file's text for one PR's result and the run's exit code (TD-231, see the module
+    doc): the verified form on 0, `unverified` on any other, nothing with no head to bind it to."""
+    head = res.get("head_sha")
+    if not head:
+        return ""
+    lines = [f"pr {res['pr']}", f"expect {head}"]
+    rows = {r["rule"]: r for r in res["rows"]}
+    if code == 0:
+        lines += [f"Review: {r['model']} ({r['verdict']})" for r in rows.get("review", {}).get("reviews", [])]
+        pc = rows.get("ci", {}).get("precheck")
+        if pc == head:
+            lines.append(f"Precheck: {pc}")
+    else:
+        status = "fail" if code == 1 else "unknown"
+        names = [r["rule"] for r in res["rows"] if r["status"] == status]
+        lines.append(f"unverified {code} {','.join(names) or '-'}")
+    return "\n".join(lines) + "\n"
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="cadence check — a detector, not a gate")
     g = ap.add_mutually_exclusive_group(required=True)
@@ -2690,7 +2770,19 @@ def main(argv=None):
         "--since", help="7d, 24h, 2w, or YYYY-MM-DD: every PR merged since then"
     )
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--trailers", metavar="FILE",
+                    help="with --pr: write what the gate saw for the merge's trailers (TD-231)")
     args = ap.parse_args(argv)
+    if args.trailers is not None:
+        # every run empties FILE first, so a stale gate file never outlives the run that replaced it
+        try:
+            write_whole(args.trailers, "")
+        except OSError as e:
+            print(f"CANNOT CHECK: --trailers {args.trailers}: {e}", file=sys.stderr)
+            return 2
+        if not args.pr:
+            print("--trailers takes --pr only (a usage error with --branch or --since)", file=sys.stderr)
+            return 2
 
     root = repo_root()
     unread = load_forge(root)
@@ -2766,7 +2858,16 @@ def main(argv=None):
                 f"TRUNCATED: the window returned {SINCE_LIMIT} PRs, the list limit — "
                 "older merges in it were not checked; narrow --since"
             )
-    return {"pass": 0, "fail": 1, "none": 2, "unknown": 3}[overall]
+    code = {"pass": 0, "fail": 1, "none": 2, "unknown": 3}[overall]
+    if args.trailers is not None and results:
+        # last, after the output: a run that fails before here leaves FILE empty, never a
+        # verified file beside a non-zero exit (step 5 runs squash-message after `;`)
+        try:
+            write_whole(args.trailers, gate_file(results[0], code))
+        except (OSError, ValueError) as e:  # ValueError: text the file's encoding refuses
+            print(f"--trailers {args.trailers}: not written ({e})", file=sys.stderr)
+            return 2
+    return code
 
 
 if __name__ == "__main__":
