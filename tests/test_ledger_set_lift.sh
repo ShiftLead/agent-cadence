@@ -9,7 +9,8 @@
 # other part still carries the gate is answered and left open (`shared board item left open`); an item only on
 # another roster repo's board logs `board <repo>` and writes no board; no item logs `no board item`; a reassign
 # (--why) is refused when the new person has no board, and otherwise closes a's item as moved, files b's decide
-# item and a's fyi, leaving a shared parent snapshot open; an override (--override) is refused when a has no board, and otherwise closes a's item and
+# item and a's fyi, leaving a shared parent snapshot open (b's item, a's fyi, or the close of a's item, on another
+# roster repo's board by a PR opened there and left for its review, TD-226); an override (--override) is refused when a has no board, and otherwise closes a's item and
 # files a's fyi; a two-decision drop is refused; ledgerboard's tripwire() (and uncovered_decisions() for the
 # reassign) passes each route as the PR would carry it; and
 # board_edit.py decide's two-file lift is attested the same way.
@@ -45,6 +46,16 @@ case "${AO_MODE:-person}" in
 esac
 EOF
 chmod +x "$TMP/bin/ao"
+# `gh pr create` for the notices PR in another roster repo (TD-226): logged; $GH_FAIL refuses it.
+cat > "$TMP/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+echo "$*" >> "$GH_LOG"
+[ "$1 $2" = "pr create" ] || { echo "gh-shim: unhandled: $*" >&2; exit 64; }
+[ -n "${GH_FAIL:-}" ] && { echo "pull request create failed: GraphQL: boom" >&2; exit 1; }
+echo "https://github.com/o/tools/pull/$(grep -c '^pr create' "$GH_LOG")"
+EOF
+chmod +x "$TMP/bin/gh"
+export GH_LOG="$TMP/gh.log"
 export PATH="$TMP/bin:$PATH"
 
 entry() {  # $1 file, $2 id, $3 title, $4 extra header lines (each ending \n)
@@ -69,6 +80,7 @@ mkrepo() {  # $1 origin, $2 clone — the ledger and the board below; committed 
   entry "$L/TD-021.md" TD-021 "two people" '**Blocked by:** decision (Robin), decision (Sam)\n'
   entry "$L/TD-031.md" TD-031 "nobody's board" '**Blocked by:** decision (Kim)\n'
   entry "$L/TD-030.md" TD-030 "named as another's" '**Blocked by:** decision (Robin)\n'
+  entry "$L/TD-040.md" TD-040 "Lee's, on another board" '**Blocked by:** decision (Lee)\n'
   { printf '# Board\n\nPeople: Robin, Sam\n\n## Needs the user\n\n'
     item "TD-002 decision (Robin)" "" "Go (default) | Not yet"
     item "TD-003 decision (Robin)" "" "CSV (default) | JSON | Not yet" " Lifts: CSV | JSON."
@@ -89,7 +101,7 @@ line_of() { grep -n -- "Context: $1" "$B" | head -1 | cut -d: -f1; }
 
 # another roster repo whose board (at its origin/main) asks about TD-020 of this one
 git init -q --bare -b main "$TMP/o2"; git init -q -b main "$TMP/seed2"; mkdir -p "$TMP/seed2/docs"
-{ printf '# Board\n\nPeople: Robin\n\n## Needs the user\n\n'; item "w#TD-020 decision (Robin)" "" "Go (default) | Not yet"; } \
+{ printf '# Board\n\nPeople: Robin, Lee\n\n## Needs the user\n\n'; item "w#TD-020 decision (Robin)" "" "Go (default) | Not yet"; } \
   > "$TMP/seed2/docs/user_attention.md"
 git -C "$TMP/seed2" add -A; git -C "$TMP/seed2" commit -qm seed; git -C "$TMP/seed2" push -q "$TMP/o2" main
 git clone -q "$TMP/o2" "$TMP/tools"; rm -rf "$TMP/seed2"
@@ -250,6 +262,43 @@ lp set TD-021 --blocked-by "" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
 lp set TD-021 --blocked-by "decision (Sam)" --by Sam >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && same docs && ok "a --by who is not the gate's person is refused (lift_gate), writing nothing" \
   || bad "wrong person (rc=$rc): $(cat "$TMP/err")"
+
+# --- 8b) a notice whose person's board is another roster repo's goes there by a PR, left open (TD-226)
+onb() { git -C "$TMP/o2" show "$1:docs/user_attention.md" 2>/dev/null; }   # the board on that branch at origin
+out=$(lp set TD-002 --blocked-by "decision (Lee)" --by Robin --why "Lee owns exports now" 2>"$TMP/err"); rc=$?
+[ $rc -eq 0 ] && grep -qx '\*\*Blocked by:\*\* decision (Lee)' "$L/TD-002.md" \
+  && grep -q "^- \[x\] .*Context: TD-002 decision (Robin)\..*Closed: $LOCAL — moved to decision (Lee) by Robin\.$" "$B" \
+  && grep -q '^- \[ \] fyi .*TD-002.s decision moved from you to Lee, by Robin' "$B" \
+  && ! grep -q 'Context: TD-002 decision (Lee)' "$B" \
+  && onb notices/w-TD-002 | grep -q '^- \[ \] decide .*Context: w#TD-002 decision (Lee)\. Due: ' \
+  && [ "$(onb notices/w-TD-002 | grep -c '^- \[')" -eq 2 ] \
+  && grep -q '^pr create --head notices/w-TD-002 --base main --title board: w#TD-002 decision (Robin) moved to decision (Lee)' "$GH_LOG" \
+  && [ "$(printf '%s\n' "$out" | tail -1)" = "https://github.com/o/tools/pull/1" ] \
+  && [ -z "$(git -C "$TMP/tools" status --porcelain)" ] && ! git -C "$TMP/tools" rev-parse -q --verify notices/w-TD-002 >/dev/null \
+  && ! uc | grep -q "decision-uncovered" \
+  && ok "a reassign to a person on another roster board: a's notices here, b's decide item there by a PR left open" \
+  || bad "reassign elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-002 | tail -2) | $(cat "$GH_LOG")"
+reset
+out=$(lp set TD-040 --blocked-by "" --by Robin --override "Lee is away" 2>"$TMP/err"); rc=$?
+[ $rc -eq 0 ] && ! grep -q 'Blocked by' "$L/TD-040.md" && same docs/user_attention.md \
+  && onb notices/w-TD-040 | grep -q "^- \[ \] fyi .*TD-040.s decision (Lee) was lifted by override, by Robin: Lee is away.* Context: w#TD-040\." \
+  && grep -q '^pr create --head notices/w-TD-040 ' "$GH_LOG" \
+  && ok "an override for a person on another roster board: the fyi there by a PR, this board untouched" \
+  || bad "override elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-040 | tail -1)"
+reset
+out=$(lp set TD-020 --blocked-by "decision (Sam)" --by Robin --why "Sam owns it now" 2>"$TMP/err"); rc=$?
+[ $rc -eq 0 ] && grep -q '^- \[ \] decide .*Context: TD-020 decision (Sam)\. Due: ' "$B" \
+  && grep -q '^- \[ \] fyi .*TD-020.s decision moved from you to Sam' "$B" \
+  && onb notices/w-TD-020 | grep -q "^- \[x\] .*Context: w#TD-020 decision (Robin)\..*Closed: $LOCAL — moved to decision (Sam) by Robin\.$" \
+  && [ "$(onb notices/w-TD-020 | grep -c '^- \[')" -eq 1 ] && grep -q '^pr create --head notices/w-TD-020 ' "$GH_LOG" \
+  && ok "a reassign whose old item is on another roster board: closed there as moved, by a PR left open" \
+  || bad "close elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-020)"
+reset
+git -C "$TMP/o2" branch -q -D notices/w-TD-040
+GH_FAIL=1 lp set TD-040 --blocked-by "" --by Robin --override "Lee is away" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -q 'boom' "$TMP/err" && ! onb notices/w-TD-040 >/dev/null \
+  && ok "a notices PR the forge refuses: both files here put back, the pushed branch deleted again" \
+  || bad "notices refused (rc=$rc): $(cat "$TMP/err")"
 
 # --- 9) board_edit.py decide's two-file lift is attested the same way
 EDIT="$DC/files/scripts/board_edit.py"

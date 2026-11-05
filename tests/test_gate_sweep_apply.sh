@@ -2,7 +2,7 @@
 # TD-219 (slice 3): gate_sweep.py --apply and ledger.py lift. Each host lift is its own tool PR on
 # lift/TD-n/<gate> (ledgerboard's target design §4.4): nothing when that PR is open or another open PR's diff
 # already lifts the gate, an act item when its PR was closed unmerged. This repo's own board items and closes
-# are one sweep PR on sweep/<date>; another repo's board is skipped (TD-226). The checkout is left as it was.
+# are one sweep PR on sweep/<date>; another repo's board is skipped (TD-229). The checkout is left as it was.
 #
 # Offline: origin's fetch URL is only named (never fetched); its push URL is a bare repo here. `gh` is a PATH
 # shim: `api` answers from fixture files, `pr list|diff|create` from $FIX and a log.
@@ -100,8 +100,8 @@ b=$(shown "sweep/$TODAY:docs/user_attention.md")
 grep -q 'Ship the thing?.*Context: TD-001 decision (alex)' <<< "$b" && ok "3a the sweep PR files this board's decide item" || bad "3a: $b / $out"
 grep -q '^- \[x\] .*Lift of event (gone) on TD-007 was closed.*Closed: .* the gate sweep' <<< "$b" \
   && ok "3b ... and closes an item whose gate is gone" || bad "3b: $b"
-! grep -q 'Rename it' <<< "$b" && has "file on github.com/o/oth: 1 item(s) skipped — another repo's board is written by a tool PR there (TD-226)" \
-  && ok "3c another repo's board: skipped, said, TD-226" || bad "3c: $out"
+! grep -q 'Rename it' <<< "$b" && has "file on github.com/o/oth: 1 item(s) skipped — another repo's board is written by a PR there (TD-229)" \
+  && ok "3c another repo's board: skipped, said, TD-229" || bad "3c: $out"
 [ "$(git -C "$BARE" diff --name-only main "sweep/$TODAY")" = docs/user_attention.md ] && ok "3d the sweep PR changes the board alone" || bad "3d"
 [ "$(git -C "$OWN" rev-parse HEAD)" = "$before" ] && [ -z "$(git -C "$OWN" status --porcelain)" ] \
   && [ "$(git -C "$OWN" worktree list | wc -l)" = 1 ] && [ -z "$(git -C "$OWN" branch --list 'lift/*' 'sweep/*')" ] \
