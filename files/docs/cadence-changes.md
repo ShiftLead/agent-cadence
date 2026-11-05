@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-05 — A gate item's answer is a decide-lift PR, never a plain board edit or a direct push
+Do: answer an item whose Context names a gate in one commit, squash-merged, the board and ledger as the decide writer leaves them; that PR needs no review comment, and anything else answering a gate item takes review.
+See: cadence.md §4.6; TD-218.
+
 ## 2026-11-04 — The cadence check's new `gates` row fails a decision gate dropped with no answer, or added with no board item
 Do: lift a `decision (<p>)` only by its person's answer on the board (or a logged reassign/override), and file a gate's board item in the PR that adds the gate; a lift by another person is a ⚠ for review.
 See: cadence.md §3.4; TD-218.

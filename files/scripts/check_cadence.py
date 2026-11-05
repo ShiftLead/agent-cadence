@@ -59,6 +59,15 @@ never a fake pass):
               TD-170) alone, every changed line is `TD-NNN: <key>`
               (a `#` comment too where the commit creates the file), and the file it
               leaves has no ⚠ flag. A PR touching anything else needs its review.
+              A PR that answers a gate item (an item whose Context names a gate gains
+              a Decided:) is judged by ledgerboard's lift_pr_verdict (v2.4, TD-218),
+              never the board-edit carve-out: a decide lift — one commit under the
+              board's decide subject, a base board with People:, the edit_line()
+              answer and the ledger decide_lift() writes, its Log date within a day
+              of the PR's opening and its Decided: date from a day before the
+              opening to a day after the merge — passes with no comment; any other
+              takes review, the row naming why. A board holding a line break other
+              than a newline is never a carve-out's.
     ci        every check run — and, on GitHub, every commit status (TD-117) — on the
               head commit either succeeded or was SKIPPED by
               the workflow, and at least one actually ran. A skip never fails the row
@@ -148,7 +157,8 @@ suffix, not the root — classified as
     stamp         only Swept:/Swept-deep: lines on docs/user_attention.md
     board-append  whole `- [ ]` items with a Due:, under a `## Needs…` heading, nothing removed
     board-edit    one item's tick (+ Closed:), Due:, Decided: or reply tails changed, under board_edit.py's fixed
-                  message (ledgerboard's subject() writes it and subject_kind() reads it)
+                  message (ledgerboard's subject() writes it and subject_kind() reads it) — but never an
+                  answer to a gate item (its Context names a gate), which lands by PR only (TD-218, (d))
     reviewed      forge = "none" only (TD-105): the commit's body carries a cadence-review:
                   line (REVIEW_RE's grammar, the last if several) — there are no PRs, so the
                   squash commit holds the §4.9 evidence; a BLOCK there is a fail
@@ -1987,8 +1997,59 @@ def _direct_rules(root, sha):
     return "; ".join(m for st, m in board_change_problems(base, head) if st == "fail")
 
 
+# The line breaks str.splitlines() honours beyond \n and \r: the carve-outs read a board by splitlines() and
+# ledgerboard's verdicts by "\n", so a board holding one could show the two different lines. Such a board is
+# never a carve-out's: it takes review (TD-218 review, PR #101).
+ODD_BREAK_RE = re.compile("[\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
+
+
+def _odd_break(root, sha):
+    """Whether the board at ``sha`` or at its parent holds an ODD_BREAK_RE character (an unreadable board too)."""
+    texts = [_show(root, c, BOARD) for c in (f"{sha}^", sha)]
+    return any(t is None or ODD_BREAK_RE.search(t) for t in texts)
+
+
+def gate_answer(base_line, head_line):
+    """Whether one board line, changed in place, answers a gate item (ledgerboard v2.4, SPEC *The merge gate's
+    verdicts*): an open item at the base whose Context names one entry and one gate gains or changes a
+    `Decided:` at the head (open or closed), whatever its kind (SPEC: "an item that gains Decided: with a gate in
+    its Context"; lift_pr_verdict then refuses a non-decide one, so it takes review). Such an answer is lift_pr_verdict()'s to judge, never the plain
+    board-edit carve-out's. The gate is read by ledgerboard's _item_gate, the test lift_pr_verdict applies
+    (the module has no public name for it)."""
+    lb = _lb()
+    if not lb.ITEM_RE.match(base_line) or lb.item_key(base_line) != lb.item_key(head_line):
+        return False
+    got = lb.parse_board(base_line, warn=False)
+    if lb.ITEM_RE.match(head_line):
+        now = lb.parse_board(head_line, warn=False)
+    elif lb.CLOSED_ITEM_RE.match(head_line):
+        now = lb.parse_closed_items(head_line)
+    else:
+        return False
+    if not got or not now or lb._item_gate(got[0].text)[1] is None:
+        return False
+    b, h = got[0], now[0]
+    return h.decided is not None and (h.decided, h.decided_by) != (b.decided, b.decided_by)
+
+
+def board_gate_answers(base, head):
+    """The board lines a change answers as gate items (gate_answer), each base line paired with its head
+    line by item key."""
+    lb = _lb()
+    was = {lb.item_key(ln): ln for ln in base.splitlines() if lb.ITEM_RE.match(ln)}
+    out = []
+    for ln in head.splitlines():
+        if lb.ITEM_RE.match(ln) or lb.CLOSED_ITEM_RE.match(ln):
+            b = was.get(lb.item_key(ln))
+            if b is not None and b != ln and gate_answer(b, ln):
+                out.append((b, ln))
+    return out
+
+
 def classify_direct(root, sha, subject, files):
     """(class, detail) for one direct commit; class is stamp | board-append | board-edit | board-archive | fail."""
+    if BOARD in files and _odd_break(root, sha):
+        return "fail", "the board holds a line break other than a newline (or is unreadable), which no carve-out reads"
     if sorted(files) == sorted([BOARD, ARCHIVE]):
         return classify_archive(root, sha, subject)
     if files != [BOARD]:
@@ -2016,6 +2077,9 @@ def classify_direct(root, sha, subject, files):
         return "fail", "appended items outside the ## Needs section"
     if len(removed) == 1 and len(new) == 1 and _lb().is_open_item(removed[0]) \
             and _lb().is_item(new[0]) and _edit_key(removed[0]) == _edit_key(new[0]):
+        if gate_answer(removed[0], new[0]):
+            return "fail", ("a gate item's answer lands by PR only (ledgerboard SPEC *The merge gate's verdicts*, (d)): "
+                            "the item's Context names a gate, and it gains a Decided:")
         if _lb().subject_kind(subject) == "edit":
             bad = _direct_rules(root, sha)
             if bad:
@@ -2152,25 +2216,11 @@ def row_gates(pr, root):
         return row("gates", "na", "the PR touches neither the ledger nor the board")
     if not root:
         return row("gates", "unknown", "no clone to read the gates' change from")
-    if pr["state"] == "merged":
-        new = pr.get("merge_sha")
-        old = f"{new}^" if new else None
-    else:
-        new = pr.get("head_sha")
-        old = None
-    if not new:
-        return row("gates", "unknown", f"{FORGE.cli if FORGE else 'the forge'} gave no commit")
-    if git(["cat-file", "-e", f"{new}^{{commit}}"], cwd=root) is None:
-        fetch_once(root)
-        if git(["cat-file", "-e", f"{new}^{{commit}}"], cwd=root) is None:
-            # merged, the row only warns (below), so a commit out of reach is not checked, as the ledger row's
-            return row("gates", "na" if pr["state"] == "merged" else "unknown",
-                       f"gates not checked: {new[:7]} is not in this clone")
-    if old is None:
-        mb = git(["merge-base", default_ref(root), new], cwd=root)
-        if not mb:
-            return row("gates", "unknown", f"no merge-base of {new[:7]} with {default_ref(root)}")
-        old = mb.strip()
+    old, new, why = pr_ends(pr, root)
+    if why:
+        # merged, the row only warns (below), so a commit out of reach is not checked, as the ledger row's
+        return row("gates", "na" if pr["state"] == "merged" and "not in this clone" in why else "unknown",
+                   f"gates not checked: {why}")
     base, head = _DocsTree(root, old), _DocsTree(root, new)
     if not (base.ok and head.ok):
         return row("gates", "unknown", f"the tree at {old[:7]} or {new[:7]} is unreadable")
@@ -2216,6 +2266,79 @@ def _tool_pr_commit(pr, root):
         return None
     names = git(["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", sha], cwd=root)
     return sha, [f for f in (names or "").split("\0") if f]
+
+
+def pr_ends(pr, root):
+    """(base, head, None) — the commits a PR's change runs between: an open PR's merge-base with the default
+    branch and its head, a merged PR's merge commit's parent and that commit — or (None, None, why)."""
+    if pr["state"] == "merged":
+        new = pr.get("merge_sha")
+        old = f"{new}^" if new else None
+    else:
+        new = pr.get("head_sha")
+        old = None
+    if not new:
+        return None, None, f"{FORGE.cli if FORGE else 'the forge'} gave no commit"
+    if git(["cat-file", "-e", f"{new}^{{commit}}"], cwd=root) is None:
+        fetch_once(root)
+        if git(["cat-file", "-e", f"{new}^{{commit}}"], cwd=root) is None:
+            return None, None, f"{new[:7]} is not in this clone"
+    if old is None:
+        mb = git(["merge-base", default_ref(root), new], cwd=root)
+        if not mb:
+            return None, None, f"no merge-base of {new[:7]} with {default_ref(root)}"
+        old = mb.strip()
+    return old, new, None
+
+
+def row_lift_pr(pr, root):
+    """TD-218, ledgerboard v2.4 (SPEC *The merge gate's verdicts*): a PR whose board change answers a gate item
+    (board_gate_answers: an item whose Context names a gate gains a `Decided:`) is judged by lift_pr_verdict(),
+    even when it changes no ledger file. A decide lift — one commit under the board's decide subject, the
+    board's one item answered by edit_line() and the ledger byte-equal to decide_lift()'s result, dated within
+    a day of the PR — passes the review row: the person's answer is its review. Any other such PR takes
+    ordinary review, its row naming why it is not a lift. None when the PR answers no gate item, or its trees
+    cannot be read (the next carve-out, then the ordinary review row, decides)."""
+    if not root or BOARD not in (pr.get("files") or []):
+        return None
+    old, new, why = pr_ends(pr, root)
+    if why:
+        return None
+    b_board, h_board = _show(root, old, BOARD), _show(root, new, BOARD)
+    if b_board is None or h_board is None:
+        return None
+    if ODD_BREAK_RE.search(b_board) or ODD_BREAK_RE.search(h_board):
+        ordinary = row_review(pr)
+        ordinary["detail"] += " — the board holds a line break other than a newline, so no carve-out reads it"
+        return ordinary
+    if not board_gate_answers(b_board, h_board):
+        return None
+    try:  # the forge's ISO timestamps, as aware datetimes (lift_pr_verdict takes each as its UTC date)
+        created = parse_ts(pr.get("created_at"))
+        merged = parse_ts(pr.get("merged_at")) if pr["state"] == "merged" else None
+    except ValueError:
+        created = merged = None
+    found = _tool_pr_commit(pr, root)
+    # the one commit's own files (diff-tree), not the forge's list, which a long PR truncates
+    files = sorted(found[1]) if found else sorted(pr.get("files") or [])
+    subject = (git(["log", "-1", "--format=%s", new], cwd=root) or "").strip()
+    if pr["state"] == "merged":
+        subject = subject.removesuffix(f" ({pr.get('ref') or ''})")
+    lb = _lb()
+    if not created:
+        verdict_ = {"carve_out": False, "review": [("lift-no-date", "the forge gave no createdAt it could read")]}
+    else:
+        verdict_ = lb.lift_pr_verdict(_DocsTree(root, old), _DocsTree(root, new), files,
+                                      subject, 1 if found else 2,  # 2: not one commit, all the verdict asks
+                                      created, merged, this_repo(root))
+    if verdict_["carve_out"]:
+        return row("review", "pass", "decide lift (ledgerboard SPEC *The merge gate's verdicts*): one commit, the "
+                   "board's answer and the ledger decide_lift() writes — the person's answer is the review; "
+                   "no comment needed")
+    ordinary = row_review(pr)
+    reason = verdict_["review"][0][1] if verdict_["review"] else "not a decide lift"
+    ordinary["detail"] += f" — it answers a gate item and is not a decide lift ({reason}), so it takes review"
+    return ordinary
 
 
 def row_board_edit_pr(pr, root):
@@ -2279,7 +2402,7 @@ def row_queue_edit_pr(pr, root):
 
 def board_edit_or_review(pr, root):
     found = None
-    for carve_out in (row_board_edit_pr, row_queue_edit_pr):
+    for carve_out in (row_lift_pr, row_board_edit_pr, row_queue_edit_pr):
         try:
             found = carve_out(pr, root)
         except Exception:  # the carve-out unreadable: the ordinary review row still reads the comments
