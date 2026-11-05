@@ -62,9 +62,12 @@ never a fake pass):
               A PR that answers a gate item (an item whose Context names a gate gains
               a Decided:) is judged by ledgerboard's lift_pr_verdict (v2.4, TD-218),
               never the board-edit carve-out: a decide lift — one commit under the
-              board's decide subject, the edit_line() answer and the ledger
-              decide_lift() writes, dated within a day of the PR — passes with no
-              comment; any other takes review, the row naming why.
+              board's decide subject, a base board with People:, the edit_line()
+              answer and the ledger decide_lift() writes, its Log date within a day
+              of the PR's opening and its Decided: date from a day before the
+              opening to a day after the merge — passes with no comment; any other
+              takes review, the row naming why. A board holding a line break other
+              than a newline is never a carve-out's.
     ci        every check run — and, on GitHub, every commit status (TD-117) — on the
               head commit either succeeded or was SKIPPED by
               the workflow, and at least one actually ran. A skip never fails the row
@@ -1994,10 +1997,23 @@ def _direct_rules(root, sha):
     return "; ".join(m for st, m in board_change_problems(base, head) if st == "fail")
 
 
+# The line breaks str.splitlines() honours beyond \n and \r: the carve-outs read a board by splitlines() and
+# ledgerboard's verdicts by "\n", so a board holding one could show the two different lines. Such a board is
+# never a carve-out's: it takes review (TD-218 review, PR #101).
+ODD_BREAK_RE = re.compile("[\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
+
+
+def _odd_break(root, sha):
+    """Whether the board at ``sha`` or at its parent holds an ODD_BREAK_RE character (an unreadable board too)."""
+    texts = [_show(root, c, BOARD) for c in (f"{sha}^", sha)]
+    return any(t is None or ODD_BREAK_RE.search(t) for t in texts)
+
+
 def gate_answer(base_line, head_line):
     """Whether one board line, changed in place, answers a gate item (ledgerboard v2.4, SPEC *The merge gate's
     verdicts*): an open item at the base whose Context names one entry and one gate gains or changes a
-    `Decided:` at the head (open or closed). Such an answer is lift_pr_verdict()'s to judge, never the plain
+    `Decided:` at the head (open or closed), whatever its kind (SPEC: "an item that gains Decided: with a gate in
+    its Context"; lift_pr_verdict then refuses a non-decide one, so it takes review). Such an answer is lift_pr_verdict()'s to judge, never the plain
     board-edit carve-out's. The gate is read by ledgerboard's _item_gate, the test lift_pr_verdict applies
     (the module has no public name for it)."""
     lb = _lb()
@@ -2032,6 +2048,8 @@ def board_gate_answers(base, head):
 
 def classify_direct(root, sha, subject, files):
     """(class, detail) for one direct commit; class is stamp | board-append | board-edit | board-archive | fail."""
+    if BOARD in files and _odd_break(root, sha):
+        return "fail", "the board holds a line break other than a newline (or is unreadable), which no carve-out reads"
     if sorted(files) == sorted([BOARD, ARCHIVE]):
         return classify_archive(root, sha, subject)
     if files != [BOARD]:
@@ -2287,7 +2305,13 @@ def row_lift_pr(pr, root):
     if why:
         return None
     b_board, h_board = _show(root, old, BOARD), _show(root, new, BOARD)
-    if b_board is None or h_board is None or not board_gate_answers(b_board, h_board):
+    if b_board is None or h_board is None:
+        return None
+    if ODD_BREAK_RE.search(b_board) or ODD_BREAK_RE.search(h_board):
+        ordinary = row_review(pr)
+        ordinary["detail"] += " — the board holds a line break other than a newline, so no carve-out reads it"
+        return ordinary
+    if not board_gate_answers(b_board, h_board):
         return None
     try:  # the forge's ISO timestamps, as aware datetimes (lift_pr_verdict takes each as its UTC date)
         created = parse_ts(pr.get("created_at"))
@@ -2295,6 +2319,8 @@ def row_lift_pr(pr, root):
     except ValueError:
         created = merged = None
     found = _tool_pr_commit(pr, root)
+    # the one commit's own files (diff-tree), not the forge's list, which a long PR truncates
+    files = sorted(found[1]) if found else sorted(pr.get("files") or [])
     subject = (git(["log", "-1", "--format=%s", new], cwd=root) or "").strip()
     if pr["state"] == "merged":
         subject = subject.removesuffix(f" ({pr.get('ref') or ''})")
@@ -2302,7 +2328,7 @@ def row_lift_pr(pr, root):
     if not created:
         verdict_ = {"carve_out": False, "review": [("lift-no-date", "the forge gave no createdAt it could read")]}
     else:
-        verdict_ = lb.lift_pr_verdict(_DocsTree(root, old), _DocsTree(root, new), sorted(pr.get("files") or []),
+        verdict_ = lb.lift_pr_verdict(_DocsTree(root, old), _DocsTree(root, new), files,
                                       subject, 1 if found else 2,  # 2: not one commit, all the verdict asks
                                       created, merged, this_repo(root))
     if verdict_["carve_out"]:

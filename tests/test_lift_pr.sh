@@ -115,6 +115,66 @@ sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
 print(C.classify_direct(root, sha, C.git(["log", "-1", "--format=%s"], cwd=root).strip(), ["docs/user_attention.md"]))
 EOF
 
+# a board holding a line break other than a newline (here U+2028 in a gate item's text, already at the base) is
+# never a carve-out's: the carve-outs read lines by splitlines(), the verdicts by "\n" (TD-218 review, PR #101)
+git -C "$R" switch -q -C sep origin/main
+python3 - "$R/docs/user_attention.md" <<'EOF2'
+import sys
+p = sys.argv[1]; t = open(p, encoding="utf-8").read()
+open(p, "w", encoding="utf-8").write(t.replace("Warm the cache", "Warm\u2028 the cache", 1))
+EOF2
+git -C "$R" commit -qam "a separator on the board"
+python3 - "$R/docs/user_attention.md" <<'EOF2'
+import sys
+p = sys.argv[1]; t = open(p, encoding="utf-8").read()
+lines = t.split("\n")
+i = next(n for n, ln in enumerate(lines) if "Warm" in ln)
+lines[i] = lines[i].replace("One more round.", "One more round. Decided: Go (by pat) (2026-01-15).")
+open(p, "w", encoding="utf-8").write("\n".join(lines))
+EOF2
+git -C "$R" commit -qam "$DECIDE"
+python3 - "$R" "$S" <<'EOF2' | grep -q "^none fail fail$" && ok "a U+2028 board: no carve-out passes a gate answer, PR or direct" || bad "separator: $(python3 - "$R" "$S" <<<'' 2>&1 | tail -1)"
+import sys
+root, s = sys.argv[1:]
+sys.path.insert(0, s)
+import check_cadence as C
+class Stub:
+    cli = "gh"
+    def comments(self, n):
+        return []
+C.FORGE = Stub()
+sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
+subj = C.git(["log", "-1", "--format=%s", sha], cwd=root).strip()
+C.git(["update-ref", "refs/remotes/origin/main", f"{sha}^"], cwd=root)  # the PR is the answer commit alone
+pr = {"number": 5, "ref": "#5", "state": "open", "head_sha": sha, "files": ["docs/user_attention.md"], "title": subj,
+      "created_at": "2026-01-15T09:00:00Z"}
+e = C.row_board_edit_pr(pr, root)
+r = C.board_edit_or_review(pr, root)
+print("none" if e is None else e["status"], r["status"], C.classify_direct(root, sha, subj, ["docs/user_attention.md"])[0])
+EOF2
+git -C "$R" update-ref refs/remotes/origin/main "$(git -C "$R.git" rev-parse main)"
+
+# the forge's file list is not trusted: a lift whose forge list names only the board and ledger, but whose one
+# commit also changes another file, takes review (the commit's own files are judged)
+case_pr "$LIFT" "$DECIDE"; echo w >> "$R/other.txt"; git -C "$R" commit -q --amend -a --no-edit
+st=$(python3 - "$R" "$S" <<'EOF2'
+import sys
+root, s = sys.argv[1:]
+sys.path.insert(0, s)
+import check_cadence as C
+class Stub:
+    cli = "gh"
+    def comments(self, n):
+        return []
+C.FORGE = Stub()
+sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
+pr = {"number": 5, "ref": "#5", "state": "open", "head_sha": sha, "title": "x", "created_at": "2026-01-15T09:00:00Z",
+      "files": ["docs/ledger/TD-100.md", "docs/user_attention.md"]}
+print(C.board_edit_or_review(pr, root)["status"])
+EOF2
+)
+[ "$st" = fail ] && ok "a lift whose commit changes a file the forge's list leaves out takes review" || bad "files: $st"
+
 # a PR answering no gate item is not this carve-out's: a ledger-only PR reads as ordinary review, nothing appended
 case_pr "a gate removed by hand" "ledger: set TD-150 (session w-1)"
 IFS=$'\t' read -r st cls det <<< "$(judge open 2026-01-15T09:00:00Z)"
