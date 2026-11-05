@@ -9,7 +9,7 @@
 # other part still carries the gate is answered and left open (`shared board item left open`); an item only on
 # another roster repo's board logs `board <repo>` and writes no board; no item logs `no board item`; a reassign
 # (--why) is refused when the new person has no board, and otherwise closes a's item as moved, files b's decide
-# item and a's fyi; an override (--override) is refused when a has no board, and otherwise closes a's item and
+# item and a's fyi, leaving a shared parent snapshot open; an override (--override) is refused when a has no board, and otherwise closes a's item and
 # files a's fyi; a two-decision drop is refused; ledgerboard's tripwire() (and uncovered_decisions() for the
 # reassign) passes each route as the PR would carry it; and
 # board_edit.py decide's two-file lift is attested the same way.
@@ -235,6 +235,15 @@ lp set TD-002 --blocked-by "" --by Sam --override "Robin is away a month" >/dev/
   && [ -z "$(tw)" ] && ok "an override: Log, a's item closed, a's fyi; the tripwire passes" \
   || bad "override (rc=$rc): $(cat "$TMP/err") | $(grep -n 'TD-002' "$B" "$L/TD-002.md") | $(tw)"
 reset
+lp set TD-011 --blocked-by "decision (Sam)" --by Robin --why "Sam owns part one" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && grep -q '^- \[ \] decide .*Context: TD-010 decision (Robin)\. Parts: TD-011, TD-012\.' "$B" \
+  && grep -q '^- \[ \] decide .*Context: TD-011 decision (Sam)\.' "$B" && [ -z "$(tw)" ] && [ -z "$(uc)" ] \
+  && ok "a reassign leaves a shared parent snapshot open while another part still carries the gate" \
+  || bad "reassign shared (rc=$rc): $(cat "$TMP/err") | $(grep -n 'TD-010' "$B") | $(tw) | $(uc)"
+reset
+lp set TD-002 --blocked-by "decision (Sam)" --by Robin --override "away" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 2 ] && same docs && ok "--override with a Blocked by that swaps the decision is a usage error" \
+  || bad "override+swap (rc=$rc): $(cat "$TMP/err")"
 lp set TD-021 --blocked-by "" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 2 ] && same docs && grep -q 'one at a time' "$TMP/err" \
   && ok "dropping two decisions at once is refused: one at a time" || bad "two (rc=$rc): $(cat "$TMP/err")"

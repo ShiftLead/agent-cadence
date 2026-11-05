@@ -1358,7 +1358,7 @@ def _boards(w: _Writer) -> tuple[list[tuple], dict[str, str], str]:
             continue
         names[k] = r
         others.append((u, root.name, text, io[1](BOARD_ARCHIVE_REL) or ""))
-    others.sort(key=lambda b: named(b[0], Path(b[1]))[0])
+    others.sort(key=lambda b: (0, LB.origin_key(b[0])) if LB.origin_key(b[0]) else (1, b[1].lower()))  # §3.2: no origin last
     return [own, *others], names, repo
 
 
@@ -1403,6 +1403,9 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
     refusal = agent_sessions.person_session_refusal()
     if refusal:
         return w.say("set", f"refused — {refusal}; nothing was written", 1)
+    if added and override is not None:
+        return w.say("set", "--override drops the decision; a Blocked by that swaps it for another is a reassign "
+                            "(--why)", 2)
     if added or override is not None:
         return _set_moved(w, tid, fields, by, gone[0], added[0] if added else None, why, override, led, path, text)
     if why is not None:
@@ -1488,7 +1491,9 @@ def _set_moved(w: _Writer, tid: str, fields: dict, by: str, gate: str, to: str |
     a reassign is refused when the new person has no board, closes a's items about the gate as moved, files
     the new person's ``decide`` item and gives a an ``fyi``; an override is refused when a has no board to
     notify, and gives a an ``fyi`` (closing a's items about the gate, which the sweep would close once the
-    gate is gone). Every board written is this repo's own: one that is another repo's is refused (a tool PR
+    gate is gone) — but never an item that still asks about another part carrying the gate (a shared parent
+    snapshot), which stays open. Every board written is this repo's own (an item about the gate on another
+    repo's board is left for that repo's sweep): one that is another repo's is refused (a tool PR
     there is not written from here yet). Ledger first, then the board; any board refusal restores both."""
     from ledgerboard import board as LBB
     a = gate[len("decision ("):-1]
@@ -1514,7 +1519,8 @@ def _set_moved(w: _Writer, tid: str, fields: dict, by: str, gate: str, to: str |
     board = str(w.root / BOARD_REL)
     try:
         items = [it for bd, it, st in LB.covers(text, gate, boards, repo)
-                 if st in ("open", "decided") and bd == (LB.origin_key(boards[0][0]) or boards[0][1])]
+                 if st in ("open", "decided") and bd == (LB.origin_key(boards[0][0]) or boards[0][1])
+                 and not _still_asked(led, it, LBL.tid_of(tid), gate)]   # a shared item still asks about others
     except LB.Refused as e:
         return w.say("set", f"refused — the board items for {gate}: {e}", 1)
     old_board = LBB.read(board)
@@ -1532,7 +1538,7 @@ def _set_moved(w: _Writer, tid: str, fields: dict, by: str, gate: str, to: str |
                 board, ask, kind="decide", context=f"{me} decision ({b})",
                 due=(day + timedelta(days=REASSIGN_DUE_DAYS)).isoformat(), answers=["Go", "Not yet"], default=0,
                 detail={"context": [f"{me}'s decision moved from {a} to you, by {by}: {said}."], "question": ask,
-                        "recommended": f"Go — {me} becomes pickable", "otherwise": "it stays blocked"}))
+                        "recommended": f"{me} becomes pickable", "otherwise": "it stays blocked"}))
             note = f"{me}'s decision moved from you to {b}, by {by}: {said}"
         else:
             note = f"{me}'s decision ({a}) was lifted by override, by {by}: {said}"
@@ -1546,6 +1552,15 @@ def _set_moved(w: _Writer, tid: str, fields: dict, by: str, gate: str, to: str |
     print(path)
     print(board)
     return 0
+
+
+def _still_asked(led: "LBL.Ledger", item: "LB.BoardItem", tid: str, gate: str) -> bool:
+    """Whether a covering item still asks about another open entry: its Context entry or a ``Parts:`` id, other
+    than ``tid``, that carries ``gate`` — a shared parent snapshot, left open when ``tid``'s gate moves."""
+    key = " ".join(gate.split()).lower()
+    return any(" ".join(g.split()).lower() == key
+               for x, t in _parts_after(led, item, {}).items() if x != tid
+               for g in LBL._decisions(LB.entries(t)[0]["blocked_raw"]))
 
 
 def _parts_after(led: "LBL.Ledger", item: "LB.BoardItem", changed: Mapping[str, str]) -> dict[str, str]:
