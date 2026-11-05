@@ -2826,13 +2826,6 @@ def main(argv=None):
     elif truncated or dstat == "unknown" or any(r["verdict"] == "unknown" for r in results):
         overall = "unknown"
     acked = acknowledged(results)
-    if args.trailers is not None and results:
-        code = {"pass": 0, "fail": 1, "none": 2, "unknown": 3}[overall]
-        try:
-            write_whole(args.trailers, gate_file(results[0], code))
-        except OSError as e:
-            print(f"--trailers {args.trailers}: not written ({e})", file=sys.stderr)
-            return 2
     layers, layer_line = layers_report()
     if args.json:
         out = {"prs": results, "verdict": overall}
@@ -2865,7 +2858,16 @@ def main(argv=None):
                 f"TRUNCATED: the window returned {SINCE_LIMIT} PRs, the list limit — "
                 "older merges in it were not checked; narrow --since"
             )
-    return {"pass": 0, "fail": 1, "none": 2, "unknown": 3}[overall]
+    code = {"pass": 0, "fail": 1, "none": 2, "unknown": 3}[overall]
+    if args.trailers is not None and results:
+        # last, after the output: a run that fails before here leaves FILE empty, never a
+        # verified file beside a non-zero exit (step 5 runs squash-message after `;`)
+        try:
+            write_whole(args.trailers, gate_file(results[0], code))
+        except (OSError, ValueError) as e:  # ValueError: text the file's encoding refuses
+            print(f"--trailers {args.trailers}: not written ({e})", file=sys.stderr)
+            return 2
+    return code
 
 
 if __name__ == "__main__":

@@ -333,6 +333,8 @@ want=$(printf 'pr 31\nexpect hhh2222\nReview: sonnet (BLOCK)\nReview: opus-4 (FI
 ls "$TMP" | grep -q 'gate\.tmp' && bad "--trailers left its temporary file" || ok "--trailers: written whole, no temporary file left"
 comments 31 "$(c 'cadence-review: SHIP ·  · code · 0' "$BEFORE" "$BEFORE")"
 out=$(run --pr 31 --trailers "$GF"); grep -qx 'Review: unknown (SHIP)' "$GF" && ok "--trailers: an empty model field is unknown" || bad "--trailers empty model: $(cat "$GF")"
+comments 31 "$(c 'cadence-review: SHIP' "$BEFORE" "$BEFORE")"
+out=$(run --pr 31 --trailers "$GF"); grep -qx 'Review: unknown (SHIP)' "$GF" && ok "--trailers: a bare verdict is unknown" || bad "--trailers bare verdict: $(cat "$GF")"
 comments 31 "$(c 'cadence-review: SHIP · sonnet · code · 0' "$BEFORE" "$BEFORE")"
 st other/ci success; printf 'ledger-ids-host = "on"\n' > "$R/docs/cadence.toml"
 out=$(run --pr 31 --trailers "$GF"); rc=$?
@@ -341,6 +343,9 @@ printf 'precheck = "make check"\n' > "$R/docs/cadence.toml"; st cadence/precheck
 echo stale > "$GF"; out=$(run --pr 31 --trailers "$GF"); rc=$?
 [ $rc -eq 1 ] && [ "$(cat "$GF")" = "$(printf 'pr 31\nexpect hhh2222\nunverified 1 ci\n')" ] \
   && ok "--trailers: a failing PR writes the unverified form naming the failing row, no Review or Precheck" || bad "--trailers fail: rc=$rc $(cat "$GF")"
+pr 31 OPEN topic31 "TD-001: open, precheck" src/a.py; out=$(run --pr 31 --trailers "$GF"); rc=$?
+[ $rc -eq 1 ] && [ "$(tail -1 "$GF")" = "unverified 1 ci,ledger" ] && ok "--trailers: two failing rows are both named, in row order" || bad "--trailers two fails: rc=$rc $(cat "$GF")"
+pr 31 OPEN topic31 "open, precheck" src/a.py
 st cadence/precheck pending; out=$(run --pr 31 --trailers "$GF"); rc=$?
 [ $rc -eq 3 ] && [ "$(tail -1 "$GF")" = "unverified 3 ci" ] && ok "--trailers: exit 3 names the unknown rows" || bad "--trailers unknown: rc=$rc $(cat "$GF")"
 echo stale > "$GF"; out=$(run --pr 9931 --trailers "$GF"); rc=$?
@@ -349,6 +354,10 @@ echo stale > "$GF"; out=$(run --since 1d --trailers "$GF"); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q -- "--trailers takes --pr only" && [ ! -s "$GF" ] && ok "--trailers: refused outside --pr, FILE emptied" || bad "--trailers --since: rc=$rc $out"
 out=$(run --pr 31 --json); printf '%s' "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d["prs"][0]; r=[x for x in p["rows"] if x["rule"]=="review"][0]; assert p["head_sha"]=="hhh2222" and r["reviews"]==[{"model":"sonnet","verdict":"SHIP"}] and "carve_out" not in r' \
   && ok "--json: the PR's head_sha and the review row's reviews, no carve_out on a commented review" || bad "--json reviews: $out"
+rm -f "$FAKE/statuses_hhh2222.json"; comments 1 "$(c 'cadence-review: SHIP · sonnet · code · 0' "$BEFORE" "$BEFORE")" "$(c 'cadence-review: FIXED · opus · code · late' "$AFTER" "$AFTER")"
+out=$(run --pr 1 --trailers "$GF"); rc=$?
+[ $rc -eq 0 ] && [ "$(cat "$GF")" = "$(printf 'pr 1\nexpect hhh2222\nReview: sonnet (SHIP)\n')" ] \
+  && ok "--trailers: a merged PR lists only the reviews before its merge, and no Precheck" || bad "--trailers merged: rc=$rc $(cat "$GF") / $out"
 rm -f "$R/docs/cadence.toml" "$FAKE/statuses_hhh2222.json"
 
 _out=$out   # the TD-148 block below reads PR 31's run above
