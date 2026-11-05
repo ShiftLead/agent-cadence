@@ -4,6 +4,7 @@
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
 export XDG_CONFIG_HOME="$TMP/config"
 # A fresh CI runner has no global git identity (TD-047): the fixtures commit with this one.
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t

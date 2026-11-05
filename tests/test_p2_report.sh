@@ -6,6 +6,8 @@ export TZ=UTC  # TD-209: `date -d 'N days'` from now is N×24h, an hour short ac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NEW="$ROOT/files/scripts/nudge_user_attention.py"
 TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+export TMP   # the embedded Python's mkdtemp goes under it (TD-225)
 
 # No real `gh` from this suite (TD-052): --due-only --fetch asks gh for this repo's open PRs,
 # and a run from inside a real clone would ask GitHub. A stub that always fails = offline.
@@ -409,8 +411,8 @@ def run_with(exc, board):
         mod.logger.removeHandler(cap)
     return out, [r.levelno for r in cap.records]
 
-import pathlib, tempfile
-tmp = pathlib.Path(tempfile.mkdtemp())
+import os, pathlib, tempfile
+tmp = pathlib.Path(tempfile.mkdtemp(dir=os.environ["TMP"]))  # under the suite's TMP, which its trap removes (TD-225)
 (tmp / "docs").mkdir()
 board = tmp / "docs" / "user_attention.md"; board.write_text("x")
 (tmp / "docs" / "cadence.toml").write_text(

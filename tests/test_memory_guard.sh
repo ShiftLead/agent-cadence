@@ -8,6 +8,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GUARD="$ROOT/files/scripts/check_claude_memory.sh"
 INSTALLER="$ROOT/files/scripts/install_git_hooks.sh"
 TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
 FAKEHOME="$TMP/home"; mkdir -p "$FAKEHOME"
 PASS=0; FAIL=0; SKIPPED=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
@@ -295,7 +296,6 @@ out=$(run_guard "$R"); rc=$?
 grep -q "memory link" <<< "$(HOME="$FAKEHOME" XDG_CONFIG_HOME="$TMP/xdg" CLAUDE_PROJECT_DIR="$R" bash "$GUARD" --hook 2>&1)" \
   && ok "TD-140: the warning reaches the SessionStart hook's output" || bad "td140 hook"
 
-rm -rf "$TMP"
 
 # A skip is counted in the tally, and is a failure wherever CI is set (TD-046).
 echo; echo "$PASS passed, $FAIL failed${SKIPPED:+ ($SKIPPED skipped)}" | sed 's/ (0 skipped)//'
