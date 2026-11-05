@@ -13,7 +13,7 @@ This is agent-cadence's part of the manager brief (ShiftLead design §4.8, its T
 
 **Permissions a member asks for.** This repo's gate in place of the template's `pdm run test`: `./run_tests.sh`, `bash tests/…`, `ruff check`, `python3 files/scripts/…`. **Deny besides, with a reason:** `sync.sh` or `agent-cadence adopt` against anything but a temp fixture, `git config`, `git push` with `ALLOW_MAIN_PUSH`, `gh api -X PATCH`, `adopt_repo_settings.sh --apply`, anything under `~/.config/agent-cadence`, another repo's checkout.
 
-**A board line** goes on a branch named `orch-<slug>`. **Never `gh pr merge --delete-branch` from a worktree** — it merges, then fails on local cleanup, so a merged PR reads as failed; merge with `gh pr merge <n> --squash`, then `gh pr view <n> --json state`. Format per the board's own header: `- [ ] YYYY-MM-DD (session ac-manager on <host>) — what's needed. Context: … Due: YYYY-MM-DD.` Keep entries short.
+**A board line** goes on a branch named `orch-<slug>`. **Never `gh pr merge --delete-branch` from a worktree** — it merges, then fails on local cleanup, so a merged PR reads as failed; merge through the procedure's step 5 line (cadence.md §4.2), run whole as one command — `m=$(mktemp -d); python3 files/scripts/check_cadence.py --pr <n> --trailers "$m/gate"; python3 files/scripts/forge.py squash-message <n> --gate "$m/gate" --out "$m" && gh pr merge <n> --squash --match-head-commit "$(cat "$m/sha")" --subject "$(cat "$m/subject")" --body-file "$m/body"` — then `gh pr view <n> --json state`. Format per the board's own header: `- [ ] YYYY-MM-DD (session ac-manager on <host>) — what's needed. Context: … Due: YYYY-MM-DD.` Keep entries short.
 
 **Standing rules** — these add to the template's never-list, and bind your member too:
 

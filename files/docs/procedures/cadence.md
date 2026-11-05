@@ -91,8 +91,25 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    `gh pr edit --base`, which fails on gh 2.46, TD-143; GitLab: `glab mr update <n> --target-branch main`)
    before deleting the old base, which would close the PR for good — or, for a stack you
    meant, add a `cadence-stack: <why>` line to the PR body (§1).
-5. Merge only on exit 0 (`gh pr merge <n> --squash` — no `--delete-branch` from a worktree,
-   cadence §1.4; GitLab: `glab mr merge <n> --squash`). Exit 3 is *look*, not *merge*: wait for a running CI and re-run.
+5. Merge only on exit 0, through this line, run whole as one command (TD-233, cadence §4.2): the gate hands the merge what it
+   saw (`--trailers`), `forge.py squash-message` composes the squash from it and merges nothing, and the merge stays the
+   forge CLI's own command, so whatever guards a merge by that command still sees it. GitHub:
+
+   ```bash
+   m=$(mktemp -d); python3 scripts/check_cadence.py --pr <n> --trailers "$m/gate"; python3 scripts/forge.py squash-message <n> --gate "$m/gate" --out "$m" && gh pr merge <n> --squash --match-head-commit "$(cat "$m/sha")" --subject "$(cat "$m/subject")" --body-file "$m/body"
+   ```
+
+   GitLab:
+
+   ```bash
+   m=$(mktemp -d); python3 scripts/check_cadence.py --pr <n> --trailers "$m/gate"; python3 scripts/forge.py squash-message <n> --gate "$m/gate" --out "$m" && glab mr merge <n> --yes --squash --sha "$(cat "$m/sha")" --squash-message "$(cat "$m/subject"; printf '\n\n'; cat "$m/body")"
+   ```
+
+   The `;` after the gate is deliberate: `squash-message` refuses a gate that did not pass by itself, so a failing PR
+   reaches no merge. `--match-head-commit` / `--sha` makes the forge refuse a push made between the gate and the merge.
+   Never add `--delete-branch` from a worktree (cadence §1.4); confirm with §1.4's `gh pr view <n> --json state`.
+   A person merges through the same line from their shell (it writes `Merged-by: <user.name>`).
+   Exit 3 is *look*, not *merge*: wait for a running CI and re-run.
    **The wait is one background command, never a poll in the turn (TD-180):** where ShiftLead's `ao` is on PATH,
    `ao pr wait <n> && python3 scripts/check_cadence.py --pr <n>` — it folds the PR's checks into one word and names a
    *conflicting* PR, which runs no checks and which `gh pr checks` prints nothing for (a nonzero exit is
@@ -102,7 +119,9 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    A `ci` row that says *too early to call it no CI* or *CI is starting* is the minute after a
    push, before the workflow has registered its run — wait as above, then re-run; it clears by itself. For an
    unknown that will not clear (a rate limit, a workflow that skips everything), find out
-   why before merging and say in the PR what you found. Then re-run with `--pr <n>` once merged if you want the record: the `pr`,
+   why before merging and say in the PR what you found, then run the whole line again with
+   `--unverified "<what you found>"` added to `squash-message` (it writes a `Merge-override:` line; a shell
+   variable such as `$m` does not survive between a tool's separate calls). Then re-run with `--pr <n>` once merged if you want the record: the `pr`,
    `review` (created and last edited before the merge) and `worktree` (gone or reapable)
    rows change meaning after the merge.
 
