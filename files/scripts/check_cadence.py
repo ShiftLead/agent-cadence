@@ -2257,7 +2257,14 @@ PERSON_PATHS = (LOG_SOURCES,)
 def row_person(pr, root=None):
     """TD-230: the person row. An open PR that changes one of PERSON_PATHS fails it: the person reads and
     merges that PR, never a session. Merged, it is a ⚠ (a sweep never fails history)."""
-    hit = [p for p in PERSON_PATHS if p in (pr.get("files") or [])]
+    files = pr.get("files") or []
+    hit = [p for p in PERSON_PATHS if p in files]
+    if not hit and root and any(f.startswith(LEDGER_DIR + "/") for f in files):
+        # a rename shows the forge only its new name: a person's path there at the base and gone at the head
+        old, new, why = pr_ends(pr, root)
+        if not why:
+            hit = [p for p in PERSON_PATHS if git(["cat-file", "-e", f"{old}:{p}"], cwd=root) is not None
+                   and git(["cat-file", "-e", f"{new}:{p}"], cwd=root) is None]
     if not hit:
         return row("person", "na", "the PR changes none of the person's paths")
     what = f"{', '.join(hit)} is the person's (TD-230)"

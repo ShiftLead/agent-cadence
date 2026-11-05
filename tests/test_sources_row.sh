@@ -73,6 +73,10 @@ st=$(row person merged); [ "${st%% *}" = pass ] && grep -q "⚠ docs/ledger/log-
   && ok "3d merged, the person row is a ⚠" || bad "3d: $st"
 git -C "$R" push -q origin main 2>/dev/null
 
+topic; git -C "$R" mv docs/ledger/log-sources.toml docs/ledger/sources-old.toml; commit "rename"
+st=$(row person open); [ "${st%% *}" = fail ] && grep -q "log-sources.toml is the person's" <<< "$st" \
+  && ok "3e a rename (the forge lists only the new name): the person row still fails" || bad "3e: $st"
+
 topic; printf '[repos."*"]\n' >> "$R/docs/ledger/log-sources.toml"; commit
 st=$(row sources open); [ "${st%% *}" = fail ] && grep -q "host-only key" <<< "$st" \
   && ok "4a a host-only key in log-sources.toml: refused, the row fails" || bad "4a: $st"
