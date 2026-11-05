@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-05 — The cadence check's `sources` and `person` rows: a PR changing `docs/ledger/log-sources.toml` is the person's to merge
+Do: never merge a PR whose `person` row fails — the person reads and merges it; fix a failing `sources` row (`hostlog.py validate --repo-config docs/ledger/log-sources.toml --ledger docs/ledger`) before merging a ledger PR.
+See: cadence.md §4 (the rows), §2.14; `check_cadence.py` `row_sources`, `row_person`; TD-230.
+
 ## 2026-11-05 — The gate sweep names a `host-log` gate no host has answered
 Do: an `act` item *No host has answered event (<name>) on TD-n* means no host's `host-log.toml` declares that source for this repo — declare it on a host that sweeps the ledger, or rewrite the gate; closing the item ends the warning for good.
 See: cadence.md §2.14; `gate_sweep.py` `unanswered()`; TD-230.

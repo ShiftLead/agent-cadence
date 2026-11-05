@@ -2247,6 +2247,66 @@ def row_gates(pr, root):
                + tail)
 
 
+LOG_SOURCES = "docs/ledger/log-sources.toml"  # the repo's host-log sources (TD-230; ledgerboard TD-045 rule 8)
+# The person's paths (TD-230): a PR that changes one waits for the person, who merges it themselves — a session
+# merges only on a passing check, so the row's fail is the hold. log-sources.toml names what files a host may
+# read for a host-log gate, so a session's edit to it is the person's to accept (ledgerboard TD-045 rule 11).
+PERSON_PATHS = (LOG_SOURCES,)
+
+
+def row_person(pr, root=None):
+    """TD-230: the person row. An open PR that changes one of PERSON_PATHS fails it: the person reads and
+    merges that PR, never a session. Merged, it is a ⚠ (a sweep never fails history)."""
+    hit = [p for p in PERSON_PATHS if p in (pr.get("files") or [])]
+    if not hit:
+        return row("person", "na", "the PR changes none of the person's paths")
+    what = f"{', '.join(hit)} is the person's (TD-230)"
+    if pr["state"] == "merged":
+        return row("person", "pass", f"⚠ {what}: merged — the person merges such a PR")
+    return row("person", "fail", f"{what}: the person reads and merges this PR, never a session")
+
+
+def row_sources(pr, root):
+    """TD-230 (ledgerboard TD-045 rule 13): on a PR that touches the ledger or log-sources.toml, ``hostlog.py
+    validate --ledger`` over its head — log-sources.toml's checks, and each open entry's host-log check whose
+    source no default or profile declares (a gate silent on every host). A problem fails the row (merged, a
+    ⚠, as the gates row); a warning is a ⚠. Read off the head commit, never the working tree."""
+    files = pr.get("files") or []
+    if not (LOG_SOURCES in files or any(f.startswith(LEDGER_DIR + "/") for f in files) or ledger_touched(files)):
+        return row("sources", "na", "the PR touches neither the ledger nor log-sources.toml")
+    if not root:
+        return row("sources", "unknown", "no clone to read the head from")
+    old, new, why = pr_ends(pr, root)
+    if why:
+        return row("sources", "na" if pr["state"] == "merged" and "not in this clone" in why else "unknown",
+                   f"sources not checked: {why}")
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import hostlog as H  # sibling SYNC script: the host-log reader's validate
+    import ledger as L  # sibling SYNC script
+    if H.tomllib is None:
+        return row("sources", "unknown", "sources not checked: this Python has no tomllib (3.11+)")
+    if git(["cat-file", "-e", f"{new}:{LOG_SOURCES}"], cwd=root) is None:
+        conf = ""
+    else:
+        conf = git(["show", f"{new}:{LOG_SOURCES}"], cwd=root)
+        if conf is None:
+            return row("sources", "unknown", f"{LOG_SOURCES} at {new[:7]} is unreadable")
+    text, _, damage, _ = ledger_pair_at(L, root, new)
+    if damage:
+        return row("sources", "unknown", f"the ledger at {new[:7]} is unreadable: {damage}")
+    probs, warns = H.validate_text(conf, LOG_SOURCES, text)
+    if pr["state"] == "merged":
+        warns, probs = [*probs, *warns], []
+    tail = "".join(f"; ⚠ {w}" for w in warns)
+    if probs:
+        more = f" (+{len(probs) - 2} more)" if len(probs) > 2 else ""
+        return row("sources", "fail", "; ".join(probs[:2]) + more
+                   + " — `hostlog.py validate --repo-config docs/ledger/log-sources.toml --ledger docs/ledger`" + tail)
+    return row("sources", "pass", "log-sources.toml checked, and every host-log gate's source is declared" + tail)
+
+
 def _merged_pr_commits(pr):
     """How many commits a merged PR carried, as its forge says (TD-224), or None when it cannot say."""
     ask = getattr(FORGE, "pr_commits", None)
@@ -2500,6 +2560,8 @@ def check_pr(number, root):
         ("ledger", lambda: row_ledger(pr, root)),
         ("board", lambda: row_board(pr, root)),
         ("gates", lambda: row_gates(pr, root)),
+        ("sources", lambda: row_sources(pr, root)),
+        ("person", lambda: row_person(pr, root)),
         ("worktree", lambda: row_worktree(pr, root)),
         ("pushed", lambda: row_pushed(pr, root)),
         ("deploy", lambda: row_deploy(pr, root)),
