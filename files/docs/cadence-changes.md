@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-05 — An event gate can wait on the host's own logs: `host-log <source> [kind <k>] [times <N>] "<text>"`
+Do: write one only where a host's `host-log.toml` (machine-scope dir) declares the repo and the source `docs/ledger/log-sources.toml` names — elsewhere it gets no outcome and waits silently; check the repo file with `hostlog.py validate --repo-config docs/ledger/log-sources.toml --ledger docs/ledger`.
+See: cadence.md §2.14; `hostlog.py`, `event_checks.py`; TD-230.
+
 ## 2026-11-05 — `check_tmp.py` reaps the user's own aged `tmp*`, `precheck-*` and `pytest-*` past 80%
 Do: nothing by hand for those — past its threshold the SessionStart hook and `/attention` remove this user's entries of those names a day old and say so; every other leftover is still a printed cleanup for the person.
 See: cadence.md §3.9; `check_tmp.py`, `precheck.py`; TD-223.

@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -49,14 +50,18 @@ import ledger as L  # noqa: E402  # sibling SYNC script: the ledger's readers an
 import ledgerboard as LB  # noqa: E402  # sibling SYNC file: the ledger format, defined once
 
 TIMEOUT = 30.0  # s per forge call: a check past it is an error (§4.2)
+HOSTLOG_TIMEOUT = 120.0  # s per host-log check: the reader's own budget is at most 90 s (TD-045 rule 13)
+HOSTLOG_FILE = "host-log.toml"  # the host's file for host-log checks, in the machine-scope directory (TD-230)
+LOG_SOURCES = "docs/ledger/log-sources.toml"  # the repo's sources, read from the tree the ledger was read from
 # How visible a repo is, least first: a check reaches a repo ranked at least as high as the ledger's own.
 VISIBILITY = {"private": 0, "internal": 1, "public": 2}
 
 
 def gates(text: str) -> list[dict]:
-    """Every open entry's event gate, in ledger order: ``{id, name, check, problem}``, ``check`` the
-    section's ``parse_check()`` reading (None when the section is missing or unreadable) and ``problem``
-    why the check cannot run as written (no section, two of one name, a bad ``check:`` line), else None."""
+    """Every open entry's event gate, in ledger order: ``{id, name, check, problem, since}``, ``check`` the
+    section's ``parse_check()`` reading (None when the section is missing or unreadable), ``problem``
+    why the check cannot run as written (no section, two of one name, a bad ``check:`` line), else None,
+    and ``since`` the gate's ``gate_added()`` date (a host-log check counts from the day after it)."""
     out = []
     for tid, body in LB._entry_texts(text).items():
         found = LB.entries(body)
@@ -65,7 +70,9 @@ def gates(text: str) -> list[dict]:
         secs = LB.event_sections(body)
         for name in dict.fromkeys(LB.parse_gates(found[0]["blocked_raw"])["events"]):
             mine = [s for s in secs if s["name"] == name]
-            rec = {"id": tid, "name": name, "check": None, "problem": None}
+            added = LB.gate_added(body, f"event ({name})")
+            rec = {"id": tid, "name": name, "check": None, "problem": None,
+                   "since": added.isoformat() if added else None}
             if not mine:
                 rec["problem"] = f"no **Event ({name}):** section"
             elif len(mine) > 1:
@@ -82,8 +89,12 @@ class Runner:
     """Runs checks from one ledger's repo (``own``), through this machine's roster; each repo's forge
     and facts are read once a run."""
 
-    def __init__(self, own: Path, roster: L.Roster | None = None, timeout: float = TIMEOUT) -> None:
+    def __init__(self, own: Path, roster: L.Roster | None = None, timeout: float = TIMEOUT,
+                 log_sources: str | None = None, host_file: Path | None = None) -> None:
         self.own, self.roster, self.timeout = own, roster or L.Roster(), timeout
+        # host-log (TD-230): the repo's log-sources.toml text, from the tree the ledger was read from (None:
+        # read it from the working tree beside the ledger), and the host's file (default: host_file()).
+        self.log_sources, self.host_file = log_sources, host_file
         self._own_vis: tuple[int | None, str] | None = None
         self._targets: dict[Path, tuple] = {}
 
@@ -134,11 +145,57 @@ class Runner:
             raise F.ForgeUnreadable(err)
         return be, slug, info
 
+    def host_log(self, gate: dict) -> dict:
+        """A ``host-log`` gate's outcome from this host's reader, ``hostlog.py check`` (TD-230; ledgerboard
+        TD-045 rule 13), run with the repo's log-sources.toml on stdin and the gate's ``since``. Its ``none``
+        is ``outcome`` None: no outcome, so the gate is left out of the sweep's results. A non-zero exit,
+        output that is not one JSON object, or no answer within HOSTLOG_TIMEOUT is error. With no host
+        file the reader is not run: no outcome."""
+        c = gate["check"]
+        host = self.host_file or host_file()
+        if not host.exists():
+            return {"outcome": None, "evidence": None, "why": f"no host file ({host})"}
+        kind, slug = F.origin_forge(self.own)
+        if not slug or kind not in ("github", "gitlab"):
+            return {"outcome": "error", "evidence": None, "why": "this ledger's own repo has no <repo> id"}
+        rank, _ = self.own_visibility()
+        vis = {0: "private", 1: "internal"}.get(rank, "public")  # unknown reads as public (rule 11)
+        line = " ".join(["host-log", c["source"]] + (["kind", c["kind"]] if c["kind"] else [])
+                        + (["times", str(c["times"])] if c["times"] != 1 else []) + [f'"{c["text"]}"'])
+        conf = self.log_sources
+        if conf is None:
+            p = self.own / LOG_SOURCES
+            conf = p.read_text(encoding="utf-8") if p.is_file() else ""
+        cmd = [sys.executable, str(Path(__file__).resolve().parent / "hostlog.py"), "check", "--repo-config", "-",
+               "--host-config", str(host), "--repo", slug, "--visibility", vis]
+        cmd += ["--since", gate["since"]] if gate.get("since") else []
+        try:
+            r = subprocess.run(cmd + [line], input=conf, capture_output=True, text=True, timeout=HOSTLOG_TIMEOUT,
+                               check=False)
+        except subprocess.TimeoutExpired:
+            return {"outcome": "error", "evidence": None, "why": f"hostlog.py gave no answer in {HOSTLOG_TIMEOUT:g} s"}
+        except OSError as e:
+            return {"outcome": "error", "evidence": None, "why": f"hostlog.py could not run: {e}"}
+        try:
+            out = json.loads(r.stdout) if r.returncode == 0 else None
+        except ValueError:
+            out = None
+        if not isinstance(out, dict) or out.get("outcome") not in LB.CHECK_OUTCOMES + ("none",):
+            return {"outcome": "error", "evidence": None,
+                    "why": f"hostlog.py gave no outcome (exit {r.returncode}): {r.stderr.strip()[:200]}"}
+        if out["outcome"] == "none":
+            return {"outcome": None, "evidence": None, "why": out.get("problem") or "this host declares no such source"}
+        return {"outcome": out["outcome"], "evidence": out.get("evidence") if out["outcome"] == "passed" else None,
+                "why": None if out["outcome"] == "passed" else (out.get("problem") or f"{out.get('count', 0)} counted")}
+
     def run(self, gate: dict) -> dict:
-        """One gate's ``{outcome, evidence, why}``: evidence only on passed, why on every other outcome."""
+        """One gate's ``{outcome, evidence, why}``: evidence only on passed, why on every other outcome;
+        ``outcome`` None is no outcome (a host-log check this host does not answer)."""
         if gate["problem"] or gate["check"] is None:
             return {"outcome": "error", "evidence": None, "why": gate["problem"] or "no check"}
         c = gate["check"]
+        if c["type"] == "host-log":   # it has no repo: never target(c["repo"])
+            return self.host_log(gate)
         try:
             be, slug, info = self.target(c["repo"])
             if c["type"] == "pr-merged":
@@ -167,10 +224,18 @@ class Runner:
             return {"outcome": "error", "evidence": None, "why": str(e)}
 
 
+def host_file() -> Path:
+    """This machine's host file for host-log checks: ``host-log.toml`` in the machine-scope directory
+    (``$AGENT_CADENCE_REG_DIR``, else ``${XDG_CONFIG_HOME:-~/.config}/agent-cadence``, cadence.md §9)."""
+    import cadence_config as C  # sibling SYNC script: the machine-scope directory, resolved once (beside cadence.toml)
+    return Path(C.machine_path()).parent / HOSTLOG_FILE
+
+
 def results(text: str, runner: Runner) -> dict:
-    """``{(TD-n, event name): (outcome, evidence)}`` for every open event gate of ``text``, as ledgerboard's
-    ``sweep()`` takes its ``results``."""
-    return {(g["id"], g["name"]): (r["outcome"], r["evidence"]) for g in gates(text) for r in [runner.run(g)]}
+    """``{(TD-n, event name): (outcome, evidence)}`` for every open event gate of ``text`` that has an
+    outcome, as ledgerboard's ``sweep()`` takes its ``results``: a gate with none is left out."""
+    return {(g["id"], g["name"]): (r["outcome"], r["evidence"]) for g in gates(text) for r in [runner.run(g)]
+            if r["outcome"] is not None}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -195,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
     elif not rows:
         print(f"no open event gates in {ledger}")
     for r in rows if not a.json else []:
-        print(f"{r['id']} event ({r['name']}): {r['outcome']} — {r['evidence'] or r['why']}")
+        print(f"{r['id']} event ({r['name']}): {r['outcome'] or 'no outcome'} — {r['evidence'] or r['why']}")
     return 1 if any(r["outcome"] == "error" for r in rows) else 0
 
 

@@ -184,5 +184,55 @@ fx repos/o/priv/pulls/1 '{"state":"open","merged":false}'
 out=$(cd "$OWN" && python3 "$S/event_checks.py" 2>&1)
 want "7d a private ledger's check reaches a private repo" "TD-007 event (secret):" "not yet — o/priv#1 is open"
 
+# --- 8: host-log (TD-230): the runner asks this host's reader, hostlog.py; o/own is private from 7d on
+SINCE=$(python3 -c 'from datetime import date, timedelta; print(date.today() - timedelta(days=10))')
+AT=$(python3 -c 'from datetime import date, timedelta; print((date.today() - timedelta(days=9)).isoformat() + "T01:00:00Z")')
+LOGS="$TMP/hostlogs"; mkdir -p "$LOGS"; printf '%s boom\n' "$AT" > "$LOGS/app.log"
+hl() { printf '**Event (%s):** it happens.\ncheck: %s' "$1" "$2"; }
+entry 20 Open "event (red)" "$(hl red 'host-log app "boom"')"
+printf '\n**Log:**\n- %s: gate added: event (red)\n' "$SINCE" >> "$OWN/docs/ledger/TD-020.md"
+entry 21 Open "event (undated)" "$(hl undated 'host-log app "boom"')"
+entry 22 Open "event (quiet)" "$(hl quiet 'host-log app times 2 "boom"')"
+printf '\n**Log:**\n- %s: gate added: event (quiet)\n' "$SINCE" >> "$OWN/docs/ledger/TD-022.md"
+printf '[sources.app]\nshape = "file"\npath = "%s/app.log"\nrecords = "lines"\nat = ["%%Y-%%m-%%dT%%H:%%M:%%SZ"]\n' "$LOGS" \
+  > "$OWN/docs/ledger/log-sources.toml"
+out=$(cd "$OWN" && python3 "$S/event_checks.py" 2>&1)
+grep -q '^TD-020 event (red): no outcome — no host file' <<< "$out" && ok "8a no host file: no outcome, the reader not run" || bad "8a: $(line TD-020)"
+printf '[repos."*"]\n[[allow]]\nroot = "%s"\nvisibility = "private"\n' "$LOGS" > "$AGENT_CADENCE_REG_DIR/host-log.toml"
+out=$(cd "$OWN" && python3 "$S/event_checks.py" 2>&1)
+want "8b a host-log gate: passed, the reader's evidence" "TD-020 event (red):" "passed — app@$(python3 -c "print('$AT'.replace('-','').replace(':',''))")"
+grep -q '^TD-021 event (undated): error — since unknown' <<< "$out" && ok "8c no gate added line: an error, since unknown" || bad "8c: $(line TD-021)"
+grep -q '^TD-022 event (quiet): not yet — 1 counted' <<< "$out" && ok "8d fewer than N: not yet" || bad "8d: $(line TD-022)"
+printf '[repos."other/x"]\n[[allow]]\nroot = "%s"\nvisibility = "private"\n' "$LOGS" > "$AGENT_CADENCE_REG_DIR/host-log.toml"
+res=$(cd "$OWN" && python3 - "$S" <<'PY'
+import sys; sys.path.insert(0, sys.argv[1]); from pathlib import Path
+import event_checks as E, ledger as L
+text, _ = L.read_pair("docs/ledger", "docs/ledger/archive", L.fs_io())
+r = E.results(text, E.Runner(Path(".")))
+print(sorted(k for k in r if k[0] in ("TD-020", "TD-022")))
+PY
+)
+[ "$res" = "[]" ] && ok "8e no table for the repo: no outcome, and results() leaves the gate out (sweep() sees nothing)" || bad "8e: $res"
+res=$(cd "$OWN" && python3 - "$S" "$AGENT_CADENCE_REG_DIR/host-log.toml" <<'PY'
+import sys, subprocess; sys.path.insert(0, sys.argv[1]); from pathlib import Path
+import event_checks as E, ledgerboard as LB
+g = {"id": "TD-1", "name": "x", "problem": None, "since": "2026-01-01", "check": LB.parse_check('host-log app "boom"')}
+r = E.Runner(Path("."), host_file=Path(sys.argv[2]))
+r._own_vis = (0, "")
+outs = []
+for fake in (lambda *a, **k: subprocess.CompletedProcess(a, 0, "not json", ""),
+             lambda *a, **k: subprocess.CompletedProcess(a, 2, "", "usage"),
+             lambda *a, **k: subprocess.CompletedProcess(a, 0, '{"outcome": "maybe"}', "")):
+    E.subprocess.run = fake
+    outs.append(r.run(g)["outcome"])
+def slow(*a, **k):
+    raise subprocess.TimeoutExpired(a, 120)
+E.subprocess.run = slow
+outs.append(r.run(g)["outcome"])
+print(outs)
+PY
+)
+[ "$res" = "['error', 'error', 'error', 'error']" ] && ok "8f non-JSON output, a non-zero exit, an unknown outcome or the 120 s timeout: error" || bad "8f: $res"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

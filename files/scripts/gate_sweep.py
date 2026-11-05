@@ -143,6 +143,8 @@ def plan(top: Path, roster: list[Path], runner: E.Runner, *, today_utc: date, to
                 for name in io[0](d) or []:
                     read(io, f"{d}/{name}", top.name)
         text, arch = L.read_pair(rel, arel, io)
+        # host-log (TD-230): the repo's sources from the same tree as the ledger, never the checkout's
+        runner.log_sources = read(io, E.LOG_SOURCES, top.name) or ""
         own, _ = board_of(top)
     except Unreadable as e:
         raise LB.Refused(str(e)) from None
@@ -168,7 +170,8 @@ def plan(top: Path, roster: list[Path], runner: E.Runner, *, today_utc: date, to
         boards.append(b)
         read_from.append({"board": LB.origin_key(b[0]) or b[1], "source": src})
     checks = [{**g, **runner.run(g)} for g in E.gates(text)]
-    results = {(c["id"], c["name"]): (c["outcome"], c["evidence"]) for c in checks}
+    results = {(c["id"], c["name"]): (c["outcome"], c["evidence"]) for c in checks
+               if c["outcome"] is not None}   # no outcome (a host-log check this host does not answer): left out
     out = LB.sweep([text, arch], boards, results, today_utc, today_local, reask_days=reask_days,
                    event_age_days=event_age_days, repo=repo)
     return {"repo": repo, "source": source, "boards": read_from, "unread": unread,
@@ -494,7 +497,7 @@ def main(argv: list[str] | None = None) -> int:
     for u in p["unread"]:
         print(f"  ⚠ board not read: {u} — an item there is not seen, so the plan may file it again")
     for c in p["checks"]:
-        print(f"  check {c['id']} event ({c['name']}): {c['outcome']} — {c['evidence'] or c['why']}")
+        print(f"  check {c['id']} event ({c['name']}): {c['outcome'] or 'no outcome'} — {c['evidence'] or c['why']}")
     for board, items in p["to_file"].items():
         for it in items:
             print(f"  file on {board}: [{it['kind']}] {it['text']} — Context: {it['context']}")
