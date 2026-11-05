@@ -35,7 +35,7 @@ first empties FILE, then writes it whole (a temporary name, then renamed):
     exit 2       nothing: the PR could not be read, so FILE stays empty and no merge is composed
 
 The lines are attested, not verified, like the review row they come from (cadence §4.9). A
-review row passed by a tool carve-out lists no comments and carries "carve_out" (board-edit or
+review row passed by a tool carve-out lists no comments and carries "carve_out" (board-edit, decide-lift or
 queue-edit) in --json. The check stays a reader: it merges nothing.
 
 The person's cadence layers on this machine (cadence_layer.py, cadence.md §9.18) are reported
@@ -2461,9 +2461,11 @@ def row_lift_pr(pr, root):
                                       subject, 1 if found else 2,  # 2: not one commit, all the verdict asks
                                       created, merged, this_repo(root))
     if verdict_["carve_out"]:
-        return row("review", "pass", "decide lift (ledgerboard SPEC *The merge gate's verdicts*): one commit, the "
-                   "board's answer and the ledger decide_lift() writes — the person's answer is the review; "
-                   "no comment needed")
+        out = row("review", "pass", "decide lift (ledgerboard SPEC *The merge gate's verdicts*): one commit, the "
+                  "board's answer and the ledger decide_lift() writes — the person's answer is the review; "
+                  "no comment needed")
+        out["carve_out"] = "decide-lift"   # a tool merge, not a bypass, to --since's merged-outside list (TD-234)
+        return out
     ordinary = row_review(pr)
     reason = verdict_["review"][0][1] if verdict_["review"] else "not a decide lift"
     ordinary["detail"] += f" — it answers a gate item and is not a decide lift ({reason}), so it takes review"

@@ -52,7 +52,7 @@ pr = {"number": 5, "ref": "#5", "state": state, "head_sha": sha, "merge_sha": sh
 r = C.board_edit_or_review(pr, root)
 one = sorted(C.git(["diff-tree", "--no-commit-id", "--name-only", "-r", sha], cwd=root).split())
 cls, _ = C.classify_direct(root, sha, subj, one)
-print(f"{r['status']}\t{cls}\t{r['detail']}")
+print(f"{r['status']}\t{cls}\t{r['detail']}\t{r.get('carve_out')}")
 EOF
 }
 case_pr() {  # $1 = a verdict case, $2 = the commit's subject, $3.. = only these paths of its head (default all)
@@ -65,8 +65,9 @@ case_pr() {  # $1 = a verdict case, $2 = the commit's subject, $3.. = only these
 
 # a decide lift, one commit: the person's answer is its review
 case_pr "$LIFT" "$DECIDE"
-IFS=$'\t' read -r st cls det <<< "$(judge open 2026-01-15T09:00:00Z)"
+IFS=$'\t' read -r st cls det co <<< "$(judge open 2026-01-15T09:00:00Z)"
 [ "$st" = pass ] && echo "$det" | grep -q "decide lift" && ok "a one-commit decide lift passes the review row (no comment)" || bad "lift: $st $det"
+[ "$co" = decide-lift ] && ok "TD-234: the lift's review row carries carve_out decide-lift (a tool merge to --since, not a bypass)" || bad "lift carve_out: '$co'"
 # the gate's other rows accept it too: the board row (the writer's line) and the gates row (the tripwire)
 rows=$(python3 - "$R" "$S" <<'EOF2'
 import sys
