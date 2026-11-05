@@ -1084,8 +1084,8 @@ class GitLab(_CLI):
         newest first and with no cap or count to compare, so `--paginate` reading every page is the
         check: a page that cannot be read raises ForgeUnreadable."""
         got = self._get(f"{self.project}/merge_requests/{int(n)}/commits?per_page=100", paginate=True)
-        if not isinstance(got, list):
-            raise ForgeUnreadable(f"{self.ref(n)}'s commits are not a list")
+        if not all(isinstance(c, dict) and "message" in c for c in got):
+            raise ForgeUnreadable(f"{self.ref(n)}'s commits are not a list of commits")
         return [{"message": c.get("message") or "", "author_name": c.get("author_name") or "",
                  "author_email": c.get("author_email") or ""} for c in reversed(got)]
 
@@ -1779,7 +1779,15 @@ def read_gate(path: str, n: int) -> tuple[str, list[str], str | None]:
     expect = next((ln[7:].strip() for ln in lines if ln.startswith("expect ")), "")
     if not re.fullmatch(r"[0-9a-f]{7,64}", expect):
         raise SquashRefused("the gate file names no head (`expect <sha>`) — nothing is composed")
-    unverified = next((ln[11:].strip() for ln in lines if ln.startswith("unverified ")), None)
+    marks = [ln for ln in lines if ln.startswith("unverified")]
+    unverified = None
+    if marks:   # `unverified <exit> <rows>` exactly: a malformed mark never reads as a pass
+        m = re.fullmatch(r"unverified (\d+) ([A-Za-z,-]+)", marks[0].strip())
+        if len(marks) > 1 or not m:
+            raise SquashRefused(f"the gate file's {marks[0][:40]!r} is not `unverified <exit> <rows>` — nothing is composed")
+        unverified = f"{m.group(1)} {m.group(2)}"
+        # an unverified file carries no Review: or Precheck: the gate attested nothing
+        lines = [ln for ln in lines if not re.match(r"(Review|Precheck)\s*:", ln)]
     return expect, lines, unverified
 
 
@@ -1787,6 +1795,11 @@ def squash_files(f, n: int, gate: str, out: str, why: str | None, env: "dict | N
     """`forge.py squash-message`: DIR/subject, DIR/body and DIR/sha for PR n, composed from the gate
     file and the PR's commits (TD-177's design 2). Merges nothing. Raises SquashRefused or
     ForgeUnreadable with the reason when it composes nothing."""
+    for name in ("subject", "body", "sha"):   # a refusal leaves no earlier run's files behind
+        try:
+            os.unlink(os.path.join(out, name))
+        except FileNotFoundError:
+            pass
     expect, lines, unverified = read_gate(gate, n)
     override = None
     if unverified is not None:

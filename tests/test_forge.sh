@@ -281,7 +281,7 @@ SHIM
 chmod +x "$B2/gh"
 Q="$TMP/qrepo"; git init -q -b main "$Q"; git -C "$Q" remote add origin git@github.com:o/r.git
 git -C "$Q" config user.name "Pat Person"
-echo '{"number":9,"title":"Add a thing","state":"OPEN","headRefOid":"abc1234","commits":[{},{}]}' > "$QF/pr.json"
+echo '{"number":9,"title":"Add\na thing","state":"OPEN","headRefOid":"fff9999","commits":[{},{}]}' > "$QF/pr.json"
 # gh --paginate writes the pages back to back
 printf '%s%s' '[{"commit":{"message":"one\n\nCo-Authored-By: g1 <g1@x>\nAgent-Model: a/b\n","author":{"name":"Pat","email":"pat@x"}}}]' \
   '[{"commit":{"message":"two\n\nbody two\n","author":{"name":"Pat","email":"pat@x"}}}]' > "$QF/commits.json"
@@ -300,22 +300,34 @@ out=$(env AGENT_NAME=g1 AGENT_MODEL=x/y AGENT_MODEL_FILE="$QF/model" bash -c "pr
 refuse() {  # <label> <expect-in-stderr> <args...>
   local label=$1 want=$2; shift 2; rm -rf "$QF/or"
   out=$(env AGENT_NAME="${AN-g1}" bash -c "$(declare -f sq); S='$S' Q='$Q' QF='$QF' B2='$B2' sq $*"); rc=$?
-  [ $rc -eq 2 ] && echo "$out" | grep -q -- "$want" && [ ! -e "$QF/or/body" ] && ok "$label" || bad "$label: rc=$rc $out"
+  [ $rc -eq 2 ] && echo "$out" | grep -q -- "$want" && [ ! -e "$QF/or/body" ] && [ ! -e "$QF/or/subject" ] && [ ! -e "$QF/or/sha" ] && ok "$label" || bad "$label: rc=$rc $out"
 }
 refuse "10d no gate file refuses" "no gate file" 9 --gate "$QF/none" --out "$QF/or"
 : > "$QF/empty"; refuse "10e an empty gate file (the gate could not read the PR) refuses" "is empty" 9 --gate "$QF/empty" --out "$QF/or"
 printf 'pr 8\nexpect abc1234\n' > "$QF/g8"; refuse "10f another PR's gate file refuses" "not PR 9's" 9 --gate "$QF/g8" --out "$QF/or"
 printf 'pr 9\nReview: x (SHIP)\n' > "$QF/gnx"; refuse "10g a gate file with no expect refuses" "names no head" 9 --gate "$QF/gnx" --out "$QF/or"
 printf 'pr 9\nexpect abc1234\nunverified 3 ci\n' > "$QF/gu"; refuse "10h an unverified gate file refuses without --unverified" "did not pass" 9 --gate "$QF/gu" --out "$QF/or"
+printf 'pr 90\nexpect abc1234\n' > "$QF/g90"; refuse "10f2 PR 90's gate file is not PR 9's" "not PR 9's" 9 --gate "$QF/g90" --out "$QF/or"
+printf 'pr 9\nexpect abc1234\nunverified\n' > "$QF/gbare"; refuse "10h2 a bare unverified mark refuses, never read as a pass" "is not \`unverified" 9 --gate "$QF/gbare" --out "$QF/or"
+mkdir -p "$QF/or"; for x in subject body sha; do echo stale > "$QF/or/$x"; done
+: > "$GH_LOG"; refuse "10h3 an unverified file refuses before any forge read, and leaves no earlier run's files" "did not pass" 9 --gate "$QF/gu" --out "$QF/or"
+[ ! -s "$GH_LOG" ] && ok "10h4 no gh call before the gate file is judged" || bad "10h4: $(cat "$GH_LOG")"
 refuse "10i --unverified with a gate file that passed refuses" "nothing to override" 9 --gate "$QF/gate" --out "$QF/or" --unverified "'because'"
 AN="g 1" refuse "10j a bad AGENT_NAME refuses, never the person's name" "is not \[A-Za-z0-9._-\]" 9 --gate "$QF/gate" --out "$QF/or"
 echo '{"commits":3}' > "$QF/count.json"; refuse "10k a list shorter than the PR's count refuses" "lists 2 commit(s) but counts 3" 9 --gate "$QF/gate" --out "$QF/or"
+echo '{"commits":1}' > "$QF/count.json"; refuse "10k2 a list longer than the PR's count refuses" "lists 2 commit(s) but counts 1" 9 --gate "$QF/gate" --out "$QF/or"
+echo '{}' > "$QF/count.json"; refuse "10k3 no count refuses" "but counts None" 9 --gate "$QF/gate" --out "$QF/or"
 echo '{"commits":0}' > "$QF/count.json"; echo '[]' > "$QF/commits.json"; refuse "10l zero commits refuse" "no commits" 9 --gate "$QF/gate" --out "$QF/or"
 printf '%s%s' '[{"commit":{"message":"one\n","author":{"name":"Pat","email":"pat@x"}}}]' '[{"commit":{"message":"two\n","author":{"name":"Pat","email":"pat@x"}}}]' > "$QF/commits.json"
 echo '{"commits":2}' > "$QF/count.json"
-out=$(env AGENT_NAME=g1 bash -c "$(declare -f sq); S='$S' Q='$Q' QF='$QF' B2='$B2' sq 9 --gate '$QF/gu' --out '$QF/o4' --unverified \"\$(printf 'the host\nis down')\""); rc=$?
-[ $rc -eq 0 ] && grep -qx "Merge-override: 3 ci — the host is down" "$QF/o4/body" && [ "$(grep -c . "$QF/o4/body")" -ge 3 ] && ! grep -q '^Review:' "$QF/o4/body" \
+printf 'pr 9\nexpect abc1234\nReview: x (SHIP)\nunverified 3 ci\n' > "$QF/gu"
+out=$(env -u AGENT_MODEL -u AGENT_MODEL_FILE AGENT_NAME=g1 bash -c "$(declare -f sq); S='$S' Q='$Q' QF='$QF' B2='$B2' sq 9 --gate '$QF/gu' --out '$QF/o4' --unverified \"\$(printf 'the host\nis down')\""); rc=$?
+[ $rc -eq 0 ] && [ "$(cat "$QF/o4/body")" = "$(printf '* one\n\n* two\n\nCo-Authored-By: Pat <pat@x>\nMerge-override: 3 ci — the host is down\nMerged-by: g1')" ] \
   && ok "10m --unverified composes an unverified gate file, its why on one Merge-override line" || bad "10m rc=$rc $out $(cat "$QF/o4/body" 2>/dev/null)"
+long=$(python3 -c 'print("é" * 150)')
+out=$(env AGENT_NAME=g1 bash -c "$(declare -f sq); S='$S' Q='$Q' QF='$QF' B2='$B2' sq 9 --gate '$QF/gu' --out '$QF/o5' --unverified '$long'"); rc=$?
+[ $rc -eq 0 ] && [ "$(grep '^Merge-override:' "$QF/o5/body")" = "Merge-override: 3 ci — $(python3 -c 'print("é" * 100)')" ] \
+  && ok "10m2 the why is cut at 200 bytes, never inside a character" || bad "10m2 rc=$rc $out $(grep Merge "$QF/o5/body")"
 out=$(cd "$Q" && python3 -I - "$S" <<'P'
 import sys; sys.path.insert(0, sys.argv[1]); import forge as F
 g = F.GitLab(slug="gitlab.com/o/r")
