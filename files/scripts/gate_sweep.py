@@ -18,6 +18,11 @@ a pure function; this script is the I/O around it:
   on it. A clone whose origin is this repo's (another worktree) is read once, as this repo.
 - **The event checks.** Each open ``event (<name>)`` gate's check runs through ``event_checks.py`` (its
   host rules and four outcomes), and its outcomes are ``sweep()``'s ``results``.
+- **A ``host-log`` gate no host answers** (TD-230; ``unanswered()``): ``sweep()`` gets no outcome for it and
+  so says nothing, and it would wait silently. Past the event age, with no item on any board read naming
+  it (open, decided or closed — what a host that answered would have left), it gets one ``act`` item on
+  this board, ``Context: TD-n event (<name>) unanswered``, filed once ever and closed by the sweep once
+  this host answers, another item names the gate, or the gate is on no open entry.
 - **What it prints.** The plan: each item to file (on which board, its kind, text and ``Context:``), each
   item to close (by board and key), and each host lift (``until`` reached, an event passed, with its
   evidence). ``--json``: ``{repo, source, boards: [{board, source}], unread, checks, to_file, to_close, lifts}``.
@@ -174,8 +179,66 @@ def plan(top: Path, roster: list[Path], runner: E.Runner, *, today_utc: date, to
                if c["outcome"] is not None}   # no outcome (a host-log check this host does not answer): left out
     out = LB.sweep([text, arch], boards, results, today_utc, today_local, reask_days=reask_days,
                    event_age_days=event_age_days, repo=repo)
+    filing, closing = unanswered(text, checks, boards, repo, today_utc, event_age_days)
+    name = LB._board_name(own)
+    for it in filing:
+        out["to_file"].setdefault(name, []).append(it)
+    for k in closing:
+        if k not in out["to_close"].setdefault(name, []):
+            out["to_close"][name].append(k)
     return {"repo": repo, "source": source, "boards": read_from, "unread": unread,
             "checks": [{k: c[k] for k in ("id", "name", "outcome", "evidence", "why")} for c in checks], **out}
+
+
+UNANSWERED = "unanswered"  # the warning item's Context qualifier: TD-n event (<name>) unanswered (TD-230 Fix 4)
+
+
+def unanswered(text: str, checks: list[dict], boards: list, repo: str, today_utc: date,
+               event_age_days: int) -> tuple[list[dict], list[str]]:
+    """The host-side warning for a ``host-log`` gate no host has answered (TD-230 Fix 4; ledgerboard's
+    ``docs/plans/TD-045-host-log.md``, *The builds*): ``(items to file, keys to close)`` on this repo's own board.
+
+    ``sweep()`` gets no outcome for a gate no host answers, so it neither lifts it nor files anything, and
+    such a gate waits silently (a source only an unselected profile declares passes ``validate --ledger``).
+    One host cannot hear another, so *no host has ever answered* is read off the boards: a host that answers
+    a gate past the event age lifts it (passed) or files an item about it (*Still waiting*, *Event check
+    broken*, *can no longer happen*), and those items stay in the board's archive once closed. So a
+    ``host-log`` gate this host gives no outcome, older than ``event_age_days`` (``gate_age()``), that no
+    item on any board read names — open, decided or closed — gets one ``act`` item, ``Context: TD-n event
+    (<name>) unanswered``, filed once: never again while one with that Context is on a board or in its
+    archive. ``sweep()`` never closes it (its qualifier is not one sweep() reads); this does, once the gate
+    is no longer an open entry's, this host answers it, or another item names it."""
+    reads = LB._read_boards(boards, repo)
+    texts = LB._entry_texts(text)
+    silent: set[tuple[int, str]] = set()
+    filing: list[dict] = []
+    for c in checks:
+        if not c["check"] or c["check"].get("type") != "host-log":
+            continue
+        tid, gate = c["id"], f"event ({c['name']})"
+        num, key = LB._num(tid), LB._gate_key(gate)
+        named = [r for r in reads if r["ctx"] is not None and r["ctx"][:2] == (num, key)]
+        if c["outcome"] is not None or any(r["ctx"][2] != UNANSWERED for r in named):
+            continue   # this host answers it, or some host did: the sweep's own items say the rest
+        try:
+            age = LB.gate_age(texts.get(tid, ""), gate)
+        except LB.Refused:
+            age = None
+        if age is None or (today_utc - age).days <= event_age_days:
+            continue
+        if (num, key) in silent or named:   # a gate checked twice warns once; one item, ever (its own closed too)
+            silent.add((num, key))
+            continue
+        silent.add((num, key))
+        filing.append({"text": f"No host has answered {gate} on {tid} for more than {event_age_days} days: declare "
+                               "its source on a host that sweeps this ledger (that host's host-log.toml), or "
+                               "rewrite the gate.",
+                       "context": f"{tid} {gate} {UNANSWERED}", "kind": "act", "answers": None, "default": None,
+                       "detail": None, "lifts": None})
+    closing = [LB.item_key(r["line"]) for r in reads
+               if r["own"] and r["state"] in ("open", "decided") and r["ctx"] is not None
+               and r["ctx"][2] == UNANSWERED and r["ctx"][:2] not in silent]
+    return filing, list(dict.fromkeys(closing))
 
 
 # -- --apply: the writes (TD-219 slice 3; target design §4.4's host column) ------------------------------------

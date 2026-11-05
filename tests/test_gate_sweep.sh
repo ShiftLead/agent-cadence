@@ -153,5 +153,48 @@ js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>&1)
 python3 -c 'import json,sys; d=json.loads(sys.argv[1]); c=[c for c in d["checks"] if c["id"]=="TD-008"][0]; assert c["outcome"] is None, c; assert not any(l["id"]=="TD-008" for l in d["lifts"]); assert not any("TD-008" in str(f) for f in d["to_file"].values()), d["to_file"]' "$js" \
   && ok "9b no host file: no outcome — no lift, and nothing filed about it" || bad "9b: ${js:0:600}"
 
+# 10. host-log (TD-230 Fix 4): a gate no host has answered, past the event age, is named once on this board
+OLD=$(python3 -c 'from datetime import date, timedelta; print(date.today() - timedelta(days=40))')
+entry "$OWN" 9 "event (quiet)" "$(printf '**Event (quiet):** it pages.\ncheck: host-log pager "page"\n\n**Log:**\n- %s: gate added: event (quiet)' "$OLD")"
+rm -f "$OWN/docs/ledger/TD-008.md"; git -C "$OWN" checkout -q -- docs/ledger/log-sources.toml 2>/dev/null; publish "$OWN"
+WARN="file on github.com/o/own: [act] No host has answered event (quiet) on TD-009"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" 2>&1); rc=$?
+[ "$rc" = 0 ] && has "$WARN" && has "— Context: TD-009 event (quiet) unanswered" \
+  && ok "10a a host-log gate past the event age that no host answered: one act item here" || bad "10a rc=$rc: $out"
+js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --event-age-days 45 --json 2>&1)
+python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert not any("TD-009" in str(f) for f in d["to_file"].values()), d["to_file"]' "$js" \
+  && ok "10b within the event age: nothing filed" || bad "10b: ${js:0:600}"
+itm() {   # itm <head words> <context>: an item line as the sweep files it, dated today
+  ( cd "$OWN" && python3 - "$S" "$1" "$2" <<'PY'
+import sys; sys.path.insert(0, sys.argv[1]); import ledgerboard as LB, datetime as d
+t = d.date.today().isoformat()
+print(LB.item_line(sys.argv[2], t, t, "s", None, context=sys.argv[3], kind="act"))
+PY
+  )
+}
+W=$(itm "No host has answered event (quiet) on TD-009 for more than 30 days." "TD-009 event (quiet) unanswered")
+board alex "$W" > "$OWN/docs/user_attention.md"; publish "$OWN"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" 2>&1)
+! has "No host has answered" && ! has "close on" && ok "10c its item open on the board: not filed again, not closed" || bad "10c: $out"
+WC=$(cd "$OWN" && python3 - "$S" "$W" <<'PY'
+import sys, datetime as d; sys.path.insert(0, sys.argv[1]); import ledgerboard as LB
+print(LB.edit_line(sys.argv[2].split("\n")[0], "done", why="seen", today=d.date.today()))
+PY
+)
+grep -q '^- \[x\] act .*Closed: ' <<< "$WC" || bad "10d fixture: $WC"
+board alex > "$OWN/docs/user_attention.md"; printf '# Archive\n\n%s\n' "$WC" > "$OWN/docs/user_attention_archive.md"; publish "$OWN"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" 2>&1)
+! has "No host has answered" && ok "10d its item closed, in the board's archive: never filed again" || bad "10d: $out"
+git -C "$OWN" rm -q docs/user_attention_archive.md
+S2=$(itm "Event check broken on TD-009: the check for event (quiet) errors." "TD-009 event (quiet)")
+board alex "$(printf '%s\n%s' "$W" "$S2")" > "$OWN/docs/user_attention.md"; publish "$OWN"
+js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>&1)
+python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert not any("No host has answered" in str(f) for f in d["to_file"].values()), d["to_file"]; assert len(d["to_close"].get("github.com/o/own", [])) == 1, d["to_close"]' "$js" \
+  && ok "10e another item names the gate (some host answered): its open item is closed, nothing filed" || bad "10e: ${js:0:800}"
+board alex "$W" > "$OWN/docs/user_attention.md"; rm "$OWN/docs/ledger/TD-009.md"; publish "$OWN"
+js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>&1)
+python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert len(d["to_close"].get("github.com/o/own", [])) == 1, d["to_close"]' "$js" \
+  && ok "10f the gate on no open entry: its item is closed" || bad "10f: ${js:0:800}"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
