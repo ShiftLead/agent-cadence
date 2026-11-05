@@ -41,8 +41,8 @@ column), from temporary worktrees at ``origin/<default>`` — the checkout it ru
   said: they are a PR in that repo, TD-229.
 - The PRs are reviewed and merged like any (cadence.md §4). Findings reach the person as every board item
   does, through the session-start report. A push is never forced: a branch left on origin with no PR is
-  named, to delete; a PR the forge would not open has its pushed branch deleted again. **What runs the sweep is not decided here**: by hand, or a session,
-  until the person picks a schedule (the board, TD-219). The plan reads what is fetched: fetch first.
+  named, to delete; a PR the forge would not open has its pushed branch deleted again. **What runs the sweep is the person's choice** (cadence.md §2.14): by hand,
+  a session, or daily from the timer ``gate_sweep_timer.sh`` writes, which fetches first. The plan reads what is fetched: fetch first.
 
 The re-ask window and the event age
 are the consumer's numbers (``--reask-days``, ``--event-age-days``; default 30 each, §3.2). Today is the
