@@ -31,7 +31,7 @@ items surface in `/attention`'s full report.
 
 ## Needs Paul
 
-- [ ] decide 2026-11-04 (session `ao-agent-cadence-ac-grinder`) — What runs the gate sweep (gate_sweep.py --apply): leave it to a session run by hand, or give it a schedule? Context: TD-219. Due: 2026-11-12. Answers: By hand (default) | Daily, from a timer | At session start.
+- [ ] decide 2026-11-04 (session `ao-agent-cadence-ac-grinder`) — What runs the gate sweep (gate_sweep.py --apply): leave it to a session run by hand, or give it a schedule? Context: TD-219. Due: 2026-11-12. Answers: By hand (default) | Daily, from a timer | At session start. Decided: Daily, from a timer (by Paul) (2026-11-04).
   - **Context:** TD-219 built the gate sweep: gate_sweep.py prints what ledgerboard sweep() would file, close and lift, and --apply opens the PRs (a tool PR per lift, one sweep PR for this repo board). The target design says the host runs it on a schedule; wiring one is yours.
   - **Question:** What runs the sweep?
   - **Recommended:** By hand — nothing in this repo carries an event or until gate yet, so a schedule would sweep an empty plan. Daily needs a timer outside the repo; at session start adds a forge call to every start.
