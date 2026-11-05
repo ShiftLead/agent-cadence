@@ -43,7 +43,9 @@ column), from temporary worktrees at ``origin/<default>`` — the checkout it ru
   ``notices/<this repo>-sweep-<UTC date>``, opened on that repo's forge and left for its review; each item's
   ``Context:`` (and a bare ``TD-n`` in its words) names ``<this repo>#TD-n``. Nothing while an earlier such
   PR from this repo is open there, and nothing on a board more visible than this repo (the items carry this
-  repo's entries' words); each is said.
+  repo's entries' words; each repo's visibility is read on its own forge, github.com or GitLab, as the event
+  checks read it); each is said. That clone is not fetched either: its PR is built on its ``origin/<default>``
+  as last fetched, and a stale one shows as a conflict on that PR.
 - The PRs are reviewed and merged like any (cadence.md §4). Findings reach the person as every board item
   does, through the session-start report. A push is never forced: a branch left on origin with no PR is
   named, to delete; a PR the forge would not open has its pushed branch deleted again. **What runs the sweep is the person's choice** (cadence.md §2.14): by hand,
@@ -244,7 +246,7 @@ def _ship(top: Path, wt: Path, be, branch: str, base: str, subject: str, body: s
                            f"PR on it, delete it there (git push origin --delete {branch}) and sweep again")
     try:
         return be.create_pr(branch, base, subject, body)
-    except F.ForgeUnreadable as e:   # no PR: take the pushed branch back, or the next sweep's push is refused
+    except (F.ForgeUnreadable, RuntimeError, OSError, subprocess.SubprocessError) as e:   # no PR: take the pushed branch back, or the next sweep's push is refused
         gone = _git(wt, "push", "-q", "origin", "--delete", branch).returncode == 0
         raise F.ForgeUnreadable(f"{e} — the PR was not opened; {branch} "
                                 + ("was deleted from origin again" if gone else
@@ -280,15 +282,19 @@ def _other_board(top: Path, repo: str, board: str, root: str | None, items: list
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", repo).strip("-")
     prefix = f"{OTHER_BRANCH}{slug}-sweep-"
     try:
-        theirs, mine = LB.origin_path(origin_url(root_p)), LB.origin_path(origin_url(top))
-        if not (theirs and mine):
-            raise F.ForgeUnreadable("an origin names no forge repo")
-        vis = {s: be.repo_info(s)["visibility"] for s in (mine, theirs)}
-        if E.VISIBILITY[vis[theirs]] > E.VISIBILITY[vis[mine]]:
-            return (f"board {board}: not written — {theirs} is {vis[theirs]}, more visible than this repo "
-                    f"({vis[mine]}), and its items carry this repo's entries' words ({n})")
+        # each repo asked on its own forge, by the slug that forge reads (event_checks.py's rule: github.com or GitLab)
+        runner = E.Runner(top)
+        vis = {}
+        for who, at in (("mine", top), ("theirs", root_p)):
+            be_x, s = runner._backend(at)
+            vis[who] = (s, be_x.repo_info(s)["visibility"])
+        (_, vm), (theirs, vt) = vis["mine"], vis["theirs"]
+        if E.VISIBILITY[vt] > E.VISIBILITY[vm]:
+            return (f"board {board}: not written — {theirs} is {vt}, more visible than this repo "
+                    f"({vm}), and its items carry this repo's entries' words ({n})")
         be2 = F.backend(root_p, cwd=root_p)   # gh infers the repo from its directory: that repo's
-        earlier = [q for q in be2.open_prs_files() if str(q["head"] or "").startswith(prefix)]
+        mark = re.compile(rf"{re.escape(prefix)}\d{{4}}-\d\d-\d\d$")   # never a set notices branch of a repo named <x>-sweep
+        earlier = [q for q in be2.open_prs_files() if mark.match(str(q["head"] or ""))]
         if earlier:
             return (f"board {board}: an earlier sweep PR #{earlier[0]['number']} from this repo is open there — "
                     f"merge or close it, then sweep ({n} wait)")
@@ -301,7 +307,7 @@ def _other_board(top: Path, repo: str, board: str, root: str | None, items: list
                 # sweep() writes the Context as <repo>#TD-n; a bare TD-n in the words would read as that repo's own
                 m = re.match(r"\S+#(TD-\d+)\b", it["context"])
                 bare = re.compile(rf"(?<![#\w]){re.escape(m.group(1))}\b") if m else None
-                fix = (lambda x: bare.sub(f"{repo}#{m.group(1)}", x)) if bare else (lambda x: x)
+                fix = (lambda x: bare.sub(f"{repo.lower()}#{m.group(1)}", x)) if bare else (lambda x: x)
                 detail = ({k: [fix(x) for x in v] if isinstance(v, list) else fix(v)
                            for k, v in it["detail"].items()} if it["detail"] else None)
                 LBB.apply(LBB.plan_add(path, fix(it["text"]), due=today_local.isoformat(), context=it["context"],

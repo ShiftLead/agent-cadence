@@ -184,6 +184,11 @@ has "lift TD-003 until $PAST: not done — git push lift/TD-003/until:" && has "
   && ok "9c after the failures: no worktree, branch or temp dir left" || bad "9c: $(git -C "$OWN" worktree list; git -C "$OWN" branch)"
 
 # 10. a board more visible than this repo is never written: its items carry this repo's entries' words
+git -C "$OBARE" branch -q -D "notices/o-own-sweep-$TODAY"
+# ... and first: `ledger.py set`'s notices PR of a repo named own-sweep is no earlier sweep PR
+printf '[{"number":56,"headRefName":"notices/o-own-sweep-TD-005-sam","files":[]}]' > "$FIX/oth_open.json"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
+has "board github.com/o/oth: opened https://github.com/o/oth/pull/" && ok "10b a set notices branch sharing the prefix does not block the sweep's PR" || bad "10b: $out"
 rm -f "$FIX/oth_open.json"; git -C "$OBARE" branch -q -D "notices/o-own-sweep-$TODAY"
 fx repos/o/oth '{"visibility":"public","default_branch":"main"}'
 m0=$(grep -c '^oth: pr create' "$GH_LOG")
