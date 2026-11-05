@@ -155,8 +155,9 @@ class Runner:
         host = self.host_file or host_file()
         if not host.exists():
             return {"outcome": None, "evidence": None, "why": f"no host file ({host})"}
-        kind, slug = F.origin_forge(self.own)
-        if not slug or kind not in ("github", "gitlab"):
+        url = (L._git(self.own, "remote", "get-url", "origin") or "").strip()
+        repo = LB.origin_path(url)   # the ledger's <repo> id, as the sweep names it: host-less, on any forge
+        if not repo:
             return {"outcome": "error", "evidence": None, "why": "this ledger's own repo has no <repo> id"}
         rank, _ = self.own_visibility()
         vis = {0: "private", 1: "internal"}.get(rank, "public")  # unknown reads as public (rule 11)
@@ -165,9 +166,12 @@ class Runner:
         conf = self.log_sources
         if conf is None:
             p = self.own / LOG_SOURCES
-            conf = p.read_text(encoding="utf-8") if p.is_file() else ""
+            try:
+                conf = p.read_text(encoding="utf-8") if p.is_file() else ""
+            except (OSError, UnicodeDecodeError) as e:
+                return {"outcome": "error", "evidence": None, "why": f"{LOG_SOURCES} cannot be read: {e}"}
         cmd = [sys.executable, str(Path(__file__).resolve().parent / "hostlog.py"), "check", "--repo-config", "-",
-               "--host-config", str(host), "--repo", slug, "--visibility", vis]
+               "--host-config", str(host), "--repo", repo, "--visibility", vis]
         cmd += ["--since", gate["since"]] if gate.get("since") else []
         try:
             r = subprocess.run(cmd + [line], input=conf, capture_output=True, text=True, timeout=HOSTLOG_TIMEOUT,

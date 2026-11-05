@@ -220,19 +220,40 @@ g = {"id": "TD-1", "name": "x", "problem": None, "since": "2026-01-01", "check":
 r = E.Runner(Path("."), host_file=Path(sys.argv[2]))
 r._own_vis = (0, "")
 outs = []
+real = subprocess.run
+def only_hostlog(fake):   # git (the origin's url) still runs; only the reader's call is faked
+    return lambda cmd, **k: fake(cmd, **k) if "hostlog.py" in " ".join(map(str, cmd)) else real(cmd, **k)
 for fake in (lambda *a, **k: subprocess.CompletedProcess(a, 0, "not json", ""),
              lambda *a, **k: subprocess.CompletedProcess(a, 2, "", "usage"),
              lambda *a, **k: subprocess.CompletedProcess(a, 0, '{"outcome": "maybe"}', "")):
-    E.subprocess.run = fake
+    E.subprocess.run = only_hostlog(fake)
     outs.append(r.run(g)["outcome"])
 def slow(*a, **k):
     raise subprocess.TimeoutExpired(a, 120)
-E.subprocess.run = slow
+E.subprocess.run = only_hostlog(slow)
 outs.append(r.run(g)["outcome"])
 print(outs)
 PY
 )
 [ "$res" = "['error', 'error', 'error', 'error']" ] && ok "8f non-JSON output, a non-zero exit, an unknown outcome or the 120 s timeout: error" || bad "8f: $res"
+res=$(python3 - "$S" "$AGENT_CADENCE_REG_DIR/host-log.toml" "$TMP/lab" <<'PY'
+import sys, subprocess; sys.path.insert(0, sys.argv[1]); from pathlib import Path
+import event_checks as E, ledgerboard as LB
+seen = {}
+real = subprocess.run
+def fake(cmd, **k):
+    if "hostlog.py" not in " ".join(map(str, cmd)):
+        return real(cmd, **k)
+    seen["repo"] = cmd[cmd.index("--repo") + 1]
+    return subprocess.CompletedProcess(cmd, 0, '{"outcome": "not yet", "count": 0}', "")
+E.subprocess.run = fake
+r = E.Runner(Path(sys.argv[3]), host_file=Path(sys.argv[2]), log_sources="")
+r._own_vis = (0, "")
+r.run({"id": "TD-1", "name": "x", "problem": None, "since": "2026-01-01", "check": LB.parse_check('host-log app "boom"')})
+print(seen["repo"])
+PY
+)
+[ "$res" = "g/lab" ] && ok "8g a GitLab ledger's <repo> id is host-less (g/lab), as the sweep and the host file name it" || bad "8g: $res"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
