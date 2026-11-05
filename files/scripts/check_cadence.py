@@ -49,8 +49,8 @@ never a fake pass):
               A tool-made board PR (cadence §4.5, TD-083) passes with no comment:
               its title is a board edit's fixed message (ledgerboard's subject_kind), it
               touches the board alone, and its one commit — merged, a single-parent
-              squash whose subject ends `(#n)`; open, the only commit past the default
-              branch — is the one-item edit the direct audit's board-edit class
+              landed commit of a PR its forge says carried one commit (TD-224); open,
+              the only commit past the default branch — is the one-item edit the direct audit's board-edit class
               accepts, read from this clone; unreadable, the row asks for a review.
               A tool-made rank PR (cadence §2.4, TD-119; class `queue-edit`) passes the
               same way: its title is a `queue: rank|join|prune TD-… (<tool>)` subject
@@ -2247,22 +2247,33 @@ def row_gates(pr, root):
                + tail)
 
 
+def _merged_pr_commits(pr):
+    """How many commits a merged PR carried, as its forge says (TD-224), or None when it cannot say."""
+    ask = getattr(FORGE, "pr_commits", None)
+    if ask is None:
+        return None
+    try:
+        return ask(pr)
+    except F.ForgeUnreadable:
+        return None
+
+
 def _tool_pr_commit(pr, root):
     """(sha, files) of the one commit that is a tool-made PR's whole change, or None. That commit is
-    the whole PR only when it is one commit: merged, a single-parent squash whose subject ends `(#n)`
-    (a rebase merge's last commit carries no such suffix, and its earlier ones would go unread);
-    open, the one commit between the default branch and the head. None when it is not one, or its
-    commit is not in this clone."""
+    the whole PR only when it is one commit: merged, a single-parent landed commit of a PR its forge
+    says carried one commit (TD-224: not its subject, since a rebase merge leaves its last commit,
+    whose subject is whatever its author typed, and the earlier ones would go unread); open, the one
+    commit between the default branch and the head. None when it is not one, the forge gives no
+    count, or its commit is not in this clone."""
     sha = pr.get("merge_sha") if pr["state"] == "merged" else pr.get("head_sha")
     if not sha:
         return None
     fetch_once(root)
-    head = git(["log", "-1", "--format=%P%x00%s", sha], cwd=root)
-    parents, _, subject = (head or "").strip("\n").partition("\0")
-    if len(parents.split()) != 1:
+    parents = git(["log", "-1", "--format=%P", sha], cwd=root)
+    if len((parents or "").split()) != 1:
         return None  # unreadable, the root, or a merge commit
     if pr["state"] == "merged":
-        if not subject.endswith(f"({pr['ref']})"):
+        if _merged_pr_commits(pr) != 1:
             return None
     elif (git(["rev-list", "--count", f"{default_ref(root)}..{sha}"], cwd=root) or "").strip() != "1":
         return None

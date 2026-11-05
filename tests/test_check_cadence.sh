@@ -804,11 +804,14 @@ echo "$out" | grep -q "direct commits: n/a" && [ $rc -eq 2 ] && ok "--since with
 # --- 17b) TD-083, cadence §4.5: a tool lands its board edit by a PR of its own, merged at once
 # with no review comment. The review row passes it only when the title is board_edit.py's message,
 # the PR touches the board alone, and its squash is a one-item edit — the direct audit's rules.
-bepr() {  # bepr <n> <title> <sha> [files...]: a merged PR fixture whose squash is <sha>
+bepr() {  # bepr <n> <title> <sha> [files...]: a merged PR fixture whose squash is <sha>, carrying $COMMITS commits (default 1; "none": gh gave no list)
   local n=$1 title=$2 sha=$3; shift 3
   local files="" ; for f in "$@"; do files="$files{\"path\":\"$f\"},"; done; files="[${files%,}]"
-  printf '{"number":%s,"url":"https://x/pr/%s","state":"MERGED","title":"%s","body":"","baseRefName":"main","headRefName":"board-edit-%s","headRefOid":"hhh2222","mergedAt":"%s","mergeCommit":{"oid":"%s"},"files":%s}\n' \
-    "$n" "$n" "$title" "$n" "$MERGED" "$sha" "$files" > "$FAKE/pr_$n.json"
+  local commits="" i want=${COMMITS:-1}
+  if [ "$want" = none ]; then commits=""
+  else for ((i = 0; i < want; i++)); do commits="$commits{\"oid\":\"c$i\"},"; done; commits=",\"commits\":[${commits%,}]"; fi
+  printf '{"number":%s,"url":"https://x/pr/%s","state":"MERGED","title":"%s","body":"","baseRefName":"main","headRefName":"board-edit-%s","headRefOid":"hhh2222","mergedAt":"%s","mergeCommit":{"oid":"%s"},"files":%s%s}\n' \
+    "$n" "$n" "$title" "$n" "$MERGED" "$sha" "$files" "$commits" > "$FAKE/pr_$n.json"
   [ "${OPEN:-}" ] && python3 - "$FAKE/pr_$n.json" "$sha" <<'J'
 import json, sys
 p, sha = sys.argv[1:]; d = json.load(open(p))
@@ -859,9 +862,18 @@ GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=
 OPEN=1 bepr 27 "$(dgit log -1 --format=%s)" "$(dgit rev-parse HEAD)" docs/user_attention.md
 out=$( cd "$D" && python3 "$SCRIPT" --pr 27 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && ok "an open two-commit board PR needs a review — its head alone hides the first commit" || bad "two-commit open PR: $out"
-bepr 28 "$(dgit log -1 --format=%s)" "$(dgit rev-parse HEAD)" docs/user_attention.md   # a rebase merge's last commit: no (#n)
+COMMITS=2 bepr 28 "$(dgit log -1 --format=%s)" "$(dgit rev-parse HEAD)" docs/user_attention.md   # a rebase merge's last commit
 out=$( cd "$D" && python3 "$SCRIPT" --pr 28 2>&1 )
-[ "$(rowstat "$out" review)" = FAIL ] && ok "a merged board PR whose commit is no (#n) squash needs a review" || bad "rebase-merged board PR: $out"
+[ "$(rowstat "$out" review)" = FAIL ] && ok "a rebase-merged two-commit board PR needs a review" || bad "rebase-merged board PR: $out"
+# TD-224: the last commit's subject is whatever its author typed, so a (#n) on it proves nothing
+dgit commit -q --amend -m "$(dgit log -1 --format=%s) (#36)"
+COMMITS=2 bepr 36 "$(dgit log -1 --format=%s | sed 's/ (#36)$//')" "$(dgit rev-parse HEAD)" docs/user_attention.md
+out=$( cd "$D" && python3 "$SCRIPT" --pr 36 2>&1 )
+[ "$(rowstat "$out" review)" = FAIL ] && ok "a rebase-merged two-commit board PR whose last subject ends (#n) still needs a review (TD-224)" || bad "rebase (#n) board PR: $out"
+COMMITS=none bepr 21 "$btitle" "$bsha" docs/user_attention.md
+out=$( cd "$D" && python3 "$SCRIPT" --pr 21 2>&1 )
+[ "$(rowstat "$out" review)" = FAIL ] && ok "a merged board PR whose forge gives no commit count needs a review — never a pass on the subject" || bad "no-count board PR: $out"
+bepr 21 "$btitle" "$bsha" docs/user_attention.md
 dgit checkout -q main
 
 # --- 17c) TD-119, cadence §2.4: a tool (ShiftLead's Queue) lands a rank edit by a PR of its own,
