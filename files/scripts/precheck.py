@@ -63,7 +63,6 @@ import argparse
 import fnmatch
 import os
 import re
-import shutil
 import signal
 import socket
 import subprocess
@@ -75,6 +74,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import cadence_config as C  # noqa: E402
+import check_tmp as T  # noqa: E402  # sibling SYNC script: the temp dir's reaper (TD-223)
 import forge as F  # noqa: E402
 
 
@@ -291,6 +291,13 @@ def main(argv: list[str] | None = None) -> int:
     for sig, was in saved.items():
         if was is not signal.SIG_IGN:
             signal.signal(sig, _stopped)
+    # TD-223: a SIGKILL skips every `finally`, so this user's clean worktrees older than a day are
+    # leftovers: removed here, and the clone's entries for them pruned
+    stale, _, _ = T.reap(tempfile.gettempdir(), ("precheck-*",))
+    if stale:
+        git("worktree", "prune", cwd=root)
+        print(f"precheck: removed {len(stale)} clean worktree(s) older than a day that an earlier run left",
+              file=sys.stderr)
     tmp = tempfile.mkdtemp(prefix=f"precheck-{a.pr if a.commit is None else sha[:7]}-")
     wt = Path(tmp) / "head"
     try:
@@ -321,9 +328,11 @@ def main(argv: list[str] | None = None) -> int:
             signal.signal(sig, signal.SIG_IGN)
         if wt.exists():
             git("worktree", "remove", "--force", str(wt), cwd=root)
-        else:   # stopped inside `git worktree add`: drop the half-registered entry
-            git("worktree", "prune", cwd=root)
-        shutil.rmtree(tmp, ignore_errors=True)
+        # stopped inside `git worktree add`, or a remove that gave up on a read-only directory the
+        # command left (TD-223): the tree goes writable-first, then the clone's entry is dropped
+        if not T.force_rmtree(tmp):
+            print(f"precheck: could not remove the clean worktree {tmp} — remove it by hand", file=sys.stderr)
+        git("worktree", "prune", cwd=root)
         for sig, was in saved.items():
             signal.signal(sig, was)
 
