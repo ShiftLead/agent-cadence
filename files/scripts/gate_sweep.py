@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SYNCED FILE — canonical copy: ShiftLead/agent-cadence files/scripts/gate_sweep.py
 # Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
-"""The gate sweep, as a plan: what nothing-waits-silently would file, close and lift in this repo now
-(TD-219; ledgerboard's target design §3.2, §1.2).
+"""The gate sweep: what nothing-waits-silently files, closes and lifts in this repo now, as a plan or, with
+``--apply``, as PRs (TD-219; ledgerboard's target design §3.2, §1.2, §4.4).
 
-    gate_sweep.py [--json] [--timeout S] [--reask-days N] [--event-age-days N]
+    gate_sweep.py [--apply] [--json] [--timeout S] [--reask-days N] [--event-age-days N]
 
 Every gate in ``**Blocked by:**`` has a way out (a decision is answered, an ``until`` date comes, an event's
 check passes); the sweep is what notices one that is stuck. **What it decides is ledgerboard's ``sweep()``**,
@@ -24,28 +24,55 @@ a pure function; this script is the I/O around it:
   A board that is there and cannot be read (a git call failed or timed out) is left out and named under
   ``unread``, never read as absent; this repo's own ledger or board unreadable is no plan at all.
 
-**It writes nothing.** Filing the items, closing them and opening the lift PRs (``lift/TD-n/<gate>``,
-idempotent, §4.4), and when the sweep runs, are TD-219's next slice. The re-ask window and the event age
+**Without --apply it writes nothing.** **With --apply** it makes the writes on this repo's forge (§4.4's host
+column), from temporary worktrees at ``origin/<default>`` — the checkout it runs in is never touched:
+
+- **Each lift is its own tool PR**, on ``lift/TD-n/<event name>`` (``…/until``), written by ``ledger.py lift``
+  (the gate removed, the ``gate lifted`` Log line with the host's token, ``$CADENCE_HOST`` else this machine's
+  short name, and the evidence a reviewer re-runs). Idempotent: nothing when a PR on that branch is open, or
+  when another open PR's diff already logs ``gate lifted: <gate>`` in the entry; a PR on that branch closed
+  unmerged is never reopened — an ``act`` item "Lift of <gate> on TD-n was closed" (``Context: TD-n <gate>
+  lift``) asks why, once: not when an item with that Context is on the board, open or closed. (ledgerboard
+  v2.4's Context reader names no ``until`` gate, so its sweep never closes such an item for an ``until``.)
+- **This repo's own board** gets the items to file and the closes as one sweep PR on ``sweep/<UTC date>``
+  (each item due today, under the session ``$SHIFTLEAD_SESSION`` else ``gate-sweep``); while an earlier
+  ``sweep/…`` PR is open, nothing more is filed. Items and closes on **another repo's board** are skipped and
+  said: they are a tool PR in that repo, TD-226.
+- The PRs are reviewed and merged like any (cadence.md §4). Findings reach the person as every board item
+  does, through the session-start report. **What runs the sweep is not decided here**: by hand, or a session,
+  until the person picks a schedule (the board, TD-219). The plan reads what is fetched: fetch first.
+
+The re-ask window and the event age
 are the consumer's numbers (``--reask-days``, ``--event-age-days``; default 30 each, §3.2). Today is the
 UTC date for the ledger and this machine's local date for the boards (§3.1).
 
-Exit 0 when the plan was made (whatever it holds), 2 when it could not be (no ledger, no own board, a
-format ``sweep()`` refuses). Stdlib only.
+Exit 0 when the plan was made (whatever it holds) and every write asked for was made or rightly skipped;
+1 when a write was not done (each says why: ``not done — …``); 2 when there is no plan (no ledger, no own
+board, a format ``sweep()`` refuses) or ``--apply`` cannot ask the forge. ``--json`` adds ``applied``, the
+lines. Stdlib only.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
+import shutil
+import socket
+import subprocess
 import sys
+import tempfile
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import event_checks as E  # noqa: E402  # sibling SYNC script: the event runner
+import forge as F  # noqa: E402  # sibling SYNC script: the one place a forge's CLI runs
 import ledger as L  # noqa: E402  # sibling SYNC script: the ledger's readers and the roster
 import ledgerboard as LB  # noqa: E402  # sibling SYNC file: the formats and sweep(), defined once
 import nudge_user_attention as N  # noqa: E402  # sibling SYNC script: the roster and default-branch readers
+from ledgerboard import board as LBB  # noqa: E402  # the package's board writer
 
 
 class Unreadable(Exception):
@@ -139,25 +166,224 @@ def plan(top: Path, roster: list[Path], runner: E.Runner, *, today_utc: date, to
             "checks": [{k: c[k] for k in ("id", "name", "outcome", "evidence", "why")} for c in checks], **out}
 
 
+# -- --apply: the writes (TD-219 slice 3; target design §4.4's host column) ------------------------------------
+
+SWEEP_BRANCH = "sweep/"          # the board PR's branch: sweep/<UTC date>
+LIFT_BRANCH = "lift/"            # a lift PR's: lift/TD-n/<event name> | until (§4.4)
+GIT_TIMEOUT = 60.0
+
+
+def lift_branch(tid: str, gate: str) -> str:
+    """§4.4's key: ``lift/TD-n/<event name>``, ``…/until``, ``…/decision-<person lower-cased>``."""
+    if gate.startswith("event ("):
+        return f"{LIFT_BRANCH}{tid}/{gate[len('event ('):-1]}"
+    if gate.startswith("until "):
+        return f"{LIFT_BRANCH}{tid}/until"
+    return f"{LIFT_BRANCH}{tid}/decision-{gate[gate.index('(') + 1:-1].lower()}"
+
+
+def host_token() -> str:
+    """Who lifts, in the Log: ``$CADENCE_HOST``, else this machine's short name — a token of [A-Za-z0-9_.@/-]."""
+    raw = os.environ.get("CADENCE_HOST", "").strip() or socket.gethostname().split(".")[0]
+    return re.sub(r"[^A-Za-z0-9_.@/-]", "-", raw) or "host"
+
+
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True, timeout=GIT_TIMEOUT,
+                          check=False)
+
+
+class Scratch:
+    """A temporary worktree of ``top`` at ``base`` on a new ``branch``, removed on leaving — whatever happened."""
+
+    def __init__(self, top: Path, base: str, branch: str) -> None:
+        self.top, self.base, self.branch = top, base, branch
+        self.dir = Path(tempfile.mkdtemp(prefix="gate-sweep-"))
+        self.made = False
+
+    def __enter__(self) -> Path:
+        if _git(self.top, "rev-parse", "--verify", "-q", f"refs/heads/{self.branch}").returncode == 0:
+            self.__exit__()
+            raise RuntimeError(f"a local branch {self.branch} exists — someone's work: left alone")
+        r = _git(self.top, "worktree", "add", "-q", "-b", self.branch, str(self.dir), self.base)
+        if r.returncode != 0:
+            self.__exit__()
+            raise RuntimeError(f"git worktree add {self.branch}: {(r.stderr or r.stdout).strip()}")
+        self.made = True
+        return self.dir
+
+    def __exit__(self, *_: object) -> None:
+        _git(self.top, "worktree", "remove", "--force", str(self.dir))
+        shutil.rmtree(self.dir, ignore_errors=True)
+        _git(self.top, "worktree", "prune")
+        if self.made:   # pushed or not, the branch this made is the PR's, never a save-point
+            _git(self.top, "branch", "-D", self.branch)
+
+
+def _ship(top: Path, wt: Path, be, branch: str, base: str, subject: str, body: str) -> str:
+    """Commit everything in ``wt``, push ``branch``, open its PR; the PR's URL."""
+    for args in (("add", "-A"), ("commit", "-q", "-m", subject), ("push", "-q", "origin", f"HEAD:refs/heads/{branch}")):
+        r = _git(wt, *args)
+        if r.returncode != 0:
+            raise RuntimeError(f"git {args[0]}: {(r.stderr or r.stdout).strip()}")
+    return be.create_pr(branch, base, subject, body)
+
+
+def _closes(board: str, keys: list[str]) -> list[tuple[int, str, str]]:
+    """(line, expect, key) of each open item of ``board`` whose ``item_key`` is one of ``keys``."""
+    lines = board.splitlines()
+    out = []
+    for it in LB.parse_board(board, warn=False):
+        raw = lines[it.line - 1]
+        if LB.item_key(raw) in keys:
+            m = LB.ITEM_RE.match(raw)
+            out.append((it.line, m.group("text")[:60] if m else raw.strip()[:60], LB.item_key(raw)))
+    return out
+
+
+def apply(top: Path, p: dict, be, *, today_local: date, today_utc: date, by: str) -> list[str]:
+    """Make the plan's writes on this repo's forge (§4.4): each lift as its own tool PR, and the items and
+    closes on this repo's own board as one sweep PR. What was done or skipped, one line each; RuntimeError /
+    ForgeUnreadable stop only the PR they hit."""
+    said: list[str] = []
+    if not (p["lifts"] or any(p["to_file"].values()) or any(p["to_close"].values())):
+        return said
+    default = N.default_branch(top)
+    base = f"origin/{default}"
+    own = p["boards"][0]["board"]
+    opened = be.open_prs_files()
+    rel = L.ledger_at(top, tree_io(top)[0])
+    extra: list[dict] = []   # the "lift was closed" items, filed with the sweep's own
+    # sweep() does not file these (they are forge state), so it cannot de-dupe them: an item with the Context
+    # on this board, open, decided or closed (the board and its archive), is not filed again
+    io, _ = tree_io(top)
+    mine = (read(io, LB.BOARD_PATH, top.name) or "") + "\n" + (read(io, LB.BOARD_ARCHIVE_PATH, top.name) or "")
+    asked = {" ".join(c.group("ctx").split()).rstrip(".").lower()
+             for it in LB.parse_board(mine, warn=False) + LB.parse_closed_items(mine)
+             for c in [LB.CONTEXT_RE.search(it.text)] if c}
+
+    for x in p["lifts"]:
+        tid, gate = x["id"], x["gate"]
+        branch = lift_branch(tid, gate)
+        path = f"{rel}/{tid}.md" if rel == L.LEDGER_DIR_REL else rel
+        try:
+            mine = [q for q in opened if q["head"] == branch]
+            if mine:
+                said.append(f"lift {tid} {gate}: PR #{mine[0]['number']} is open — nothing to do")
+                continue
+            dup = next((q for q in opened if path in q["files"]
+                        and re.search(rf"^\+.*gate lifted: {re.escape(gate)} ", be.pr_diff(q["number"]), re.M)), None)
+            if dup:
+                said.append(f"lift {tid} {gate}: PR #{dup['number']} already lifts it — nothing to do")
+                continue
+            past = be.prs_for_branch(branch, limit=5)
+            if any(q["state"] == "closed" for q in past):
+                n = next(q["number"] for q in past if q["state"] == "closed")
+                ctx = f"{tid} {gate} lift"
+                if ctx.lower() in asked:
+                    said.append(f"lift {tid} {gate}: its PR #{n} was closed unmerged — not reopened; asked on the board already")
+                    continue
+                said.append(f"lift {tid} {gate}: its PR #{n} was closed unmerged — not reopened; an act item asks why")
+                extra.append({"text": f"Lift of {gate} on {tid} was closed", "context": f"{tid} {gate} lift",
+                              "kind": "act", "answers": None, "default": None, "detail": None, "lifts": None})
+                continue
+            if any(q["state"] == "merged" for q in past):
+                said.append(f"lift {tid} {gate}: its PR merged and {base} still carries the gate — fetch, then sweep")
+                continue
+            with Scratch(top, base, branch) as wt:
+                argv = ["lift", tid, "--gate", gate, "--by", by, "--ledger", str(wt / L.LEDGER_DIR_REL)]
+                if x["kind"] == "event":
+                    argv += ["--evidence", x["evidence"]]
+                r = subprocess.run([sys.executable, str(Path(__file__).with_name("ledger.py")), *argv], cwd=wt,
+                                   capture_output=True, text=True, timeout=GIT_TIMEOUT, check=False)
+                if r.returncode != 0:
+                    raise RuntimeError(f"ledger.py lift: {(r.stderr or r.stdout).strip()}")
+                why = "date reached" if x["kind"] == "until" else f"its check passed: {x['evidence']}"
+                url = _ship(top, wt, be, branch, default, f"{tid}: lift {gate} — {why} (gate sweep)",
+                            f"The gate sweep (TD-219) lifts `{gate}` from {tid}: {why}.\n\n"
+                            "A reviewer re-runs the check from the evidence in the Log line before merging "
+                            "(ledgerboard's target design §4.2: a lifted gate never re-arms).")
+            said.append(f"lift {tid} {gate}: opened {url}")
+        except (RuntimeError, F.ForgeUnreadable, subprocess.SubprocessError) as e:
+            said.append(f"lift {tid} {gate}: not done — {e}")
+
+    items = list(p["to_file"].get(own, [])) + extra
+    keys = list(p["to_close"].get(own, []))
+    for board, got in p["to_file"].items():
+        if board != own:
+            said.append(f"file on {board}: {len(got)} item(s) skipped — another repo's board is written by a "
+                        "tool PR there (TD-226)")
+    for board, got in p["to_close"].items():
+        if board != own:
+            said.append(f"close on {board}: {len(got)} item(s) skipped — another repo's board (TD-226)")
+    if not (items or keys):
+        return said
+    earlier = [q for q in opened if str(q["head"] or "").startswith(SWEEP_BRANCH)]
+    if earlier:
+        said.append(f"board: an earlier sweep PR #{earlier[0]['number']} is open — merge or close it, then sweep "
+                    f"({len(items)} to file, {len(keys)} to close wait)")
+        return said
+    branch = f"{SWEEP_BRANCH}{today_utc.isoformat()}"
+    try:
+        with Scratch(top, base, branch) as wt:
+            board = str(wt / LB.BOARD_PATH)
+            host = by
+            session = os.environ.get("SHIFTLEAD_SESSION", "").strip() or "gate-sweep"
+            for it in items:
+                LBB.apply(LBB.plan_add(board, it["text"], due=today_local.isoformat(), context=it["context"],
+                                       kind=it["kind"], answers=it["answers"], default=it["default"],
+                                       detail=it["detail"], lifts=it["lifts"], session=session, host=host,
+                                       today=today_local, tool="gate-sweep"))
+            closed = 0
+            for key in keys:   # one at a time: each close may move the lines below it
+                hit = _closes(LBB.read(board), [key])
+                if hit:
+                    line, expect, _ = hit[0]
+                    LBB.apply(LBB.plan_edit(board, "done", line, expect, why="the gate sweep: its condition no longer holds",
+                                            today=today_local, tool="gate-sweep"))
+                    closed += 1
+            subject = f"board: gate sweep {today_utc.isoformat()} — {len(items)} filed, {closed} closed (TD-219)"
+            body = "\n".join(["The gate sweep (TD-219; ledgerboard's target design §3.2) on this repo's own board.", ""]
+                             + [f"- file: [{it['kind']}] {it['text']} — Context: {it['context']}" for it in items]
+                             + [f"- close: {k}" for k in keys])
+            url = _ship(top, wt, be, branch, default, subject, body)
+        said.append(f"board: opened {url}")
+    except (RuntimeError, LB.Refused, F.ForgeUnreadable, OSError, subprocess.SubprocessError) as e:
+        said.append(f"board: not done — {e}")
+    return said
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--timeout", type=float, default=E.TIMEOUT, help="seconds per forge call of an event check")
     ap.add_argument("--reask-days", type=int, default=LB.SWEEP_REASK_DAYS)
     ap.add_argument("--event-age-days", type=int, default=LB.SWEEP_EVENT_AGE_DAYS)
+    ap.add_argument("--apply", action="store_true", help="make the writes: a tool PR per lift, one sweep PR for "
+                                                         "this repo's own board")
     a = ap.parse_args(argv)
     top = L._toplevel()
+    today_utc, today_local = datetime.now(timezone.utc).date(), date.today()  # noqa: DTZ011  # a board's date is the person's own
     try:
         p = plan(top, N.read_registry() or [], E.Runner(top, timeout=a.timeout),
-                 today_utc=datetime.now(timezone.utc).date(), today_local=date.today(),  # noqa: DTZ011  # a board's date is the person's own
+                 today_utc=today_utc, today_local=today_local,
                  reask_days=a.reask_days, event_age_days=a.event_age_days)
     except LB.Refused as e:
         print(f"gate_sweep: no plan — {e}", file=sys.stderr)
         return 2
+    done: list[str] | None = None
+    if a.apply:
+        try:
+            done = apply(top, p, F.backend(top), today_local=today_local, today_utc=today_utc, by=host_token())
+        except F.ForgeUnreadable as e:
+            print(f"gate_sweep: --apply cannot ask the forge — {e}", file=sys.stderr)
+            return 2
     if a.json:
-        print(json.dumps(p, indent=2, ensure_ascii=False, default=str))
-        return 0
-    print(f"gate sweep of {p['repo']} ({p['source']}; {len(p['boards'])} board(s) read) — a plan: nothing written")
+        print(json.dumps({**p, **({"applied": done} if done is not None else {})}, indent=2, ensure_ascii=False,
+                         default=str))
+        return 1 if done and any(": not done — " in d for d in done) else 0
+    print(f"gate sweep of {p['repo']} ({p['source']}; {len(p['boards'])} board(s) read) — "
+          + ("applied" if a.apply else "a plan: nothing written"))
     for b in p["boards"]:
         print(f"  board {b['board']} ({b['source']})")
     for u in p["unread"]:
@@ -174,7 +400,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  lift {x['id']} {x['gate']} — {x['evidence']}")
     if not (p["to_file"] or p["to_close"] or p["lifts"]):
         print("  nothing to file, close or lift")
-    return 0
+    for d in done or []:
+        print(f"  → {d}")
+    return 1 if done and any(": not done — " in d for d in done) else 0
 
 
 if __name__ == "__main__":
