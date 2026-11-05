@@ -26,7 +26,7 @@ cat > "$BIN/gh" <<'SHIM'
 echo "$*" >> "$GH_LOG"
 [ "$1" = api ] || { echo "gh-shim: unhandled: $*" >&2; exit 64; }
 key=$(printf %s "$2" | tr '/?=' '___')
-for code in 404 422; do
+for code in 404 422 500; do
   [ -e "$FIX/$key.$code" ] && { echo "gh: Not Found (HTTP $code)" >&2; exit 1; }
 done
 [ -e "$FIX/$key" ] && { cat "$FIX/$key"; exit 0; }
@@ -64,6 +64,11 @@ fx404 repos/o/tgt/commits/gone 422
 fx "repos/o/tgt/compare/abc1234...$SHA_R" ahead
 fx "repos/o/tgt/compare/def5678...$SHA_R" diverged
 fx404 "repos/o/tgt/compare/fff9999...$SHA_R"
+fx "repos/o/tgt/compare/aaa1111...$SHA_R" behind
+fx404 "repos/o/tgt/compare/bbb2222...$SHA_R" 422
+fx404 repos/o/tgt/pulls/9 500
+fx "repos/o/tgt/contents/docs?ref=$SHA_T" '[{"type":"file","path":"docs/v.txt","sha":"x","name":"v.txt"}]'
+printf 'caf\xe9 v2.4' > "$FIX/$(printf %s "repos/o/tgt/contents/latin.txt?ref=$SHA_T" | tr '/?=' '___')"
 
 entry() {   # entry <n> <status> <blocked by> <event sections…>
   local n=$1 st=$2 bl=$3; shift 3
@@ -90,6 +95,10 @@ entry 7 Open "event (secret)"      "$(ev secret 'pr-merged o/priv#1')"
 entry 8 Open "event (stray)"       "$(ev stray 'pr-merged o/off#1')"
 entry 9 Open "event (lab)"         "$(ev lab 'pr-merged g/lab#1')"
 entry 10 Open "event (nosection)"
+entry 13 Open "event (behind), event (ambiguous), event (down), event (dir), event (latin)" \
+  "$(ev behind 'ref-includes o/tgt@release/1 aaa1111')" "$(ev ambiguous 'ref-includes o/tgt@release/1 bbb2222')" \
+  "$(ev down 'pr-merged o/tgt#9')" "$(ev dir 'file-contains o/tgt docs "v.txt"')" \
+  "$(ev latin 'file-contains o/tgt latin.txt "v2.4"')"
 entry 11 Resolved "event (old)"    "$(ev old 'pr-merged o/tgt#7')"
 entry 12 Open "TD-001"
 
@@ -115,6 +124,11 @@ grep -q '^TD-007 event (secret): error — o/priv is private, less visible' <<< 
 grep -q '^TD-008 event (stray): error — o/off: not on this machine.s roster' <<< "$out" && ok "4c a repo off the roster: an error" || bad "4c: $(line TD-008)"
 ! grep -q 'o/off' "$GH_LOG" && ok "4d the forge is never asked about a repo off the roster" || bad "4d: $(grep o/off "$GH_LOG")"
 grep -q '^TD-009 event (lab): error — event checks on gitlab are not built yet' <<< "$out" && ok "4e a GitLab repo: an error, saying it is not built" || bad "4e: $(line TD-009)"
+grep -q '^TD-013 event (behind): not yet — aaa1111: o/tgt release/1 .* does not include it' <<< "$out" && ok "3e ref-includes, behind: not yet" || bad "3e: $(line '(behind)')"
+grep -q '^TD-013 event (ambiguous): error — ' <<< "$out" && ok "3f a 422 from compare (an ambiguous commit): an error, not not yet" || bad "3f: $(line '(ambiguous)')"
+grep -q '^TD-013 event (down): error — gh: Not Found (HTTP 500)' <<< "$out" && ok "1e a forge failure (HTTP 500): an error, never not yet" || bad "1e: $(line '(down)')"
+grep -q '^TD-013 event (dir): error — o/tgt: docs at .* is a directory, not a file' <<< "$out" && ok "2d file-contains on a directory: an error, never its listing matched" || bad "2d: $(line '(dir)')"
+grep -q '^TD-013 event (latin): error — gh gave output that is not UTF-8 text' <<< "$out" && ok "2e a file that is not UTF-8: an error for that gate alone" || bad "2e: $(line '(latin)')"
 grep -q '^TD-010 event (nosection): error — no \*\*Event (nosection):\*\* section' <<< "$out" && ok "5a a gate with no section: an error" || bad "5a: $(line TD-010)"
 ! grep -q 'TD-011\|TD-012' <<< "$out" && ok "5b an archived entry's gate, and an id-only block, run nothing" || bad "5b: $out"
 [ "$rc" = 1 ] && ok "5c exit 1 when any check is an error" || bad "5c rc=$rc"
@@ -154,6 +168,10 @@ out=$(cd "$E" && python3 "$S/event_checks.py" 2>&1); rc=$?
 rm "$FIX/repos_o_own"; fx404 repos/o/own
 out=$(cd "$OWN" && python3 "$S/event_checks.py" 2>&1)
 grep -q "^TD-001 event (merged): error — this ledger's own repo: o/own: not found" <<< "$out" && ok "7c the ledger's own visibility unreadable: every check an error" || bad "7c: $(line TD-001)"
+rm "$FIX/repos_o_own.404"; fx repos/o/own '{"visibility":"private","default_branch":"main"}'
+fx repos/o/priv/pulls/1 '{"state":"open","merged":false}'
+out=$(cd "$OWN" && python3 "$S/event_checks.py" 2>&1)
+want "7d a private ledger's check reaches a private repo" "TD-007 event (secret):" "not yet — o/priv#1 is open"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

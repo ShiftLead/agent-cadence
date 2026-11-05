@@ -615,16 +615,28 @@ class GitHub(_CLI):
 
     # -- event checks (TD-219): each a read of one fact, ForgeUnreadable when it cannot be read --
 
-    def _absent(self, args: list[str]) -> str | None:
-        """stdout of one call; None when the forge answers it has no such thing (404, or 422 for a
-        ref or commit it cannot resolve); ForgeUnreadable for anything else."""
-        rc, out, err = self.call(args, env=_QUIET)
+    def _absent(self, args: list[str], codes: tuple[int, ...] = (404,)) -> str | None:
+        """stdout of one call; None when the forge answers it has no such thing (an HTTP status in
+        ``codes``); ForgeUnreadable for anything else, output that is not text included."""
+        try:
+            rc, out, err = self.call(args, env=_QUIET)
+        except UnicodeError as e:   # a binary or non-UTF-8 answer: unreadable, never a crash
+            raise ForgeUnreadable(f"{self.cli} gave output that is not UTF-8 text ({e.reason})") from None
         if rc == 0:
             return out
-        if rc > 0 and ("HTTP 404" in err or "HTTP 422" in err):
+        if rc > 0 and any(f"HTTP {c}" in err for c in codes):
             return None
         msg = (err or out).strip()
         raise ForgeUnreadable(msg.splitlines()[-1] if msg else f"{self.cli} failed")
+
+    def _object(self, out: str) -> dict:
+        try:
+            r = json.loads(out)
+        except ValueError as e:
+            raise ForgeUnreadable(f"{self.cli} gave unparseable JSON ({e})") from None
+        if not isinstance(r, dict):
+            raise ForgeUnreadable(f"{self.cli} gave {type(r).__name__}, not an object")
+        return r
 
     def repo_info(self, slug: str) -> dict:
         """{visibility: public | private | internal, default_branch} of ``slug``. A repo the forge
@@ -632,10 +644,7 @@ class GitHub(_CLI):
         out = self._absent(["api", f"repos/{slug}"])
         if out is None:
             raise ForgeUnreadable(f"{slug}: not found, or not visible to this token")
-        try:
-            r = json.loads(out)
-        except ValueError as e:
-            raise ForgeUnreadable(f"{self.cli} gave unparseable JSON ({e})") from None
+        r = self._object(out)
         vis = str(r.get("visibility") or ("private" if r.get("private") else "")).lower()
         if vis not in ("public", "private", "internal") or not r.get("default_branch"):
             raise ForgeUnreadable(f"{slug}: the forge gave no visibility or default branch")
@@ -646,10 +655,7 @@ class GitHub(_CLI):
         out = self._absent(["api", f"repos/{slug}/pulls/{int(n)}"])
         if out is None:
             raise ForgeUnreadable(f"{slug}#{int(n)}: not found, or not visible to this token")
-        try:
-            r = json.loads(out)
-        except ValueError as e:
-            raise ForgeUnreadable(f"{self.cli} gave unparseable JSON ({e})") from None
+        r = self._object(out)
         if r.get("merged") or r.get("merged_at"):
             return "merged"
         state = str(r.get("state") or "").lower()
@@ -659,7 +665,8 @@ class GitHub(_CLI):
 
     def ref_sha(self, slug: str, ref: str) -> str | None:
         """The commit ``ref`` (a branch, a tag, a sha) names in ``slug``; None when it names none."""
-        out = self._absent(["api", f"repos/{slug}/commits/{quote(ref, safe='/')}", "--jq", ".sha"])
+        # 422 is GitHub's "No commit found for SHA" for a ref it cannot resolve: not there yet
+        out = self._absent(["api", f"repos/{slug}/commits/{quote(ref, safe='/')}", "--jq", ".sha"], (404, 422))
         if out is None:
             return None
         sha = out.strip()
@@ -668,9 +675,18 @@ class GitHub(_CLI):
         return sha
 
     def file_at(self, slug: str, path: str, sha: str) -> str | None:
-        """The text of ``path`` at commit ``sha`` in ``slug``; None when the commit has no such file."""
-        return self._absent(["api", f"repos/{slug}/contents/{quote(path, safe='/')}?ref={sha}",
-                             "-H", "Accept: application/vnd.github.raw"])
+        """The text of ``path`` at commit ``sha`` in ``slug``; None when the commit has no such file.
+        A directory is unreadable, not a file: the raw media type still answers it with its listing."""
+        out = self._absent(["api", f"repos/{slug}/contents/{quote(path, safe='/')}?ref={sha}",
+                            "-H", "Accept: application/vnd.github.raw"])
+        try:
+            listing = json.loads(out) if out is not None and out.lstrip().startswith("[") else None
+        except ValueError:
+            listing = None
+        if isinstance(listing, list) and listing and all(
+                isinstance(x, dict) and {"type", "path", "sha"} <= set(x) for x in listing):
+            raise ForgeUnreadable(f"{slug}: {path} at {sha[:12]} is a directory, not a file")
+        return out
 
     def includes(self, slug: str, sha: str, commit: str) -> bool | None:
         """Whether ``commit`` is an ancestor of (or is) ``sha`` in ``slug``; None when the forge knows no
