@@ -38,7 +38,7 @@ column), from temporary worktrees at ``origin/<default>`` — the checkout it ru
 - **This repo's own board** gets the items to file and the closes as one sweep PR on ``sweep/<UTC date>``
   (each item due today, under the session ``$SHIFTLEAD_SESSION`` else ``gate-sweep``); while an earlier
   ``sweep/…`` PR is open, nothing more is filed. Items and closes on **another repo's board** are skipped and
-  said: they are a tool PR in that repo, TD-226.
+  said: they are a PR in that repo, TD-229.
 - The PRs are reviewed and merged like any (cadence.md §4). Findings reach the person as every board item
   does, through the session-start report. A push is never forced: a branch left on origin with no PR is
   named, to delete; a PR the forge would not open has its pushed branch deleted again. **What runs the sweep is not decided here**: by hand, or a session,
@@ -333,10 +333,10 @@ def apply(top: Path, p: dict, be, *, today_local: date, today_utc: date, by: str
     for board, got in p["to_file"].items():
         if board != own:
             said.append(f"file on {board}: {len(got)} item(s) skipped — another repo's board is written by a "
-                        "tool PR there (TD-226)")
+                        "PR there (TD-229)")
     for board, got in p["to_close"].items():
         if board != own:
-            said.append(f"close on {board}: {len(got)} item(s) skipped — another repo's board (TD-226)")
+            said.append(f"close on {board}: {len(got)} item(s) skipped — another repo's board (TD-229)")
     if not (items or keys):
         return said
     earlier = [q for q in opened if str(q["head"] or "").startswith(SWEEP_BRANCH)]

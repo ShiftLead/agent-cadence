@@ -112,7 +112,8 @@ lift (TD-218, ``_set_lift``): it takes ``--by <person>`` (and ``--answer``, defa
 any session but a person's own (``agent_sessions.person_session_refusal()``), logs ``gate lifted`` through
 ledgerboard's ``lift_gate()``, and answers the covering board item (``board.py decide --board-only``) — or
 logs why it could not; ``--why`` swaps the decision for another person's (a reassign) and ``--override WHY``
-drops it with anyone's ``--by``, each with the board notices it owes (``_set_moved``). Exit 0 written; 1
+drops it with anyone's ``--by``, each with the board notices it owes (``_set_moved``) — on another roster repo's
+board by a PR opened there and left for its review, its URL printed (TD-226). Exit 0 written; 1
 refused; 2 a usage error, an unknown id, or a v1 ledger; 4 a write failed.
 
 ``archive`` and ``reopen`` (TD-200) move one entry between the ledger and ``archive/``: ``edit_entry()``'s
@@ -1536,9 +1537,11 @@ def _set_moved(w: _Writer, tid: str, fields: dict, by: str, gate: str, to: str |
     the new person's ``decide`` item and gives a an ``fyi``; an override is refused when a has no board to
     notify, and gives a an ``fyi`` (closing a's items about the gate, which the sweep would close once the
     gate is gone) — but never an item that still asks about another part carrying the gate (a shared parent
-    snapshot), which stays open. Every board written is this repo's own (an item about the gate on another
-    repo's board is left for that repo's sweep): one that is another repo's is refused (a tool PR
-    there is not written from here yet). Ledger first, then the board; any board refusal restores both."""
+    snapshot), which stays open. A notice whose person's board is another roster repo's, and a's item about
+    the gate on another roster repo's board, go there by a PR in that repo (TD-226, ``_notices_pr()``: a new
+    item's ``Context:`` names ``<this repo>#TD-n``), opened and left for that repo's review, never merged from
+    here. Ledger first, then this board, then the other repos' PRs; any refusal restores this repo's two
+    files (a PR already opened is named, to close)."""
     from ledgerboard import board as LBB
     a = gate[len("decision ("):-1]
     b = to[len("decision ("):-1] if to else None
@@ -1548,54 +1551,136 @@ def _set_moved(w: _Writer, tid: str, fields: dict, by: str, gate: str, to: str |
         return w.say("set", f"refused — the boards: {e}", 1)
     needs = [(b, "the new person's item")] if b else []
     needs.append((a, f"{a}'s notice"))
+    where = {}
     for who, what in needs:
         i = _person_board(boards, who)
         if i is None:
             return w.say("set", f"refused — {who} has no board (no People: line names them on this repo's board or "
                                 f"a roster board), so {what} has nowhere to go; nothing was written", 1)
-        if i != 0:
-            return w.say("set", f"refused — {who}'s board is {boards[i][1]}'s, and {what} on another repo's board "
-                                "is not written from here yet (TD-218); nothing was written", 1)
+        where[who] = i
     kw = {"fields": fields, "by": by, **({"why": why} if b else {"override": override})}
     plan = _lb_plan(w, "set", tid, kw)
     if isinstance(plan, int):
         return plan
     board = str(w.root / BOARD_REL)
+    index = {LB.origin_key(bd[0]) or bd[1]: i for i, bd in enumerate(boards)}
     try:
-        items = [it for bd, it, st in LB.covers(text, gate, boards, repo)
-                 if st in ("open", "decided") and bd == (LB.origin_key(boards[0][0]) or boards[0][1])
-                 and not _still_asked(led, it, LBL.tid_of(tid), gate)]   # a shared item still asks about others
+        covered = [(index[bd], it) for bd, it, st in LB.covers(text, gate, boards, repo)
+                   if st in ("open", "decided") and bd in index
+                   and not _still_asked(led, it, LBL.tid_of(tid), gate)]   # a shared item still asks about others
     except LB.Refused as e:
         return w.say("set", f"refused — the board items for {gate}: {e}", 1)
+    items = [it for i, it in covered if i == 0]
+    closes: dict[int, list] = {}   # board index -> a's items to close there
+    for i, it in covered:
+        if i:
+            closes.setdefault(i, []).append(it)
+    roots = {}
+    for i in sorted({i for i in where.values() if i} | set(closes)):
+        root = _roster_root(boards[i][0], boards[i][1])
+        if root is None:
+            return w.say("set", f"refused — {boards[i][1]}'s board was read, but no roster clone of it was found to "
+                                "open its PR from; nothing was written", 1)
+        roots[i] = root
     old_board = LBB.read(board)
     me = LBL.tid_of(tid)
     said = " ".join((why if b else override).split())
+    day = datetime.now().astimezone().date()   # a board date is the person's local day
+    adds: dict[int, list[dict]] = {}   # board index -> the items to file there, in order
+    if b:
+        ask = LB._entry_ask(text, LB.entries(text)[0]["title"])
+        adds.setdefault(where[b], []).append(dict(
+            text=ask, kind="decide", context=f"{me} decision ({b})",
+            due=(day + timedelta(days=REASSIGN_DUE_DAYS)).isoformat(), answers=["Go", "Not yet"], default=0,
+            detail={"context": [f"{me}'s decision moved from {a} to you, by {by}: {said}."], "question": ask,
+                    "recommended": f"{me} becomes pickable", "otherwise": "it stays blocked"}))
+        note = f"{me}'s decision moved from you to {b}, by {by}: {said}"
+    else:
+        note = f"{me}'s decision ({a}) was lifted by override, by {by}: {said}"
+    adds.setdefault(where[a], []).append(dict(text=note, kind="fyi", context=me))
+    done_why = f"moved to decision ({b}) by {by}" if b else f"lifted by override by {by}"
+    opened: list[str] = []
     try:
         LBL.apply(plan)
         for it in items:   # a done keeps every line where it was
-            LBB.apply(LBB.plan_edit(board, "done", it.line, it.text.strip()[:40],
-                                    why=f"moved to decision ({b}) by {by}" if b else f"lifted by override by {by}"))
-        day = datetime.now().astimezone().date()   # a board date is the person's local day
-        if b:
-            ask = LB._entry_ask(text, LB.entries(text)[0]["title"])
-            LBB.apply(LBB.plan_add(
-                board, ask, kind="decide", context=f"{me} decision ({b})",
-                due=(day + timedelta(days=REASSIGN_DUE_DAYS)).isoformat(), answers=["Go", "Not yet"], default=0,
-                detail={"context": [f"{me}'s decision moved from {a} to you, by {by}: {said}."], "question": ask,
-                        "recommended": f"{me} becomes pickable", "otherwise": "it stays blocked"}))
-            note = f"{me}'s decision moved from you to {b}, by {by}: {said}"
-        else:
-            note = f"{me}'s decision ({a}) was lifted by override, by {by}: {said}"
-        LBB.apply(LBB.plan_add(board, note, kind="fyi", context=me))
-    except (LB.Refused, LBL.Unusable, OSError) as e:
+            LBB.apply(LBB.plan_edit(board, "done", it.line, it.text.strip()[:40], why=done_why))
+        for spec in adds.get(0, []):
+            LBB.apply(LBB.plan_add(board, spec.pop("text"), **spec))
+        for i in sorted(roots):
+            opened.append(_notices_pr(roots[i], adds.get(i, []), closes.get(i, []), done_why, me, repo, gate, to,
+                                      by, said))
+    except (LB.Refused, LBL.Unusable, OSError, RuntimeError, subprocess.SubprocessError) as e:
+        left = (f"; close the PR already opened: {', '.join(opened)}" if opened else "")
         try:
             LBL.apply(LBL.Plan("set", None, {path: text, board: old_board}, {}))
         except OSError as e2:
-            return w.say("set", f"the board refused ({e}), and putting the files back failed: {e2}", 4)
-        return w.say("set", f"refused — the board: {e}; both files put back, nothing was written", 1)
+            return w.say("set", f"the board refused ({e}), and putting the files back failed: {e2}{left}", 4)
+        return w.say("set", f"refused — the board: {e}; both files put back, nothing was written here{left}", 1)
     print(path)
     print(board)
+    for url in opened:
+        print(url)
     return 0
+
+
+def _roster_root(url: str, name: str) -> Path | None:
+    """The roster clone ``_boards()`` read a board from: the one whose origin is ``url`` (by ``origin_key``),
+    else, for a board with no readable origin, the one whose basename is ``name``."""
+    key = LB.origin_key(url) if url else None
+    for root in N.read_registry() or []:
+        if not root.is_dir():
+            continue
+        u = (_git(root, "remote", "get-url", "origin") or "").strip()
+        if (key and LB.origin_key(u) == key) or (not key and not LB.origin_key(u) and root.name == name):
+            return root
+    return None
+
+
+def _notices_pr(root: Path, specs: list[dict], closes: list, done_why: str, me: str, repo: str, gate: str,
+                to: str | None, by: str, said: str) -> str:
+    """File ``specs`` on another roster repo's board, and close ``closes`` there (items as read at its
+    ``origin/<default>``), by a PR in that repo (TD-226): a temporary worktree at that ref (gate_sweep.py's
+    ``Scratch``, its checkout never touched), each close a ``done`` (which keeps every line where it was), each
+    item added with ``Context:`` (and any bare ``TD-n`` in its words) naming ``<repo>#TD-n``, pushed on
+    ``notices/<repo>-<TD-n>-<new person | override>`` and opened on that repo's forge (``gh`` run there) —
+    left open for its review, never merged from here. Its URL; RuntimeError (or the forge's) when it could not."""
+    # sibling SYNC scripts, imported here: gate_sweep imports this module
+    import forge as F
+    import gate_sweep as G
+    from ledgerboard import board as LBB
+    xid = f"{repo}#{me}"
+    default = N.default_branch(root)
+    slug = lambda s: re.sub(r"[^A-Za-z0-9._-]+", "-", s).strip("-")   # noqa: E731
+    branch = f"notices/{slug(repo)}-{me}-{slug(to[len('decision ('):-1]).lower() if to else 'override'}"
+    bare = re.compile(rf"(?<![#\w]){re.escape(me)}\b")   # a bare TD-n on that board would read as its own
+    try:
+        be = F.backend(root, cwd=root)   # gh infers the repo from its directory: that repo's, never this one
+    except F.ForgeUnreadable as e:
+        raise RuntimeError(f"{root.name}'s forge: {e}") from None
+    with G.Scratch(root, f"origin/{default}", branch) as wt:
+        board = str(wt / BOARD_REL)
+        for it in closes:
+            LBB.apply(LBB.plan_edit(board, "done", it.line, it.text.strip()[:40], why=done_why))
+        for spec in specs:
+            s = dict(spec)
+            s["context"] = re.sub(r"^TD-\d+", xid, s["context"])
+            s["text"] = bare.sub(xid, s["text"])
+            if s.get("detail"):
+                s["detail"] = {k: [bare.sub(xid, x) for x in v] if isinstance(v, list) else bare.sub(xid, v)
+                               for k, v in s["detail"].items()}
+            LBB.apply(LBB.plan_add(board, s.pop("text"), **s))
+        what = f"moved to {to}" if to else "lifted by override"
+        subject = f"board: {xid} {gate} {what} — the notices ({repo}'s ledger.py set)"
+        body = (f"`ledger.py set` in {repo} changed {xid}'s `{gate}` ({what}, by {by}: {said}), and the notices it owes "
+                f"belong on this repo's board, whose `People:` names the person (TD-226):\n\n"
+                + "\n".join([*(f"- close: {it.text.strip()[:80]}" for it in closes),
+                             *(f"- [{s['kind']}] {s['text']}" for s in specs)])
+                + f"\n\nThis PR belongs with {repo}'s PR carrying that ledger change: merge it once that one is "
+                  "merged, and close it if that one is closed. Review it like any PR (cadence.md §4).")
+        try:
+            return G._ship(root, wt, be, branch, default, subject, body)
+        except (F.ForgeUnreadable, RuntimeError) as e:
+            raise RuntimeError(str(e).replace(" and sweep again", f" in {root.name}, and run set again")) from None
 
 
 def _still_asked(led: "LBL.Ledger", item: "LB.BoardItem", tid: str, gate: str) -> bool:
