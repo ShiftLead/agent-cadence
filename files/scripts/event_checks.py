@@ -30,7 +30,7 @@ error. Each forge call is bounded by ``--timeout`` (default 30s), and a call pas
 
 This is read-only: it lifts nothing and files nothing. It is the event runner the gate sweep feeds to
 ledgerboard's ``sweep()`` (``results()`` gives the ``{(TD-n, name): (outcome, evidence)}`` it takes); the
-sweep's own I/O, which writes the lifts and the board items, is TD-219's next slice.
+sweep's own I/O, which writes the lifts and the board items, is ``gate_sweep.py``.
 
 Exit 0 when every check ran (whatever it said), 1 when any is an error, 2 when the ledger cannot be read.
 Stdlib only.
