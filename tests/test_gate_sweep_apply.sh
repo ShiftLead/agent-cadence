@@ -29,10 +29,12 @@ case "$1 $2" in
     [ -e "$FIX/$(k "$2").404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
     [ -e "$FIX/$(k "$2")" ] && { cat "$FIX/$(k "$2")"; exit 0; } ;;
   "pr list")
+    if [ "$5" = --search ]; then cat "$FIX/search.json" 2>/dev/null || echo '[]'; exit 0; fi
     if [ "$3" = --head ]; then cat "$FIX/head_$(k "$4")" 2>/dev/null || echo '[]'; else cat "$FIX/open.json" 2>/dev/null || echo '[]'; fi
     exit 0 ;;
   "pr diff") cat "$FIX/diff_$3"; exit 0 ;;
   "pr create")
+    [ -e "$FIX/create_fail" ] && { echo "pull request create failed: GraphQL: boom" >&2; exit 1; }
     n=$(( $(grep -c '^pr create' "$GH_LOG") + 100 )); echo "https://github.com/o/own/pull/$n"; exit 0 ;;
 esac
 echo "gh-shim: unhandled: $*" >&2; exit 64
@@ -129,6 +131,37 @@ git -C "$BARE" branch -q -D "sweep/$TODAY"
 out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
 has "lift TD-003 until $PAST: its PR #9 was closed unmerged — not reopened; asked on the board already" \
   && ! git -C "$BARE" rev-parse -q --verify "sweep/$TODAY" >/dev/null && ok "6c that item on the board: not filed again" || bad "6c: $out"
+
+# 8. a stale origin: a sweep PR that filed the item has merged, a lift PR merged after one was closed
+git -C "$BARE" branch -q -D "sweep/$TODAY" 2>/dev/null; echo "[]" > "$FIX/open.json"
+git -C "$OWN" update-ref refs/remotes/origin/main "$before"   # the fetch from before that merge
+printf '[{"number":120,"state":"MERGED","headRefName":"sweep/%s","body":"- file: [act] Lift of until %s on TD-003 was closed — Context: TD-003 until %s lift"}]' "$TODAY" "$PAST" "$PAST" > "$FIX/search.json"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
+has "lift TD-003 until $PAST: its PR #9 was closed unmerged — not reopened; asked on the board already" \
+  && ! grep -q "Lift of until" <<< "$(shown "sweep/$TODAY:docs/user_attention.md")" \
+  && ok "8a origin not fetched since the sweep PR merged: the item is not filed again" || bad "8a: $out"
+git -C "$BARE" branch -q -D "sweep/$TODAY" 2>/dev/null
+printf '[{"number":9,"state":"CLOSED"},{"number":11,"state":"MERGED"}]' > "$FIX/head_lift_TD-003_until"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
+has "lift TD-003 until $PAST: its PR merged and origin/main still carries the gate — fetch, then sweep" \
+  && ok "8b a closed PR and then a merged one: merged wins, nothing filed" || bad "8b: $out"
+git -C "$BARE" branch -q -D "sweep/$TODAY" 2>/dev/null; rm -f "$FIX/head_lift_TD-003_until" "$FIX/search.json"
+
+# 9. a PR the forge will not open, and a branch left on origin with no PR
+for b in $(git -C "$BARE" branch --format='%(refname:short)' --list 'lift/*' 'sweep/*'); do git -C "$BARE" branch -q -D "$b"; done
+: > "$FIX/create_fail"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1); rc=$?
+[ "$rc" = 1 ] && has "lift TD-003 until $PAST: not done — pull request create failed: GraphQL: boom — the PR was not opened; lift/TD-003/until was deleted from origin again" \
+  && [ -z "$(git -C "$BARE" branch --list "lift/*")" ] && ok "9a create fails after the push: the branch is taken back, exit 1" || bad "9a rc=$rc: $out / $(git -C "$BARE" branch)"
+rm "$FIX/create_fail"; git -C "$BARE" branch -q -D "sweep/$TODAY" 2>/dev/null
+git -C "$BARE" branch -q -D lift/TD-004/landed 2>/dev/null
+x=$(git -C "$OWN" commit-tree "$before^{tree}" -p "$before" -m "someone's"); git -C "$OWN" push -q "$BARE" "$x:refs/heads/lift/TD-003/until"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
+has "lift TD-003 until $PAST: not done — git push lift/TD-003/until:" && has "delete it there (git push origin --delete lift/TD-003/until)" \
+  && [ "$(git -C "$BARE" rev-parse lift/TD-003/until)" = "$x" ] \
+  && ok "9b a branch on origin with no PR: never forced over, named to delete" || bad "9b: $out"
+[ "$(git -C "$OWN" worktree list | wc -l)" = 1 ] && [ -z "$(git -C "$OWN" branch --list 'lift/*' 'sweep/*')" ] && [ -z "$(ls "$TMP" | grep gate-sweep-)" ] \
+  && ok "9c after the failures: no worktree, branch or temp dir left" || bad "9c: $(git -C "$OWN" worktree list; git -C "$OWN" branch)"
 
 # 7. ledger.py lift: a host's lift only
 W="$TMP/w"; git clone -q -b main "$BARE" "$W" 2>/dev/null

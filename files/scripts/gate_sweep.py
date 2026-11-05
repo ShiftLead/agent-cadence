@@ -32,14 +32,16 @@ column), from temporary worktrees at ``origin/<default>`` — the checkout it ru
   short name, and the evidence a reviewer re-runs). Idempotent: nothing when a PR on that branch is open, or
   when another open PR's diff already logs ``gate lifted: <gate>`` in the entry; a PR on that branch closed
   unmerged is never reopened — an ``act`` item "Lift of <gate> on TD-n was closed" (``Context: TD-n <gate>
-  lift``) asks why, once: not when an item with that Context is on the board, open or closed. (ledgerboard
+  lift``) asks why, once: not when an item with that Context is on the board, open or closed, or in a sweep
+  PR open or merged since (origin not fetched yet). (ledgerboard
   v2.4's Context reader names no ``until`` gate, so its sweep never closes such an item for an ``until``.)
 - **This repo's own board** gets the items to file and the closes as one sweep PR on ``sweep/<UTC date>``
   (each item due today, under the session ``$SHIFTLEAD_SESSION`` else ``gate-sweep``); while an earlier
   ``sweep/…`` PR is open, nothing more is filed. Items and closes on **another repo's board** are skipped and
   said: they are a tool PR in that repo, TD-226.
 - The PRs are reviewed and merged like any (cadence.md §4). Findings reach the person as every board item
-  does, through the session-start report. **What runs the sweep is not decided here**: by hand, or a session,
+  does, through the session-start report. A push is never forced: a branch left on origin with no PR is
+  named, to delete; a PR the forge would not open has its pushed branch deleted again. **What runs the sweep is not decided here**: by hand, or a session,
   until the person picks a schedule (the board, TD-219). The plan reads what is fetched: fetch first.
 
 The re-ask window and the event age
@@ -213,20 +215,35 @@ class Scratch:
         return self.dir
 
     def __exit__(self, *_: object) -> None:
-        _git(self.top, "worktree", "remove", "--force", str(self.dir))
+        def quiet(*args: str) -> None:   # each step runs whatever the one before it did
+            try:
+                _git(self.top, *args)
+            except (OSError, subprocess.SubprocessError):
+                pass
+        quiet("worktree", "remove", "--force", str(self.dir))
         shutil.rmtree(self.dir, ignore_errors=True)
-        _git(self.top, "worktree", "prune")
+        quiet("worktree", "prune")
         if self.made:   # pushed or not, the branch this made is the PR's, never a save-point
-            _git(self.top, "branch", "-D", self.branch)
+            quiet("branch", "-D", self.branch)
 
 
 def _ship(top: Path, wt: Path, be, branch: str, base: str, subject: str, body: str) -> str:
     """Commit everything in ``wt``, push ``branch``, open its PR; the PR's URL."""
-    for args in (("add", "-A"), ("commit", "-q", "-m", subject), ("push", "-q", "origin", f"HEAD:refs/heads/{branch}")):
+    for args in (("add", "-A"), ("commit", "-q", "-m", subject)):
         r = _git(wt, *args)
         if r.returncode != 0:
             raise RuntimeError(f"git {args[0]}: {(r.stderr or r.stdout).strip()}")
-    return be.create_pr(branch, base, subject, body)
+    r = _git(wt, "push", "-q", "origin", f"HEAD:refs/heads/{branch}")
+    if r.returncode != 0:   # most often a branch left on origin with no PR: this never forces over it
+        raise RuntimeError(f"git push {branch}: {(r.stderr or r.stdout).strip()} — if origin holds {branch} with no "
+                           f"PR on it, delete it there (git push origin --delete {branch}) and sweep again")
+    try:
+        return be.create_pr(branch, base, subject, body)
+    except F.ForgeUnreadable as e:   # no PR: take the pushed branch back, or the next sweep's push is refused
+        gone = _git(wt, "push", "-q", "origin", "--delete", branch).returncode == 0
+        raise F.ForgeUnreadable(f"{e} — the PR was not opened; {branch} "
+                                + ("was deleted from origin again" if gone else
+                                   f"is left on origin: delete it (git push origin --delete {branch})")) from None
 
 
 def _closes(board: str, keys: list[str]) -> list[tuple[int, str, str]]:
@@ -277,18 +294,22 @@ def apply(top: Path, p: dict, be, *, today_local: date, today_utc: date, by: str
                 said.append(f"lift {tid} {gate}: PR #{dup['number']} already lifts it — nothing to do")
                 continue
             past = be.prs_for_branch(branch, limit=5)
+            if any(q["state"] == "merged" for q in past):
+                said.append(f"lift {tid} {gate}: its PR merged and {base} still carries the gate — fetch, then sweep")
+                continue
             if any(q["state"] == "closed" for q in past):
                 n = next(q["number"] for q in past if q["state"] == "closed")
                 ctx = f"{tid} {gate} lift"
-                if ctx.lower() in asked:
+                # on the board as fetched, or in a sweep PR open or merged since (an origin not fetched yet)
+                if ctx.lower() in asked or any(
+                        str(q.get("head") or "").startswith(SWEEP_BRANCH) and q["state"] in ("open", "merged")
+                        and f"Context: {ctx}" in str(q.get("body") or "") for q in be.prs_naming(f"Context: {ctx}")):
                     said.append(f"lift {tid} {gate}: its PR #{n} was closed unmerged — not reopened; asked on the board already")
                     continue
-                said.append(f"lift {tid} {gate}: its PR #{n} was closed unmerged — not reopened; an act item asks why")
+                said.append(f"lift {tid} {gate}: its PR #{n} was closed unmerged — not reopened; an act item asks why, "
+                            "in the sweep PR")
                 extra.append({"text": f"Lift of {gate} on {tid} was closed", "context": f"{tid} {gate} lift",
                               "kind": "act", "answers": None, "default": None, "detail": None, "lifts": None})
-                continue
-            if any(q["state"] == "merged" for q in past):
-                said.append(f"lift {tid} {gate}: its PR merged and {base} still carries the gate — fetch, then sweep")
                 continue
             with Scratch(top, base, branch) as wt:
                 argv = ["lift", tid, "--gate", gate, "--by", by, "--ledger", str(wt / L.LEDGER_DIR_REL)]
@@ -304,7 +325,7 @@ def apply(top: Path, p: dict, be, *, today_local: date, today_utc: date, by: str
                             "A reviewer re-runs the check from the evidence in the Log line before merging "
                             "(ledgerboard's target design §4.2: a lifted gate never re-arms).")
             said.append(f"lift {tid} {gate}: opened {url}")
-        except (RuntimeError, F.ForgeUnreadable, subprocess.SubprocessError) as e:
+        except (RuntimeError, F.ForgeUnreadable, OSError, subprocess.SubprocessError) as e:
             said.append(f"lift {tid} {gate}: not done — {e}")
 
     items = list(p["to_file"].get(own, [])) + extra
