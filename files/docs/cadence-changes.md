@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-05 — `ledger.py set` reassigns (`--why`) or overrides (`--override`) a decision, with the board notices
+Do: when the person is away, the person's own session reassigns (`--blocked-by "decision (<b>)" --by <who> --why …`) or overrides (`--blocked-by "" --by <who> --override "<why>"`); it closes a's item and files the fyi (and b's item) itself — never by hand.
+See: cadence.md §2.4; TD-218.
+
 ## 2026-11-05 — `ledger.py set` lifts a `decision (<person>)` only with `--by`, from the person's own session
 Do: drop a decision with `set TD-n --blocked-by "" --by <person> [--answer <label>]` from a session the person drives (it answers the covering board item too, and the PR takes review); an unattended session is refused — and so is `board_edit.py decide`'s lift.
 See: cadence.md §2.4; TD-218.

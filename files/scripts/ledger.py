@@ -110,7 +110,8 @@ an archived entry is not edited. A ``set`` whose Blocked by drops a ``decision (
 lift (TD-218, ``_set_lift``): it takes ``--by <person>`` (and ``--answer``, default ``Go``), is refused from
 any session but a person's own (``agent_sessions.person_session_refusal()``), logs ``gate lifted`` through
 ledgerboard's ``lift_gate()``, and answers the covering board item (``board.py decide --board-only``) — or
-logs why it could not. A reassign and an override through ``set`` are not taken yet. Exit 0 written; 1
+logs why it could not; ``--why`` swaps the decision for another person's (a reassign) and ``--override WHY``
+drops it with anyone's ``--by``, each with the board notices it owes (``_set_moved``). Exit 0 written; 1
 refused; 2 a usage error, an unknown id, or a v1 ledger; 4 a write failed.
 
 ``archive`` and ``reopen`` (TD-200) move one entry between the ledger and ``archive/``: ``edit_entry()``'s
@@ -160,7 +161,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Mapping
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path, PurePosixPath
 
@@ -1235,6 +1236,8 @@ def edit(cmd: str, argv: list[str]) -> int:
         ap.add_argument("--by", help="who lifts the decision this Blocked by drops: that gate's person, from a "
                                      "session they started (never git's user.name)")
         ap.add_argument("--answer", help="the lifting answer (default Go): one of the covering board item's Lifts:")
+        ap.add_argument("--why", help="a reassign's why (the Blocked by swaps one decision for another)")
+        ap.add_argument("--override", metavar="WHY", help="lift the decision by override, --by anyone: its why")
     elif cmd == "note":
         ap.add_argument("words", help="the note, one line")
     else:
@@ -1249,8 +1252,13 @@ def edit(cmd: str, argv: list[str]) -> int:
         kw["fields"] = dict(given := _fields_given(ap, a))
         if not kw["fields"]:
             ap.error("give at least one field to set")
-        if a.answer is not None and a.by is None:
-            ap.error("--answer is a lift's: give --by, who answered")
+        for flag, v in (("--answer", a.answer), ("--why", a.why), ("--override", a.override)):
+            if v is not None and a.by is None:
+                ap.error(f"{flag} is a gate route's: give --by, who answered")
+        if a.override is not None and (a.answer is not None or a.why is not None):
+            ap.error("--override is its own why: no --answer or --why with it")
+        if a.why is not None and a.answer is not None:
+            ap.error("--why is a reassign's and --answer a lift's: give one")
     elif cmd == "note":
         kw.update(words=a.words, today=datetime.now(timezone.utc).date().isoformat())
     else:
@@ -1265,7 +1273,7 @@ def edit(cmd: str, argv: list[str]) -> int:
         if w.xrepo_refused(_field_value(given, "blocked by"), _blocked_raw(w, a.id)):
             return w.say(cmd, "nothing was written", 1)
         if a.by is not None:
-            return _set_lift(w, a.id, kw["fields"], a.by, a.answer)
+            return _set_lift(w, a.id, kw["fields"], a.by, a.answer, a.why, a.override)
     return _lb_edit(w, cmd, a.id, kw)
 
 
@@ -1350,11 +1358,12 @@ def _boards(w: _Writer) -> tuple[list[tuple], dict[str, str], str]:
             continue
         names[k] = r
         others.append((u, root.name, text, io[1](BOARD_ARCHIVE_REL) or ""))
-    others.sort(key=lambda b: named(b[0], Path(b[1]))[0])
+    others.sort(key=lambda b: (0, LB.origin_key(b[0])) if LB.origin_key(b[0]) else (1, b[1].lower()))  # §3.2: no origin last
     return [own, *others], names, repo
 
 
-def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None) -> int:
+def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, why: str | None = None,
+              override: str | None = None) -> int:
     """``set TD-n --blocked-by … --by <person> [--answer <label>]``: the person's lift of the one
     ``decision (<person>)`` the new Blocked by drops (ledgerboard's target design §1.1, §3.1; TD-218). Refused
     unless the running session is a person's own (``agent_sessions.person_session_refusal()``). The covering
@@ -1367,7 +1376,8 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None) -
     ``no board item`` when nothing covers. The ledger is written first and the board after it (the board
     writer reads the ledger as it stands to decide the close); a board refusal puts the entry back. Nothing
     is committed: the caller's PR carries both files, and takes ordinary review (it is no carve-out lift).
-    A reassign (one decision swapped for another) and an override are not taken here yet."""
+    A reassign (one decision swapped for another, ``--why``) and an override (``--override``) are
+    ``_set_moved()``'s."""
     import agent_sessions  # the session adapter: who is running this
     from ledgerboard import board as LBB
     label = " ".join((answer or "Go").split())
@@ -1388,12 +1398,18 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None) -
     if len(gone) != 1:
         return w.say("set", f"--by lifts one decision this Blocked by drops; it drops {len(gone)} "
                             f"({', '.join(was) or 'the entry has none'}) — lift them one at a time", 2)
-    if added:
-        return w.say("set", "a reassign (one decision for another) is not taken here yet (TD-218): "
-                            "nothing was written", 1)
-    why = agent_sessions.person_session_refusal()
-    if why:
-        return w.say("set", f"refused — {why}; nothing was written", 1)
+    if len(added) > 1:
+        return w.say("set", "a reassign replaces one decision by one other: set them one at a time", 2)
+    refusal = agent_sessions.person_session_refusal()
+    if refusal:
+        return w.say("set", f"refused — {refusal}; nothing was written", 1)
+    if added and override is not None:
+        return w.say("set", "--override drops the decision; a Blocked by that swaps it for another is a reassign "
+                            "(--why)", 2)
+    if added or override is not None:
+        return _set_moved(w, tid, fields, by, gone[0], added[0] if added else None, why, override, led, path, text)
+    if why is not None:
+        return w.say("set", "--why is a reassign's: a lift takes --answer, or --override with its why", 2)
     gate = gone[0]
     person = gate[len("decision ("):-1]
     by = person if " ".join(by.split()).lower() == person.lower() else by   # the Log and the board spell it as the gate does
@@ -1453,6 +1469,98 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None) -
     print(path)
     print(board)
     return 0
+
+
+def _person_board(boards: list[tuple], person: str) -> int | None:
+    """The index in ``boards`` (``_boards()``'s order: this repo's, then the roster's by ``origin_key``) of
+    *the person's board* (ledgerboard's target design §3.2): the first whose ``People:`` lists them, or None."""
+    for i, b in enumerate(boards):
+        if person.lower() in {x.lower() for x in LB.board_people(b[2]) or []}:
+            return i
+    return None
+
+
+REASSIGN_DUE_DAYS = 7  # the new person's decide item is due a week out (the board's local day)
+
+
+def _set_moved(w: _Writer, tid: str, fields: dict, by: str, gate: str, to: str | None, why: str | None,
+               override: str | None, led: "LBL.Ledger", path: str, text: str) -> int:
+    """A reassign (``decision (<a>)`` swapped for ``to``, with ``why``) or an override (``decision (<a>)``
+    dropped, ``override`` its why, ``by`` anyone) through ``set`` — ledgerboard's ``reassign_gate()`` or
+    ``lift_gate(override=)`` — and the board notices the consumer owes for it (target design §3.1, TD-218):
+    a reassign is refused when the new person has no board, closes a's items about the gate as moved, files
+    the new person's ``decide`` item and gives a an ``fyi``; an override is refused when a has no board to
+    notify, and gives a an ``fyi`` (closing a's items about the gate, which the sweep would close once the
+    gate is gone) — but never an item that still asks about another part carrying the gate (a shared parent
+    snapshot), which stays open. Every board written is this repo's own (an item about the gate on another
+    repo's board is left for that repo's sweep): one that is another repo's is refused (a tool PR
+    there is not written from here yet). Ledger first, then the board; any board refusal restores both."""
+    from ledgerboard import board as LBB
+    a = gate[len("decision ("):-1]
+    b = to[len("decision ("):-1] if to else None
+    try:
+        boards, _, repo = _boards(w)
+    except LB.Refused as e:
+        return w.say("set", f"refused — the boards: {e}", 1)
+    needs = [(b, "the new person's item")] if b else []
+    needs.append((a, f"{a}'s notice"))
+    for who, what in needs:
+        i = _person_board(boards, who)
+        if i is None:
+            return w.say("set", f"refused — {who} has no board (no People: line names them on this repo's board or "
+                                f"a roster board), so {what} has nowhere to go; nothing was written", 1)
+        if i != 0:
+            return w.say("set", f"refused — {who}'s board is {boards[i][1]}'s, and {what} on another repo's board "
+                                "is not written from here yet (TD-218); nothing was written", 1)
+    kw = {"fields": fields, "by": by, **({"why": why} if b else {"override": override})}
+    plan = _lb_plan(w, "set", tid, kw)
+    if isinstance(plan, int):
+        return plan
+    board = str(w.root / BOARD_REL)
+    try:
+        items = [it for bd, it, st in LB.covers(text, gate, boards, repo)
+                 if st in ("open", "decided") and bd == (LB.origin_key(boards[0][0]) or boards[0][1])
+                 and not _still_asked(led, it, LBL.tid_of(tid), gate)]   # a shared item still asks about others
+    except LB.Refused as e:
+        return w.say("set", f"refused — the board items for {gate}: {e}", 1)
+    old_board = LBB.read(board)
+    me = LBL.tid_of(tid)
+    said = " ".join((why if b else override).split())
+    try:
+        LBL.apply(plan)
+        for it in items:   # a done keeps every line where it was
+            LBB.apply(LBB.plan_edit(board, "done", it.line, it.text.strip()[:40],
+                                    why=f"moved to decision ({b}) by {by}" if b else f"lifted by override by {by}"))
+        day = datetime.now().astimezone().date()   # a board date is the person's local day
+        if b:
+            ask = LB._entry_ask(text, LB.entries(text)[0]["title"])
+            LBB.apply(LBB.plan_add(
+                board, ask, kind="decide", context=f"{me} decision ({b})",
+                due=(day + timedelta(days=REASSIGN_DUE_DAYS)).isoformat(), answers=["Go", "Not yet"], default=0,
+                detail={"context": [f"{me}'s decision moved from {a} to you, by {by}: {said}."], "question": ask,
+                        "recommended": f"{me} becomes pickable", "otherwise": "it stays blocked"}))
+            note = f"{me}'s decision moved from you to {b}, by {by}: {said}"
+        else:
+            note = f"{me}'s decision ({a}) was lifted by override, by {by}: {said}"
+        LBB.apply(LBB.plan_add(board, note, kind="fyi", context=me))
+    except (LB.Refused, LBL.Unusable, OSError) as e:
+        try:
+            LBL.apply(LBL.Plan("set", None, {path: text, board: old_board}, {}))
+        except OSError as e2:
+            return w.say("set", f"the board refused ({e}), and putting the files back failed: {e2}", 4)
+        return w.say("set", f"refused — the board: {e}; both files put back, nothing was written", 1)
+    print(path)
+    print(board)
+    return 0
+
+
+def _still_asked(led: "LBL.Ledger", item: "LB.BoardItem", tid: str, gate: str) -> bool:
+    """Whether a covering item still asks about another open entry: its Context entry or a ``Parts:`` id, other
+    than ``tid``, that carries ``gate`` — a shared parent snapshot, left open when ``tid``'s gate moves."""
+    key = " ".join(gate.split()).lower()
+    return any(" ".join(g.split()).lower() == key
+               for x, t in _parts_after(led, item, {}).items() if x != tid
+               for g in LBL._decisions(LB.entries(t)[0]["blocked_raw"]))
 
 
 def _parts_after(led: "LBL.Ledger", item: "LB.BoardItem", changed: Mapping[str, str]) -> dict[str, str]:
