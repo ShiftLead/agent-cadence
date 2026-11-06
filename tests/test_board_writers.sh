@@ -258,6 +258,37 @@ R="$TMP/ap10"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
 printf '++ stray\n' >> "$B"; git -C "$R" commit -qam "board_edit: append renew the cert. (session n/a)"
 [ "$(cls "$R")" = "fail none" ] && ok "TD-238: an append beside an added ++ line fails directly and takes ordinary review by PR" || bad "++ added: $(cls "$R")"
 
+# --- 6d) TD-221, cadence §4.8: the end-of-rounds item is written with its gate and `Parts:` (ledgerboard v2.6's
+#         add --parts, carried by the passthrough), and v2.6's covers() reads each held build's gate as covered
+R="$TMP/parts"; rm -rf "$R"; mkdir -p "$R/docs"
+cp -R "$DC/tests/ledgerboard/board_writer/add_parts/before/ledger" "$R/docs/ledger"
+printf '# board\n\nPeople: robin\n\n## Needs the user\n\n- [ ] act %s (n/a) — tag it. Context: none. Due: %s.\n' "$PAST" "$FUT" > "$R/docs/user_attention.md"
+git -C "$R" init -q -b main; git -C "$R" add -A; git -C "$R" commit -qm base
+B="$R/docs/user_attention.md"
+out=$("$EDIT" add --board "$B" --kind decide --text "Go on the report builds?" --context "TD-4 decision (robin)" \
+  --due "$FUT" --answer Go --answer "Not yet" --parts TD-10,TD-9 \
+  --detail '{"context": "its rounds ended.", "question": "Go on its builds?", "recommended": "Go."}' 2>&1); rc=$?
+L=$(grep -F -- '- [ ] decide ' "$B")
+[ $rc = 0 ] && grep -qF "Context: TD-4 decision (robin). Parts: TD-9, TD-10. Due: $FUT." <<< "$L" \
+  && [ "$(git -C "$R" show --name-only --format= HEAD)" = docs/user_attention.md ] \
+  && ok "add --parts: one commit, Parts: after the Context, in number order" || bad "add --parts rc=$rc: $out / $L"
+res=$(python3 - "$S" "$R" <<'EOF'
+import sys; sys.path.insert(0, sys.argv[1]); from pathlib import Path
+import ledgerboard as LB
+r = Path(sys.argv[2]); board = (r / "docs/user_attention.md").read_text()   # a board is (origin url, repo name, text, archive)
+print(" ".join(f"{t}:{[s for _, _, s in LB.covers((r / f'docs/ledger/{t}.md').read_text(), 'decision (robin)', [('', 'r', board, '')], 'r')]}"
+               for t in ("TD-009", "TD-010")))
+EOF
+)
+[ "$res" = "TD-009:['open'] TD-010:['open']" ] \
+  && ok "covers(): the one end-of-rounds item covers each held build's decision gate" || bad "covers: $res"
+out=$("$EDIT" add --board "$B" --kind decide --text "Go?" --context "TD-4" --due "$FUT" --answer Go --answer No \
+  --parts TD-9 --detail '{"context": "c.", "question": "q?", "recommended": "Go."}' --no-commit 2>&1); rc=$?
+[ $rc != 0 ] && grep -q refused <<< "$out" && ok "add --parts with no gate in the Context: refused" || bad "no gate rc=$rc: $out"
+out=$("$EDIT" add --board "$B" --kind decide --text "Go?" --context "TD-4 decision (robin)" --due "$FUT" --answer Go --answer No \
+  --parts TD-9,TD-99 --detail '{"context": "c.", "question": "q?", "recommended": "Go."}' --no-commit 2>&1); rc=$?
+[ $rc != 0 ] && grep -q 'TD-99' <<< "$out" && ok "add --parts naming an entry the ledger beside the board lacks: refused, naming it" || bad "missing part rc=$rc: $out"
+
 # --- 7) the nudge's item advice names a writer command on every line (design §4's general rule): a fixture board
 #        with a twin, ARCHIVE_AT closed items, an oversized board, an escalated item, an unparseable Due: and an fyi
 #        carrying a Due:, through the full report and the session-start text; stamp advice and the summary header (it names /attention) are exempt
