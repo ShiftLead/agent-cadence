@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-06 — The memory harvest's stamp signs with host-alias, else no host
+Do: nothing to run — `memory_harvest.py stamp` now writes `Harvested: <date> ([<host-alias>, ]<n> repos)`, never the hostname; set `host-alias` in this machine's `cadence.toml` if you want the machine named in your layer.
+See: cadence.md §7.13, §9.18; `memory_harvest.py` `stamp_line()`; TD-242.
+
 ## 2026-11-06 — The publish gate reads its file list itself: `git ls-files -z | … --publish-check --accept <list> --files-from -`
 Do: in a public repo's `precheck`, replace `git ls-files -z | xargs -0 … --publish-check …` (or `$(git ls-files)`) with `git ls-files -z | python3 <scripts>/cadence_layer.py --publish-check --accept <list> --files-from -`; xargs splits the list, and each part calls stale an accept line another part needs.
 See: cadence.md §9.18; `cadence_layer.py --files-from`; TD-241.

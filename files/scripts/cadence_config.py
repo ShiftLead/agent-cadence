@@ -176,7 +176,7 @@ MACHINE_KEYS = {
                      "name, a private org or repo the roster does not hold: an array of strings, kept here so "
                      "the list itself is never in a tree that goes public (TD-090)",
     "host-alias": "the name this machine signs with where a tool writes into a repo — the gate sweep's `gate "
-                  "lifted` Log line and the cadence/precheck status (TD-240): a token of [A-Za-z0-9_.@/-]; "
+                  "lifted` Log line, the cadence/precheck status (TD-240) and the memory harvest's stamp (TD-242): a token of [A-Za-z0-9_.@/-]; "
                   "unset, they name no host (the sweep signs `gate-sweep`), never the machine's own name",
 }
 

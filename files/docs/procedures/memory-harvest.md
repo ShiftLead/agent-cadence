@@ -172,9 +172,10 @@ the stamp with the last batch's record (`git -C <clone>`, as in section 5), then
 python3 memory_harvest.py stamp
 ```
 
-It writes `Harvested: YYYY-MM-DD (<host>, <n> repos)` as a header line of the layer file, in place
+It writes `Harvested: YYYY-MM-DD ([<host-alias>, ]<n> repos)` as a header line of the layer file, in place
 of the last one (never by hand: the attention report reads that exact shape, cadence.md §7.9), and
-`/attention` warns once it is a month old.
+`/attention` warns once it is a month old. The host is the machine's `host-alias` (cadence.md §9.18),
+and with none the stamp names no host — never the machine's own name, since the layer may go public.
 
 ## Bounds
 

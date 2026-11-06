@@ -670,7 +670,7 @@ SWEEP_RE = re.compile(r"^Swept:\s*(?P<date>\d{4}-\d{2}-\d{2})\s*(?:\((?P<meta>[^
 # On duplicate `Swept-deep:` lines (a hand-edit or merge leftover — the procedure
 # replaces in place, so normal use never makes one) the FIRST match binds:
 # fail-safe, it can only over-warn relative to a fresher line below it.
-# TD-125: the memory harvest stamps `Harvested: YYYY-MM-DD (<host>, <n> repos)` as a header line at
+# TD-125: the memory harvest stamps `Harvested: YYYY-MM-DD ([<host-alias>, ]<n> repos)` as a header line at
 # column 0 of the person's own cadence layer file (cadence.md §7.13, §9.18) — not a board, since its
 # record lives in the layer repo. memory_harvest.py `stamp` is the writer and imports HARVEST_RE from
 # here, never re-typing it; harvest_note() is the reader (parity pair, cadence.md §7.9). "Monthly-ish":

@@ -19,7 +19,7 @@ trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
-unset CADENCE_AGENTS
+unset CADENCE_AGENTS CADENCE_HOST   # the stamp signs with $CADENCE_HOST when set (TD-242)
 mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
@@ -238,10 +238,19 @@ grep -q "shares its name with $E" <<< "$(q "[r['note'] for r in d['repos'] if r[
 L="$LAYER/cadence-personal.md"; printf '# rules\n§4.8 add: one\n' > "$L"
 NREAD=$(J=$(mh inventory --json); python3 -c "import json,sys; print(sum(r['read'] for r in json.loads(sys.argv[1])['repos']))" "$J")
 out=$(mh stamp 2>&1); rc=$?
+# TD-242: the stamp signs with the machine's host-alias (or $CADENCE_HOST), and with neither names no
+# host — never the hostname, which the layer, a file the person may publish, would carry
 HOST=$(hostname | cut -d. -f1)
-want="Harvested: $TODAY ($HOST, $NREAD repos)"
+want="Harvested: $TODAY ($NREAD repos)"
 [ "$rc" = 0 ] && [ "$(sed -n 1,4p "$L" | tr '\n' '|')" = "# rules||$want||" ] && [ "$(sed -n 5p "$L")" = "§4.8 add: one" ] \
   && ok "26 stamp: a header line under the title, blank lines around it ($want)" || bad "26 rc=$rc '$out' $(cat "$L")"
+! grep "^Harvested:" "$L" | grep -qiF "($HOST," && ok "26h no host-alias: the stamp names no host, never the hostname" || bad "26h $(cat "$L")"
+sed -i '1i host-alias = "lab-1"' "$AGENT_CADENCE_REG_DIR/cadence.toml"   # a top-level key: before [[layers]]
+mh stamp >/dev/null 2>&1
+[ "$(sed -n 3p "$L")" = "Harvested: $TODAY (lab-1, $NREAD repos)" ] && ok "26i host-alias set: the stamp signs with it" || bad "26i $(cat "$L")"
+CADENCE_HOST=ci-box mh stamp >/dev/null 2>&1
+[ "$(sed -n 3p "$L")" = "Harvested: $TODAY (ci-box, $NREAD repos)" ] && ok "26j \$CADENCE_HOST overrides the alias" || bad "26j $(cat "$L")"
+sed -i '/^host-alias = /d' "$AGENT_CADENCE_REG_DIR/cadence.toml"; mh stamp >/dev/null 2>&1
 [ "$NREAD" = 6 ] && ok "26a <n> counts the 6 repos read (not the gone, the shared or the second same-named one)" || bad "26a n=$NREAD"
 mh stamp >/dev/null 2>&1
 [ "$(grep -c '^Harvested:' "$L")" = 1 ] && [ "$(wc -l < "$L")" = 5 ] && ok "26b a second stamp replaces the first in place" || bad "26b $(cat "$L")"
@@ -252,16 +261,16 @@ rep=$(python3 "$DC/files/scripts/nudge_user_attention.py" --report 2>&1)
 OLD=$(python3 -c "import datetime as d; print((d.date.today()-d.timedelta(days=31)).isoformat())")
 sed -i "s/^Harvested: [0-9-]*/Harvested: $OLD/" "$L"
 rep=$(python3 "$DC/files/scripts/nudge_user_attention.py" --report 2>&1)
-grep -qF "last memory harvest 31d ago ($OLD, $HOST, $NREAD repos) — run /memory-harvest (cadence.md §7.13)" <<< "$rep" \
+grep -qF "last memory harvest 31d ago ($OLD, $NREAD repos) — run /memory-harvest (cadence.md §7.13)" <<< "$rep" \
   && ok "26e a stamp 31 days old: the report's layers section warns" || bad "26e '$rep'"
 printf '# no title line\n' > "$TMP/l2.md"; sed -i '1s/^# no title line$/plain first line/' "$TMP/l2.md"
 printf '[[layers]]\npath = "%s"\n' "$TMP/l2.md" > "$AGENT_CADENCE_REG_DIR/cadence.toml"
 mh stamp >/dev/null 2>&1
-[ "$(sed -n 1,3p "$TMP/l2.md" | tr '\n' '|')" = "Harvested: $TODAY ($HOST, $NREAD repos)||plain first line|" ] && ok "26f no title: the stamp goes at the top" || bad "26f $(cat "$TMP/l2.md")"
+[ "$(sed -n 1,3p "$TMP/l2.md" | tr '\n' '|')" = "Harvested: $TODAY ($NREAD repos)||plain first line|" ] && ok "26f no title: the stamp goes at the top" || bad "26f $(cat "$TMP/l2.md")"
 printf '# t\n\n```\nHarvested: 2020-01-01 (example)\n```\n' > "$TMP/l2.md"
 printf 'not a table\n| Repo | Memory | sha | Verdict | Judged | Where |\n|---|---|---|---|---|---|\n| broken |\n' > "$TMP/memory-harvest.md"
 mh stamp >/dev/null 2>&1; rc=$?
-[ "$rc" = 0 ] && grep -qxF "Harvested: 2020-01-01 (example)" "$TMP/l2.md" && [ "$(sed -n 3p "$TMP/l2.md")" = "Harvested: $TODAY ($HOST, $NREAD repos)" ] \
+[ "$rc" = 0 ] && grep -qxF "Harvested: 2020-01-01 (example)" "$TMP/l2.md" && [ "$(sed -n 3p "$TMP/l2.md")" = "Harvested: $TODAY ($NREAD repos)" ] \
   && ok "26g an example in a code fence is left alone, and a record that does not parse does not block the stamp" || bad "26g rc=$rc $(cat "$TMP/l2.md")"
 
 # 27. run from any cadence repo (TD-135): from a roster repo's checkout, `clone` names the own
