@@ -15,7 +15,7 @@
                     read once; every line is checked before any is written, so a bad line
                     writes none
     memory_harvest.py stamp
-                    end of a run: `Harvested: YYYY-MM-DD (<host>, <n> repos)` as a header line of
+                    end of a run: `Harvested: YYYY-MM-DD ([<host-alias>, ]<n> repos)` as a header line of
                     the own layer file, in place of the last one; the only writer of the stamp
     memory_harvest.py clone
                     read-only: the own layer's clone, the root printed, once it is fit for the run's
@@ -89,7 +89,6 @@ import hashlib
 import json
 import os
 import re
-import socket
 import subprocess
 import sys
 from datetime import date
@@ -296,8 +295,10 @@ def clone_problem(layer: Path) -> tuple[Path | None, str | None]:
     return root, None
 
 
-def stamp_line(today: str, host: str, n: int) -> str:
-    return f"Harvested: {today} ({host}, {n} repo{'s' if n != 1 else ''})"
+def stamp_line(today: str, host: str | None, n: int) -> str:
+    """The stamp, signed with the machine's host-alias or with no host (TD-242): the layer is a file the
+    person may publish or share, so it never carries the machine's own name."""
+    return f"Harvested: {today} ({host + ', ' if host else ''}{n} repo{'s' if n != 1 else ''})"
 
 
 def write_stamp(layer: Path, line: str) -> None:
@@ -552,7 +553,7 @@ def main(argv: list[str]) -> int:
             return 1
         n = sum(1 for r in repos if r["read"])
         today = date.today().isoformat()  # noqa: DTZ011  # a civil date, as the sweep stamp's
-        line = stamp_line(today, socket.gethostname().split(".")[0], n)
+        line = stamp_line(today, cadence_config.host_name(), n)
         write_stamp(layer, line)
         print(f"stamped: {line} → {layer}")
         return 0
