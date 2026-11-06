@@ -1666,16 +1666,18 @@ def default_ref(root):
 
 
 def _board_diff(root, sha, path=BOARD):
-    """(removed lines, [(new line number, added line)]) of the board (or `path`) in `sha`, or None."""
+    """(removed lines, [(new line number, added line)]) of the board (or `path`) in `sha`, or None.
+    Only lines inside a hunk count: `---`/`+++` are file headers before the first `@@`, and inside a hunk
+    they are a removed `--…` or an added `++…` line (TD-238)."""
     out = git(["diff", "-U0", "--no-color", f"{sha}^", sha, "--", path], cwd=root)
     if out is None:
         return None
-    removed, added, nxt = [], [], 0
+    removed, added, nxt, in_hunk = [], [], 0, False
     for line in out.splitlines():
         m = HUNK_RE.match(line)
         if m:
-            nxt = int(m.group(1))
-        elif line.startswith(("---", "+++")):
+            nxt, in_hunk = int(m.group(1)), True
+        elif not in_hunk:
             continue
         elif line.startswith("-"):
             removed.append(line[1:])
