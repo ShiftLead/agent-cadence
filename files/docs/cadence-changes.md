@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-05 — A tool's board append may land by a PR of its own, and passes review as a tool merge
+Do: where the forge refuses a direct push, land a service-account append as a PR titled with ledgerboard's `append` subject, the board alone, one commit, squash-merged at once; its review row passes as `carve_out: board-append`, and `--since` lists it among tool merges.
+See: cadence.md §4.4, §4.6; `check_cadence.py` `row_board_edit_pr`; TD-237.
+
 ## 2026-11-05 — The weekly read lists merges made around step 5's line
 Do: read `check_cadence.py --since`'s *merged outside step 5* section (`merged_outside` in `--json`) against your repo's merge rule — a squash with no `Merged-by:` went around the line; it is a detector, never a fail.
 See: cadence.md §4.2; `check_cadence.py` `merged_outside()`; TD-234.

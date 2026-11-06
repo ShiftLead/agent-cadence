@@ -35,8 +35,8 @@ first empties FILE, then writes it whole (a temporary name, then renamed):
     exit 2       nothing: the PR could not be read, so FILE stays empty and no merge is composed
 
 The lines are attested, not verified, like the review row they come from (cadence §4.9). A
-review row passed by a tool carve-out lists no comments and carries "carve_out" (board-edit, decide-lift or
-queue-edit) in --json. The check stays a reader: it merges nothing.
+review row passed by a tool carve-out lists no comments and carries "carve_out" (board-edit, board-append,
+decide-lift or queue-edit) in --json. The check stays a reader: it merges nothing.
 
 The person's cadence layers on this machine (cadence_layer.py, cadence.md §9.18) are reported
 after the rows — one line, which layers and what each changes by § — and never move a verdict:
@@ -73,6 +73,12 @@ never a fake pass):
               landed commit of a PR its forge says carried one commit (TD-224); open,
               the only commit past the default branch — is the one-item edit the direct audit's board-edit class
               accepts, read from this clone; unreadable, the row asks for a review.
+              A tool-made board append by a PR of its own (cadence §4.4, TD-237; class
+              `board-append`) passes the same way: its title is ledgerboard's `append`
+              subject (or a legacy form), it touches the board alone, and its one commit
+              is the append the direct audit's board-append class accepts, with no
+              appended item a gate's answer (a Decided: on an item whose Context names a
+              gate — a decide lift's, below).
               A tool-made rank PR (cadence §2.4, TD-119; class `queue-edit`) passes the
               same way: its title is a `queue: rank|join|prune TD-… (<tool>)` subject
               (subject_kind `queue`), it and its one commit change the rank file
@@ -2472,21 +2478,53 @@ def row_lift_pr(pr, root):
     return ordinary
 
 
+def _appends_gate_answer(root, sha):
+    """Whether a board append at ``sha`` adds an item that carries a `Decided:` and whose Context names a gate
+    (ledgerboard's _item_gate, as gate_answer reads it): a gate's answer, which lands as a decide lift (TD-218)
+    and is never an append's. True when the board's change cannot be read."""
+    diff = _board_diff(root, sha)
+    if diff is None:
+        return True
+    lb = _lb()
+    for _, line in diff[1]:
+        if not lb.ITEM_RE.match(line):
+            continue
+        got = lb.parse_board(line, warn=False)
+        if not got:
+            return True
+        if got[0].decided is not None and lb._item_gate(got[0].text)[1] is not None:
+            return True
+    return False
+
+
 def row_board_edit_pr(pr, root):
     """TD-083, cadence §4.5: a tool lands a board edit by a PR of its own, merged at once.
     Its review is the person's click, so the review row passes it — when the title is
     board_edit.py's fixed message, the PR touches the board alone, and its commit
     (_tool_pr_commit) is the one-item edit the direct audit accepts (classify_direct, the same
-    rules). None otherwise: the ordinary review row decides."""
-    if not root or _lb().subject_kind(pr.get("title") or "") not in ("edit", "archive"):
+    rules). TD-237, cadence §4.4: a tool's board append by a PR of its own passes the same way —
+    the title ledgerboard's `append` subject (or a legacy form), the board alone, its one commit
+    the append the direct audit accepts (`board-append`), and no appended item a gate's answer
+    (a `Decided:` on an item whose Context names a gate: a decide lift's, TD-218). None otherwise:
+    the ordinary review row decides."""
+    kind = _lb().subject_kind(pr.get("title") or "") if root else None
+    if kind not in ("edit", "archive", "append"):
         return None
-    if sorted(pr.get("files") or []) not in ([BOARD], sorted([BOARD, ARCHIVE])):
+    allowed = ([BOARD],) if kind == "append" else ([BOARD], sorted([BOARD, ARCHIVE]))
+    if sorted(pr.get("files") or []) not in allowed:
         return None
     found = _tool_pr_commit(pr, root)
     if not found:
         return None
     sha, files = found
     cls, _ = classify_direct(root, sha, pr["title"], files)
+    if kind == "append":
+        if cls != "board-append" or _appends_gate_answer(root, sha):
+            return None
+        out = row("review", "pass", "tool-made board append (cadence §4.4 carve-out, by a PR of its own): the "
+                  "append subject, whole dated item lines under ## Needs… — no comment needed")
+        out["carve_out"] = "board-append"
+        return out
     if cls == "board-archive":
         out = row("review", "pass", "tool-made board archive (cadence §3.4, §4.5 carve-out): board_edit.py's "
                   "message, the writer's archive at the threshold — no comment needed")

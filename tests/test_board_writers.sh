@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # TD-206 §1–§2: board_edit.py's pass-through commands (add, archive, fmt, list — ledgerboard/board.py's own,
 # its flags unchanged), `done` archiving in the same write at ARCHIVE_AT, and the `board-archive` class
-# check_cadence.py's classify_direct and row_board_edit_pr give that commit.
+# check_cadence.py's classify_direct and row_board_edit_pr give that commit; TD-237, an append landed by PR.
 # Offline: a throwaway git repo (and a bare origin) per case; HOME/XDG_CONFIG_HOME are temp dirs, so the
 # real roster is never read. Dates derive from the run date (TD-24).
 set -u
@@ -198,6 +198,53 @@ R="$TMP/g"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
 [ "$(cls "$R" | cut -d' ' -f1)" = fail ] && ok "classify_direct: a direct fyi add fails" || bad "fyi add: $(cls "$R")"
 "$EDIT" add --board "$B" --text "a dated act." --due "$FUT" >/dev/null 2>&1
 [ "$(cls "$R" | cut -d' ' -f1)" = board-append ] && ok "classify_direct: a direct dated one-line add is board-append, as before" || bad "append: $(cls "$R")"
+
+# --- 6b) TD-237, cadence §4.4: a tool's append landed by a PR of its own passes the review row as board-append;
+#         anything outside the direct audit's append rules, or a gate's answer, takes ordinary review
+apr() {  # $1 = repo, $2 = PR title (default: the commit's subject): prints "<class> <row status|none> <carve_out|-> <lift row|none>"
+  python3 - "$1" "${2:-}" "$S" <<'EOF2'
+import sys
+root, title, s = sys.argv[1:]
+sys.path.insert(0, s)
+import check_cadence as C
+sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
+subj = C.git(["log", "-1", "--format=%s", sha], cwd=root).strip()
+files = [f for f in C.git(["diff-tree", "--no-commit-id", "--name-only", "-r", sha], cwd=root).split() if f]
+cls_, _ = C.classify_direct(root, sha, subj, files)
+pr = {"state": "open", "head_sha": sha, "title": title or subj, "files": files, "ref": "#9",
+      "created_at": "2026-01-01T00:00:00Z"}
+r = C.row_board_edit_pr(pr, root)
+lift = C.row_lift_pr(pr, root)
+print(cls_, r["status"] if r else "none", (r or {}).get("carve_out", "-"), lift["status"] if lift else "none")
+EOF2
+}
+R="$TMP/ap1"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
+"$EDIT" add --board "$B" --text "Put on the board: renew the cert." --due "$FUT" --session abcdef12 >/dev/null 2>&1
+[ "$(apr "$R")" = "board-append pass board-append none" ] && ok "append PR (a Put on the board line): review passes, carve_out board-append" || bad "append PR: $(apr "$R")"
+R="$TMP/ap2"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
+"$EDIT" add --board "$B" --text "Back up nightly?" --answer Go --answer No --decided Go --by Pat --context TD-5 >/dev/null 2>&1
+[ "$(apr "$R")" = "board-append pass board-append none" ] && ok "append PR (a decided line): review passes, carve_out board-append" || bad "decided append PR: $(apr "$R")"
+R="$TMP/ap3"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
+"$EDIT" add --board "$B" --text "renew the cert." --due "$FUT" --no-commit >/dev/null 2>&1
+echo x > "$R/other.txt"; git -C "$R" add -A; git -C "$R" commit -qm "board_edit: append renew the cert. (session n/a)"
+[ "$(apr "$R" | cut -d' ' -f2)" = none ] && ok "append PR with a second file: ordinary review" || bad "two files: $(apr "$R")"
+R="$TMP/ap4"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
+"$EDIT" add --board "$B" --text "renew the cert." --due "$FUT" --no-commit >/dev/null 2>&1
+sed -i '/plain item/d' "$B"; git -C "$R" commit -qam "board_edit: append renew the cert. (session n/a)"
+[ "$(apr "$R" | cut -d' ' -f2)" = none ] && ok "append PR that also removes a line: ordinary review" || bad "removed line: $(apr "$R")"
+R="$TMP/ap5"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
+"$EDIT" add --board "$B" --text "renew the cert." --due "$FUT" --under "## Closed" >/dev/null 2>&1
+[ "$(apr "$R" | cut -d' ' -f2)" = none ] && ok "append PR outside ## Needs…: ordinary review" || bad "outside Needs: $(apr "$R")"
+R="$TMP/ap6"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
+"$EDIT" add --board "$B" --text "renew the cert." --due "$FUT" >/dev/null 2>&1
+[ "$(apr "$R" "Add a board line by hand" | cut -d' ' -f1-2)" = "board-append none" ] && ok "a board append under a title that is not the append subject: ordinary review" || bad "title: $(apr "$R" "Add a board line by hand")"
+R="$TMP/ap7"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
+"$EDIT" add --board "$B" --text "Go to the builds?" --answer Go --answer Hold --decided Go --by Pat --context "TD-5 decision (Pat)" >/dev/null 2>&1
+[ "$(apr "$R")" = "board-append none - none" ] && ok "a decided append whose Context names a gate: neither carve-out passes it (ordinary review)" || bad "gate append: $(apr "$R")"
+R="$TMP/ap8"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
+"$EDIT" add --board "$B" --text "first." --due "$FUT" >/dev/null 2>&1
+"$EDIT" add --board "$B" --text "second." --due "$FUT" >/dev/null 2>&1
+[ "$(apr "$R" | cut -d' ' -f2)" = none ] && ok "append PR of two commits: ordinary review (TD-224)" || bad "two commits: $(apr "$R")"
 
 # --- 7) the nudge's item advice names a writer command on every line (design §4's general rule): a fixture board
 #        with a twin, ARCHIVE_AT closed items, an oversized board, an escalated item, an unparseable Due: and an fyi
