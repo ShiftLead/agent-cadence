@@ -13,8 +13,8 @@ sessions already running (ShiftLead design §4.8). Written by the agent-cadence 
 the convention (cadence.md §7).
 
 ## 2026-11-06 — the end-of-rounds item lists the builds it holds in `Parts:`
-Write a design's end-of-rounds item with `board_edit.py add --kind decide --context "TD-<plan> decision (<person>)" --parts <each held build>`,
-each build `Part of` the plan, so the gate sweep files no item per build and Go lifts them all (cadence.md §4.8, TD-221).
+Do: write a design's end-of-rounds item with `board_edit.py add --kind decide --context "TD-<plan> decision (<person>)" --parts <each held build>`, each build `Part of` the plan, so the gate sweep files no item per build and Go lifts them all; a build filed after it gets its own item.
+See: cadence.md §4.8 (*The end-of-rounds item*); ledgerboard v2.6 `board.py add --parts`; TD-221.
 
 ## 2026-11-05 — A tool's board append may land by a PR of its own, and passes review as a tool merge
 Do: where the forge refuses a direct push, land a service-account append as a PR titled with ledgerboard's `append` subject, the board alone, one commit, squash-merged at once; its review row passes as `carve_out: board-append`, and `--since` lists it among tool merges.
