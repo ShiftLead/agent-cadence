@@ -77,7 +77,7 @@ desc() { sed -n 's/.* -f description=//p' "$FAKE/posts" | tail -1; }
 : > "$FAKE/posts"; cfg 'printf \"\\033[31mFAILED tests/a.py::test_one - assert 1\\033[0m\\nERROR tests/b.py::test_two\\nok\\n\"; exit 1'
 out=$(run --pr 7); rc=$?; d=$(desc)
 [ $rc -eq 1 ] && grep -q "FAILED tests/a.py::test_one - assert 1" <<< "$out" && grep -q "^ok$" <<< "$out" \
-  && [[ "$d" == "exit 1 in "*"s on "*": tests/a.py::test_one, tests/b.py::test_two; printf"* ]] && [ ${#d} -le 140 ] \
+  && [[ "$d" == "exit 1 in "*"s: tests/a.py::test_one, tests/b.py::test_two; printf"* ]] && [ ${#d} -le 140 ] \
   && ok "3b pytest's failures named ahead of the command, the output still printed, within 140" || bad "3b rc=$rc d='$d' $out"
 : > "$FAKE/posts"; cfg 'echo \"FAILED: test_a.sh test_b.sh\"; exit 1'
 run --pr 7 >/dev/null; d=$(desc)
@@ -88,8 +88,18 @@ run --pr 7 >/dev/null; d=$(desc)
   && ok "3d a long list is cut with … at the forge's 140" || bad "3d len=${#d} d='$d'"
 : > "$FAKE/posts"; cfg 'echo \"FAILED tests/x.py::t\"; true'
 run --pr 7 >/dev/null; d=$(desc)
-[ "${d#*s on *: }" = 'echo "FAILED tests/x.py::t"; true' ] \
+[ "${d#passed in *s: }" = 'echo "FAILED tests/x.py::t"; true' ] \
   && ok "3e a passing run's description is as before, whatever its output" || bad "3e d='$d'"
+# 3e2. TD-240: the description names $CADENCE_HOST, else the machine's host-alias, else no host — never the hostname
+HN=$(python3 -c 'import socket; print(socket.gethostname())'); mkdir -p "$AGENT_CADENCE_REG_DIR"
+: > "$FAKE/posts"; cfg 'true'; run --pr 7 >/dev/null; d0=$(desc)
+printf 'host-alias = "box-7"\n' > "$AGENT_CADENCE_REG_DIR/cadence.toml"
+: > "$FAKE/posts"; run --pr 7 >/dev/null; d1=$(desc)
+: > "$FAKE/posts"; CADENCE_HOST=ci-runner run --pr 7 >/dev/null; d2=$(desc)
+rm -f "$AGENT_CADENCE_REG_DIR/cadence.toml"
+[[ "$d0" == "passed in "*"s: true" ]] && [[ "$d1" == "passed in "*"s on box-7: true" ]] && [[ "$d2" == "passed in "*"s on ci-runner: true" ]] \
+  && [[ "$d0$d1$d2" != *"$HN"* ]] \
+  && ok "3e2 the status names \$CADENCE_HOST, else host-alias, else no host — never the machine's name (TD-240)" || bad "3e2 d0='$d0' d1='$d1' d2='$d2'"
 : > "$FAKE/posts"; cfg 'sleep 30 & echo $! > $FAKE_DIR/bg; echo \"FAILED: test_bg.sh\"; exit 1'
 t0=$(date +%s); run --pr 7 >/dev/null; t1=$(date +%s); d=$(desc)
 [ $((t1 - t0)) -lt 20 ] && [[ "$d" == *": test_bg.sh; "* ]] && ! kill -0 "$(cat "$FAKE/bg")" 2>/dev/null \

@@ -197,6 +197,24 @@ v=$(CADENCE_PUBLISH_NAMES='["env-says"]' get publish-names); out=$(python3 "$SCR
   && ok "11f publish-names: the machine's file only — never env, never a repo's file (--check names it)" || bad "11f '$v' rc=$rc $out"
 rm -f "$R/docs/cadence.toml" "$AGENT_CADENCE_REG_DIR/cadence.toml"
 
+# 11g host-alias (TD-240), the person's too: the machine's file only, one token; host_name() reads
+#     $CADENCE_HOST, then it, then nothing — never the machine's own name
+printf 'host-alias = "box-1"\n' > "$AGENT_CADENCE_REG_DIR/cadence.toml"
+printf 'host-alias = "repo-says"\n' > "$R/docs/cadence.toml"
+v=$(CADENCE_HOST_ALIAS=env-says get host-alias); out=$(python3 "$SCRIPT" --repo "$R" --check); rc=$?
+[ "$v" = box-1 ] && [ "$rc" = 1 ] && grep -q "docs/cadence.toml: host-alias is the person's, not the repo's" <<< "$out" \
+  && ok "11g host-alias: the machine's file only — never env, never a repo's file (--check names it)" || bad "11g '$v' rc=$rc $out"
+rm -f "$R/docs/cadence.toml"
+hn() { (cd "$R" && PYTHONPATH="$DC/files/scripts" python3 -c 'import cadence_config as c; print(c.host_name())' 2>"$TMP/err"); }
+a=$(hn); b=$(CADENCE_HOST='my box' hn)
+printf 'host-alias = "a b"\n' > "$AGENT_CADENCE_REG_DIR/cadence.toml"; c=$(hn); cerr=$(cat "$TMP/err")
+out=$(python3 "$SCRIPT" --check); rc=$?
+rm -f "$AGENT_CADENCE_REG_DIR/cadence.toml"; d=$(hn)
+[ "$a" = box-1 ] && [ "$b" = my-box ] && [ "$c" = None ] && grep -q "host-alias ignored" <<< "$cerr" && [ "$rc" = 1 ] \
+  && grep -q "host-alias must be one token" <<< "$out" && [ "$d" = None ] \
+  && ok "11h host_name(): \$CADENCE_HOST (made a token), else host-alias, else None; a bad alias is None with a warning, and --check names it" \
+  || bad "11h a='$a' b='$b' c='$c' d='$d' err='$cerr' rc=$rc $out"
+
 # 12. TD-134's thresholds: the default, a repo value (integer or string), a machine value, an invalid value
 rm -f "$R/docs/cadence.toml" "$AGENT_CADENCE_REG_DIR/cadence.toml"
 for kd in sweep-every:10 deep-sweep-every:30 pr-stale-days:2 escalate-overdue-days:14 board-size-warn:15; do

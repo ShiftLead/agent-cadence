@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-06 — The gate sweep and the precheck status sign with a machine alias, never the hostname
+Do: in a public cadence repo, set `host-alias = "<a name>"` in this machine's `~/.config/agent-cadence/cadence.toml` (an alias, never a rename); unset, the sweep signs `gate-sweep` and the `cadence/precheck` status names no host. Rerun `gate_sweep_timer.sh --write` to carry it into the unit.
+See: cadence.md §9.18, §2.14, §4.12; `cadence_config.py` `host_name()`; TD-240.
+
 ## 2026-11-06 — the end-of-rounds item lists the builds it holds in `Parts:`
 Do: write a design's end-of-rounds item with `board_edit.py add --kind decide --context "TD-<plan> decision (<person>)" --parts <each held build>`, each build `Part of` the plan, so the gate sweep files no item per build and Go lifts them all; a build filed after it gets its own item.
 See: cadence.md §4.8 (*The end-of-rounds item*); ledgerboard v2.6 `board.py add --parts`; TD-221.

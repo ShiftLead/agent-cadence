@@ -64,7 +64,6 @@ import fnmatch
 import os
 import re
 import signal
-import socket
 import subprocess
 import sys
 import tempfile
@@ -390,7 +389,8 @@ def main(argv: list[str] | None = None) -> int:
     if a.no_record:
         return 0 if ok else 1
     named = "" if ok or not failures else ", ".join(dict.fromkeys(failures)) + "; "
-    desc = f"{'passed' if ok else f'exit {rc}'} in {took:.0f}s on {socket.gethostname()}: {named}{cmd}"
+    host = C.host_name(root)   # $CADENCE_HOST, else host-alias, else no host: never the machine's own name (TD-240)
+    desc = f"{'passed' if ok else f'exit {rc}'} in {took:.0f}s{f' on {host}' if host else ''}: {named}{cmd}"
     if fork:
         desc = f"--fork-ok, a fork's head: {desc}"
     try:
