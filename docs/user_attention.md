@@ -31,6 +31,7 @@ items surface in `/attention`'s full report.
 
 ## Needs Paul
 
+- [ ] act 2026-11-06 (session `ao-led-tds-ledger` on gate-sweep) — Lift of event (ledgerboard-v2-6) on TD-221 was closed. Context: TD-221 event (ledgerboard-v2-6) lift. Due: 2026-11-06.
 - [x] act 2026-11-05 (session `ao-agent-cadence-ac-grinder`) — Lift TD-177's decision (paul) field and archive it: your Go (2026-11-05) was built as TD-231–TD-234, and its live check TD-236 held (#148's squash reads back every trailer, Merged-by: last). An unattended session cannot lift your field (TD-218). Context: TD-177. Due: 2026-11-05. Closed: 2026-11-06 — lifted and archived by Paul's word (session led-tds).
 - [x] act 2026-11-05 (session `ao-agent-cadence-ac-grinder`) — Edit CLAUDE.md's merge line (the 'From a worktree, never gh pr merge --delete-branch' bullet) to name the procedure's step 5 line: check_cadence.py --trailers, forge.py squash-message, then gh pr merge with the composed message — an unattended session does not edit CLAUDE.md's rules. Context: TD-233. Due: 2026-11-07. Closed: 2026-11-06 — drafted on Paul's word (session led-tds); it lands with this PR.
 - [ ] act 2026-11-04 (session `ao-agent-cadence-ac-grinder`) — Turn on the daily gate sweep you chose: in agent-cadence's main checkout, at a main that has gate_sweep_timer.sh, run `files/scripts/gate_sweep_timer.sh --write`, then the `systemctl --user` line it prints. Context: TD-219. Due: 2026-11-04.
