@@ -919,6 +919,20 @@ out=$( cd "$D" && python3 "$SCRIPT" --pr 21 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && ok "a merged board PR whose forge gives no commit count needs a review — never a pass on the subject" || bad "no-count board PR: $out"
 bepr 21 "$btitle" "$bsha" docs/user_attention.md
 dgit checkout -q main
+# TD-237, cadence §4.4: a tool's board append landed by a PR of its own passes review as board-append
+dgit checkout -q -B tool-append origin/main
+GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
+  "$EDIT" add --board "$D/docs/user_attention.md" --text "renew the cert." --due "$FUTD" --tool shiftlead >/dev/null
+atitle=$(dgit log -1 --format=%s)
+dgit checkout -q main && dgit merge -q --squash tool-append >/dev/null && dgit commit -qm "$atitle (#46)" && dgit push -q origin HEAD:main
+asha=$(dgit rev-parse HEAD)
+bepr 46 "$atitle" "$asha" docs/user_attention.md
+out=$( cd "$D" && python3 "$SCRIPT" --pr 46 --json 2>&1 )
+printf '%s' "$out" | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["prs"][0]["rows"] if x["rule"]=="review"][0]; assert r["status"]=="pass" and r["carve_out"]=="board-append" and "reviews" not in r' \
+  && ok "TD-237: a tool's append PR passes review with no comment, carve_out board-append" || bad "append PR: $out"
+bepr 47 "a board line" "$asha" docs/user_attention.md                        # the same append, not the append subject
+out=$( cd "$D" && python3 "$SCRIPT" --pr 47 2>&1 )
+[ "$(rowstat "$out" review)" = FAIL ] && ok "TD-237: the same append under a title that is not the append subject needs a review" || bad "untitled append PR: $out"
 
 # --- 17c) TD-119, cadence §2.4: a tool (ShiftLead's Queue) lands a rank edit by a PR of its own,
 # under ledgerboard's `queue:` subject. The review row passes it (queue-edit) only when it and its one
