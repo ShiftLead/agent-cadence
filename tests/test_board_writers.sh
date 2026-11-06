@@ -246,6 +246,18 @@ R="$TMP/ap8"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
 "$EDIT" add --board "$B" --text "second." --due "$FUT" >/dev/null 2>&1
 [ "$(apr "$R" | cut -d' ' -f2)" = none ] && ok "append PR of two commits: ordinary review (TD-224)" || bad "two commits: $(apr "$R")"
 
+# --- 6c) TD-238: a board line starting with `--` or `++` is content inside a hunk, never a file header, so an
+#         append beside its removal (or beside an added `++` line) is not an append, on either route
+R="$TMP/ap9"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
+sed -i 's/^## Needs the user$/---\n\n&/' "$B"; git -C "$R" commit -qam "a rule line"
+"$EDIT" add --board "$B" --text "renew the cert." --due "$FUT" --no-commit >/dev/null 2>&1
+sed -i '/^---$/d' "$B"; git -C "$R" commit -qam "board_edit: append renew the cert. (session n/a)"
+[ "$(cls "$R")" = "fail none" ] && ok "TD-238: an append that also removes a --- line fails directly and takes ordinary review by PR" || bad "--- removed: $(cls "$R")"
+R="$TMP/ap10"; mkrepo "$R" 0; B="$R/docs/user_attention.md"
+"$EDIT" add --board "$B" --text "renew the cert." --due "$FUT" --no-commit >/dev/null 2>&1
+printf '++ stray\n' >> "$B"; git -C "$R" commit -qam "board_edit: append renew the cert. (session n/a)"
+[ "$(cls "$R")" = "fail none" ] && ok "TD-238: an append beside an added ++ line fails directly and takes ordinary review by PR" || bad "++ added: $(cls "$R")"
+
 # --- 7) the nudge's item advice names a writer command on every line (design §4's general rule): a fixture board
 #        with a twin, ARCHIVE_AT closed items, an oversized board, an escalated item, an unparseable Due: and an fyi
 #        carrying a Due:, through the full report and the session-start text; stamp advice and the summary header (it names /attention) are exempt
