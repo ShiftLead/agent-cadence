@@ -342,6 +342,32 @@ printf 'publish-names = ["Jordan"]\n' > "$CFG"; printf 'docs/*.md a name your pu
 out=$(cd "$G" && python3 "$SCRIPT" --publish-check --accept accept.txt docs/e.md docs/g.md 2>&1); rc=$?
 [ "$rc" = 1 ] && grep -qxF "docs/g.md:2: a link to a file the tree lacks (untracked.md)" <<< "$out" && ok "9m publish-gate required, publish-names set: the gate runs and still finds" || bad "9m rc=$rc
 $out"
+# 9n (TD-241): --files-from reads the list itself, so the whole tree is one run — the accept line
+# matched in one part is not stale, and a link into the other part is not dead. Under xargs with
+# -n 1 (the split a long list gets at its command-line limit) the same list is judged per part.
+printf 'docs/e.md a name your publish-names lists (Jordan)\n' > "$G/accept.txt"
+printf 'Jordan\n' > "$G/docs/e.md"; printf 'see [e](e.md)\n' > "$G/docs/h.md"
+out=$(cd "$G" && printf 'docs/h.md\0docs/e.md\0' | xargs -0 -n 1 python3 "$SCRIPT" --publish-check --accept accept.txt 2>&1)
+grep -qF "matched nothing" <<< "$out" && grep -qF "a link to a file the tree lacks (e.md)" <<< "$out" \
+  && ok "9n0 under xargs split per part: an accept line called stale, a link called dead (the defect)" || bad "9n0 the split did not show the defect
+$out"
+out=$(cd "$G" && printf 'docs/h.md\0docs/e.md\0' | python3 "$SCRIPT" --publish-check --accept accept.txt --files-from - 2>&1); rc=$?
+[ "$rc" = 0 ] && ! grep -qF "matched nothing" <<< "$out" && ! grep -qF "lacks" <<< "$out" \
+  && [ "$(grep -c '^gate:' <<< "$out")" = 1 ] && grep -qx "gate: 0 findings to judge, 1 accepted — clean" <<< "$out" \
+  && ok "9n --files-from -: one run, one gate line, the accept line used, the link resolved" || bad "9n rc=$rc
+$out"
+printf 'docs/e.md\0' > "$TMP/list"
+out=$(cd "$G" && python3 "$SCRIPT" --publish-check --files-from "$TMP/list" --accept accept.txt docs/h.md 2>&1); rc=$?
+[ "$rc" = 0 ] && grep -qx "gate: 0 findings to judge, 1 accepted — clean" <<< "$out" \
+  && ok "9n2 --files-from a file, before --accept, with a FILE named too: the union is checked" || bad "9n2 rc=$rc
+$out"
+out=$(cd "$G" && printf '' | python3 "$SCRIPT" --publish-check --accept accept.txt --files-from - 2>&1); rc=$?
+[ "$rc" = 2 ] && grep -qF "the file list - is empty" <<< "$out" \
+  && ok "9n3 an empty list is exit 2, never a check of one's layers instead" || bad "9n3 rc=$rc
+$out"
+out=$(cd "$G" && python3 "$SCRIPT" --publish-check --files-from "$TMP/nolist" 2>&1); rc=$?
+[ "$rc" = 2 ] && grep -qF "cannot be read" <<< "$out" && ok "9n4 a list that cannot be read: exit 2" || bad "9n4 rc=$rc
+$out"
 rm -f "$CFG"
 
 # 10. rules keyed by § (TD-126 (4a)/(4b)): precedence across two layers, found mechanically
