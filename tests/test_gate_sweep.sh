@@ -223,5 +223,15 @@ js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>&1)
 python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert d["to_close"].get("github.com/o/own", []) == [], d["to_close"]' "$js" \
   && ok "10i a warning decided as a work order: left for whoever acts on it, never closed by the sweep" || bad "10i: ${js:0:800}"
 
+# --- TD-240: host_token() — $CADENCE_HOST, else the machine's host-alias, else gate-sweep; never the machine's name
+ht() { PYTHONPATH="$S" python3 -c 'import gate_sweep as G; print(G.host_token())' 2>/dev/null; }
+unset CADENCE_HOST; a=$(ht)
+printf 'host-alias = "box-1"\n' > "$AGENT_CADENCE_REG_DIR/cadence.toml"
+b=$(ht); c=$(CADENCE_HOST='lab 2' ht)
+rm -f "$AGENT_CADENCE_REG_DIR/cadence.toml"
+HN=$(python3 -c 'import socket; print(socket.gethostname().split(".")[0])')
+[ "$a" = gate-sweep ] && [ "$b" = box-1 ] && [ "$c" = lab-2 ] && [ "$a" != "$HN" ] \
+  && ok "host_token(): gate-sweep with nothing set, the host-alias, \$CADENCE_HOST over it (TD-240)" || bad "host_token a='$a' b='$b' c='$c'"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

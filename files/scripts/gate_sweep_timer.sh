@@ -27,7 +27,9 @@
 #   its checkout's files/scripts/gate_sweep.py. A fetch that fails sweeps nothing (exit 1): a stale read
 #   would file what is already closed. Items it files land under the session `gate-sweep`; its PRs are
 #   reviewed and merged by sessions like any (cadence.md §4). Output goes to the journal
-#   (`journalctl --user -u <unit>`).
+#   (`journalctl --user -u <unit>`). Its lifts sign with the machine's `host-alias` (cadence_config.py, TD-240),
+#   which --write carries into the service as `CADENCE_HOST`; with none set the service has no such line, and
+#   the sweep signs `gate-sweep` — never the machine's own name, which a lift branch publishes on its push.
 #
 # Exit 0 printed, written or swept; 1 the fetch or the sweep failed; 2 a usage error, REPO not a clone
 # with a gate sweep, a path a unit cannot hold, or a unit of that name for another repo. Plain bash.
@@ -93,6 +95,12 @@ else
     exit 2
 fi
 
+# The name the sweep signs its lifts with (TD-240): the machine's host-alias, carried into the unit as CADENCE_HOST;
+# unset (or unreadable), no line, and gate_sweep.py signs `gate-sweep` — never the machine's own name.
+alias="$(python3 "$(dirname "${BASH_SOURCE[0]}")/cadence_config.py" get host-alias 2>/dev/null)" || alias=""
+env_host=""
+[ -n "$alias" ] && env_host="Environment=\"CADENCE_HOST=$alias\"
+"
 name="agent-cadence-gate-sweep-$(basename "$repo" | tr -c 'A-Za-z0-9_.\n-' '_')"
 service="[Unit]
 Description=agent-cadence gate sweep of $repo (gate_sweep.py --apply)
@@ -104,7 +112,7 @@ StartLimitBurst=4
 Type=oneshot
 WorkingDirectory=$repo
 Environment=\"PATH=$PATH\"
-ExecStart=$exec_start
+${env_host}ExecStart=$exec_start
 TimeoutStartSec=30min
 Restart=on-failure
 RestartSec=10min

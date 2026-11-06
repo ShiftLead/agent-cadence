@@ -150,5 +150,16 @@ out=$(bash "$T" --run "$TMP/plain" 2>&1); rc=$?
 out=$(bash "$T" --run 2>&1); rc=$?
 [ "$rc" = 2 ] && ok "--run with no repo is a usage error" || bad "--run alone rc=$rc"
 
+# --- TD-240: the unit carries CADENCE_HOST only when the machine sets host-alias -----------------------------
+out=$(cd "$TMP/canon" && bash "$T")
+! grep -q 'CADENCE_HOST' <<<"$out" && ok "no host-alias: the service sets no CADENCE_HOST (the sweep signs gate-sweep)" || bad "no alias: $out"
+printf 'host-alias = "box-1"\n' > "$AGENT_CADENCE_REG_DIR/cadence.toml"
+out=$(cd "$TMP/canon" && bash "$T")
+grep -qx 'Environment="CADENCE_HOST=box-1"' <<<"$out" && ok "host-alias set: the service carries it as CADENCE_HOST" || bad "alias: $out"
+printf 'host-alias = "a b"\n' > "$AGENT_CADENCE_REG_DIR/cadence.toml"
+out=$(cd "$TMP/canon" && bash "$T" 2>/dev/null); rc=$?
+[ "$rc" = 0 ] && ! grep -q 'CADENCE_HOST' <<<"$out" && ok "a host-alias that cannot be read: no line, the units still print" || bad "bad alias rc=$rc: $out"
+rm -f "$AGENT_CADENCE_REG_DIR/cadence.toml"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

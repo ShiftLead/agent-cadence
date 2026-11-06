@@ -33,8 +33,8 @@ a pure function; this script is the I/O around it:
 column), from temporary worktrees at ``origin/<default>`` — the checkout it runs in is never touched:
 
 - **Each lift is its own tool PR**, on ``lift/TD-n/<event name>`` (``…/until``), written by ``ledger.py lift``
-  (the gate removed, the ``gate lifted`` Log line with the host's token, ``$CADENCE_HOST`` else this machine's
-  short name, and the evidence a reviewer re-runs). Idempotent: nothing when a PR on that branch is open, or
+  (the gate removed, the ``gate lifted`` Log line with the host's token, ``$CADENCE_HOST`` else the machine's
+  ``host-alias`` else ``gate-sweep``, never the machine's own name (TD-240), and the evidence a reviewer re-runs). Idempotent: nothing when a PR on that branch is open, or
   when another open PR's diff already logs ``gate lifted: <gate>`` in the entry; a PR on that branch closed
   unmerged is never reopened — an ``act`` item "Lift of <gate> on TD-n was closed" (``Context: TD-n <gate>
   lift``) asks why, once: not when an item with that Context is on the board, open or closed, or in a sweep
@@ -73,7 +73,6 @@ import json
 import os
 import re
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
@@ -81,6 +80,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import cadence_config as C  # noqa: E402  # sibling SYNC script: the settings, host-alias among them (TD-240)
 import event_checks as E  # noqa: E402  # sibling SYNC script: the event runner
 import forge as F  # noqa: E402  # sibling SYNC script: the one place a forge's CLI runs
 import ledger as L  # noqa: E402  # sibling SYNC script: the ledger's readers and the roster
@@ -260,9 +260,9 @@ def lift_branch(tid: str, gate: str) -> str:
 
 
 def host_token() -> str:
-    """Who lifts, in the Log: ``$CADENCE_HOST``, else this machine's short name — a token of [A-Za-z0-9_.@/-]."""
-    raw = os.environ.get("CADENCE_HOST", "").strip() or socket.gethostname().split(".")[0]
-    return re.sub(r"[^A-Za-z0-9_.@/-]", "-", raw) or "host"
+    """Who lifts, in the Log: ``$CADENCE_HOST``, else the machine's ``host-alias``, else ``gate-sweep`` — never
+    the machine's own name, which a lift branch publishes on its push (TD-240; cadence_config.host_name())."""
+    return C.host_name() or "gate-sweep"
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:

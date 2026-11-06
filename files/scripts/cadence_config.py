@@ -175,6 +175,9 @@ MACHINE_KEYS = {
     "publish-names": "names `cadence_layer.py --publish-check` flags in every file it reads — the person's own "
                      "name, a private org or repo the roster does not hold: an array of strings, kept here so "
                      "the list itself is never in a tree that goes public (TD-090)",
+    "host-alias": "the name this machine signs with where a tool writes into a repo — the gate sweep's `gate "
+                  "lifted` Log line and the cadence/precheck status (TD-240): a token of [A-Za-z0-9_.@/-]; "
+                  "unset, they name no host (the sweep signs `gate-sweep`), never the machine's own name",
 }
 
 
@@ -207,13 +210,38 @@ def _names(v: object) -> list[str]:
     return [x.strip() for x in v]
 
 
+HOST_TOKEN_RE = re.compile(r"[A-Za-z0-9_.@/-]+")
+
+
+def _alias(v: object) -> str:
+    """host-alias: one token of [A-Za-z0-9_.@/-], the name a Log line or a status can carry as it is."""
+    if not isinstance(v, str) or not HOST_TOKEN_RE.fullmatch(v.strip()):
+        raise ValueError(f"must be one token of letters, digits and _ . @ / -, not {v!r}")
+    return v.strip()
+
+
+def host_name(repo: str | None = None) -> str | None:
+    """The name this machine signs with in a repo (TD-240): ``$CADENCE_HOST`` (its characters outside the token
+    set made ``-``), else the machine's ``host-alias``, else None — never the machine's own name, which a public
+    repo would publish. A ``host-alias`` that cannot be read is None, with a warning on stderr."""
+    raw = os.environ.get("CADENCE_HOST", "").strip()
+    if raw:
+        return re.sub(r"[^A-Za-z0-9_.@/-]", "-", raw)
+    try:
+        v, _ = resolve("host-alias", sources(repo))
+    except ConfigError as e:
+        print(f"cadence_config: host-alias ignored: {e}", file=sys.stderr)
+        return None
+    return v
+
+
 # A repo key with a fixed vocabulary: the values check() accepts (resolve() still hands over the string).
 REPO_CHOICES = {"ledger-ids-host": ("on", "off"), "publish-gate": ("required", "off")}
 
 
 # key -> a function returning the value to use, or raising ValueError naming what is wrong.
 # `get`, every importer through resolve(), and --check all go through it.
-VALIDATE = {"worktree-root": _rel_dir, "attention-scope": _scope, "review-outcomes": _onoff, "review-model": _models, "fact-check-model": _model, "layers": _layers, "publish-names": _names, **{k: _count for k in COUNT_KEYS}}
+VALIDATE = {"worktree-root": _rel_dir, "attention-scope": _scope, "review-outcomes": _onoff, "review-model": _models, "fact-check-model": _model, "layers": _layers, "publish-names": _names, "host-alias": _alias, **{k: _count for k in COUNT_KEYS}}
 
 
 # The opt-outs (TD-072, moved here by TD-096): tables in the repo's file, never the machine's —
