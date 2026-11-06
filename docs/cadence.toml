@@ -7,7 +7,7 @@
 # publish gate runs last (TD-189): this repo is public, so a PR that adds a private name — a machine
 # path, a repo on the roster, a name the machine's publish-names lists — fails here, before it is
 # published by merging. Findings meant to be public are accepted in docs/publish-accept.txt.
-precheck = "ruff check files/scripts/ && CI=true ./run_tests.sh && git ls-files -z | xargs -0 python3 files/scripts/cadence_layer.py --publish-check --accept docs/publish-accept.txt"
+precheck = "ruff check files/scripts/ && CI=true ./run_tests.sh && git ls-files -z | python3 files/scripts/cadence_layer.py --publish-check --accept docs/publish-accept.txt --files-from -"
 
 # The publish gate needs the machine's publish-names to run here; a machine without them exits 2
 # rather than pass every name the list would flag (TD-189).

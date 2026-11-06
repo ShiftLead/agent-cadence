@@ -95,8 +95,9 @@
 #   ledger-ids-host = "off"
 
 # --- whether the publish gate must run with the machine's names (TD-189, cadence.md §9.18): read
-# from this file only. A public repo's precheck runs `cadence_layer.py --publish-check --accept
-# <list>` over its tracked files; the names it flags live in each machine's own cadence.toml
+# from this file only. A public repo's precheck runs `git ls-files -z | cadence_layer.py
+# --publish-check --accept <list> --files-from -` over its tracked files (one run, never under
+# xargs, TD-241); the names it flags live in each machine's own cadence.toml
 # (publish-names), so on a machine without them the gate would pass everything. "required" makes
 # it exit 2 there instead. Unset reads as "off".
 #

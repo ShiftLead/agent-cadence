@@ -14,7 +14,7 @@
                                `§4.8 add:`), per §, with its layer and line (each layer listed with its
                                commit), and whether it
                                holds or which later override superseded it; then the unkeyed rules
-    cadence_layer.py --publish-check [--accept FILE] [FILE…]
+    cadence_layer.py --publish-check [--accept FILE] [--files-from LIST] [FILE…]
                                before a layer's repo is made public: every tracked file of each
                                of one's own layers' repos (or the FILEs named), each line naming
                                a machine path, this machine's name (and its short name, the part
@@ -26,7 +26,11 @@
                                of FILE accepts a finding meant to be public, a relative markdown link
                                to a file not there is a finding too, and it ends `gate: …`. In a repo
                                whose docs/cadence.toml sets publish-gate = "required" the gate exits
-                               2 on a machine with no publish-names, which would otherwise pass everything
+                               2 on a machine with no publish-names, which would otherwise pass everything.
+                               --files-from LIST reads the files to check, NUL-separated (`-` is
+                               stdin, as `git ls-files -z |` writes it), so the whole tree is one run
+                               with one summary and one judgement of --accept — never under xargs,
+                               which splits a long list into runs that each judge only their part
     cadence_layer.py --follow <url-or-clone> --ref <tag|commit> [--file <path in repo>] [--dir <clone dir>]
                                follow someone else's layer (TD-130): clone it or reuse the clone,
                                fetch its tags, check the pin (it resolves, is a tag or a commit and
@@ -722,7 +726,7 @@ def effective_view(read_layers: list[dict]) -> int:
 # every comment stays; the file is read back through cadence_config and put back when the result
 # does not hold what was meant.
 DEFAULT_FILE = "cadence-personal.md"
-USAGE = ("usage: cadence_layer.py [--hook | --json | --effective | --publish-check [--accept FILE] [FILE…] |\n"
+USAGE = ("usage: cadence_layer.py [--hook | --json | --effective | --publish-check [--accept FILE] [--files-from LIST] [FILE…] |\n"
          "       --follow <url-or-clone> --ref <tag|commit> [--file <path in repo>] [--dir <clone dir>] |\n"
          "       --update <n> [--ref <tag|commit>]]")
 NET_TIMEOUT = 300
@@ -1046,13 +1050,32 @@ def main(argv: list[str]) -> int:
         _deadline = time.monotonic() + 3600   # run by hand, never at session start: no 8 s budget
         GIT_TIMEOUT = 120
     if argv[:1] == ["--publish-check"]:
-        rest = argv[1:]
-        if rest[:1] == ["--accept"]:
-            if len(rest) < 2:
+        rest, opts = argv[1:], {}
+        while rest[:1] in (["--accept"], ["--files-from"]):
+            if len(rest) < 2 or rest[0] in opts:
                 print(USAGE, file=sys.stderr)
                 return 2
-            return publish_check(rest[2:], accept=rest[1])
-        return publish_check(rest)
+            opts[rest[0]], rest = rest[1], rest[2:]
+        if "--files-from" in opts:
+            # one run over the whole list (TD-241): xargs splits a long one into batches, each with
+            # its own summary and its own judgement of --accept, so one batch calls stale a line
+            # another batch needs, and a link into the other batch reads as dead
+            src = opts["--files-from"]
+            try:
+                if src == "-":
+                    raw = sys.stdin.buffer.read()
+                else:
+                    with open(src, "rb") as fh:
+                        raw = fh.read()
+            except OSError as e:
+                print(f"cadence_layer: the file list {src} cannot be read ({e.strerror or e})", file=sys.stderr)
+                return 2
+            listed = [f for f in raw.decode("utf-8", "surrogateescape").split("\0") if f]
+            if not listed and not rest:   # an empty list is never "check my layers" instead
+                print(f"cadence_layer: nothing to check — the file list {src} is empty", file=sys.stderr)
+                return 2
+            rest = rest + listed
+        return publish_check(rest, accept=opts.get("--accept"))
     if argv[:1] in (["--follow"], ["--update"]):
         opts, rest = {}, argv[2:]
         while len(rest) >= 2 and rest[0] in ("--ref", "--file", "--dir") and rest[0] not in opts:

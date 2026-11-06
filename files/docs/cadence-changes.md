@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-06 — The publish gate reads its file list itself: `git ls-files -z | … --publish-check --accept <list> --files-from -`
+Do: in a public repo's `precheck`, replace `git ls-files -z | xargs -0 … --publish-check …` (or `$(git ls-files)`) with `git ls-files -z | python3 <scripts>/cadence_layer.py --publish-check --accept <list> --files-from -`; xargs splits the list, and each part calls stale an accept line another part needs.
+See: cadence.md §9.18; `cadence_layer.py --files-from`; TD-241.
+
 ## 2026-11-06 — The gate sweep and the precheck status sign with a machine alias, never the hostname
 Do: in a public cadence repo, set `host-alias = "<a name>"` in this machine's `~/.config/agent-cadence/cadence.toml` (an alias, never a rename); unset, the sweep signs `gate-sweep` and the `cadence/precheck` status names no host. Rerun `gate_sweep_timer.sh --write` to carry it into the unit.
 See: cadence.md §9.18, §2.14, §4.12; `cadence_config.py` `host_name()`; TD-240.
