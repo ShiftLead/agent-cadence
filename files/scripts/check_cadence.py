@@ -2713,7 +2713,7 @@ def print_outside(mo):
     print(f"Merged outside step 5 (no Merged-by:, after {mo['cutoff']}) — {nums(mo['listed'])}"
           " (a detector, cadence §4.2: read it against the repo's own merge rule)")
     if mo["tool"]:
-        print(f"  tool merges (a carve-out, cadence §4.5): {nums(mo['tool'])}")
+        print(f"  tool merges (a carve-out, cadence §4.4–§4.6): {nums(mo['tool'])}")
     if mo["unreadable"]:
         print(f"  unreadable (merge commit not on {mo['ref']} here): {nums(mo['unreadable'])}")
     if mo["before"]:
