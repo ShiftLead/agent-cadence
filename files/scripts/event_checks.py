@@ -3,7 +3,7 @@
 # Edit it there: a repo runs it from its pinned agent-cadence (`agent-cadence path`), and a fix reaches it by a bump PR.
 """What each open ``event (<name>)`` gate's check says now (TD-219; ledgerboard's target design §4).
 
-    event_checks.py [--ledger DIR] [--json] [--timeout S]
+    event_checks.py [--ledger DIR] [--json] [--timeout S] [--host-config FILE]
 
 An entry waiting on something outside the ledger carries ``**Blocked by:** event (<name>)`` and an
 ``**Event (<name>):**`` section whose ``check:`` line names one of ledgerboard's typed checks. For every
@@ -28,6 +28,10 @@ ledger's checks reach only public repos, since a public lift PR would leak one b
 sweep. Anything either rule refuses, or a forge this cannot ask yet (github.com and GitLab are built, TD-228; a GitHub Enterprise host is not), is an
 error. Each forge call is bounded by ``--timeout`` (default 30s), and a call past it is an error.
 
+A ``host-log`` check (TD-230) is answered by this host's reader, ``hostlog.py check``, with the host file
+``host-log.toml`` in the machine-scope directory; ``--host-config FILE`` names another (TD-239: a host that
+keeps its file in its own store, as ShiftLead does). A host file that does not exist gives no outcome.
+
 This is read-only: it lifts nothing and files nothing. It is the event runner the gate sweep feeds to
 ledgerboard's ``sweep()`` (``results()`` gives the ``{(TD-n, name): (outcome, evidence)}`` it takes); the
 sweep's own I/O, which writes the lifts and the board items, is ``gate_sweep.py``.
@@ -40,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -248,6 +253,9 @@ def main(argv: list[str] | None = None) -> int:
                                      "else docs/technical_debt.md")
     ap.add_argument("--timeout", type=float, default=TIMEOUT, help=f"seconds per forge call (default {TIMEOUT:g})")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--host-config", metavar="FILE",
+                    help=f"the host file for host-log checks (default: {HOSTLOG_FILE} in the machine-scope "
+                         "directory); one that does not exist gives those checks no outcome")
     a = ap.parse_args(argv)
     top = L._toplevel()
     io = L.fs_io()
@@ -256,7 +264,8 @@ def main(argv: list[str] | None = None) -> int:
     if text is None:
         print(f"event_checks: cannot read {ledger}", file=sys.stderr)
         return 2
-    runner = Runner(top, timeout=a.timeout)
+    runner = Runner(top, timeout=a.timeout,
+                    host_file=Path(os.path.expanduser(a.host_config)) if a.host_config else None)
     rows = [{**g, **runner.run(g)} for g in gates(text)]
     if a.json:
         print(json.dumps({"checks": [{k: r[k] for k in ("id", "name", "check", "outcome", "evidence", "why")}

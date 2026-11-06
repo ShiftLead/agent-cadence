@@ -255,5 +255,19 @@ PY
 )
 [ "$res" = "g/lab" ] && ok "8g a GitLab ledger's <repo> id is host-less (g/lab), as the sweep and the host file name it" || bad "8g: $res"
 
+# --- 9: --host-config (TD-239): a host file outside the machine-scope directory, which has none
+rm -f "$AGENT_CADENCE_REG_DIR/host-log.toml"
+mkdir -p "$HOME/store"
+printf '[repos."*"]\n[[allow]]\nroot = "%s"\nvisibility = "private"\n' "$LOGS" > "$HOME/store/host-log.toml"
+out=$(cd "$OWN" && python3 "$S/event_checks.py" 2>&1)
+grep -q '^TD-020 event (red): no outcome — no host file' <<< "$out" && ok "9a without the flag: the machine-scope file, which is not there" || bad "9a: $(line TD-020)"
+out=$(cd "$OWN" && python3 "$S/event_checks.py" --host-config '~/store/host-log.toml' 2>&1)
+want "9b --host-config (a ~ path): the reader runs with that file, passed" "TD-020 event (red):" "passed — app@$(python3 -c "print('$AT'.replace('-','').replace(':',''))")"
+out=$(cd "$OWN" && python3 "$S/event_checks.py" --json --host-config "$HOME/store/host-log.toml" 2>&1)
+res=$(python3 -c 'import json,sys; d=json.loads(sys.stdin.read()); print([c["outcome"] for c in d["checks"] if c["id"]=="TD-020"])' <<< "$out")
+[ "$res" = "['passed']" ] && ok "9c --json --host-config: the row ShiftLead reads is passed" || bad "9c: $res"
+out=$(cd "$OWN" && python3 "$S/event_checks.py" --host-config "$TMP/nowhere.toml" 2>&1)
+grep -qF "TD-020 event (red): no outcome — no host file ($TMP/nowhere.toml)" <<< "$out" && ok "9d a named file that is not there: no outcome, its path in why" || bad "9d: $(line TD-020)"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
