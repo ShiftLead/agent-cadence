@@ -53,8 +53,10 @@ first such entry, in the file's order. A file no entry covers, a diff that canno
 A head whose tree already passed (TD-245): --pr first looks for an earlier head of the same PR with
 the identical tree (`git rev-parse <sha>^{tree}`) — among the head's own commits not on its base and
 the values this clone's reflogs saw the branch take, which keep a head a force-push replaced — that
-carries a passing `cadence/precheck` for the same command (its description names it). Found, the head
-is recorded passing as `passed (same tree as <sha>)…: <cmd>` and nothing runs; any change to the tree,
+carries a passing `cadence/precheck` for the same command — its description's `[cmd <12 hex>]` mark (a
+sha256 of the command, before the `: `, so a forge's cut never reaches it), or for a description from before
+the mark the whole command text, never a cut prefix. Found, the head is recorded passing as
+`passed (same tree as <sha>)… [cmd …]: <cmd>` and nothing runs; any change to the tree,
 even one byte, runs the command. --no-reuse, --no-record and a fork's head always run it.
 
 The status is a commit status, not a CI run: it uses no Actions minutes, and it stays on the
@@ -71,6 +73,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import hashlib
 import os
 import re
 import signal
@@ -198,13 +201,26 @@ def _shas(r: subprocess.CompletedProcess) -> list[str]:
     return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()] if r.returncode == 0 else []
 
 
-def passed_cmd(desc: str | None) -> str | None:
-    """The command a passing `cadence/precheck` description names, else None: `passed in <s>s[ on <host>]: <cmd>`,
-    or a reuse's `passed (same tree as <sha>)[ on <host>]: <cmd>` (TD-245); a forge's cut leaves it ending in `…`.
-    A `--fork-ok` run's, or a failure's, is None — never a pass to reuse."""
-    if not desc or not desc.startswith("passed") or ": " not in desc:
-        return None
-    return desc.split(": ", 1)[1]
+def cmd_tag(cmd: str) -> str:
+    """TD-245: the command's mark in a passing description, `[cmd <12 hex>]`, before the `: ` so a forge's cut
+    (140 characters on GitHub) never reaches it — the command's own text may be cut, its mark is not."""
+    return f"[cmd {hashlib.sha256(cmd.encode('utf-8')).hexdigest()[:12]}]"
+
+
+CMD_TAG_RE = re.compile(r" (\[cmd [0-9a-f]{12}\]): ")
+
+
+def passed_for(desc: str | None, cmd: str) -> bool:
+    """Whether a passing `cadence/precheck` description is a pass of `cmd` (TD-245): its `[cmd …]` mark is
+    cmd_tag(cmd), or — a description from before the mark — the whole text after the first `: ` is `cmd`
+    exactly. A cut command (ending `…`) with no mark is never a match: a prefix may be another command's.
+    A `--fork-ok` run's or a failure's description does not start `passed ` and is never a pass to reuse."""
+    if not desc or not desc.startswith("passed ") or ": " not in desc:
+        return False
+    m = CMD_TAG_RE.search(desc)
+    if m:
+        return m.group(1) == cmd_tag(cmd)
+    return desc.split(": ", 1)[1] == cmd
 
 
 def same_tree_pass(fg, root: str, pr: dict, sha: str, cmd: str) -> tuple[str, str] | None:
@@ -233,8 +249,7 @@ def same_tree_pass(fg, root: str, pr: dict, sha: str, cmd: str) -> tuple[str, st
         except F.ForgeUnreadable:
             continue   # an unreadable status is no pass
         for st in sts:
-            ran = passed_cmd(st.get("description")) if st.get("conclusion") == "success" else None
-            if ran is not None and (ran == cmd or (ran.endswith("…") and cmd.startswith(ran[:-1]))):
+            if st.get("conclusion") == "success" and passed_for(st.get("description"), cmd):
                 return c, st.get("description") or ""
     return None
 
@@ -371,7 +386,7 @@ def main(argv: list[str] | None = None) -> int:
         twin = None if (a.no_reuse or a.no_record or fork) else same_tree_pass(fg, root, pr, sha, cmd)
         if twin:
             host = C.host_name(root)
-            desc = f"passed (same tree as {twin[0][:7]}){f' on {host}' if host else ''}: {cmd}"
+            desc = f"passed (same tree as {twin[0][:7]}){f' on {host}' if host else ''} {cmd_tag(cmd)}: {cmd}"
             print(f"precheck: {what} at {sha[:7]} has the tree of {twin[0][:7]}, whose {CONTEXT} passed "
                   f"({twin[1]}) — recorded passing without running it (TD-245; --no-reuse runs it)")
             try:
@@ -468,7 +483,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if ok else 1
     named = "" if ok or not failures else ", ".join(dict.fromkeys(failures)) + "; "
     host = C.host_name(root)   # $CADENCE_HOST, else host-alias, else no host: never the machine's own name (TD-240)
-    desc = f"{'passed' if ok else f'exit {rc}'} in {took:.0f}s{f' on {host}' if host else ''}: {named}{cmd}"
+    tag = f" {cmd_tag(cmd)}" if ok else ""   # TD-245: a pass names its command past any cut; a failure keeps its room
+    desc = f"{'passed' if ok else f'exit {rc}'} in {took:.0f}s{f' on {host}' if host else ''}{tag}: {named}{cmd}"
     if fork:
         desc = f"--fork-ok, a fork's head: {desc}"
     try:

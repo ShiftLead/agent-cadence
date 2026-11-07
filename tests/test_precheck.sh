@@ -92,8 +92,8 @@ run --pr 7 >/dev/null; d=$(desc)
   && ok "3d a long list is cut with … at the forge's 140" || bad "3d len=${#d} d='$d'"
 : > "$FAKE/posts"; cfg 'echo \"FAILED tests/x.py::t\"; true'
 run --pr 7 >/dev/null; d=$(desc)
-[ "${d#passed in *s: }" = 'echo "FAILED tests/x.py::t"; true' ] \
-  && ok "3e a passing run's description is as before, whatever its output" || bad "3e d='$d'"
+[ "${d#passed in *s \[cmd *\]: }" = 'echo "FAILED tests/x.py::t"; true' ] \
+  && ok "3e a passing run's description names no failures, whatever its output" || bad "3e d='$d'"
 # 3e2. TD-240: the description names $CADENCE_HOST, else the machine's host-alias, else no host — never the hostname
 HN=$(python3 -c 'import socket; print(socket.gethostname())'); mkdir -p "$AGENT_CADENCE_REG_DIR"
 : > "$FAKE/posts"; cfg 'true'; run --pr 7 >/dev/null; d0=$(desc)
@@ -101,7 +101,8 @@ printf 'host-alias = "box-7"\n' > "$AGENT_CADENCE_REG_DIR/cadence.toml"
 : > "$FAKE/posts"; run --pr 7 >/dev/null; d1=$(desc)
 : > "$FAKE/posts"; CADENCE_HOST=ci-runner run --pr 7 >/dev/null; d2=$(desc)
 rm -f "$AGENT_CADENCE_REG_DIR/cadence.toml"
-[[ "$d0" == "passed in "*"s: true" ]] && [[ "$d1" == "passed in "*"s on box-7: true" ]] && [[ "$d2" == "passed in "*"s on ci-runner: true" ]] \
+T0="[cmd $(printf true | sha256sum | cut -c1-12)]"   # TD-245: a pass carries its command's mark
+[[ "$d0" == "passed in "*"s $T0: true" ]] && [[ "$d1" == "passed in "*"s on box-7 $T0: true" ]] && [[ "$d2" == "passed in "*"s on ci-runner $T0: true" ]] \
   && [[ "$d0$d1$d2" != *"$HN"* ]] \
   && ok "3e2 the status names \$CADENCE_HOST, else host-alias, else no host — never the machine's name (TD-240)" || bad "3e2 d0='$d0' d1='$d1' d2='$d2'"
 : > "$FAKE/posts"; cfg 'sleep 30 & echo $! > $FAKE_DIR/bg; echo \"FAILED: test_bg.sh\"; exit 1'
@@ -361,11 +362,12 @@ A20=$(git -C "$R" rev-parse HEAD); git -C "$R" commit -q --allow-empty -m "same 
 git -C "$R" push -q origin "HEAD:refs/pull/20/head"; git -C "$R" checkout -q main
 p20() { printf '{"number":20,"url":"u","state":"OPEN","title":"t","body":"","baseRefName":"main","headRefName":"t20","headRefOid":"%s","files":[],"isCrossRepository":false}' "$1" > "$FAKE/pr_20.json"; }
 p20 "$B20"; CMD20='echo RAN20'; cfg "$CMD20"
+TAG20="[cmd $(printf %s "$CMD20" | sha256sum | cut -c1-12)]"
 st20() { printf '{"context":"cadence/precheck","state":"%s","description":"%s"}\n' "$2" "$3" > "$FAKE/status_$1"; }
 st20 "$A20" success "passed in 9s: $CMD20"; : > "$FAKE/posts"
 out=$(run --pr 20); rc=$?
 [ $rc -eq 0 ] && ! grep -qx RAN20 <<< "$out" && grep -q "has the tree of ${A20:0:7}" <<< "$out" \
-  && grep -q "statuses/$B20 -f state=success -f context=cadence/precheck -f description=passed (same tree as ${A20:0:7}): $CMD20" "$FAKE/posts" \
+  && grep -qF "statuses/$B20 -f state=success -f context=cadence/precheck -f description=passed (same tree as ${A20:0:7}) $TAG20: $CMD20" "$FAKE/posts" \
   && ok "11 an empty commit on a passed head: recorded passing, citing it, nothing run" || bad "11 rc=$rc $out / POSTS: $(cat "$FAKE/posts")"
 : > "$FAKE/posts"; out=$(run --pr 20 --no-reuse); rc=$?
 [ $rc -eq 0 ] && grep -qx RAN20 <<< "$out" && grep -q "description=passed in " "$FAKE/posts" && ok "11b --no-reuse runs it" || bad "11b rc=$rc $out"
@@ -375,12 +377,20 @@ st20 "$A20" failure "exit 1 in 9s: $CMD20"; out=$(run --pr 20); rc=$?
 [ $rc -eq 0 ] && grep -qx RAN20 <<< "$out" && ok "11d a twin whose precheck failed: it runs" || bad "11d rc=$rc $out"
 st20 "$A20" success "--fork-ok, a fork's head: passed in 9s: $CMD20"; out=$(run --pr 20); rc=$?
 [ $rc -eq 0 ] && grep -qx RAN20 <<< "$out" && ok "11e a twin passed under --fork-ok is never reused" || bad "11e rc=$rc $out"
-st20 "$A20" success "passed in 9s: ${CMD20:0:5}…"; : > "$FAKE/posts"; out=$(run --pr 20); rc=$?
-[ $rc -eq 0 ] && ! grep -qx RAN20 <<< "$out" && ok "11f a description the forge cut with … matches the command it begins" || bad "11f rc=$rc $out"
+st20 "$A20" success "passed in 9s: ${CMD20:0:5}…"; out=$(run --pr 20); rc=$?
+[ $rc -eq 0 ] && grep -qx RAN20 <<< "$out" && ok "11f a cut command with no mark is never a match: a prefix may be another command's" || bad "11f rc=$rc $out"
+st20 "$A20" success "passed in 9s on h $TAG20: ${CMD20:0:3}…"; out=$(run --pr 20); rc=$?
+[ $rc -eq 0 ] && ! grep -qx RAN20 <<< "$out" && ok "11f2 a cut description carrying the command's mark matches" || bad "11f2 rc=$rc $out"
+st20 "$A20" success "passed in 9s [cmd 000000000000]: $CMD20"; out=$(run --pr 20); rc=$?
+[ $rc -eq 0 ] && grep -qx RAN20 <<< "$out" && ok "11f3 another command's mark beside this command's text: it runs" || bad "11f3 rc=$rc $out"
+st20 "$A20" success "passed in 9s on hhhhhhhh: …"; out=$(run --pr 20); rc=$?
+[ $rc -eq 0 ] && grep -qx RAN20 <<< "$out" && ok "11f4 a cut that leaves nothing of the command: it runs" || bad "11f4 rc=$rc $out"
+: > "$FAKE/posts"; out=$(run --pr 20 --no-reuse); grep -qF "description=passed in " "$FAKE/posts" && grep -qF " $TAG20: $CMD20" "$FAKE/posts" \
+  && ok "11f5 a pass that ran records the command's mark before the command" || bad "11f5 $(cat "$FAKE/posts")"
 # one byte: the tree differs, so it runs whatever its parent passed
 git -C "$R" checkout -q t20; echo b >> "$R/twenty.txt"; git -C "$R" commit -qam byte; C20=$(git -C "$R" rev-parse HEAD)
 git -C "$R" push -q -f origin "HEAD:refs/pull/20/head"; git -C "$R" checkout -q main; p20 "$C20"
-st20 "$A20" success "passed in 9s: $CMD20"; st20 "$B20" success "passed (same tree as ${A20:0:7}): $CMD20"
+st20 "$A20" success "passed in 9s: $CMD20"; st20 "$B20" success "passed (same tree as ${A20:0:7}) $TAG20: $CMD20"
 out=$(run --pr 20); rc=$?
 [ $rc -eq 0 ] && grep -qx RAN20 <<< "$out" && ! grep -q "has the tree of" <<< "$out" && ok "11g a one-byte change to the tree runs it" || bad "11g rc=$rc $out"
 # a force-push replaced the passed head with a rewritten one of the same tree: found through the reflog
