@@ -31,7 +31,7 @@ items surface in `/attention`'s full report.
 
 ## Needs Paul
 
-- [ ] decide 2026-11-07 (session `ao-agent-cadence-ac-techlead`) — Go on TD-249's design: a design keeps a plain-words synopsis for you, read by the closing fact-check and linked from the end-of-rounds item (cadence.md §4.8, for every consumer)? Context: TD-249 decision (Paul). Due: 2026-11-14. Answers: Go (default) | Not yet.
+- [x] decide 2026-11-07 (session `ao-agent-cadence-ac-techlead`) — Go on TD-249's design: a design keeps a plain-words synopsis for you, read by the closing fact-check and linked from the end-of-rounds item (cadence.md §4.8, for every consumer)? Context: TD-249 decision (Paul). Due: 2026-11-14. Answers: Go (default) | Not yet. Decided: Go (by Paul) (2026-11-07). Closed: 2026-11-07 — lifted.
   - **Context:** TD-249. When a design's review rounds end, you decide from the end-of-rounds item and the review record, both written as findings (F-numbers, mechanisms, file refs). ShiftLead's TD-1527 (merged today) gives each of its designs a plain-words synopsis on one screen, rewritten each round and checked by the closing fact-check, and its designer asks agent-cadence to make that part of cadence.md §4.8 for every repo, with the end-of-rounds item linking it.
   - **Question:** Go on designing it? It changes §4.8 for every consumer, so no session picks it up until you say go. It touches the same end-of-rounds item as TD-243, which you are designing in your own session.
   - **Recommended:** Go — design it with you, alongside TD-243 or right after it, then run the rounds (your layer's §4.8 add). **Otherwise:** Not yet — it stays held; ShiftLead's own designs keep their synopses either way.
