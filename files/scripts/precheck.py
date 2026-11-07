@@ -12,6 +12,9 @@ verdict on the PR (TD-117, cadence.md §4.12).
                                 the same, refusing (exit 2) unless the PR's head is SHA (a
                                 full sha or a prefix) — the commit just pushed (TD-186)
     precheck.py ... --no-record run it and record nothing (a trial)
+    precheck.py --pr N --no-reuse
+                                run it even when an earlier head of the PR has the same tree and
+                                passed (TD-245; see "A head whose tree already passed")
     precheck.py --pr N --fork-ok
                                 run it on a fork's PR, which is otherwise refused (TD-207) —
                                 the person's flag, after reading the diff, never a session's
@@ -46,6 +49,13 @@ command, and when every file the PR changes (a three-dot diff against its base b
 from origin) matches one entry's globs, that entry's command runs instead of `precheck` — the
 first such entry, in the file's order. A file no entry covers, a diff that cannot be read, or
 --commit runs the full `precheck`. The status's description names the command that ran.
+
+A head whose tree already passed (TD-245): --pr first looks for an earlier head of the same PR with
+the identical tree (`git rev-parse <sha>^{tree}`) — among the head's own commits not on its base and
+the values this clone's reflogs saw the branch take, which keep a head a force-push replaced — that
+carries a passing `cadence/precheck` for the same command (its description names it). Found, the head
+is recorded passing as `passed (same tree as <sha>)…: <cmd>` and nothing runs; any change to the tree,
+even one byte, runs the command. --no-reuse, --no-record and a fork's head always run it.
 
 The status is a commit status, not a CI run: it uses no Actions minutes, and it stays on the
 commit after the session ends. Its description names the command's exit code, the time it
@@ -181,6 +191,54 @@ def read_head(fg, n: int, root: str, fork_ok: bool = False) -> tuple[dict, str] 
     return pr, sha
 
 
+REUSE_LOOK = 100   # TD-245: the most commits of each local list (the PR's own, each reflog) searched for a twin
+
+
+def _shas(r: subprocess.CompletedProcess) -> list[str]:
+    return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()] if r.returncode == 0 else []
+
+
+def passed_cmd(desc: str | None) -> str | None:
+    """The command a passing `cadence/precheck` description names, else None: `passed in <s>s[ on <host>]: <cmd>`,
+    or a reuse's `passed (same tree as <sha>)[ on <host>]: <cmd>` (TD-245); a forge's cut leaves it ending in `…`.
+    A `--fork-ok` run's, or a failure's, is None — never a pass to reuse."""
+    if not desc or not desc.startswith("passed") or ": " not in desc:
+        return None
+    return desc.split(": ", 1)[1]
+
+
+def same_tree_pass(fg, root: str, pr: dict, sha: str, cmd: str) -> tuple[str, str] | None:
+    """TD-245: (an earlier head of this PR whose tree is the head's own, the description of the passing
+    `cadence/precheck` it carries for this same command), else None. The candidates are local: the PR's own
+    commits (the head's ancestors not on its base) and every value this clone saw its branch take (the
+    reflogs of origin's branch and of a local branch of that name, which keep a head a force-push replaced).
+    Only an identical tree is a twin — `git rev-parse <c>^{tree}`, never a diff judged small — and only the
+    forge's status on that commit is read as its verdict."""
+    tree = git("rev-parse", f"{sha}^{{tree}}", cwd=root).stdout.strip()
+    if not tree:
+        return None
+    head, base = pr.get("head") or "", pr.get("base") or ""
+    seen: list[str] = []
+    lists = [git("rev-list", f"--max-count={REUSE_LOOK}", sha, *([f"^origin/{base}"] if base else []), "--", cwd=root)]
+    for ref in (f"refs/remotes/origin/{head}", f"refs/heads/{head}") if head else ():
+        lists.append(git("reflog", "show", f"-n{REUSE_LOOK}", "--format=%H", ref, "--", cwd=root))
+    for c in (c for r in lists for c in _shas(r)):
+        if c != sha and c not in seen:
+            seen.append(c)
+    for c in seen:
+        if git("rev-parse", f"{c}^{{tree}}", cwd=root).stdout.strip() != tree:
+            continue
+        try:
+            sts = fg.named_status(c, CONTEXT)
+        except F.ForgeUnreadable:
+            continue   # an unreadable status is no pass
+        for st in sts:
+            ran = passed_cmd(st.get("description")) if st.get("conclusion") == "success" else None
+            if ran is not None and (ran == cmd or (ran.endswith("…") and cmd.startswith(ran[:-1]))):
+                return c, st.get("description") or ""
+    return None
+
+
 DRAIN = 5.0   # seconds the tee is given to read the rest once the command exits (TD-227)
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 PYTEST_FAILED_RE = re.compile(r"(?:FAILED|ERROR) (\S+?(?:\[[^\]]*\])?)(?: - .*)?$")   # pytest's short test summary
@@ -209,6 +267,8 @@ def main(argv: list[str] | None = None) -> int:
     which.add_argument("--commit", metavar="SHA", help="a commit of origin's default branch")
     ap.add_argument("--no-record", action="store_true", help="run it, record no status")
     ap.add_argument("--expect", metavar="SHA", help="with --pr: the head you just pushed; refuse any other")
+    ap.add_argument("--no-reuse", action="store_true",
+                    help="with --pr: run the command even when an earlier head of the PR with this tree passed (TD-245)")
     ap.add_argument("--fork-ok", action="store_true",
                     help="with --pr: run a fork's PR (refused without it) — the person's, after reading the diff")
     a = ap.parse_args(argv)
@@ -216,6 +276,8 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--expect goes with --pr")
     if a.fork_ok and a.pr is None:
         ap.error("--fork-ok goes with --pr")
+    if a.no_reuse and a.pr is None:
+        ap.error("--no-reuse goes with --pr")
 
     root = C.repo_root(".")
     if not root:
@@ -304,6 +366,22 @@ def main(argv: list[str] | None = None) -> int:
                       f"[precheck-paths] \"{' '.join(hit[0])}\" — its command runs, not `precheck`")
             elif paths is None:
                 print(f"precheck: cannot read PR {a.pr}'s changed files — the full `precheck` runs")
+        # TD-245: a head whose tree an earlier head of this PR already passed with this command is recorded
+        # passing on that pass, never run again; a trial (--no-record) and a fork's head always run
+        twin = None if (a.no_reuse or a.no_record or fork) else same_tree_pass(fg, root, pr, sha, cmd)
+        if twin:
+            host = C.host_name(root)
+            desc = f"passed (same tree as {twin[0][:7]}){f' on {host}' if host else ''}: {cmd}"
+            print(f"precheck: {what} at {sha[:7]} has the tree of {twin[0][:7]}, whose {CONTEXT} passed "
+                  f"({twin[1]}) — recorded passing without running it (TD-245; --no-reuse runs it)")
+            try:
+                fg.set_status(sha, True, CONTEXT, desc)
+            except F.ForgeUnreadable as e:
+                print(f"precheck: the {CONTEXT} status could not be recorded on {sha[:7]}: {e}", file=sys.stderr)
+                return 3
+            print(f"precheck: passed (same tree as {twin[0]}), on {sha}")
+            print(f"precheck: recorded {CONTEXT} = success on {sha}")
+            return 0
 
     # TD-210: a stop becomes an exit, so the `finally` below removes the worktree; a signal the caller
     # already ignores (`nohup`) stays ignored, and each is restored as it was once the worktree is gone
