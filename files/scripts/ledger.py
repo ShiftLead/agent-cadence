@@ -959,7 +959,7 @@ def _introduced(before: list[dict], after: list[dict], tid: str) -> tuple[list[d
     return refuse, [r for r in new if r not in refuse]
 
 
-XREPO_FORGE_TIMEOUT = 30.0   # one forge read per missing cross-repo blocker a writer is given (TD-246)
+XREPO_FORGE_TIMEOUT = 30.0   # the forge read, in all, per missing cross-repo blocker a writer is given (TD-246)
 
 
 def adding_pr(root: Path, rel: str, tid: str) -> tuple[str | None, str]:
@@ -971,10 +971,14 @@ def adding_pr(root: Path, rel: str, tid: str) -> tuple[str | None, str]:
     import forge as F  # sibling SYNC script, imported here: a writer reaches the forge only for this
     want = re.compile(rf"{re.escape(rel.rstrip('/'))}/TD-0*{_num(tid)}\.md")
     try:
-        be = F.backend(root, cwd=root, per_call=XREPO_FORGE_TIMEOUT)
+        # one budget for the whole read: GitLab's open_prs_files() is a call per open MR
+        be = F.backend(root, cwd=root, spent={"t": 0.0, "hit": False}, per_call=XREPO_FORGE_TIMEOUT,
+                       total=XREPO_FORGE_TIMEOUT)
         prs = be.open_prs_files()
     except F.ForgeUnreadable as e:
         return None, f"its open PRs could not be read ({e})"
+    except (AttributeError, TypeError, KeyError, ValueError) as e:   # an answer not shaped as a PR list
+        return None, f"its open PRs could not be read ({type(e).__name__})"
     for p in prs:
         if any(want.fullmatch(f or "") for f in p.get("files") or []):
             return be.ref(p.get("number")), ""
