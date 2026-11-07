@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-07 — Work met in another repo is filed on that repo's ledger, not parked on this board
+Do: hand it to that repo's ledger through whatever reaches it (ShiftLead's `ao td add --repo <repo> "…"`, or a person's session there); a board item only where nothing reaches it, saying why.
+See: cadence.md §3.7; TD-251.
+
 ## 2026-11-07 — In a pinned repo, `cadence_changes.py` reads the changes at origin's pin, so a bump's changes reach sessions
 Do: nothing to run — a pinned repo's SessionStart hook now prints a bump's entries once per worktree, with a *behind* line when this worktree pins older than origin (rebase), and `--json`/`--list` list origin's pin's entries (exit 2 when the source cannot be read).
 See: cadence.md §3.7, §9.19; `cadence_changes.py` `pinned_entries()`, `hook_pinned()`; TD-250.
