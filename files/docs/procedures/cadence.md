@@ -20,7 +20,8 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
 1. Find the PR: the current branch's (`gh pr view --json number`; GitLab: `glab mr view -F json`, its `iid`), or the number you were
    given. The week means `--since 7d` (report only; the precheck and steps 3–5 do not apply); its
    **Direct commits** section lists what reached main with no PR — only §4's carve-outs pass.
-2. **The cheap rows first (TD-244):** once the review is posted (step 3) and its fixes pushed, run
+2. **The cheap rows first (TD-244):** after the review — step 3 says how; its `review` row fails until
+   the evidence comment is posted — and its fixes are pushed, run
    `python3 scripts/check_cadence.py --pr <n> --structural`: the rows that need no precheck (`pr`,
    `review`, `base`, `ledger`, `board`, `gates`, `sources`, `person`), in seconds. Fix any fail now —
    each names the command or line that cures it — since a fix moves the head and a precheck on the old

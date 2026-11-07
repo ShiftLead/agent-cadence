@@ -2323,7 +2323,8 @@ def gate_fix(kind, text):
     if m:
         return (f"{text}: `board_edit.py add --board {BOARD} --kind decide --context \"{m['tid']} {m['gate']}\" "
                 "--text \"<the Ask in one sentence>\" --due <date> --answer <a> --answer <b> --lift <each answer that "
-                "ends the wait> --no-commit` (cadence.md §2.14)")
+                "ends the wait> --detail '{\"context\": [...], \"question\": ..., \"recommended\": ...}' --no-commit` "
+                "(cadence.md §2.14)")
     if kind == "decision-no-lift":
         return f"{text}: give it `--lift <the answer that ends the wait>` (cadence.md §2.14)"
     return text

@@ -82,6 +82,7 @@ case_pr "a new decision with no item" "ledger: set TD-160 (session w-1)"
 st=$(row open); [ "${st%% *}" = fail ] && echo "$st" | grep -q "TD-160 gains decision (pat) and no open decide item" \
   && ok "a decision added with no board item fails the row" || bad "uncovered: $st"
 echo "$st" | grep -qF 'board_edit.py add --board docs/user_attention.md --kind decide --context "TD-160 decision (pat)"' \
+  && echo "$st" | grep -qF -- "--detail '{\"context\": [...], \"question\": ..., \"recommended\": ...}' --no-commit" \
   && ok "the uncovered refusal prints the command that files its item (TD-244)" || bad "uncovered fix: $st"
 case_pr "a new decision, its item filed with it" "ledger: set TD-160 (session w-1)"
 st=$(row open); [ "${st%% *}" = pass ] && ok "a decision added with its board item passes" || bad "covered: $st"
