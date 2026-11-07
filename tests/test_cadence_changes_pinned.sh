@@ -98,6 +98,25 @@ echo "$out" | grep -q "rule brought by B" && ! echo "$out" | grep -q "rule from 
   && ok "pre-migration worktree: what its copy lacks, and its behind line" || bad "pre-migration: $out"
 rm -rf "$XDG_CACHE_HOME/agent-cadence/trees"; mv "$TMP/sources.away" "$XDG_CACHE_HOME/agent-cadence/sources"
 
+# --- 6b) the source moves on after the clone: --json fetches the commit the clone lacks, once;
+#         and a commit pinning another source is skipped by the walk (it neither lands nor ends a run)
+printf '# Cadence changes\n## %s — rule brought by D\nDo: the D thing.\n' "$OLD" > "$TMP/d.md"
+cat "$S/files/docs/cadence-changes.md" >> "$TMP/d.md"; tail -n +2 "$TMP/d.md" | sed '1i # Cadence changes' > "$S/files/docs/cadence-changes.md"
+git -C "$S" commit -qam D; D=$(git -C "$S" rev-parse HEAD); git -C "$S" push -q "$SRC" main 2>/dev/null
+OTHER="$TMP/other.git"; git clone -q --bare "$S" "$OTHER"
+printf '[agent-cadence]\nsource = "%s"\nref = "%s"\n' "$OTHER" "$D" > "$R/docs/cadence.toml"; git -C "$R" add docs/cadence.toml
+GIT_COMMITTER_DATE=$(at "3 days ago") git -C "$R" commit -qm "pin another source"
+pin "$D" "2 days ago" "bump to D"; C6=$(git -C "$R" rev-parse HEAD)
+git -C "$R" push -q origin main 2>/dev/null; git -C "$R" fetch -q origin
+j=$(cd "$R" && python3 "$SCRIPT" --json); rc=$?
+c6t=$(git -C "$R" log -1 --format=%cI "$C6")
+got=$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); [print(e["title"], e["landed"]) for e in d["entries"]]' "$j" 2>&1)
+want=$(printf 'rule brought by D %s\nrule brought by B %s\nrule from A %s' "$c6t" "$c4t" "$c1t")
+[ $rc -eq 0 ] && [ "$got" = "$want" ] && ok "fetch: the commit the clone lacked is fetched; the other source's commit is skipped" || bad "fetch/skip rc=$rc
+got:  $got
+want: $want"
+[ ! -e "$XDG_CACHE_HOME/agent-cadence/sources/$(printf %s "$OTHER" | sha256sum | cut -c1-16).git" ] && ok "  ... and the other source is never cloned" || bad "other source cloned"
+
 # --- 7) an unreachable source with no clone: --json exits 2, the reason last on stderr
 R2="$TMP/repo2"; git init -q --bare -b main "$R2.git"; git clone -q "$R2.git" "$R2" 2>/dev/null; git -C "$R2" checkout -q -b main 2>/dev/null
 mkdir -p "$R2/docs"; printf '[agent-cadence]\nsource = "%s"\nref = "%s"\n' "$TMP/nowhere.git" "$B" > "$R2/docs/cadence.toml"

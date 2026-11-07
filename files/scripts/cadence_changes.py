@@ -244,7 +244,15 @@ def pin_text(source, commit):
 
 def ensure_commit(source, commit):
     """Make commit readable from the cache's clone: one clone (to a .tmp, then renamed, as the
-    launcher does) or one fetch, under the cache's lock taken without blocking. Raises PinMiss."""
+    launcher does) or one fetch, under the cache's lock taken without blocking. Raises PinMiss,
+    an OSError (no git, a cache it cannot write) included."""
+    try:
+        _ensure_commit(source, commit)
+    except OSError as e:
+        raise PinMiss(f"the agent-cadence cache: {e.strerror or e}{f' ({e.filename})' if e.filename else ''}") from None
+
+
+def _ensure_commit(source, commit):
     import fcntl
 
     if has_commit(source, commit):
