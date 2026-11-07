@@ -290,6 +290,15 @@ sys.path.insert(0, "launcher")
 import words as W, agent_cadence as D
 check("words.py's SOURCE_RE and COMMIT_RE are the launcher's", W.SOURCE_RE.pattern == D.SOURCE_RE.pattern and W.COMMIT_RE.pattern == D.COMMIT_RE.pattern,
       (W.SOURCE_RE.pattern, D.SOURCE_RE.pattern))
+sys.path.insert(0, "files/scripts")
+import cadence_changes as CC
+check("cadence_changes.py's SOURCE_RE and COMMIT_RE are the launcher's (TD-250: it reads origin's pin)",
+      CC.SOURCE_RE.pattern == D.SOURCE_RE.pattern and CC.COMMIT_RE.pattern == D.COMMIT_RE.pattern,
+      (CC.SOURCE_RE.pattern, D.SOURCE_RE.pattern))
+lsrc = read("launcher/agent_cadence.py")
+check("  ... and its cache path is the launcher's (cache_dir(), sources/<sha256(source)[:16]>.git, trees/<ref>)",
+      CC.cache_dir() == D.cache_dir() and CC.source_bare("s").endswith("/sources/" + __import__("hashlib").sha256(b"s").hexdigest()[:16] + ".git")
+      and 'hashlib.sha256(source.encode()).hexdigest()[:16] + ".git"' in lsrc and '"trees", ref' in lsrc, CC.source_bare("s"))
 shim = re.search(r"grep -qsE '([^']+)'", read("files/scripts/install_git_hooks.sh"))
 seed = re.search(r"grep -qsE '([^']+)'", json.load(open("files/.claude/settings.json"))["hooks"]["SessionStart"][0]["hooks"][0]["command"])
 # the shim's pattern sits in a double-quoted bash string, so its \\[ and \$ are unescaped once

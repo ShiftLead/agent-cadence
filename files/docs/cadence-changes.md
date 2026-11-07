@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-07 — In a pinned repo, `cadence_changes.py` reads the changes at origin's pin, so a bump's changes reach sessions
+Do: nothing to run — a pinned repo's SessionStart hook now prints a bump's entries once per worktree, with a *behind* line when this worktree pins older than origin (rebase), and `--json`/`--list` list origin's pin's entries (exit 2 when the source cannot be read).
+See: cadence.md §3.7, §9.19; `cadence_changes.py` `pinned_entries()`, `hook_pinned()`; TD-250.
+
 ## 2026-11-07 — A board conflict in a rebase is settled by `board_edit.py replay --board docs/user_attention.md`
 Do: when `git rebase origin/<default>` stops on the board (two PRs that each add an item always conflict), run `board_edit.py replay --board docs/user_attention.md` in place of a hand edit, then `git rebase --continue`; a refusal names the item to settle by hand.
 See: cadence.md §3.4; `board_edit.py` `replay_text()`; TD-248.

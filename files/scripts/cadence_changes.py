@@ -22,6 +22,20 @@ rebase. Why a per-worktree marker (``<git-dir>/cadence-changes-seen``, one headi
 line, untracked, gone with the worktree) and not a time window: an entry printed at
 every session start for two weeks is an entry that gets skimmed past.
 
+In a pinned repo (cadence.md §9.19, TD-250) — this script run from the launcher's tree, outside
+the repo, and ``docs/cadence.toml`` on ``origin/<default>`` holding a valid ``[agent-cadence]``
+pin — the repo has no changes file: the entries are the source's
+``files/docs/cadence-changes.md`` at origin's pin, read from the launcher's cache (the tree on
+disk, else its bare clone of the source), never the repo. ``--json``/``--list`` fetch or clone
+once when the cache lacks that commit (the cache's lock taken without blocking, LOCK_DEADLINE),
+and exit 2 when that fails; ``landed`` is the time of the commit on origin whose pin last
+brought the heading in. ``--hook`` fetches no source and takes no lock: the worktree's own file
+is its own pin's (or, branched before the migration, its retired copy); an entry is unseen as
+below, or when absent from the pin before the oldest bump within RECENT_DAYS, so a bump's
+entries reach a session started after it; and a *behind* line compares the worktree's pin with
+origin's, once per worktree per origin pin. A worktree whose own file cannot be read hears only
+what is recent. No pin on origin (this repo, a synced copy) reads as below.
+
 What counts as unseen in ``--hook``: a heading in origin's copy that is not in this
 worktree's copy of the file (missing file → all of them), or dated within the last
 14 days (a fresh, up-to-date worktree still hears about this week's change) — minus
@@ -112,10 +126,9 @@ def changes_path(root):
     """The changes file's path in the repo: beside this script's ``../docs`` when the
     script lives inside ``root`` (``scripts/`` in a consumer, ``files/scripts/`` in
     agent-cadence itself, TD-038), else the consumer layout."""
-    here = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
-    top = os.path.realpath(root)
-    if os.path.commonpath([here, top]) == top:
-        return os.path.relpath(os.path.join(here, "..", CHANGES), top).replace(os.sep, "/")
+    if script_in_repo(root):
+        here = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.relpath(os.path.join(here, "..", CHANGES), os.path.realpath(root)).replace(os.sep, "/")
     return CHANGES
 
 
@@ -136,6 +149,263 @@ def origin_entries(root, with_landed=False):
             )
             e["landed"] = log.strip().splitlines()[-1] if log and log.strip() else None
     return ref, entries
+
+
+# --- a pinned repo (cadence.md §9.19, TD-250) ------------------------------------------------
+# Run from a pinned tree (outside the repo), the repo has no changes file of its own: the
+# entries are the source's `files/docs/cadence-changes.md` at the commit origin's pin names,
+# read from the launcher's cache — never the repo. The cache's layout is the launcher's frozen
+# interface (launcher/agent_cadence.py): trees/<commit>/, sources/<sha256(source)[:16]>.git and
+# one cache-wide lock, taken here only to clone or fetch. SOURCE_RE and COMMIT_RE are the
+# launcher's (tests/test_parity.sh 6d).
+PIN_CHANGES = "files/docs/cadence-changes.md"
+PIN_FILE = "docs/cadence.toml"
+COMMIT_RE = re.compile(r"[0-9a-f]{40}")
+SOURCE_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://\S+|[^/\s:]+:\S+|/\S*")
+LOCK_DEADLINE = 20.0  # the cache lock, non-blocking: a launcher's clone may hold it for minutes
+FETCH_NET = 60        # a fetch holds the machine-wide cache lock
+CLONE_NET = 300       # the launcher's own bound on a clone
+
+
+class PinMiss(Exception):
+    """--json/--list could not read origin's pin: exit 2 with this as the last stderr line."""
+
+
+def script_in_repo(root):
+    here = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
+    top = os.path.realpath(root)
+    return os.path.commonpath([here, top]) == top
+
+
+def parse_pin(text):
+    """(source, ref) from a cadence.toml's [agent-cadence] table, or None — a table that fails
+    the launcher's checks, or a Python without tomllib, is no pin."""
+    if not text:
+        return None
+    try:
+        import tomllib
+
+        table = tomllib.loads(text).get("agent-cadence")
+    except (ImportError, ValueError):
+        return None
+    if not isinstance(table, dict):
+        return None
+    source, ref = table.get("source"), table.get("ref")
+    if not (isinstance(source, str) and SOURCE_RE.fullmatch(source.strip())):
+        return None
+    if not (isinstance(ref, str) and COMMIT_RE.fullmatch(ref)):
+        return None
+    return source.strip(), ref
+
+
+def pin_at(root, rev):
+    return parse_pin(git(["show", f"{rev}:{PIN_FILE}"], cwd=root))
+
+
+def worktree_pin(root):
+    try:
+        with open(os.path.join(root, PIN_FILE), encoding="utf-8") as f:
+            return parse_pin(f.read())
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def cache_dir():
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+    return os.path.join(base, "agent-cadence")
+
+
+def source_bare(source):
+    import hashlib
+
+    return os.path.join(cache_dir(), "sources", hashlib.sha256(source.encode()).hexdigest()[:16] + ".git")
+
+
+def has_commit(source, commit):
+    bare = source_bare(source)
+    return os.path.isdir(bare) and git(["--git-dir", bare, "cat-file", "-e", f"{commit}^{{commit}}"]) is not None
+
+
+def pin_text(source, commit):
+    """The changes file at commit: the tree on disk, else the clone's object; None when neither
+    has it. Reads only — no lock, no network."""
+    path = os.path.join(cache_dir(), "trees", commit, PIN_CHANGES)
+    if os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                return f.read()
+        except (OSError, UnicodeDecodeError):
+            pass
+    bare = source_bare(source)
+    if not os.path.isdir(bare):
+        return None
+    return git(["--git-dir", bare, "show", f"{commit}:{PIN_CHANGES}"], timeout=15)
+
+
+def ensure_commit(source, commit):
+    """Make commit readable from the cache's clone: one clone (to a .tmp, then renamed, as the
+    launcher does) or one fetch, under the cache's lock taken without blocking. Raises PinMiss."""
+    import fcntl
+
+    if has_commit(source, commit):
+        return
+    cache = cache_dir()
+    bare = source_bare(source)
+    os.makedirs(os.path.dirname(bare), exist_ok=True)
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    with open(os.path.join(cache, "lock"), "a") as lock:
+        deadline = time.monotonic() + LOCK_DEADLINE
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() > deadline:
+                    raise PinMiss(f"the agent-cadence cache's lock ({cache}/lock) was held for {LOCK_DEADLINE:.0f}s") from None
+                time.sleep(0.2)
+        if has_commit(source, commit):  # another run made it while this one waited
+            return
+        if not os.path.isdir(bare):
+            cmd, net = ["clone", "--bare", "--quiet", "--", source, bare + ".tmp"], CLONE_NET
+            subprocess.run(["rm", "-rf", "--", bare + ".tmp"], check=False)
+        else:
+            cmd, net = ["--git-dir", bare, "fetch", "--quiet", "--", source,
+                        "+refs/heads/*:refs/heads/*", "+refs/tags/*:refs/tags/*"], FETCH_NET
+        try:
+            p = subprocess.run(["git", *cmd], capture_output=True, text=True, timeout=net,
+                               stdin=subprocess.DEVNULL, env=env, check=False)
+            err = (p.stderr or "").strip().splitlines()[-1:] if p.returncode else None
+        except subprocess.TimeoutExpired:
+            err = [f"no answer in {net}s"]
+        if err is not None:
+            raise PinMiss(f"{'cloning' if cmd[0] == 'clone' else 'fetching'} {source} failed ({' '.join(err)})")
+        if cmd[0] == "clone":
+            os.rename(bare + ".tmp", bare)
+    if not has_commit(source, commit):
+        raise PinMiss(f"commit {commit} is not in {source}")
+
+
+def heading_set(text):
+    return {e["heading"] for e in parse(text)} if text is not None else None
+
+
+def pinned_entries(root, ref, pin, with_landed=False):
+    """Origin's entries in a pinned repo: the file at origin's pin. With landed, each heading's
+    `landed` is the commit time, on ref, of the commit whose pin last brought it in — one
+    first-parent walk of the commits changing docs/cadence.toml; a commit with no readable pin,
+    another source, or a pinned commit the cache cannot give is skipped, and a skipped commit
+    neither starts nor ends a heading's run."""
+    source, commit = pin
+    text = pin_text(source, commit)
+    if text is None:
+        ensure_commit(source, commit)
+        text = pin_text(source, commit) or ""  # the commit is there; a file it lacks is no entries
+    entries = parse(text)
+    if with_landed:
+        landed, prev, seen = {}, None, {}
+        log = git(["log", "--first-parent", "--reverse", "--format=%H %cI", ref, "--", PIN_FILE],
+                  cwd=root, timeout=15) or ""
+        for line in log.splitlines():
+            sha, _, when = line.partition(" ")
+            p = pin_at(root, sha)
+            if p is None or p[0] != source:
+                continue
+            if p[1] not in seen:
+                seen[p[1]] = heading_set(pin_text(source, p[1]))
+            heads = seen[p[1]]
+            if heads is None:
+                continue
+            for h in heads:
+                if prev is None or h not in prev:
+                    landed[h] = when
+            prev = heads
+        for e in entries:
+            e["landed"] = landed.get(e["heading"])
+    return entries
+
+
+def bump_base(root, ref):
+    """The headings of the pin before the oldest bump within RECENT_DAYS on ref, or None. A bump
+    is a first-parent commit whose pin names another ref than its parent's readable pin (so a
+    migration or an adopt, whose parent has none, is never one, and a settings edit is passed
+    over). Reads the cache only."""
+    log = git(["log", "--first-parent", f"--since={RECENT_DAYS}.days", "--format=%H", ref, "--", PIN_FILE],
+              cwd=root) or ""
+    base = None
+    for sha in log.split():  # newest first: the last bump found is the oldest
+        cur, par = pin_at(root, sha), pin_at(root, f"{sha}^")
+        if cur and par and cur[1] != par[1]:
+            base = par
+    return heading_set(pin_text(*base)) if base else None
+
+
+def hook_pinned(root, ref, pin):
+    """--hook in a pinned repo: no source fetch, no lock; what the cache cannot give says nothing."""
+    source, oref = pin
+    entries = parse(pin_text(source, oref) or "")
+    wpin = worktree_pin(root)
+    retired = os.path.join(root, CHANGES)
+    if wpin is not None:
+        own = heading_set(pin_text(*wpin))
+    elif os.path.isfile(retired):  # a worktree branched before the migration
+        try:
+            with open(retired, encoding="utf-8") as f:
+                own = heading_set(f.read())
+        except (OSError, UnicodeDecodeError):
+            own = None
+    else:
+        own = None
+    base = bump_base(root, ref) if own is not None else None
+    mp = marker_path(root)
+    seen = read_marker(mp or "")
+    today = dt.date.today()  # noqa: DTZ011  # local, like nudge's due dates (TD-053)
+    new = [
+        e
+        for e in entries
+        if e["heading"] not in seen
+        and (recent(e, today) or (own is not None and (e["heading"] not in own or (base is not None and e["heading"] not in base))))
+    ]
+    behind = None
+    wref = wpin[1] if wpin else None
+    if f"pin {oref}" not in seen and wref != oref:
+        bare = source_bare(source)
+        ahead = wref and os.path.isdir(bare) and git(
+            ["--git-dir", bare, "merge-base", "--is-ancestor", oref, wref]) is not None
+        if not ahead:
+            if wpin:
+                now = f"this worktree pins {wref[:7]}, {ref} pins {oref[:7]}"
+                tail = "; `agent-cadence path cadence.md` prints the path of the rules it runs now"
+            elif own is not None:
+                now, tail = f"this worktree carries its own copy; {ref} pins {oref[:7]}", ""
+            else:
+                now, tail = f"this worktree runs no agent-cadence; {ref} pins {oref[:7]}", ""
+            behind = f"{now} — rebase{tail}"
+    if new:
+        n = len(new)
+        print(f"📣 {n} cadence change{'s' if n != 1 else ''} this worktree has not seen ({PIN_CHANGES} at the pin on {ref}):")
+        for e in new:
+            print(f"  {e['heading']}")
+            for line in e["body"].splitlines():
+                print(f"    {line}")
+        if behind:
+            print(f"  ({behind})")
+    elif behind:
+        print(f"📣 ({behind})")
+    if mp:
+        write_marker(mp, [e["heading"] for e in new] + ([f"pin {oref}"] if f"pin {oref}" not in seen else []))
+    return 0
+
+
+def origin_pin(root):
+    """(ref, pin) when this script runs from a pinned tree and origin's cadence.toml pins; else
+    (ref or None, None) — the repo then reads as before (a synced copy, this repo, no pin)."""
+    if script_in_repo(root):
+        return None, None
+    branch = origin_default(root)
+    if branch is None:
+        return None, None
+    ref = f"origin/{branch}"
+    return ref, pin_at(root, ref)
 
 
 def local_headings(root):
@@ -231,6 +501,9 @@ def fetch_if_stale(root):
 
 def hook(root):
     fetch_if_stale(root)
+    ref, pin = origin_pin(root)
+    if pin is not None:
+        return hook_pinned(root, ref, pin)
     ref, entries = origin_entries(root)
     if not entries:
         return 0
@@ -265,7 +538,15 @@ def hook(root):
 
 
 def listing(root, since, as_json):
-    ref, entries = origin_entries(root, with_landed=as_json)
+    ref, pin = origin_pin(root)
+    if pin is not None:
+        try:
+            entries = pinned_entries(root, ref, pin, with_landed=as_json)
+        except PinMiss as e:
+            print(f"cannot read origin's pin {pin[1][:7]} ({PIN_CHANGES}): {e}", file=sys.stderr)
+            return 2
+    else:
+        ref, entries = origin_entries(root, with_landed=as_json)
     if ref is None:
         print(
             "cannot read origin: no default branch on origin here (cadence.md §9 rule; git fetch origin; git remote set-head origin -a)",
