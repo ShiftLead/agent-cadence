@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-07 — The precheck reuses a pass on an identical tree: `passed (same tree as <sha>)`
+Do: nothing to run — `precheck.py --pr <n>` records a head passing without running when an earlier head of the PR with the identical tree passed the same command; `--no-reuse` runs it anyway.
+See: cadence.md §4.12; `precheck.py` `same_tree_pass()`; TD-245.
+
 ## 2026-11-07 — Run the cadence check's cheap rows before the precheck: `check_cadence.py --pr <n> --structural`
 Do: once the review is posted and its fixes pushed, run `check_cadence.py --pr <n> --structural` and fix its fails before `precheck.py --pr <n>`; each refusal now names its cure. The full check still runs after the precheck.
 See: procedures/cadence.md step 2; cadence.md §4.12; TD-244.
