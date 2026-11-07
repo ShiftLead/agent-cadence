@@ -31,7 +31,7 @@ items surface in `/attention`'s full report.
 
 ## Needs Paul
 
-- [ ] decide 2026-11-06 (session `ao-agent-cadence-ac-techlead`) — Go on TD-243's design: a design's rounds should not end while a build-changing fix is unread (cadence.md §4.8's stop rule, for every consumer)? Context: TD-243 decision (Paul). Due: 2026-11-13. Answers: Go (default) | Not yet.
+- [x] decide 2026-11-06 (session `ao-agent-cadence-ac-techlead`) — Go on TD-243's design: a design's rounds should not end while a build-changing fix is unread (cadence.md §4.8's stop rule, for every consumer)? Context: TD-243 decision (Paul). Due: 2026-11-13. Answers: Go (default) | Not yet. Decided: Go (by Paul) (2026-11-06). Closed: 2026-11-06 — lifted.
   - **Context:** TD-243. A design's review rounds can end while a build-changing fix has not been read by any review. Today cadence.md §4.8 ends them at the cap even when the cap's last round raised one, so the end-of-rounds item can default to Go. On 2026-11-06 three ShiftLead designs (TD-1434, TD-1435, TD-1437) did this, and you pressed One more round by hand. The entry's shape: the rounds don't end while such a fix is unread. One targeted closing read of just those fixes runs, outside the cap. The item then says whether every build-changing fix was read.
   - **Question:** Go on designing it? It changes §4.8 for every consumer, so no session picks it up until you say go.
   - **Recommended:** Go — a session drafts the plan, agrees its shape with you, then runs the rounds (your layer's §4.8 add). **Otherwise:** Not yet — it stays held. The session-memory rule keeps covering ShiftLead until then.
