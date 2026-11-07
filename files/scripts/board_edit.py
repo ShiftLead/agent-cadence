@@ -72,9 +72,11 @@ replay  settles the board, and its archive, in a rebase or merge that stopped on
         is made again on the other side's board — an added item above its section's first item, as
         ``add`` puts it; an item's done, snooze, due, decide or reply as that item's new line and detail
         block; an item it archived as its close, the archive run again when ``ARCHIVE_AT`` is still met.
-        An item is matched by ``item_key()``, never by line number. A write that no longer applies (the
-        item gone or changed on the other side) refuses by name, and so do lines outside the items it
-        changed, and a result the board's gate fails; nothing is written then. It writes and stages
+        An item is matched by ``item_key()``, never by line number; line ends are kept as stored. A write
+        that no longer applies (the item gone or changed on the other side, its section missing there)
+        refuses by name, and so do what no writer does (lines outside the items changed, an item moved
+        between sections), a write to a key two items share (an open twin), and a result the board's
+        gate fails; nothing is written then. It writes and stages
         the files and commits nothing: ``git rebase --continue`` (or the merge's commit) does. It reads
         the three sides from git, never the conflicted file, so it can be run again.
 fmt     rewrites each open item line into the writers' form where that keeps its key, and
@@ -264,9 +266,10 @@ def passthrough(argv: list[str]) -> int:
     return 0
 
 
-def _blocks(text: str) -> tuple[dict[str, tuple[int, int]], list[str]]:
+def _blocks(text: str, dups: set[str] | None = None) -> tuple[dict[str, tuple[int, int]], list[str]]:
     """({item_key: (start, end)} for each item line at the left edge, its block the item and the deeper
-    non-blank lines under it — archive_closed()'s detail block —, the lines' list with their ends)."""
+    non-blank lines under it — archive_closed()'s detail block —, the lines' list with their ends). A key
+    two items share (an open twin, §3.4) keeps its closed copy, else its first, and is added to `dups`."""
     lines = text.splitlines(keepends=True)
     out: dict[str, tuple[int, int]] = {}
     i = 0
@@ -278,8 +281,12 @@ def _blocks(text: str) -> tuple[dict[str, tuple[int, int]], list[str]]:
                 j += 1
             key = LB.item_key(ln)
             if key in out:
-                raise Refused(f"line {i + 1}: two items share one key ({ln.strip()[:60]}): settle it by hand")
-            out[key] = (i, j)
+                if dups is not None:
+                    dups.add(key)
+                if LB.CLOSED_ITEM_RE.match(ln):
+                    out[key] = (i, j)
+            else:
+                out[key] = (i, j)
             i = j
         else:
             i += 1
@@ -317,16 +324,27 @@ def replay_text(base: str, mine: str, theirs: str, base_arch: str = "", mine_arc
     if _outside(mine) != _outside(base):
         raise Refused("this side changed lines outside the board's items (a heading, People:, a stamp), "
                       "which no writer does: settle by hand")
-    b0, _ = _blocks(base)
-    b1, l1 = _blocks(mine)
+    dups: set[str] = set()
+    b0, l0 = _blocks(base, dups)
+    b1, l1 = _blocks(mine, dups)
+    _blocks(theirs, dups)
     a0 = _blocks(base_arch)[0].keys()
+    nl = "\r\n" if "\r\n" in theirs else "\n"
+
+    def single(key: str, block: str | None) -> None:
+        if key in dups:
+            raise Refused(f"two items share one key on a side ({_head(block)}): settle this item by hand")
     did: list[str] = []
     changes: list[tuple[str, str]] = []      # (key, mine's block): an edit of an item base has
     for key, (s, e) in b1.items():
         if key in b0:
             new = "".join(l1[s:e])
             if new != _block(base, key):
+                single(key, new)
                 changes.append((key, new))
+            if _section(l1, s) != _section(l0, b0[key][0]):
+                raise Refused(f"this side moved an item to another section ({_head(new)}), which no writer "
+                              "does: settle by hand")
     archived = False
     for key in b0:
         if key in b1:
@@ -334,6 +352,7 @@ def replay_text(base: str, mine: str, theirs: str, base_arch: str = "", mine_arc
         final = _block(mine_arch, key) if key not in a0 else None
         if final is None:
             raise Refused(f"this side removed an item without archiving it ({_head(_block(base, key))}): settle by hand")
+        single(key, final)
         archived = True
         changes.append((key, final))
     out = theirs
@@ -351,24 +370,28 @@ def replay_text(base: str, mine: str, theirs: str, base_arch: str = "", mine_arc
         got, lines = _blocks(out)
         s, e = got[key]
         if not new.endswith("\n") and e < len(lines):
-            new += "\n"
+            new += nl
         lines[s:e] = [new]
         out = "".join(lines)
         did.append(f"edit: {head}")
     adds = [(key, s, e) for key, (s, e) in b1.items() if key not in b0]
     for key, s, e in reversed(adds):   # each inserted at its section's top, so their order is kept
         new = "".join(l1[s:e])
+        single(key, new)
         cur = _block(out, key)
         if cur is not None:
             if cur == new:
                 continue
             raise Refused(f"no longer applies — the other side added the item differently: {_head(new)}")
         lines = out.splitlines(keepends=True)
-        at = LBB._under(lines, _section(l1, s))
+        section = _section(l1, s)
+        if section is not None and section not in (ln.strip() for ln in lines):
+            raise Refused(f"no longer applies — the other side has no {section!r} section for the item: {_head(new)}")
+        at = LBB._under(lines, section)
         if lines and not lines[-1].endswith("\n") and at == len(lines):
-            lines[-1] += "\n"
+            lines[-1] += nl
         if not new.endswith("\n"):
-            new += "\n"
+            new += nl
         lines.insert(at, new)
         out = "".join(lines)
         did.append(f"add: {_head(new)}")
@@ -383,8 +406,9 @@ def replay_text(base: str, mine: str, theirs: str, base_arch: str = "", mine_arc
 
 
 def _show(root: Path, rev: str, rel: str) -> str:
-    r = _git(root, "show", f"{rev}:{rel}")
-    return r.stdout if r.returncode == 0 else ""
+    """The file at `rev`, its line ends as stored (bytes, decoded: text mode would drop each CR), or ""."""
+    r = subprocess.run(["git", "-C", str(root), "show", f"{rev}:{rel}"], capture_output=True, timeout=30, check=False)
+    return r.stdout.decode("utf-8", errors="surrogateescape") if r.returncode == 0 else ""
 
 
 def replay(argv: list[str]) -> int:
@@ -400,10 +424,15 @@ def replay(argv: list[str]) -> int:
     archive = Path(a.archive).resolve() if a.archive else board.parent / ARCHIVE_NAME
     try:
         root = _root(board)
-        rel, arel = (str(p.relative_to(root)) for p in (board, archive))
+        try:
+            rel, arel = (str(p.relative_to(root)) for p in (board, archive))
+        except ValueError:
+            raise Refused(f"--archive {archive} is outside the board's repo {root}") from None
         if _git(root, "rev-parse", "-q", "--verify", "REBASE_HEAD").returncode == 0:
             mine, theirs = "REBASE_HEAD", "HEAD"
             base = "REBASE_HEAD^"
+            if _git(root, "rev-parse", "-q", "--verify", "REBASE_HEAD^").returncode != 0:
+                raise Refused("the commit being replayed is a root commit: it has no base to replay from")
             nxt = "git rebase --continue"
         elif _git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0:
             mine, theirs = "HEAD", "MERGE_HEAD"
@@ -428,7 +457,7 @@ def replay(argv: list[str]) -> int:
         return 0
     try:
         for path, text in changes.items():
-            Path(path).write_text(text, encoding="utf-8", newline="")
+            Path(path).write_text(text, encoding="utf-8", errors="surrogateescape", newline="")
     except OSError as e:
         print(f"board_edit: cannot write: {e}", file=sys.stderr)
         return 4

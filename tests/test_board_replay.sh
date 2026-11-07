@@ -5,7 +5,9 @@
 # board the gate passes; an add, then a done of that item in a later commit, against an add on main;
 # a merge (not a rebase) is settled the same way; a done that archives, against main's due on the item beside it, is replayed as its close and the
 # archive runs again; a write that no longer applies (both sides closed one item) is refused by name,
-# writing nothing; replay outside a rebase or merge is refused.
+# writing nothing; replay outside a rebase or merge is refused; an --archive outside the repo refuses with no
+# traceback; a CRLF board stays CRLF; an archive twin refuses nothing; a section move and an add under a
+# section the other side lacks refuse by name.
 # Offline: throwaway git repos; HOME/XDG are temp dirs. Dates derive from the run date (TD-24).
 set -u
 export TZ=UTC
@@ -126,6 +128,62 @@ git -C "$R" rebase --abort
 out=$(be replay 2>&1); rc=$?
 [ $rc -eq 1 ] && grep -q "no rebase or merge has stopped here" <<< "$out" \
   && ok "replay outside a stopped rebase or merge is refused" || bad "6 (rc=$rc): $out"
+
+# --- 7) review cases: an --archive outside the repo, a CRLF board, an untouched twin in the archive, a
+# move between sections, an add under a section the other side lacks.
+R="$TMP/r7"; mkrepo "$R" 0
+git -C "$R" switch -qc feat; add "seven" feat0007
+git -C "$R" switch -q main; add "main seven" main0007
+git -C "$R" switch -q feat; git -C "$R" rebase -q main >/dev/null 2>&1
+out=$(be replay --archive "$TMP/elsewhere.md" 2>&1); rc=$?
+[ $rc -eq 1 ] && grep -q "is outside the board's repo" <<< "$out" && ! grep -q Traceback <<< "$out" \
+  && ok "an --archive outside the repo is refused, no traceback" || bad "7a (rc=$rc): $out"
+git -C "$R" rebase --abort
+R="$TMP/r8"; mkrepo "$R" 0
+sed -i 's/$/\r/' "$R/docs/user_attention.md"; git -C "$R" commit -qam crlf
+git -C "$R" switch -qc feat; add "crlf branch" feat0008
+git -C "$R" switch -q main; add "crlf main" main0008
+git -C "$R" switch -q feat; git -C "$R" rebase -q main >/dev/null 2>&1
+out=$(be replay 2>&1); rc=$?
+B="$R/docs/user_attention.md"
+[ $rc -eq 0 ] && [ "$(grep -c $'\r$' "$B")" = "$(wc -l < "$B")" ] && grep -q "crlf branch" "$B" && grep -q "crlf main" "$B" \
+  && ok "a CRLF board keeps CRLF on every line" || bad "7b (rc=$rc): $out $(grep -c $'\r$' "$B")/$(wc -l < "$B")"
+git -C "$R" rebase --abort
+R="$TMP/r9"; mkrepo "$R" 0
+printf -- '- [ ] %s (n/a) — a twin. Context: none. Due: %s.\n- [x] %s (n/a) — a twin. Context: none. Due: %s. Closed: %s.\n' \
+  "$PAST" "$PAST" "$PAST" "$PAST" "$PAST" > "$R/docs/user_attention_archive.md"; git -C "$R" add -A; git -C "$R" commit -qm twin
+git -C "$R" switch -qc feat; add "beside a twin" feat0009
+git -C "$R" switch -q main; add "main beside a twin" main0009
+git -C "$R" switch -q feat; git -C "$R" rebase -q main >/dev/null 2>&1
+out=$(be replay 2>&1); rc=$?
+[ $rc -eq 0 ] && grep -q "beside a twin" "$R/docs/user_attention.md" \
+  && ok "an open twin in the archive does not refuse a write to another item" || bad "7c (rc=$rc): $out"
+git -C "$R" rebase --abort
+R="$TMP/r10"; mkrepo "$R" 0
+git -C "$R" switch -qc feat
+python3 -c '
+import sys; p = sys.argv[1]; t = open(p).read().split("\n")
+i = next(k for k, ln in enumerate(t) if "the second item" in ln); ln = t.pop(i); t.append(ln)
+open(p, "w").write("\n".join(t).rstrip("\n") + "\n")' "$R/docs/user_attention.md"
+git -C "$R" commit -qam move
+git -C "$R" switch -q main; be due --line "$(line_of 'the second item')" --expect "$PAST" --to "$TODAY" >/dev/null 2>&1
+git -C "$R" switch -q feat; git -C "$R" rebase -q main >/dev/null 2>&1
+out=$(be replay 2>&1); rc=$?
+[ $rc -eq 1 ] && grep -q "moved an item to another section" <<< "$out" \
+  && ok "an item moved between sections is refused, not dropped" || bad "7d (rc=$rc): $out"
+git -C "$R" rebase --abort
+R="$TMP/r11"; mkrepo "$R" 0
+git -C "$R" switch -qc feat; be add --text "a later add" --due "$FUT" --session feat0011 --under "## Later" >/dev/null 2>&1
+git -C "$R" switch -q main
+python3 -c '
+import sys; p = sys.argv[1]; t = open(p).read()
+open(p, "w").write(t.replace("## Later\n\n", "## Afterwards\n\n").replace("— a later item.", "— a later item, renamed."))' "$R/docs/user_attention.md"
+git -C "$R" commit -qam "rename the section"
+git -C "$R" switch -q feat; git -C "$R" rebase -q main >/dev/null 2>&1
+out=$(be replay 2>&1); rc=$?
+[ $rc -eq 1 ] && grep -q "has no '## Later' section for the item: a later add" <<< "$out" \
+  && ok "an add under a section the other side lacks is refused by name, not put in another" || bad "7e (rc=$rc): $out"
+git -C "$R" rebase --abort 2>/dev/null
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
