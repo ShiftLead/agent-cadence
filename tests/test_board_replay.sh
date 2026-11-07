@@ -25,7 +25,7 @@ TODAY=$(date +%F); PAST=$(date -d "3 days ago" +%F); FUT=$(date -d "10 days" +%F
 
 mkrepo() {  # $1 repo dir, $2 how many closed items the board starts with
   rm -rf "$1"; git init -q -b main "$1"; mkdir -p "$1/docs"
-  { printf '# board\n\nPeople: paul\n\n## Needs the user\n\n'
+  { printf '# board\n\nPeople: owner\n\n## Needs the user\n\n'
     printf -- '- [ ] %s (session `aaaa1111`) — the first item. Context: none. Due: %s.\n' "$PAST" "$FUT"
     printf -- '- [ ] %s (session `bbbb2222`) — the second item. Context: none. Due: %s.\n' "$PAST" "$FUT"
     for i in $(seq 1 "$2"); do printf -- '- [x] %s (n/a) — closed %s. Context: none. Due: %s. Closed: %s.\n' "$PAST" "$i" "$PAST" "$PAST"; done
