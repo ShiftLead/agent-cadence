@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-07 — Block on another repo's entry while its filing PR is open: `ledger.py set TD-n --blocked-by "<repo>#TD-m"`
+Do: write the `Blocked by` even when TD-m is only in an open PR there — the writer finds the PR, writes the block with a note naming it, and the block holds until it merges; never a prose `Waits:` line.
+See: cadence.md §2.4; `ledger.py` `adding_pr()`; TD-246.
+
 ## 2026-11-07 — The precheck reuses a pass on an identical tree: `passed (same tree as <sha>)`
 Do: nothing to run — `precheck.py --pr <n>` records a head passing without running when an earlier head of the PR with the identical tree passed the same command; `--no-reuse` runs it anyway.
 See: cadence.md §4.12; `precheck.py` `same_tree_pass()`; TD-245.

@@ -99,6 +99,28 @@ lp set TD-003 --priority High --field "priority=Low" >/dev/null 2>"$TMP/err"; rc
   && ok "a field given twice, in any spelling, is a usage error" || bad "dup field (rc=$rc): $(cat "$TMP/err")"
 lp set TD-003 --blocked-by "other#TD-001" >/dev/null 2>"$TMP/err" && grep -qx '\*\*Blocked by:\*\* other#TD-001' "$L/TD-003.md" \
   && ok "set writes a cross-repo blocker its repo holds" || bad "xrepo present: $(cat "$TMP/err")"
+: > "$TMP/gh.log"   # TD-246: an id missing at origin/main that an open PR there adds is written, with a note naming it
+mkdir -p "$TMP/bin"; printf '#!/usr/bin/env bash\necho "$PWD $*" >> "%s/gh.log"\n[ "${GH_FAIL:-}" ] && { echo "HTTP 502: bad gateway" >&2; exit 1; }\ncat "%s/gh.json"\n' "$TMP" "$TMP" > "$TMP/bin/gh"
+chmod +x "$TMP/bin/gh"
+git -C "$R2" remote set-url origin https://github.com/o/other.git   # a GitHub origin; its origin/main ref stays as fetched
+lpg() { (cd "$W" && PATH="$TMP/bin:$PATH" python3 "$LEDGER_PY" "$@"); }
+echo '[{"number":7,"headRefName":"ledger-x","files":[{"path":"docs/ledger/README.md"}]},{"number":9,"headRefName":"td99","files":[{"path":"docs/ledger/TD-099.md"}]}]' > "$TMP/gh.json"
+lpg set TD-003 --blocked-by "other#TD-099" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && grep -qx '\*\*Blocked by:\*\* other#TD-099' "$L/TD-003.md" && grep -q "note — Blocked by other#TD-099: .*open PR #9 adds it" "$TMP/err" \
+  && grep -q "^$R2 pr list --state open" "$TMP/gh.log" \
+  && ok "set writes a cross-repo blocker an open PR in its repo adds, naming the PR (gh asked in that clone, TD-246)" || bad "xrepo pending (rc=$rc): $(cat "$TMP/err") $(cat "$TMP/gh.log")"
+c=$(lp --check 2>&1)
+grep -q "TD-003: cannot resolve other#TD-099 — other has no TD-099" <<< "$c" && lp --pickable 2>&1 | grep -q "TD-003.*other#TD-099" \
+  && ok "the check flags the pending block, and it holds, until the PR merges and is fetched (so one closed unmerged stays flagged)" \
+  || bad "xrepo pending check: $c"
+cp "$TMP/td3" "$L/TD-003.md"
+echo '[{"number":7,"headRefName":"ledger-x","files":[{"path":"docs/ledger/TD-0990.md"},{"path":"docs/ledger/archive/TD-099.md"}]}]' > "$TMP/gh.json"
+lpg set TD-003 --blocked-by "other#TD-099" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'other has no TD-099.*no open PR there adds it' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
+  && ok "an id no open PR adds is still refused (another id's file, an archive file, are not it)" || bad "xrepo no PR (rc=$rc): $(cat "$TMP/err")"
+GH_FAIL=1 lpg set TD-003 --blocked-by "other#TD-099" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'open PRs could not be read (HTTP 502' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
+  && ok "an unreadable forge refuses, as before TD-246" || bad "xrepo forge down (rc=$rc): $(cat "$TMP/err")"
 : > "$AGENT_CADENCE_REG_DIR/repos.txt"
 lp note TD-005 "x" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'twice' "$TMP/err" && same TD-005.md \
