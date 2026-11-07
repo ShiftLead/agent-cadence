@@ -96,7 +96,8 @@ id already taken (written at §2.2's width, ``TD-3`` as ``TD-003``), ``Id take``
 with none, made before the counter wrote one, is refused as the gate fails it) — judged as
 the gate judges it, so in a repo whose counter has no take yet an id nobody took is not caught. It refuses the write on every flag the entry brings
 that ``--check --since origin/<default>`` counts as an error (``cross-repo`` a note), on a wait written in
-prose (``prose-wait``), and on a ``<repo>#TD-n`` blocker whose roster repo was read and has no such entry —
+prose (``prose-wait``), and on a ``<repo>#TD-n`` blocker whose roster repo was read and has no such entry
+and no open PR there that adds it (TD-246: one that does is written, with a note naming the PR) —
 all judged once before the take, under a provisional id, so a refusal spends no id, then again with the
 id flags. It prints the path and commits nothing. Exit 0 written; 1 refused; 2 a usage error, a v1
 ledger (split first), or no id taken (exit 3's unreserved id is printed with the ``--claim`` to run).
@@ -958,6 +959,28 @@ def _introduced(before: list[dict], after: list[dict], tid: str) -> tuple[list[d
     return refuse, [r for r in new if r not in refuse]
 
 
+XREPO_FORGE_TIMEOUT = 30.0   # one forge read per missing cross-repo blocker a writer is given (TD-246)
+
+
+def adding_pr(root: Path, rel: str, tid: str) -> tuple[str | None, str]:
+    """(the open PR of the repo at ``root`` that adds entry ``tid``'s file under its split ledger ``rel``, as
+    its forge writes a PR's ref, or None; why none, in a few words) — TD-246: one bounded forge read, in that
+    clone, so ``gh`` asks that repo's forge. A v1 ledger (one file) or an unreadable forge finds none."""
+    if not rel or rel.endswith(".md"):
+        return None, f"its ledger is one file ({rel}), so no open PR is read for one entry"
+    import forge as F  # sibling SYNC script, imported here: a writer reaches the forge only for this
+    want = re.compile(rf"{re.escape(rel.rstrip('/'))}/TD-0*{_num(tid)}\.md")
+    try:
+        be = F.backend(root, cwd=root, per_call=XREPO_FORGE_TIMEOUT)
+        prs = be.open_prs_files()
+    except F.ForgeUnreadable as e:
+        return None, f"its open PRs could not be read ({e})"
+    for p in prs:
+        if any(want.fullmatch(f or "") for f in p.get("files") or []):
+            return be.ref(p.get("number")), ""
+    return None, "no open PR there adds it"
+
+
 class _Writer:
     """One write command's ledger (TD-198, TD-199): the v2 directory, read as ``--check --since
     origin/<default>`` reads it, and the refusals every writer shares."""
@@ -1005,7 +1028,9 @@ class _Writer:
 
     def xrepo_refused(self, value: str | None, was: str = "") -> bool:
         """A ``<repo>#TD-n`` this Blocked by value adds (not in ``was``) whose roster repo was read and has
-        no such entry (TD-153's missing) is refused, saying to fetch there."""
+        no such entry (TD-153's missing) is refused, saying to fetch there — unless an open PR in that repo
+        adds the entry's file (TD-246): then it is written with a note naming the PR. The block holds, since a
+        missing entry never lifts, and ``--check`` flags it until the PR merges and the clone is fetched."""
         had = set(parse_blocked(was)[0])
         for item in parse_blocked(value or "")[0]:
             m = XREPO_ITEM_RE.match(item.strip())
@@ -1014,8 +1039,14 @@ class _Writer:
             repo_root, _ = self.roster._find(m.group(1))
             st = self.roster.state(repo_root, m.group(2), m.group(1)) if repo_root else {"missing": False}
             if st["missing"]:
-                self.say(self.cmd, f"refused — Blocked by {item}: {st['why']}; if it was filed since, "
-                                   f"`git -C {repo_root} fetch` and run again", 1)
+                pr, why = adding_pr(repo_root, self.roster._repo(repo_root)["rel"], m.group(2))
+                if pr:
+                    self.say(self.cmd, f"note — Blocked by {item}: {st['why']}, but {m.group(1)}'s open PR {pr} "
+                                       f"adds it; written, and the block holds until that PR merges there and "
+                                       f"`git -C {repo_root} fetch` reads it (TD-246)", 0)
+                    continue
+                self.say(self.cmd, f"refused — Blocked by {item}: {st['why']}, and {why}; if it was filed "
+                                   f"since, `git -C {repo_root} fetch` and run again", 1)
                 return True
         return False
 
