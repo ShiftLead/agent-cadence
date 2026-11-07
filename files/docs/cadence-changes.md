@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-07 — Run the cadence check's cheap rows before the precheck: `check_cadence.py --pr <n> --structural`
+Do: once the review is posted and its fixes pushed, run `check_cadence.py --pr <n> --structural` and fix its fails before `precheck.py --pr <n>`; each refusal now names its cure. The full check still runs after the precheck.
+See: procedures/cadence.md step 2; cadence.md §4.12; TD-244.
+
 ## 2026-11-06 — The memory harvest's stamp signs with host-alias, else no host
 Do: nothing to run — `memory_harvest.py stamp` now writes `Harvested: <date> ([<host-alias>, ]<n> repos)`, never the hostname; set `host-alias` in this machine's `cadence.toml` if you want the machine named in your layer.
 See: cadence.md §7.13, §9.18; `memory_harvest.py` `stamp_line()`; TD-242.

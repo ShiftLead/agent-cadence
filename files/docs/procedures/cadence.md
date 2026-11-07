@@ -20,8 +20,13 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
 1. Find the PR: the current branch's (`gh pr view --json number`; GitLab: `glab mr view -F json`, its `iid`), or the number you were
    given. The week means `--since 7d` (report only; the precheck and steps 3–5 do not apply); its
    **Direct commits** section lists what reached main with no PR — only §4's carve-outs pass.
-2. **The repo's precheck (TD-117, cadence §4.12):** when `python3 scripts/cadence_config.py get precheck`
-   prints a command, run `python3 scripts/precheck.py --pr <n>` first, on every head you mean to merge.
+2. **The cheap rows first (TD-244):** once the review is posted (step 3) and its fixes pushed, run
+   `python3 scripts/check_cadence.py --pr <n> --structural`: the rows that need no precheck (`pr`,
+   `review`, `base`, `ledger`, `board`, `gates`, `sources`, `person`), in seconds. Fix any fail now —
+   each names the command or line that cures it — since a fix moves the head and a precheck on the old
+   head is spent; its pass merges nothing.
+   **The repo's precheck (TD-117, cadence §4.12):** when `python3 scripts/cadence_config.py get precheck`
+   prints a command, run `python3 scripts/precheck.py --pr <n>` next, on every head you mean to merge.
    It runs that command in a clean worktree at the PR's head and records a `cadence/precheck`
    commit status there (no CI minutes); exit 1 is a failed check — fix it, push, run it again;
    3 is a pass the forge would not record, which the `ci` row cannot see — say in the PR that
