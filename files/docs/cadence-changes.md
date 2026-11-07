@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-07 — A board conflict in a rebase is settled by `board_edit.py replay --board docs/user_attention.md`
+Do: when `git rebase origin/<default>` stops on the board (two PRs that each add an item always conflict), run `board_edit.py replay --board docs/user_attention.md` in place of a hand edit, then `git rebase --continue`; a refusal names the item to settle by hand.
+See: cadence.md §3.4; `board_edit.py` `replay_text()`; TD-248.
+
 ## 2026-11-07 — Block on another repo's entry while its filing PR is open: `ledger.py set TD-n --blocked-by "<repo>#TD-m"`
 Do: write the `Blocked by` even when TD-m is only in an open PR there — the writer finds the PR, writes the block with a note naming it, and the block holds until it merges; never a prose `Waits:` line.
 See: cadence.md §2.4; `ledger.py` `adding_pr()`; TD-246.

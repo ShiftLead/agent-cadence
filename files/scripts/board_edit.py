@@ -12,6 +12,7 @@
     board_edit.py add     --board PATH --text TEXT [ledgerboard's add flags] [--no-commit]
     board_edit.py archive --board PATH [--archive PATH] [--no-commit]
     board_edit.py fmt     --board PATH
+    board_edit.py replay  --board PATH [--archive PATH] [--plan]
     board_edit.py list    --board PATH [--json]
 
 The action comes first. A wrapper (TD-213): every edit is ledgerboard's board writer's (``ledgerboard/board.py``'s
@@ -65,11 +66,22 @@ add     a new item of any kind, at the top of ``## Needs the user`` (or ``--unde
 archive moves every closed item, with its detail block and any open twin, to the archive
         (``--archive``, by default ``user_attention_archive.md`` beside the board), one
         commit of the two files under ``<tool>: archive <n> closed items (session <name>)``.
+replay  settles the board, and its archive, in a rebase or merge that stopped on them (cadence.md §3.4's
+        *take both sides*, TD-248): the side being replayed (a rebase's ``REBASE_HEAD``, a merge's
+        ``HEAD``) is read item by item against the base it started from, and each of its board writes
+        is made again on the other side's board — an added item above its section's first item, as
+        ``add`` puts it; an item's done, snooze, due, decide or reply as that item's new line and detail
+        block; an item it archived as its close, the archive run again when ``ARCHIVE_AT`` is still met.
+        An item is matched by ``item_key()``, never by line number. A write that no longer applies (the
+        item gone or changed on the other side) refuses by name, and so do lines outside the items it
+        changed, and a result the board's gate fails; nothing is written then. It writes and stages
+        the files and commits nothing: ``git rebase --continue`` (or the merge's commit) does. It reads
+        the three sides from git, never the conflicted file, so it can be run again.
 fmt     rewrites each open item line into the writers' form where that keeps its key, and
         lists the lines it kept as they were; it commits nothing (its caller's PR does).
 list    the open items: line, due tag and text, or ``--json``.
 
-``--plan`` (add, archive, fmt) prints the write as JSON and makes none.
+``--plan`` (add, archive, fmt, replay) prints the write as JSON and makes none.
 
 ``--line`` is the 1-based line ``nudge_user_attention.py --report --json`` prints for
 the item, and ``--expect`` the start of its text (or of the raw line) as the tool last
@@ -252,10 +264,191 @@ def passthrough(argv: list[str]) -> int:
     return 0
 
 
+def _blocks(text: str) -> tuple[dict[str, tuple[int, int]], list[str]]:
+    """({item_key: (start, end)} for each item line at the left edge, its block the item and the deeper
+    non-blank lines under it — archive_closed()'s detail block —, the lines' list with their ends)."""
+    lines = text.splitlines(keepends=True)
+    out: dict[str, tuple[int, int]] = {}
+    i = 0
+    while i < len(lines):
+        ln = lines[i].rstrip("\r\n")
+        if LB.is_item(ln) and ln == ln.lstrip():
+            j = i + 1
+            while j < len(lines) and lines[j].strip() and lines[j][:1] in " \t" and not LB.is_item(lines[j].lstrip()):
+                j += 1
+            key = LB.item_key(ln)
+            if key in out:
+                raise Refused(f"line {i + 1}: two items share one key ({ln.strip()[:60]}): settle it by hand")
+            out[key] = (i, j)
+            i = j
+        else:
+            i += 1
+    return out, lines
+
+
+def _block(text: str, key: str) -> str | None:
+    got, lines = _blocks(text)
+    return "".join(lines[slice(*got[key])]) if key in got else None
+
+
+def _outside(text: str) -> list[str]:
+    """The non-blank lines outside every item block: what no item write changes."""
+    got, lines = _blocks(text)
+    inside = {i for s, e in got.values() for i in range(s, e)}
+    return [ln.rstrip("\r\n") for i, ln in enumerate(lines) if i not in inside and ln.strip()]
+
+
+def _section(lines: list[str], at: int) -> str | None:
+    """The heading line above line `at` (0-based), or None."""
+    return next((ln.strip() for ln in reversed(lines[:at]) if ln.startswith("#")), None)
+
+
+def _head(block: str | None) -> str:
+    """An item's words for a message: its line from the text on, 60 characters at most."""
+    first = (block or "").split("\n", 1)[0]
+    m = LB.ITEM_RE.match(first) or LB.CLOSED_ITEM_RE.match(first)
+    return (LB.edit_head(m.group("text")) if m else first.strip())[:60]
+
+
+def replay_text(base: str, mine: str, theirs: str, base_arch: str = "", mine_arch: str = "",
+                theirs_arch: str = "") -> tuple[str, str, list[str]]:
+    """(board, archive, what was replayed): `mine`'s item writes since `base` made again on `theirs` (TD-248).
+    Refused by name when one no longer applies. Pure: no git, no files."""
+    if _outside(mine) != _outside(base):
+        raise Refused("this side changed lines outside the board's items (a heading, People:, a stamp), "
+                      "which no writer does: settle by hand")
+    b0, _ = _blocks(base)
+    b1, l1 = _blocks(mine)
+    a0 = _blocks(base_arch)[0].keys()
+    did: list[str] = []
+    changes: list[tuple[str, str]] = []      # (key, mine's block): an edit of an item base has
+    for key, (s, e) in b1.items():
+        if key in b0:
+            new = "".join(l1[s:e])
+            if new != _block(base, key):
+                changes.append((key, new))
+    archived = False
+    for key in b0:
+        if key in b1:
+            continue
+        final = _block(mine_arch, key) if key not in a0 else None
+        if final is None:
+            raise Refused(f"this side removed an item without archiving it ({_head(_block(base, key))}): settle by hand")
+        archived = True
+        changes.append((key, final))
+    out = theirs
+    for key, new in changes:
+        cur, was = _block(out, key), _block(base, key)
+        head = _head(new)
+        if cur is None:
+            if _block(theirs_arch, key) == new:
+                continue   # the other side archived it as this side left it
+            raise Refused(f"no longer applies — the other side removed or archived the item: {head}")
+        if cur == new:
+            continue
+        if cur != was:
+            raise Refused(f"no longer applies — the other side changed the item too: {head}")
+        got, lines = _blocks(out)
+        s, e = got[key]
+        if not new.endswith("\n") and e < len(lines):
+            new += "\n"
+        lines[s:e] = [new]
+        out = "".join(lines)
+        did.append(f"edit: {head}")
+    adds = [(key, s, e) for key, (s, e) in b1.items() if key not in b0]
+    for key, s, e in reversed(adds):   # each inserted at its section's top, so their order is kept
+        new = "".join(l1[s:e])
+        cur = _block(out, key)
+        if cur is not None:
+            if cur == new:
+                continue
+            raise Refused(f"no longer applies — the other side added the item differently: {_head(new)}")
+        lines = out.splitlines(keepends=True)
+        at = LBB._under(lines, _section(l1, s))
+        if lines and not lines[-1].endswith("\n") and at == len(lines):
+            lines[-1] += "\n"
+        if not new.endswith("\n"):
+            new += "\n"
+        lines.insert(at, new)
+        out = "".join(lines)
+        did.append(f"add: {_head(new)}")
+    arch = theirs_arch
+    if archived and len(LB.closed_items(out)) >= LB.ARCHIVE_AT:
+        out, arch = LB.archive_closed(out, theirs_arch)
+        did.append("archive: run again")
+    bad = [(n, why) for n, why in LB.board_problems(out, theirs) if not why.startswith("ℹ")]
+    if bad:
+        raise Refused("the replayed board fails the gate: " + "; ".join(f"line {n}: {why}" for n, why in bad))
+    return out, arch, did
+
+
+def _show(root: Path, rev: str, rel: str) -> str:
+    r = _git(root, "show", f"{rev}:{rel}")
+    return r.stdout if r.returncode == 0 else ""
+
+
+def replay(argv: list[str]) -> int:
+    """``board_edit.py replay``: settle the board (and its archive) in a stopped rebase or merge (TD-248)."""
+    ap = argparse.ArgumentParser(prog="board_edit.py replay", description="settle a board conflict in a "
+                                 "stopped rebase or merge by making this side's item writes again on the other's")
+    ap.add_argument("action", choices=("replay",))
+    ap.add_argument("--board", required=True, help="the board file (docs/user_attention.md)")
+    ap.add_argument("--archive", help=f"its archive (default: {ARCHIVE_NAME} beside the board)")
+    ap.add_argument("--plan", action="store_true", help="print the result as JSON and write nothing")
+    a = ap.parse_args(argv)
+    board = Path(a.board).resolve()
+    archive = Path(a.archive).resolve() if a.archive else board.parent / ARCHIVE_NAME
+    try:
+        root = _root(board)
+        rel, arel = (str(p.relative_to(root)) for p in (board, archive))
+        if _git(root, "rev-parse", "-q", "--verify", "REBASE_HEAD").returncode == 0:
+            mine, theirs = "REBASE_HEAD", "HEAD"
+            base = "REBASE_HEAD^"
+            nxt = "git rebase --continue"
+        elif _git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0:
+            mine, theirs = "HEAD", "MERGE_HEAD"
+            mb = _git(root, "merge-base", "HEAD", "MERGE_HEAD")
+            if mb.returncode != 0:
+                raise Refused("HEAD and MERGE_HEAD share no merge base")
+            base = mb.stdout.strip()
+            nxt = "git commit (the merge)"
+        else:
+            raise Refused("no rebase or merge has stopped here: run it after `git rebase origin/<default>` "
+                          "(or a merge) stops on the board")
+        out, arch, did = replay_text(*(_show(root, r, rel) for r in (base, mine, theirs)),
+                                     *(_show(root, r, arel) for r in (base, mine, theirs)))
+    except Refused as e:
+        print(f"board_edit: refused: {e}", file=sys.stderr)
+        return 1
+    changes = {str(board): out}
+    if arch or archive.exists():
+        changes[str(archive)] = arch
+    if a.plan:
+        print(json.dumps({"action": "replay", "changes": changes, "replayed": did}, ensure_ascii=False))
+        return 0
+    try:
+        for path, text in changes.items():
+            Path(path).write_text(text, encoding="utf-8", newline="")
+    except OSError as e:
+        print(f"board_edit: cannot write: {e}", file=sys.stderr)
+        return 4
+    r = _git(root, "add", "--", *changes)
+    if r.returncode != 0:
+        print(f"board_edit: git add failed: {r.stderr.strip()}", file=sys.stderr)
+        return 4
+    for line in did:
+        print(f"board_edit: replay: {line}")
+    print(f"board_edit: replayed {len(did)} write(s) of {mine} onto {theirs}; staged — "
+          f"settle any other conflict, then {nxt}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] in PASSTHROUGH:
         return passthrough(argv)
+    if argv and argv[0] == "replay":
+        return replay(argv)
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0],
                                  epilog=f"also: {', '.join(PASSTHROUGH)} — ledgerboard/board.py's own "
                                         "commands, its flags (`board_edit.py <command> --help`)")
