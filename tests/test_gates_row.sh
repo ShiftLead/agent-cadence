@@ -81,12 +81,16 @@ st=$(row open); [ "${st%% *}" = pass ] && echo "$st" | grep -q "⚠ TD-150 lifts
 case_pr "a new decision with no item" "ledger: set TD-160 (session w-1)"
 st=$(row open); [ "${st%% *}" = fail ] && echo "$st" | grep -q "TD-160 gains decision (pat) and no open decide item" \
   && ok "a decision added with no board item fails the row" || bad "uncovered: $st"
+echo "$st" | grep -qF 'board_edit.py add --board docs/user_attention.md --kind decide --context "TD-160 decision (pat)"' \
+  && echo "$st" | grep -qF -- "--detail '{\"context\": [...], \"question\": ..., \"recommended\": ...}' --no-commit" \
+  && ok "the uncovered refusal prints the command that files its item (TD-244)" || bad "uncovered fix: $st"
 case_pr "a new decision, its item filed with it" "ledger: set TD-160 (session w-1)"
 st=$(row open); [ "${st%% *}" = pass ] && ok "a decision added with its board item passes" || bad "covered: $st"
 # a new gate item none of whose answers lifts is refused
 case_pr "a new decision item with no lifting answer" "board: add (session w-1)"
 st=$(row open); [ "${st%% *}" = fail ] && echo "$st" | grep -q "none of its answers lifts it" \
   && ok "a new gate item with no lifting answer fails the row" || bad "no-lift: $st"
+echo "$st" | grep -qF 'give it `--lift <the answer that ends the wait>`' && ok "the no-lift refusal names its cure (TD-244)" || bad "no-lift fix: $st"
 # a person this repo's board does not list: coverage rests on another board — a ⚠, never a fail
 case_pr "a new decision covered on another repo's board" "ledger: set TD-170 (session w-1)"
 st=$(row open); [ "${st%% *}" = pass ] && echo "$st" | grep -q "⚠ TD-170 gains decision (kim)" \

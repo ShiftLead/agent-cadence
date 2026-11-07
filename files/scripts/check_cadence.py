@@ -18,6 +18,11 @@ for the two that were skipped.
                                      "layers" when this machine sets any (TD-126)
     --pr N --trailers FILE           also hand the merge what the gate saw (TD-231, TD-177's design,
                                      docs/plans/2026-10-31-merged-by-trailer.md): see "The gate file"
+    --pr N --structural              only the rows that need no precheck — pr, review, base, ledger,
+                                     board, gates, sources, person (TD-244): run it before
+                                     precheck.py, so a fail found in seconds never costs a precheck;
+                                     its pass merges nothing (no --trailers, no --since; JSON adds
+                                     "structural", the rows it ran)
 
 The gate file (--trailers, --pr only; with --branch or --since a usage error, exit 2). Every run
 first empties FILE, then writes it whole (a temporary name, then renamed):
@@ -435,7 +440,7 @@ def row_review(pr):
         return row("review", "fail", odd_sentence(odd))
     if not found:
         return row(
-            "review", "fail", "no `cadence-review:` comment on the PR (cadence §4)"
+            "review", "fail", "no `cadence-review:` comment on the PR (cadence §4) — " + REVIEW_FIX
         )
     found.sort(key=lambda t: t[0])
     if merged_at:
@@ -516,6 +521,11 @@ def odd_verdict(body):
         return None
     hits = [m for line in lines if (m := ODD_REVIEW_RE.match(line))]
     return (hits[-1].group("word") or "nothing") if hits else None
+
+
+# TD-244: what a missing review line is cured by, printed with the refusal (procedures/cadence.md step 3)
+REVIEW_FIX = ("post a comment whose first line is `cadence-review: SHIP|FIXED|BLOCK · <reviewer model> · "
+              "<code|docs> · <n> findings` and whose last line signs it (procedures/cadence.md step 3)")
 
 
 def odd_sentence(odd):
@@ -2291,7 +2301,7 @@ def row_gates(pr, root):
         refusals, flags = lb.uncovered_decisions(base, head, [], repo)
     except lb.Refused as e:  # a repo name outside the grammar, or a tree the format refuses
         return row("gates", "unknown", f"gates not checked: {e}")
-    fails = [t for k, t in trip if k not in TRIPWIRE_REVIEW] + [t for _, t in refusals]
+    fails = [t for k, t in trip if k not in TRIPWIRE_REVIEW] + [gate_fix(k, t) for k, t in refusals]
     warns = [t for k, t in trip if k in TRIPWIRE_REVIEW] + [t for _, t in flags]
     if pr["state"] == "merged":  # as TD-201's form check: a sweep would fail every PR merged before the rule
         warns, fails = [*fails, *warns], []
@@ -2302,6 +2312,22 @@ def row_gates(pr, root):
                    + " (ledgerboard SPEC *The merge gate's verdicts*: a gate is lifted by its person's answer)" + tail)
     return row("gates", "pass", "every decision gate removed is accounted for, and every one added has a board item"
                + tail)
+
+
+UNCOVERED_RE = re.compile(r"^(?P<tid>\S+) gains (?P<gate>decision \([^)]*\))")
+
+
+def gate_fix(kind, text):
+    """TD-244: an uncovered_decisions() refusal with the command that cures it, so a seat need not work it out."""
+    m = UNCOVERED_RE.match(text) if kind == "decision-uncovered" else None
+    if m:
+        return (f"{text}: `board_edit.py add --board {BOARD} --kind decide --context \"{m['tid']} {m['gate']}\" "
+                "--text \"<the Ask in one sentence>\" --due <date> --answer <a> --answer <b> --lift <each answer that "
+                "ends the wait> --detail '{\"context\": [...], \"question\": ..., \"recommended\": ...}' --no-commit` "
+                "(cadence.md §2.14)")
+    if kind == "decision-no-lift":
+        return f"{text}: give it `--lift <the answer that ends the wait>` (cadence.md §2.14)"
+    return text
 
 
 LOG_SOURCES = "docs/ledger/log-sources.toml"  # the repo's host-log sources (TD-230; ledgerboard TD-045 rule 8)
@@ -2722,7 +2748,13 @@ def print_outside(mo):
         print(f"  {mo['before']} merged before the cutoff, not judged")
 
 
-def check_pr(number, root):
+# TD-244: the rows that read only the PR's diff, its comments and its trees — seconds, and no precheck
+# status — so `--structural` runs them before the precheck and a fail there never costs one (procedures/
+# cadence.md step 2). ci needs the precheck; worktree, pushed and deploy judge the merge's moment.
+STRUCTURAL = ("pr", "review", "base", "ledger", "board", "gates", "sources", "person")
+
+
+def check_pr(number, root, only=None):
     pr = FORGE.pr(number)
     rows = []
     for rule, fn in (
@@ -2739,6 +2771,8 @@ def check_pr(number, root):
         ("pushed", lambda: row_pushed(pr, root)),
         ("deploy", lambda: row_deploy(pr, root)),
     ):
+        if only is not None and rule not in only:
+            continue
         try:
             rows.append(fn())
         except Exception as e:  # a tool malfunction is `unknown`, never a verdict and never a traceback
@@ -2890,6 +2924,9 @@ def main(argv=None):
         "--since", help="7d, 24h, 2w, or YYYY-MM-DD: every PR merged since then"
     )
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--structural", action="store_true",
+                    help="with --pr or --branch: only the rows that need no precheck (TD-244) — run before "
+                         "precheck.py; never a merge's verdict")
     ap.add_argument("--trailers", metavar="FILE",
                     help="with --pr: write what the gate saw for the merge's trailers (TD-231)")
     args = ap.parse_args(argv)
@@ -2903,6 +2940,11 @@ def main(argv=None):
         if not args.pr:
             print("--trailers takes --pr only (a usage error with --branch or --since)", file=sys.stderr)
             return 2
+
+    if args.structural and (args.since or args.trailers is not None):
+        # a structural pass judges no CI, so it never feeds a merge's trailers; the week is judged whole
+        print("--structural takes --pr or --branch, and never --trailers or --since", file=sys.stderr)
+        return 2
 
     root = repo_root()
     unread = load_forge(root)
@@ -2921,7 +2963,7 @@ def main(argv=None):
             return 2
     try:
         numbers = select_prs(args)
-        results = [check_pr(n, root) for n in numbers]
+        results = [check_pr(n, root, STRUCTURAL if args.structural else None) for n in numbers]
     except (GhError, F.ForgeUnreadable) as e:
         print(f"CANNOT CHECK: {e}", file=sys.stderr)
         return 2
@@ -2950,6 +2992,8 @@ def main(argv=None):
     layers, layer_line = layers_report()
     if args.json:
         out = {"prs": results, "verdict": overall}
+        if args.structural:
+            out["structural"] = list(STRUCTURAL)
         if args.since:
             out["direct"] = direct
             out["merged_outside"] = outside["listed"] if outside else []
@@ -2963,6 +3007,10 @@ def main(argv=None):
         print(json.dumps(out, indent=1))
     else:
         print_text(results)
+        if args.structural:
+            print(f"structural rows only ({', '.join(STRUCTURAL)}): "
+                  + ("fix the fails before spending a precheck" if overall == "fail" else
+                     "now precheck.py, then the full check — this verdict merges nothing"))
         if not results:
             print("no PRs in the window")
         if args.since:

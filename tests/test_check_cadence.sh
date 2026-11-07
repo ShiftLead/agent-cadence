@@ -1307,5 +1307,30 @@ echo "$out" | grep -q "^Merged outside step 5 (no Merged-by:, after ${s3:0:7}) �
   && printf '%s' "$jout" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["merged_outside"] == [] and d["outside"]["cutoff"] == sys.argv[1]' "${s3:0:7}" 2>/dev/null \
   && ok "TD-234 --since prints the section and carries merged_outside in --json" || bad "TD-234 --since: $(echo "$out" | tail -3)"
 
+# --- TD-244: --structural runs only the rows that need no precheck, before the precheck; a refusal names its cure
+R="$TMP/repo"   # the first fixture's clone: later cases point R elsewhere
+pr 1 MERGED td001-x "TD-001: fix" docs/technical_debt.md src/a.py
+echo '{"parents":[{"sha":"a"}]}' > "$FAKE/commit_mmm1111.json"
+comments 1
+out=$(run --pr 1 --structural); rc=$?
+rules=$(echo "$out" | awk 'NR>1 && /^  [A-Z]/ {print $2}' | tr '\n' ' ')
+[ $rc -eq 1 ] && [ "$rules" = "pr review base ledger board gates sources person " ] && echo "$out" | grep -q "fix the fails before spending a precheck" \
+  && ok "TD-244 --structural: the structural rows alone, a fail is rc 1 and says fix before the precheck" || bad "TD-244 structural fail: rc=$rc [$rules] $out"
+echo "$out" | grep -qF 'no `cadence-review:` comment on the PR (cadence §4) — post a comment whose first line is `cadence-review: SHIP|FIXED|BLOCK · <reviewer model> · <code|docs> · <n> findings`' \
+  && ok "TD-244 a missing review names the line it wants" || bad "TD-244 review fix: $out"
+comments 1 "$(c 'cadence-review: SHIP · sonnet · code · 0 findings' "$BEFORE" "$BEFORE")"
+mv "$FAKE/checks_hhh2222.json" "$FAKE/checks.bak"   # no CI evidence: the full check is unknown, structural never reads it
+out=$(run --pr 1); full=$?
+out=$(run --pr 1 --structural); rc=$?
+[ $full -eq 3 ] && [ $rc -eq 0 ] && ! echo "$out" | grep -q "^  [A-Z]* *ci " && echo "$out" | grep -q "this verdict merges nothing" \
+  && ok "TD-244 --structural passes with no CI evidence (the full check: unknown) and says it merges nothing" || bad "TD-244 structural pass: full=$full rc=$rc $out"
+out=$(run --pr 1 --structural --json); echo "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["structural"][0]=="pr" and "ci" not in d["structural"] and [r["rule"] for r in d["prs"][0]["rows"]]==d["structural"]' \
+  && ok "TD-244 --structural --json names the rows it ran" || bad "TD-244 structural json: $out"
+mv "$FAKE/checks.bak" "$FAKE/checks_hhh2222.json"
+out=$(run --pr 1 --structural --trailers "$TMP/gatefile"); rc=$?
+[ $rc -eq 2 ] && [ ! -s "$TMP/gatefile" ] && ok "TD-244 --structural with --trailers is a usage error, the gate file left empty" || bad "TD-244 structural trailers: rc=$rc $out"
+out=$(run --since 7d --structural); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q "never --trailers or --since" && ok "TD-244 --structural with --since is a usage error" || bad "TD-244 structural since: rc=$rc $out"
+
 echo; echo "$PASS passed, $FAIL failed"
 [ $FAIL -eq 0 ]
