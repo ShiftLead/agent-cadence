@@ -13,6 +13,7 @@ trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$AGENT_CADENCE_REG_DIR"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+export TZ=UTC   # TD-209; each date and ledger.py run below names its own TZ
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
