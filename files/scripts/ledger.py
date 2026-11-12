@@ -424,8 +424,10 @@ class Roster:
 
 
 def _today(today: date | str | None) -> date | str:
-    """The day ledgerboard v2.4's readers judge an ``until`` gate against: the caller's, else this machine's."""
-    return today if today is not None else date.today()  # noqa: DTZ011  # a civil date, as ledgerboard's readers use
+    """The day ledgerboard's readers judge an ``until`` gate against: the caller's, else the UTC day, as the
+    writers (``lift``, ``set``) and cadence.md §2.4 have it, whatever ``TZ`` is (TD-253; it was this machine's
+    local date, so the readers and the home split between local and UTC midnight)."""
+    return today if today is not None else datetime.now(timezone.utc).date()
 
 
 def pickable(ledger: str, archive: str, roster: Roster | None = None, undeclared: bool = False,
@@ -2128,7 +2130,7 @@ def report(argv: list[str], ledger: Path, archive: Path | None, roster: Roster |
     """--pickable, --list, --counts, --fields, --summary: ledgerboard's ``run_report`` (TD-216), given the
     ledger's path and this machine's roster as its ``--resolved`` file (target design §1.1). The package names
     the ``<repo>#TD-n`` ids it needs (exit 3, ``needs:``), which are resolved and the report run again, until
-    nothing is needed; only the last run's output is printed. The day is this machine's civil date, as before."""
+    nothing is needed; only the last run's output is printed. The day is the UTC day (``_today``, TD-253)."""
     roster = roster or Roster()
     answers: dict[str, dict] = {}
     with tempfile.TemporaryDirectory(prefix="ledger-report-") as tmp:
