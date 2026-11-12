@@ -110,6 +110,17 @@ grep -qx "\*\*Status:\*\* Resolved $D10" "$L/archive/TD-004.md" \
 out=$(python3 "$LEDGER_PY" --check --ledger "$L" 2>&1) && ok "--check passes on the result" || bad "check: $out"
 git -C "$W" checkout -q -- docs
 
+# --- 3b) archived twice (reopened, then archived again): git's newest add is the date
+D3=$(date -d "$TODAY -3 days" +%F)
+cp "$L/archive/TD-003.md" "$TMP/td3"; git -C "$W" rm -q docs/ledger/archive/TD-003.md
+GIT_COMMITTER_DATE="${D5}T13:00:00Z" git -C "$W" commit -qm reopen
+cp "$TMP/td3" "$L/archive/TD-003.md"; git -C "$W" add -A
+GIT_COMMITTER_DATE="${D3}T12:00:00Z" git -C "$W" commit -qm rearchive
+mig --release 2.7 >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && grep -qx "\*\*Status:\*\* Resolved $D3" "$L/archive/TD-003.md" \
+  && ok "an entry archived twice takes git's newest archiving day" || bad "newest (rc=$rc): $(cat "$TMP/err") $(grep Status "$L/archive/TD-003.md")"
+git -C "$W" checkout -q -- docs
+
 # --- 4) a stop writes nothing; --as answers it
 sed -i 's/^\*\*Status:\*\* Resolved$/**Status:** Parked/' "$L/archive/TD-003.md"
 git -C "$W" commit -qam park; before=$(sums)
@@ -117,8 +128,8 @@ mig --release 2.7 >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && [ "$(sums)" = "$before" ] && grep -q '^TD-003:' "$TMP/err" \
   && ok "a Status the rules stop on stops the run, naming it, nothing written" || bad "stop (rc=$rc): $(cat "$TMP/err")"
 mig --release 2.7 --as TD-003=dropped >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 0 ] && grep -qx "\*\*Status:\*\* Dropped $D5" "$L/archive/TD-003.md" \
-  && ok "--as answers the stop, the date git's" || bad "--as (rc=$rc): $(cat "$TMP/err") | $(grep Status "$L/archive/TD-003.md")"
+[ $rc -eq 0 ] && grep -qx "\*\*Status:\*\* Dropped $D3" "$L/archive/TD-003.md" \
+  && ok "--as answers the stop, the date git's newest" || bad "--as (rc=$rc): $(cat "$TMP/err") | $(grep Status "$L/archive/TD-003.md")"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
