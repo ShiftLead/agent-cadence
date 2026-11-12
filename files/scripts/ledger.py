@@ -10,7 +10,7 @@
     ledger.py set TD-n --FIELD VALUE …  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|-
     ledger.py lift TD-n --gate "event (<name>)"|"until D" --by HOST [--evidence E]   (a host's lift, TD-219)
 
-An entry may carry one optional field, between **Status:** and **Location:** (cadence.md §2):
+An entry may carry one optional field after **Status:** (cadence.md §2):
 
     **Blocked by:** TD-047, TD-042
     **Blocked by:** decision (person) — docs/user_attention.md, 2026-09-25 item
@@ -1397,7 +1397,9 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
     names the entry, else the lowest item key — then the other roster boards in ``origin_key`` order), the
     answer must be one of its ``Lifts:`` (``Go`` when it has none), and the Log's suffix follows from it:
     none, the item on this board answered by ``board.py decide --board-only`` (the same label and ``by``);
-    ``shared board item left open`` when it still asks about other parts (answered all the same);
+    ``shared board item left open`` when it still asks about other parts (v2.7: the board half then writes
+    nothing — ``paths: []``, ``left_open`` — which is a success: only the ledger path is printed, and the item
+    left open is said on stderr);
     ``board <repo>`` when it is another repo's (nothing written there: the gate sweep audits it);
     ``no board item`` when nothing covers. The ledger is written first and the board after it (the board
     writer reads the ledger as it stands to decide the close); a board refusal puts the entry back. Nothing
@@ -1485,15 +1487,19 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
     try:
         bplan = LBB.plan_edit(board, "decide", item.line, item.text.strip()[:40], answer=label,
                               by=by, board_only=True, ledger=str(w.ledger))
-        LBB.apply(bplan)
+        written = LBB.apply(bplan)
     except (LB.Refused, LBL.Unusable, OSError) as e:
         try:
             LBL.apply(LBL.Plan("set", None, {path: text}, {}))
         except OSError as e2:
             return w.say("set", f"the board refused ({e}), and putting {path} back failed: {e2}", 4)
         return w.say("set", f"refused — the board half: {e}; {path} put back, nothing was written", 1)
+    if "left_open" in bplan.info:   # v2.7: a shared item still asking about other parts — the board is not written
+        w.say("set", f"note — the board item on line {item.line} is left open, unanswered: "
+                     f"{', '.join(bplan.info['left_open'])} still carry {gate}; nothing was written to {board}", 0)
     print(path)
-    print(board)
+    for p in written:   # only what the board half wrote (ledgerboard TD-067 plan, *Consumers*)
+        print(p)
     return 0
 
 
@@ -1910,6 +1916,74 @@ def renumber(argv: list[str]) -> int:
     return 0
 
 
+def archived_dates(root: Path, rel: str) -> dict[str, str]:
+    """Each archived entry's archiving date from git: the UTC day of the newest commit that added
+    ``<rel>/archive/TD-n.md`` (a reopen and a second archive takes the later), keyed ``TD-n``. Empty when git
+    cannot say. ``migrate``'s ``--closed-dates``, read only for an archived Status with no date of its own."""
+    out = _git(root, "log", "--diff-filter=A", "--format=@%ct", "--name-only", "--", f"{rel}/{LB.LEDGER_ARCHIVE}")
+    dates: dict[str, str] = {}
+    when = None
+    for ln in (out or "").splitlines():
+        if ln.startswith("@"):
+            when = datetime.fromtimestamp(int(ln[1:]), timezone.utc).date().isoformat()
+        elif ln.strip() and when:
+            m = re.fullmatch(r"TD-0*(\d+)\.md", Path(ln.strip()).name)
+            if m:
+                dates.setdefault(f"TD-{int(m.group(1)):03d}", when)   # git log is newest first
+    return dates
+
+
+def _undated(ledger: Path, dates: Mapping[str, str]) -> dict[str, str]:
+    """``dates`` kept only for the archived entries ``migrate_entry()`` finds no date for in their own text:
+    an entry's written day outranks git's, whose commit day can be a day off it (a merge late in the evening,
+    or the seed commit for an entry archived before this repo began)."""
+    day = datetime.now(timezone.utc).date().isoformat()
+    out: dict[str, str] = {}
+    for tid, d in dates.items():
+        p = ledger / LB.LEDGER_ARCHIVE / f"{tid}.md"
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if "no date for the Status" in LB.migrate_entry(text, archived=True, today=day)["stops"]:
+            out[tid] = d
+    return out
+
+
+def migrate(argv: list[str]) -> int:
+    """``ledger.py migrate [TD-n …] --release X.Y [--closed-dates FILE] [--stage-kind WORD=KIND]… [--as TD-n=FORM]…
+    [--plan|--dry-run] [--json]``: ledgerboard's ``migrate`` (v2.7, SPEC *Migrating to v2.7*) over this repo's
+    ``docs/ledger/`` and its archive — each Status into the closed set (``Open``; ``Resolved D``, ``Superseded D
+    by TD-n``, ``Dropped D``), its words moved to the Log, a header ``Location`` into the body. Any stop stops
+    the run and writes nothing: give that entry a person's ``--as`` (an open entry's form is ``open``), or ask.
+    Unless ``--closed-dates`` is given, an archived entry whose own text gives no date for its Status gets git's
+    (``archived_dates()``: the UTC day its archive file was added), as this script passes its other dates. Run ``--plan`` (or ``--dry-run``)
+    first, then ``--check`` on the result; nothing is committed — ``--json`` prints the commit subject."""
+    if any(x in ("-h", "--help") for x in argv):
+        return LBL.run_migrate(argv)
+    def given(flag: str) -> str | None:
+        for i, x in enumerate(argv):
+            if x == flag and i + 1 < len(argv):
+                return argv[i + 1]
+            if x.startswith(flag + "="):
+                return x[len(flag) + 1:]
+        return None
+    ledger = given("--ledger")
+    args = list(argv) if ledger else [*argv, "--ledger", str(ledger := str(_toplevel() / LEDGER_DIR_REL))]
+    if given("--closed-dates") is None:
+        root, rel, _ = _rel(Path(ledger))
+        dates = _undated(Path(ledger), archived_dates(root, rel) if root is not None else {})
+        if dates:
+            fd, tmp = tempfile.mkstemp(prefix="ledger-migrate-", suffix=".json")
+            try:
+                with os.fdopen(fd, "w") as f:
+                    json.dump(dates, f)
+                return LBL.run_migrate(args + ["--closed-dates", tmp])
+            finally:
+                os.unlink(tmp)
+    return LBL.run_migrate(args)
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["fmt"]:
@@ -1924,6 +1998,8 @@ def main(argv: list[str] | None = None) -> int:
         return renumber(argv[1:])
     if argv[:1] == ["lift"]:
         return lift(argv[1:])
+    if argv[:1] == ["migrate"]:
+        return migrate(argv[1:])
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--pickable", nargs="?", const=True, default=None, metavar="yes|no",
                     help="alone: print the pick order, the blocked entries and the flags; "

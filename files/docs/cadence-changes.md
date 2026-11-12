@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-11 — ledgerboard v2.7: a Status is `Open` or a dated close, and `Location` is a body section
+Do: after the bump, run `agent-cadence run ledger.py migrate --release 2.7 --plan`, then without `--plan`, then `ledger.py --check`, in a PR of its own; write `**Location:**` after the Why and never a `**Waits:**` line.
+See: cadence.md §2.3, §2.12; TD-256.
+
 ## 2026-11-07 — Work met in another repo is filed on that repo's ledger, not parked on this board
 Do: hand it to that repo's ledger through whatever reaches it (ShiftLead's `ao td add --repo <repo> "…"`, or a person's session there); a board item only where nothing reaches it, saying why.
 See: cadence.md §3.7; TD-251.
