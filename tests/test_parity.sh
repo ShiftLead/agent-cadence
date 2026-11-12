@@ -165,10 +165,12 @@ check("cadence.md §2.12 names exactly CADENCE_FIELDS", m and [LG.field_key(x) f
 g = re.search(r"^.*<!-- Entry template:\n\n## TD-001:[^\n]*\n\n(.*?)\n\n", tmpl, re.S | re.M)
 fields = LG.header_block(g.group(1)) if g else {}
 # Id take is written only by the counter's take (TD-188), so a new entry's template leaves it out;
-# Escaped from (TD-204) is in it, marked optional
-OPTIONAL = {"id take"}
-check("the seed template's header block reads as exactly CADENCE_FIELDS but Id take",
+# Escaped from (TD-204) is in it, marked optional; Location is a body section from ledgerboard v2.7 (TD-256)
+OPTIONAL = {"id take", "location"}
+check("the seed template's header block reads as exactly CADENCE_FIELDS but Id take and Location",
       sorted(fields) == sorted(set(LG.CADENCE_FIELDS) - OPTIONAL) and OPTIONAL <= set(LG.CADENCE_FIELDS), sorted(fields))
+check("the seed template carries **Location:** as a body section after the Why",
+      re.search(r"^\*\*Why:\*\*.*?^\*\*Location:\*\* ", tmpl, re.S | re.M) is not None, "no Location section after the Why")
 m = re.search(r"`(Fields: [^`]+)`", tmpl)
 vocab, bad = LG.declared(m.group(1) + "\n") if m else ({}, ["no example"])
 check("the seed template's Fields: example parses", vocab and not bad, (vocab, bad))

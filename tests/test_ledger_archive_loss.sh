@@ -30,7 +30,7 @@ r = K.row_ledger(pr, sys.argv[1]); print(f\"{r['status']}|{r['detail']}\")" "$r"
 V=$TMP/v1; mkdir -p "$V/docs"; git -C "$V" init -q -b main
 { printf '# Technical Debt\n\n## Summary\n\n| ID | Title | Priority | Status |\n|----|-------|----------|--------|\n| TD-002 | open | Low | Open |\n\n'
   ent TD-002 open Open; } > "$V/docs/technical_debt.md"
-{ printf '# Archive\n\n'; ent TD-001 one Resolved; ent TD-003 three Resolved; } > "$V/docs/technical_debt_archive.md"
+{ printf '# Archive\n\n'; ent TD-001 one "Resolved $TODAY"; ent TD-003 three "Resolved $TODAY"; } > "$V/docs/technical_debt_archive.md"
 git -C "$V" add -A && git -C "$V" commit -qm base && BASE=$(git -C "$V" rev-parse HEAD)
 
 # 1. v1: the archive truncated to its header (shiftlead #1421's shape)
@@ -48,7 +48,7 @@ out=$(row "$V" docs/technical_debt_archive.md)
 
 # 2. v1: an entry moved from the archive back into the ledger is reopened, not lost
 git -C "$V" checkout -q main && git -C "$V" checkout -q -b reopen
-{ printf '# Archive\n\n'; ent TD-001 one Resolved; } > "$V/docs/technical_debt_archive.md"
+{ printf '# Archive\n\n'; ent TD-001 one "Resolved $TODAY"; } > "$V/docs/technical_debt_archive.md"
 { cat "$V/docs/technical_debt.md"; ent TD-003 three Open; } > "$TMP/l" && mv "$TMP/l" "$V/docs/technical_debt.md"
 sed -i 's/^| TD-002 | open | Low | Open |$/&\n| TD-003 | three | Low | Open |/' "$V/docs/technical_debt.md"
 git -C "$V" commit -qam reopen
@@ -61,13 +61,13 @@ out=$(row "$V" docs/technical_debt.md docs/technical_debt_archive.md)
 
 # 3. v1: an archive that grows passes with nothing said about it
 git -C "$V" checkout -q main && git -C "$V" checkout -q -b grow
-ent TD-004 four Resolved >> "$V/docs/technical_debt_archive.md"; git -C "$V" commit -qam grow
+ent TD-004 four "Resolved $TODAY" >> "$V/docs/technical_debt_archive.md"; git -C "$V" commit -qam grow
 out=$(lp "$V" --check --since "$BASE" 2>&1); rc=$?
 [ $rc = 0 ] && ! grep -q "archive" <<<"$out" && ok "v1: an archive that only grows passes" || bad "v1 grow: rc=$rc $out"
 
 # 3b. REF archived an entry after the branch left it: judged from the merge-base, not REF's tip
 git -C "$V" checkout -q main
-ent TD-005 five Resolved >> "$V/docs/technical_debt_archive.md"; git -C "$V" commit -qam "main archives TD-005"
+ent TD-005 five "Resolved $TODAY" >> "$V/docs/technical_debt_archive.md"; git -C "$V" commit -qam "main archives TD-005"
 git -C "$V" checkout -q grow
 out=$(lp "$V" --check --since main 2>&1); rc=$?
 [ $rc = 0 ] && ! grep -q "archive lost" <<<"$out" \

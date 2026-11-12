@@ -26,12 +26,12 @@ mkrepo() {  # $1 origin dir, $2 clone dir — a v2 ledger: TD-001, TD-003 (Why, 
   git init -q -b main "$TMP/seed"; local L="$TMP/seed/docs/ledger"; mkdir -p "$L/archive"
   printf '# Ledger\n\nLedgerboard: 2\n' > "$L/README.md"
   printf '## TD-001: one\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** a fixture.\n' > "$L/TD-001.md"
-  printf '## TD-002: archived\n\n**Priority:** Low\n**Status:** Resolved %s: done\n\n**Why:** a fixture.\n\n**Resolved:** %s\n' \
+  printf '## TD-002: archived\n\n**Priority:** Low\n**Status:** Resolved %s\n\n**Why:** a fixture.\n\n**Resolved:** %s\n' \
     "$TODAY" "$TODAY" > "$L/archive/TD-002.md"
-  printf '## TD-003: three\n\n**Priority:** Low\n**Added:** %s\n**Status:** Open — first look done\n**Location:** x.py\n\n**Why:** because.\n\n**Fix:** old fix.\n\n**Done when** it is.\n' \
+  printf '## TD-003: three\n\n**Priority:** Low\n**Added:** %s\n**Status:** Open\n\n**Why:** because.\n\n**Location:** x.py\n\n**Fix:** old fix.\n\n**Done when** it is.\n' \
     "$TODAY" > "$L/TD-003.md"
   printf '## TD-004: four\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** only a why.\n\n**Related:** TD-001.\n' > "$L/TD-004.md"
-  printf '## TD-005: five\n\n**Priority:** Low\n**Priority:** High\n\n**Why:** twice.\n' > "$L/TD-005.md"
+  printf '## TD-005: five\n\n**Priority:** Low\n**Priority:** High\n**Status:** Open\n\n**Why:** twice.\n' > "$L/TD-005.md"
   git -C "$TMP/seed" add -A; git -C "$TMP/seed" commit -qm seed
   git -C "$TMP/seed" push -q "$1" main; rm -rf "$TMP/seed"
   git clone -q "$1" "$2"
@@ -43,13 +43,12 @@ same() { git -C "$W" diff --quiet -- "docs/ledger/$1"; }   # the file is as comm
 
 # --- 1) set: a field in place, a new one where the order puts it; an empty value removes one.
 out=$(lp set TD-003 --priority High --blocked-by TD-001 --owner grinder 2>"$TMP/err"); rc=$?
-hdr=$(sed -n '3,9p' "$L/TD-003.md")
+hdr=$(sed -n '3,8p' "$L/TD-003.md")
 want="**Priority:** High
 **Added:** $TODAY
 **Owner:** grinder
-**Status:** Open — first look done
-**Blocked by:** TD-001
-**Location:** x.py"
+**Status:** Open
+**Blocked by:** TD-001"
 [ $rc -eq 0 ] && [ "$out" = "$L/TD-003.md" ] && [ "$hdr" = "$want" ] \
   && ok "set changes a field in place and adds others where SPEC's order puts them" || bad "set (rc=$rc): $(cat "$TMP/err") $hdr"
 c=$(lp --check --since origin/main 2>&1) && lp fmt --check TD-003 >/dev/null 2>&1 \
@@ -59,7 +58,7 @@ lp set TD-003 --blocked-by "" >/dev/null 2>"$TMP/err" && ! grep -q 'Blocked by' 
 
 # --- 2) note: the Status kept as it was, a dated line added to the entry's Log (ledgerboard v2.4).
 lp note TD-003 "reproduced it" >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 0 ] && grep -qx "\*\*Status:\*\* Open — first look done" "$L/TD-003.md" \
+[ $rc -eq 0 ] && grep -qx "\*\*Status:\*\* Open" "$L/TD-003.md" \
   && [ "$(sed -n '/^\*\*Log:\*\*$/,$p' "$L/TD-003.md")" = "$(printf '**Log:**\n- %s: reproduced it' "$(date -u +%F)")" ] \
   && ok "note keeps the Status and adds a dated line (the UTC day, ledgerboard's writer, TD-216) to the Log, the body's last section" || bad "note (rc=$rc): $(cat "$TMP/err") $(cat "$L/TD-003.md")"
 
@@ -81,7 +80,7 @@ cp "$L/TD-003.md" "$TMP/td3"
 lp set TD-003 --type nonsense >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
   && ok "set refuses an unknown Type, writing nothing" || bad "bad Type (rc=$rc): $(cat "$TMP/err")"
-lp set TD-003 --status "Open — waits on TD-001 now" >/dev/null 2>"$TMP/err"; rc=$?
+lp set TD-003 --field "Stage=next, waits on TD-001 now" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused — .*waits on TD-001' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
   && ok "set refuses a wait written in prose in a field (TD-166; a note goes to the Log, which is no field)" || bad "prose set (rc=$rc): $(cat "$TMP/err")"
 lp set TD-003 --blocked-by "decision (owner) — after TD-001 lands" >/dev/null 2>"$TMP/err"; rc=$?

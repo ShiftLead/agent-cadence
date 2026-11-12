@@ -61,6 +61,8 @@ EOF2
 
 ## TD-1: gone
 
+**Status:** Resolved $TODAY
+
 **Resolved:** $TODAY
 EOF2
   printf 'TD-010: 0a\n' > "$1/docs/technical_debt_rank.yml"
@@ -234,7 +236,7 @@ assert [r['id'] for r in d['blocked']] == ['TD-102'], d['blocked']
 # the other readers (step 3, slice 2): ledger_next_id.py's ids and the cadence check's ledger row
 NEXT="$DC/files/scripts/ledger_next_id.py"
 I="$TMP/ids"; mkv1 "$I"; lp "$I" --split >/dev/null
-printf '## TD-050: the highest open\n\n**Priority:** Low\n' > "$I/docs/ledger/TD-050.md"
+printf '## TD-050: the highest open\n\n**Priority:** Low\n**Status:** Open\n' > "$I/docs/ledger/TD-050.md"
 git -C "$I" add -A && git -C "$I" commit -qm v2
 git init -q --bare -b main "$TMP/ids.git"; git -C "$I" remote add origin "$TMP/ids.git"
 git -C "$I" push -q origin main; git -C "$I" fetch -q origin
