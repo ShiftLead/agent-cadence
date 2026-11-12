@@ -31,7 +31,7 @@ mkrepo() {  # $1 origin dir, $2 clone dir
   printf '# Ledger\n\nLedgerboard: 2\n' > "$TMP/seed/docs/ledger/README.md"
   printf '## TD-001: open one\n\n**Priority:** Low\n**Added:** %s\n**Status:** Open\n\n**Why:** a fixture.\n' "$TODAY" \
     > "$TMP/seed/docs/ledger/TD-001.md"
-  printf '## TD-002: archived one\n\n**Priority:** Low\n**Status:** Resolved %s: done\n\n**Why:** a fixture.\n\n**Resolved:** %s\n' \
+  printf '## TD-002: archived one\n\n**Priority:** Low\n**Status:** Resolved %s\n\n**Why:** a fixture.\n\n**Resolved:** %s\n' \
     "$TODAY" "$TODAY" > "$TMP/seed/docs/ledger/archive/TD-002.md"
   git -C "$TMP/seed" add -A; git -C "$TMP/seed" commit -qm seed
   git -C "$TMP/seed" push -q "$1" main; rm -rf "$TMP/seed"
@@ -57,12 +57,13 @@ want="## TD-003: a filed entry
 **Kind:** build
 **Status:** Open
 **Id take:** $N1
-**Location:** x.py
 **Area:** ledger
 
 **Why:** Filing goes wrong by hand.
 
 A second paragraph.
+
+**Location:** x.py
 
 **Fix:** - one step
 - another"
@@ -94,7 +95,7 @@ lp new --title bad --priority Low --type nonsense --why "$TMP/why.md" >/dev/null
 [ $rc -eq 1 ] && grep -q 'refused' "$TMP/err" && [ "$(last "$O")" = 4 ] && [ "$(ls "$W/docs/ledger" | wc -l)" = "$n_before" ] \
   && ok "an unknown Type is refused before the take: nothing written, no id spent" \
   || bad "bad Type (rc=$rc): $(cat "$TMP/err")"
-lp new --title waits --priority Low --status "Open — waits on TD-001" --why "$TMP/why.md" >/dev/null 2>"$TMP/err"; rc=$?
+lp new --title waits --priority Low --field "Stage=next, waits on TD-001" --why "$TMP/why.md" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused — .*waits on TD-001' "$TMP/err" && [ "$(last "$O")" = 4 ] \
   && ok "a wait written in prose is refused (name it in Blocked by), before the take" \
   || bad "prose wait (rc=$rc): $(cat "$TMP/err")"

@@ -37,13 +37,13 @@ mkrepo() {  # $1 origin dir, $2 clone dir
   printf 'a plan\n' > "$TMP/seed/docs/plans/p.md"
   printf 'see [one](../ledger/TD-001.md)\n' > "$TMP/seed/docs/plans/r.md"
   printf '## TD-001: one\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** see [four](TD-004.md) and [the plan](../plans/p.md).\n\n**Fix:** do it.\n\n**Done when** done.\n' > "$L/TD-001.md"
-  printf '## TD-002: archived\n\n**Priority:** Low\n**Status:** Resolved %s: done\n\n**Why:** a fixture.\n\n**Resolved:** %s\n' \
+  printf '## TD-002: archived\n\n**Priority:** Low\n**Status:** Resolved %s\n\n**Why:** a fixture.\n\n**Resolved:** %s\n' \
     "$TODAY" "$TODAY" > "$L/archive/TD-002.md"
   printf '## TD-003: parent\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** a parent, after [one](TD-001.md).\n' > "$L/TD-003.md"
-  printf '## TD-007: archived part\n\n**Priority:** Low\n**Status:** Resolved %s: done\n**Part of:** TD-003\n\n**Why:** a fixture.\n\n**Resolved:** %s\n' \
+  printf '## TD-007: archived part\n\n**Priority:** Low\n**Status:** Resolved %s\n**Part of:** TD-003\n\n**Why:** a fixture.\n\n**Resolved:** %s\n' \
     "$TODAY" "$TODAY" > "$L/archive/TD-007.md"
   printf '## TD-004: part\n\n**Priority:** Low\n**Status:** Open\n**Blocked by:** TD-001\n**Part of:** TD-003\n\n**Why:** a part.\n' > "$L/TD-004.md"
-  printf '## TD-005: five\n\n**Priority:** Low\n**Priority:** High\n**Blocked by:** TD-003\n\n**Why:** twice.\n' > "$L/TD-005.md"
+  printf '## TD-005: five\n\n**Priority:** Low\n**Priority:** High\n**Status:** Open\n**Blocked by:** TD-003\n\n**Why:** twice.\n' > "$L/TD-005.md"
   printf '# rank\nTD-001: m\nTD-004: n\n' > "$L/rank.yml"
   git -C "$TMP/seed" add -A; git -C "$TMP/seed" commit -qm seed
   git -C "$TMP/seed" push -q "$1" main; rm -rf "$TMP/seed"
@@ -111,7 +111,7 @@ lp renumber TD-003 >/dev/null 2>"$TMP/err"; rc=$?
   || bad "refused dependent (rc=$rc): $(cat "$TMP/err") $(git -C "$W" status --porcelain)"
 
 # --- 5) renumber: the counter's id, the file moved, dependents and the rank rewritten, prose named.
-printf '## TD-005: five\n\n**Priority:** High\n**Blocked by:** TD-003\n\n**Why:** fixed.\n' > "$L/TD-005.md"
+printf '## TD-005: five\n\n**Priority:** High\n**Status:** Open\n**Blocked by:** TD-003\n\n**Why:** fixed.\n' > "$L/TD-005.md"
 printf 'TD-003 is the parent.\n' > "$W/docs/plans/q.md"
 git -C "$W" add -A; git -C "$W" commit -qm fixed; git -C "$W" push -q origin HEAD:main
 out=$(lp renumber TD-003 2>"$TMP/err"); rc=$?

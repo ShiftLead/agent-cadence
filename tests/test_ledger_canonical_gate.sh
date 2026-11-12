@@ -68,7 +68,7 @@ lp fmt TD-002 >/dev/null; commit fmt2
 
 # --- a file new in archive/ is judged; an entry canonical() refuses names the hand fix.
 mkdir -p "$L/archive"; git -C "$W" mv docs/ledger/TD-003.md docs/ledger/archive/TD-003.md
-printf '## TD-003: three\n\n**Status:** Resolved 2026-01-01: done\n**Priority:** Low\n\n**Why:** a fixture.\n\n**Resolved:** 2026-01-01\n' > "$L/archive/TD-003.md"
+printf '## TD-003: three\n\n**Status:** Resolved 2026-01-01\n**Priority:** Low\n\n**Why:** a fixture.\n\n**Resolved:** 2026-01-01\n' > "$L/archive/TD-003.md"
 commit archived
 c=$(lp --check --since origin/main 2>&1); rc=$?
 [ $rc -eq 1 ] && grep -q 'TD-003: .*archive/TD-003.md is not in canonical form' <<<"$c" \

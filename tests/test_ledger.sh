@@ -79,7 +79,7 @@ cat > "$L" <<EOF2
 **Priority:** Low
 **Status:** Open
 **Blocked by:**
-**Location:** somewhere
+**Kind:** somewhere
 
 ## TD-012: decision written first
 

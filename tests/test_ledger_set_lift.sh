@@ -6,7 +6,7 @@
 # own session and a terminal with no SHIFTLEAD_SESSION; the covering item on this repo's board is answered by
 # the board writer's --board-only half (Decided, closed — lifted) and the Log carries no suffix; a label not in
 # the item's Lifts: is refused, an either/or item's non-default lifting label lifts; a parent snapshot whose
-# other part still carries the gate is answered and left open (`shared board item left open`); an item only on
+# other part still carries the gate leaves the board unwritten (v2.7 `left_open`, `shared board item left open`); an item only on
 # another roster repo's board logs `board <repo>` and writes no board; no item logs `no board item`; a reassign
 # (--why) is refused when the new person has no board, and otherwise closes a's item as moved, files b's decide
 # item and a's fyi, leaving a shared parent snapshot open (b's item, a's fyi, or the close of a's item, on another
@@ -200,14 +200,19 @@ lp set TD-003 --blocked-by "" --by Robin --answer JSON >/dev/null 2>"$TMP/err"; 
   || bad "either/or (rc=$rc): $(cat "$TMP/err") $(tw)"
 reset
 
-# --- 6) a parent snapshot whose other part still carries the gate: answered, left open
+# --- 6) a parent snapshot whose other part still carries the gate: the board half writes nothing (ledgerboard
+# v2.7, its TD-067 plan *Consumers*: paths [], left_open) and that is a success — the ledger path alone printed,
+# the item left open said on stderr, the board as committed
 n=$(line_of "TD-010 decision")
-lp set TD-011 --blocked-by "" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
+was=$(sed -n "${n}p" "$B")
+out=$(lp set TD-011 --blocked-by "" --by Robin 2>"$TMP/err"); rc=$?
 got=$(sed -n "${n}p" "$B")
 [ $rc -eq 0 ] && logline TD-011 | grep -q 'answer "Go"; shared board item left open$' \
-  && printf '%s' "$got" | grep -q '^- \[ \] .*Decided: Go (by Robin)' && grep -q 'decision (Robin)' "$L/TD-012.md" \
-  && [ -z "$(tw)" ] && ok "a shared parent snapshot is answered and left open, its other part untouched; tripwire passes" \
-  || bad "shared (rc=$rc): $(cat "$TMP/err") | $got | $(logline TD-011) | $(tw)"
+  && [ "$got" = "$was" ] && same docs/user_attention.md && grep -q 'decision (Robin)' "$L/TD-012.md" \
+  && [ "$out" = "$(cd "$W" && pwd -P)/docs/ledger/TD-011.md" ] \
+  && grep -q "left open, unanswered: TD-012 still carry decision (Robin)" "$TMP/err" \
+  && [ -z "$(tw)" ] && ok "a shared parent snapshot: board left unwritten and unanswered, only the ledger printed, left_open said; tripwire passes" \
+  || bad "shared (rc=$rc): out=$out err=$(cat "$TMP/err") | $got | $(logline TD-011) | $(tw)"
 reset
 
 # --- 7) the only covering item is another roster repo's: `board <repo>`, no board written
