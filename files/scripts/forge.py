@@ -442,7 +442,7 @@ class GitHub(_CLI):
 
     def prs_for_branch(self, branch: str, limit: int = 5) -> list[dict]:
         prs = self._json(["pr", "list", "--head", branch, "--state", "all", "--limit", str(limit),
-                          "--json", "number,state"])
+                          "--json", "number,state,title"])
         return [self.record(p) for p in prs]
 
     def prs_naming(self, text: str, limit: int = 50) -> list[dict]:

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # TD-219 (slice 3): gate_sweep.py --apply and ledger.py lift. Each host lift is its own tool PR on
-# lift/TD-n/<gate> (ledgerboard's target design §4.4): nothing when that PR is open or another open PR's diff
+# lift/TD-n/<gate> (an until keyed by its date, TD-258) (ledgerboard's target design §4.4): nothing when that PR is open or another open PR's diff
 # already lifts the gate, an act item when its PR was closed unmerged. This repo's own board items and closes
 # are one sweep PR on sweep/<date>; another roster repo's board gets one PR in that repo, on
 # notices/<repo>-sweep-<date> (TD-229), never on a board more visible than this repo. The checkout is left as it was.
@@ -96,9 +96,9 @@ out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1); rc=$?
 has() { grep -qF -- "$1" <<< "$out"; }
 [ "$rc" = 0 ] && has "— applied" && ok "1a --apply: exit 0" || bad "1a rc=$rc: $out"
 shown() { git -C "$BARE" show "$1" 2>/dev/null; }
-t3=$(shown "lift/TD-003/until:docs/ledger/TD-003.md")
+t3=$(shown "lift/TD-003/until-$PAST:docs/ledger/TD-003.md")
 ! grep -q 'Blocked by' <<< "$t3" && grep -q "gate lifted: until $PAST — by testhost; date reached" <<< "$t3" \
-  && ok "2a an until reached: its own PR on lift/TD-003/until, the gate gone and logged" || bad "2a: $t3 / $out"
+  && ok "2a an until reached: its own PR on lift/TD-003/until-$PAST, the gate gone and logged" || bad "2a: $t3 / $out"
 t4=$(shown "lift/TD-004/landed:docs/ledger/TD-004.md")
 grep -q "gate lifted: event (landed) — by testhost; pr-merged passed; o/oth#3" <<< "$t4" \
   && ok "2b a passed event: its own PR on lift/TD-004/landed, the evidence logged" || bad "2b: $t4"
@@ -126,7 +126,7 @@ grep -q "^oth: pr create --head notices/o-own-sweep-$TODAY --base main --title b
   && ok "4a the checkout as it was: no commit, no edit, no worktree, branch or temp dir left" || bad "4a: $(git -C "$OWN" worktree list; git -C "$OWN" branch)"
 
 # 5. idempotent: the PRs open, a second run opens nothing
-printf '[{"number":100,"headRefName":"lift/TD-003/until","files":[]},{"number":101,"headRefName":"lift/TD-004/landed","files":[]},{"number":102,"headRefName":"sweep/%s","files":[]}]' "$TODAY" > "$FIX/open.json"
+printf '[{"number":100,"headRefName":"lift/TD-003/until-%s","files":[]},{"number":101,"headRefName":"lift/TD-004/landed","files":[]},{"number":102,"headRefName":"sweep/%s","files":[]}]' "$PAST" "$TODAY" > "$FIX/open.json"
 printf '[{"number":55,"headRefName":"notices/o-own-sweep-%s","files":[]}]' "$TODAY" > "$FIX/oth_open.json"
 n0=$(grep -c '^pr create' "$GH_LOG"); m0=$(grep -c '^oth: pr create' "$GH_LOG")
 out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
@@ -136,14 +136,14 @@ out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
   && has "board: an earlier sweep PR #102 is open" && ok "5a a second run: nothing opened, each open PR named" || bad "5a: $out"
 
 # 6. an open PR whose diff already lifts the gate; a lift PR closed unmerged
-for b in lift/TD-003/until lift/TD-004/landed "sweep/$TODAY"; do git -C "$BARE" branch -q -D "$b"; done
+for b in lift/TD-003/until-$PAST lift/TD-004/landed "sweep/$TODAY"; do git -C "$BARE" branch -q -D "$b"; done
 printf '[{"number":7,"headRefName":"someone","files":[{"path":"docs/ledger/TD-004.md"}]}]' > "$FIX/open.json"
 printf -- '--- a/docs/ledger/TD-004.md\n+++ b/docs/ledger/TD-004.md\n+- %s: gate lifted: event (landed) — by elsewhere; pr-merged passed; o/oth#3\n' "$TODAY" > "$FIX/diff_7"
-printf '[{"number":9,"state":"CLOSED"}]' > "$FIX/head_lift_TD-003_until"
+printf '[{"number":9,"state":"CLOSED"}]' > "$FIX/head_lift_TD-003_until-$PAST"
 out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
 has "lift TD-004 event (landed): PR #7 already lifts it — nothing to do" && ! git -C "$BARE" rev-parse -q --verify lift/TD-004/landed >/dev/null \
   && ok "6a another open PR's diff lifts the gate: no second lift PR" || bad "6a: $out"
-has "lift TD-003 until $PAST: its PR #9 was closed unmerged — not reopened" && ! git -C "$BARE" rev-parse -q --verify lift/TD-003/until >/dev/null \
+has "lift TD-003 until $PAST: its PR #9 was closed unmerged — not reopened" && ! git -C "$BARE" rev-parse -q --verify lift/TD-003/until-$PAST >/dev/null \
   && grep -q "Lift of until $PAST on TD-003 was closed.*Context: TD-003 until $PAST lift" <<< "$(shown "sweep/$TODAY:docs/user_attention.md")" \
   && ok "6b a lift PR closed unmerged: not reopened, an act item filed in the sweep PR" || bad "6b: $out"
 git -C "$OWN" fetch -q "$BARE" "sweep/$TODAY" && git -C "$OWN" update-ref refs/remotes/origin/main FETCH_HEAD
@@ -161,24 +161,24 @@ has "lift TD-003 until $PAST: its PR #9 was closed unmerged — not reopened; as
   && ! grep -q "Lift of until" <<< "$(shown "sweep/$TODAY:docs/user_attention.md")" \
   && ok "8a origin not fetched since the sweep PR merged: the item is not filed again" || bad "8a: $out"
 git -C "$BARE" branch -q -D "sweep/$TODAY" 2>/dev/null
-printf '[{"number":9,"state":"CLOSED"},{"number":11,"state":"MERGED"}]' > "$FIX/head_lift_TD-003_until"
+printf '[{"number":9,"state":"CLOSED"},{"number":11,"state":"MERGED"}]' > "$FIX/head_lift_TD-003_until-$PAST"
 out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
 has "lift TD-003 until $PAST: its PR merged and origin/main still carries the gate — fetch, then sweep" \
   && ok "8b a closed PR and then a merged one: merged wins, nothing filed" || bad "8b: $out"
-git -C "$BARE" branch -q -D "sweep/$TODAY" 2>/dev/null; rm -f "$FIX/head_lift_TD-003_until" "$FIX/search.json"
+git -C "$BARE" branch -q -D "sweep/$TODAY" 2>/dev/null; rm -f "$FIX/head_lift_TD-003_until-$PAST" "$FIX/search.json"
 
 # 9. a PR the forge will not open, and a branch left on origin with no PR
 for b in $(git -C "$BARE" branch --format='%(refname:short)' --list 'lift/*' 'sweep/*'); do git -C "$BARE" branch -q -D "$b"; done
 : > "$FIX/create_fail"
 out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1); rc=$?
-[ "$rc" = 1 ] && has "lift TD-003 until $PAST: not done — pull request create failed: GraphQL: boom — the PR was not opened; lift/TD-003/until was deleted from origin again" \
+[ "$rc" = 1 ] && has "lift TD-003 until $PAST: not done — pull request create failed: GraphQL: boom — the PR was not opened; lift/TD-003/until-$PAST was deleted from origin again" \
   && [ -z "$(git -C "$BARE" branch --list "lift/*")" ] && ok "9a create fails after the push: the branch is taken back, exit 1" || bad "9a rc=$rc: $out / $(git -C "$BARE" branch)"
 rm "$FIX/create_fail"; git -C "$BARE" branch -q -D "sweep/$TODAY" 2>/dev/null
 git -C "$BARE" branch -q -D lift/TD-004/landed 2>/dev/null
-x=$(git -C "$OWN" commit-tree "$before^{tree}" -p "$before" -m "someone's"); git -C "$OWN" push -q "$BARE" "$x:refs/heads/lift/TD-003/until"
+x=$(git -C "$OWN" commit-tree "$before^{tree}" -p "$before" -m "someone's"); git -C "$OWN" push -q "$BARE" "$x:refs/heads/lift/TD-003/until-$PAST"
 out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
-has "lift TD-003 until $PAST: not done — git push lift/TD-003/until:" && has "delete it there (git push origin --delete lift/TD-003/until)" \
-  && [ "$(git -C "$BARE" rev-parse lift/TD-003/until)" = "$x" ] \
+has "lift TD-003 until $PAST: not done — git push lift/TD-003/until-$PAST:" && has "delete it there (git push origin --delete lift/TD-003/until-$PAST)" \
+  && [ "$(git -C "$BARE" rev-parse lift/TD-003/until-$PAST)" = "$x" ] \
   && ok "9b a branch on origin with no PR: never forced over, named to delete" || bad "9b: $out"
 [ "$(git -C "$OWN" worktree list | wc -l)" = 1 ] && [ -z "$(git -C "$OWN" branch --list 'lift/*' 'sweep/*')" ] && [ -z "$(ls "$TMP" | grep gate-sweep-)" ] \
   && ok "9c after the failures: no worktree, branch or temp dir left" || bad "9c: $(git -C "$OWN" worktree list; git -C "$OWN" branch)"
@@ -197,6 +197,33 @@ has "board github.com/o/oth: not written — o/oth is public, more visible than 
   && [ "$(grep -c '^oth: pr create' "$GH_LOG")" = "$m0" ] && [ -z "$(git -C "$OBARE" branch --list 'notices/*')" ] \
   && ok "10a a public repo's board, a private repo's sweep: not written, said" || bad "10a: $out"
 fx repos/o/oth '{"visibility":"private","default_branch":"main"}'
+
+# 11. a re-gated entry (TD-258): an until's lift branch is keyed by its date, so an earlier until's closed or
+# merged lift — on its own dated branch, or on the dateless lift/TD-n/until a sweep wrote before — is not this one's
+for b in $(git -C "$BARE" branch --format='%(refname:short)' --list 'lift/*' 'sweep/*'); do git -C "$BARE" branch -q -D "$b"; done
+echo "[]" > "$FIX/open.json"; rm -f "$FIX/search.json"
+PAST2=$(python3 -c 'import datetime as d, sys; print(d.date.fromisoformat(sys.argv[1]) + d.timedelta(days=1))' "$PAST")
+entry "$OWN" 3 "until $PAST2"; publish "$OWN"
+printf '[{"number":9,"state":"CLOSED"},{"number":11,"state":"MERGED"}]' > "$FIX/head_lift_TD-003_until-$PAST"
+printf '[{"number":5,"state":"CLOSED","title":"TD-003: lift until %s — date reached (gate sweep)"}]' "$PAST" > "$FIX/head_lift_TD-003_until"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
+t3=$(shown "lift/TD-003/until-$PAST2:docs/ledger/TD-003.md")
+has "lift TD-003 until $PAST2: opened" && grep -q "gate lifted: until $PAST2 — by testhost; date reached" <<< "$t3" \
+  && ! grep -q "Lift of until" <<< "$(shown "sweep/$TODAY:docs/user_attention.md")" \
+  && ok "11a an earlier until's lifts closed and merged (dated and dateless branch): the new date gets its own lift PR" || bad "11a: $out"
+for b in $(git -C "$BARE" branch --format='%(refname:short)' --list 'lift/*' 'sweep/*'); do git -C "$BARE" branch -q -D "$b"; done
+printf '[{"number":5,"state":"CLOSED","title":"TD-003: lift until %s — date reached (gate sweep)"}]' "$PAST2" > "$FIX/head_lift_TD-003_until"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
+has "lift TD-003 until $PAST2: its PR #5 was closed unmerged — not reopened" && ! git -C "$BARE" rev-parse -q --verify "lift/TD-003/until-$PAST2" >/dev/null \
+  && ok "11b a closed lift of this date on the dateless branch (by its title): still not reopened" || bad "11b: $out"
+for b in $(git -C "$BARE" branch --format='%(refname:short)' --list 'lift/*' 'sweep/*'); do git -C "$BARE" branch -q -D "$b"; done
+rm -f "$FIX/head_lift_TD-003_until"
+printf '[{"number":8,"headRefName":"lift/TD-003/until","files":[{"path":"docs/ledger/TD-003.md"}]}]' > "$FIX/open.json"
+printf -- '--- a/docs/ledger/TD-003.md\n+++ b/docs/ledger/TD-003.md\n+- %s: gate lifted: until %s — by elsewhere; date reached\n' "$TODAY" "$PAST2" > "$FIX/diff_8"
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
+has "lift TD-003 until $PAST2: PR #8 already lifts it — nothing to do" && ! git -C "$BARE" rev-parse -q --verify "lift/TD-003/until-$PAST2" >/dev/null \
+  && ok "11c an open lift of this date on the dateless branch: the diff check holds it, no second PR" || bad "11c: $out"
+echo "[]" > "$FIX/open.json"; rm -f "$FIX/head_lift_TD-003_until-$PAST"
 
 # 7. ledger.py lift: a host's lift only
 W="$TMP/w"; git clone -q -b main "$BARE" "$W" 2>/dev/null

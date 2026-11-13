@@ -32,7 +32,7 @@ a pure function; this script is the I/O around it:
 **Without --apply it writes nothing.** **With --apply** it makes the writes on this repo's forge (§4.4's host
 column), from temporary worktrees at ``origin/<default>`` — the checkout it runs in is never touched:
 
-- **Each lift is its own tool PR**, on ``lift/TD-n/<event name>`` (``…/until``), written by ``ledger.py lift``
+- **Each lift is its own tool PR**, on ``lift/TD-n/<event name>`` (``…/until-<date>``, TD-258), written by ``ledger.py lift``
   (the gate removed, the ``gate lifted`` Log line with the host's token, ``$CADENCE_HOST`` else the machine's
   ``host-alias`` else ``gate-sweep``, never the machine's own name (TD-240), and the evidence a reviewer re-runs). Idempotent: nothing when a PR on that branch is open, or
   when another open PR's diff already logs ``gate lifted: <gate>`` in the entry; a PR on that branch closed
@@ -246,16 +246,18 @@ def unanswered(text: str, checks: list[dict], boards: list, repo: str, today_utc
 # -- --apply: the writes (TD-219 slice 3; target design §4.4's host column) ------------------------------------
 
 SWEEP_BRANCH = "sweep/"          # the board PR's branch: sweep/<UTC date>
-LIFT_BRANCH = "lift/"            # a lift PR's: lift/TD-n/<event name> | until (§4.4)
+LIFT_BRANCH = "lift/"            # a lift PR's: lift/TD-n/<event name> | until-<date> (§4.4, TD-258)
 GIT_TIMEOUT = 60.0
 
 
 def lift_branch(tid: str, gate: str) -> str:
-    """§4.4's key: ``lift/TD-n/<event name>``, ``…/until``, ``…/decision-<person lower-cased>``."""
+    """§4.4's key: ``lift/TD-n/<event name>``, ``…/until-<date>``, ``…/decision-<person lower-cased>``. An ``until``
+    gate is keyed by its date, as ShiftLead's home sweep keys it (its TD-1751), so a re-gated entry's earlier
+    lift — closed or merged — is never read as this gate's (TD-258)."""
     if gate.startswith("event ("):
         return f"{LIFT_BRANCH}{tid}/{gate[len('event ('):-1]}"
     if gate.startswith("until "):
-        return f"{LIFT_BRANCH}{tid}/until"
+        return f"{LIFT_BRANCH}{tid}/until-{gate[len('until '):].strip()}"
     return f"{LIFT_BRANCH}{tid}/decision-{gate[gate.index('(') + 1:-1].lower()}"
 
 
@@ -438,6 +440,11 @@ def apply(top: Path, p: dict, be, *, today_local: date, today_utc: date, by: str
                 said.append(f"lift {tid} {gate}: PR #{dup['number']} already lifts it — nothing to do")
                 continue
             past = be.prs_for_branch(branch, limit=5)
+            if x["kind"] == "until":
+                # a lift opened before TD-258, on the dateless lift/TD-n/until: this gate's only when its title
+                # names it (an open one is the dup check's above, by its diff)
+                past += [q for q in be.prs_for_branch(f"{LIFT_BRANCH}{tid}/until", limit=5)
+                         if re.search(rf"\b{re.escape(gate)}\b", str(q.get("title") or ""))]
             if any(q["state"] == "merged" for q in past):
                 said.append(f"lift {tid} {gate}: its PR merged and {base} still carries the gate — fetch, then sweep")
                 continue
