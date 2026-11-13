@@ -34,7 +34,10 @@ done    closes the item: ``- [ ]`` becomes ``- [x]`` and ``Closed: YYYY-MM-DD[ �
         refuses (a nested or broken detail block) the close lands alone, with a warning.
 decide  records the person's answer: ``Decided: TEXT (by NAME) (today).`` at the end of the
         line, replacing an earlier one. TEXT may be one of the item's ``Answers:`` or any
-        free text. NAME (``--by``) is who answered, never git's ``user.name``: on a board
+        free text. An answer that begins with a form's head and its colon (an offered
+        ``<head>:`` or ``<head>: <…>``, any case; TD-254) fills that form, written
+        ``<head>: <words>`` on one line (ledgerboard v2.8's ``fill_form()``, inside ``plan_edit()``);
+        a form sent as written, or its head alone, is refused: ``<head> needs its words``. NAME (``--by``) is who answered, never git's ``user.name``: on a board
         whose ``People:`` line names one person it defaults to them; otherwise it is
         required, and must be on that line. A decided item stays on the board, and stays
         due, until a session acts on it and closes it — the session's work order (cadence.md §3).
@@ -50,7 +53,12 @@ reply   appends what the person says back to the item's session, on the item's o
         meaning. NAME (``--by``) is who says it: on a board whose ``People:`` line names
         one person it defaults to them, as decide's does; otherwise it is required
         (git's ``user.name`` proves nothing, TD-206). A reply decides nothing and closes nothing —
-        the item stays the person's, or the session's, exactly as it was. Refused when
+        the item stays the person's, or the session's, exactly as it was — except a form's
+        press (TD-254, ShiftLead TD-1557): on an open, undecided ``decide`` or ``look`` line (or a
+        ``watch`` carrying the look's *Works* / ``Not right:`` pair), TEXT that begins with one of
+        its forms' heads and its colon is that form filled, and the edit is the decide, by
+        decide's own road (its lift and its refusals; an empty fill refused, never a reply)
+        (``reply_fills_form()``). Refused when
         TEXT carries a field's name (``Context:``, ``Hide until:``, ``Answers:``,
         ``Decided:``, ``Closed:``), or a ``Due:`` on an item that has none (the reader
         would take it for the item's).
@@ -59,7 +67,8 @@ add     a new item of any kind, at the top of ``## Needs the user`` (or ``--unde
         ledgerboard's ``item_line()`` writes it; the flags are ``ledgerboard/board.py``'s
         own, passed through unchanged (``--kind``, ``--text``, ``--context``, ``--due``,
         ``--answer`` repeated, ``--default`` its 0-based index, ``--lift``, ``--detail``
-        a JSON object of the detail block's parts, ``--hide-until``, ``--session``,
+        a JSON object of the detail block's parts, ``--doer`` an act's ``Doer:`` (a repo, or
+        ``"team <name>"``; v2.8, refused on another kind and with ``--decided``), ``--hide-until``, ``--session``,
         ``--host``, ``--said``/``--decided`` with ``--by``, ``--today``). Prints the line
         number it wrote. Committed under ``<tool>: append <head> (session <name>)``; it
         rides the session's own reviewed PR (cadence.md §3.4).
@@ -193,6 +202,22 @@ def with_archive(plan: LBB.Plan, board: str, archive: str) -> LBB.Plan:
     head, sep, tail = plan.subject.rpartition(" (session ")
     return LBB.Plan(plan.action, f"{head}; archived {n}{sep}{tail}", {archive: na, board: nb},
                     {**plan.info, "archived": n})
+
+
+def reply_fills_form(board_text: str, line: int, text: str) -> str | None:
+    """The filled form a reply's ``text`` presses on item ``line``, or None when it is a reply (TD-254, ShiftLead
+    TD-1557 §4.4 *A Reply that fills a form decides*). On an open, undecided ``decide`` or ``look`` line, or a
+    ``watch`` carrying the look's pair (*Works* and a ``Not right:`` form), words that begin with one of the
+    line's forms' heads and its colon (any case) are that form's press, filled by ledgerboard's ``fill_form()``;
+    an empty fill raises its ``Refused`` (*<head> needs its words*) and never falls back to a reply."""
+    item = next((i for i in LB.parse_board(board_text, warn=False) if i.line == line), None)
+    if item is None or item.decided is not None or not any(LB.is_form(a) for a in item.answers):
+        return None
+    pair = (len(item.answers) == 2 and item.answers[0].lower() == "works"
+            and LB.is_not_right_form(item.answers[1]))
+    if item.kind not in ("decide", "look") and not (item.kind == "watch" and pair):
+        return None
+    return LB.fill_form(text, item.answers)
 
 
 def passthrough(argv: list[str]) -> int:
@@ -532,6 +557,13 @@ def main(argv: list[str] | None = None) -> int:
                 by = LBB.who_answered(LBB.read(str(board)), None)
             except Refused as e:
                 raise Refused(f"reply needs --by, who says it ({e})") from None
+        if a.action == "reply":
+            # plan_edit() below still refuses a line that no longer starts with --expect, decide or reply
+            filled = reply_fills_form(LBB.read(str(board)), a.line, a.text)
+            if filled is not None:  # a form's press: the decide, never a reply (TD-254)
+                a.action, a.answer, a.text = "decide", filled, None
+                print(f"board_edit: the reply fills the form {filled.split(':', 1)[0]}: — decided, not replied",
+                      file=sys.stderr)
         plan = LBB.plan_edit(str(board), a.action, a.line, a.expect, to=a.to, why=a.why, answer=a.answer,
                              text=a.text, by=by, tool=a.tool, session=a.session)
         if a.action == "done":

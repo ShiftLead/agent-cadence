@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-13 — ledgerboard v2.8: an act's `Doer:`, and a form answer is filled, never pressed as written
+Do: after the bump, run `agent-cadence run ledger.py migrate --release 2.8 --plan`, then without `--plan`, in a PR of its own; write an act's doer with `board_edit.py add --doer <repo>|"team <name>"`; answer a form (`Hold: <note>`) with its words, `decide --answer "Hold: <words>"` (a `reply` so begun on an open decide or look decides).
+See: cadence.md §3.5; TD-259, TD-254.
+
 ## 2026-11-13 — The gate sweep keys an `until` lift by its date: `lift/TD-n/until-<date>`
 Do: nothing by hand; a lift PR still open on the old dateless `lift/TD-n/until` is honoured by its diff, a closed one by its title's date, so merge or close it as before.
 See: cadence.md §2.14; TD-258.
