@@ -124,9 +124,12 @@ GH_FAIL=1 lpg set TD-003 --blocked-by "other#TD-099" >/dev/null 2>"$TMP/err"; rc
 lp note TD-005 "x" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'twice' "$TMP/err" && same TD-005.md \
   && ok "an entry canonical() refuses is refused with its hand fix" || bad "refused entry (rc=$rc): $(cat "$TMP/err")"
-lp note TD-002 "x" >/dev/null 2>"$TMP/err"; rc=$?
+lp set TD-002 --priority High >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 2 ] && grep -q 'archived' "$TMP/err" && same archive/TD-002.md \
-  && ok "an archived entry is not edited" || bad "archived (rc=$rc): $(cat "$TMP/err")"
+  && ok "an archived entry is not set" || bad "archived set (rc=$rc): $(cat "$TMP/err")"
+lp note TD-002 "a later look" >/dev/null 2>"$TMP/err"; rc=$?  # ledgerboard v2.8 (its TD-088): a note on an archived entry
+[ $rc -eq 0 ] && grep -q -- "- $(date -u +%F): a later look" "$L/archive/TD-002.md" \
+  && ok "an archived entry takes a note (v2.8)" || bad "archived note (rc=$rc): $(cat "$TMP/err")"
 lp set TD-099 --priority Low >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 2 ] && grep -q 'in neither' "$TMP/err" && ok "an unknown id exits 2" || bad "unknown (rc=$rc)"
 lp set TD-001 >/dev/null 2>&1; r1=$?
