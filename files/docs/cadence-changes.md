@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-13 — The gate sweep keys an `until` lift by its date: `lift/TD-n/until-<date>`
+Do: nothing by hand; a lift PR still open on the old dateless `lift/TD-n/until` is honoured by its diff, a closed one by its title's date, so merge or close it as before.
+See: cadence.md §2.14; TD-258.
+
 ## 2026-11-11 — ledgerboard v2.7: a Status is `Open` or a dated close, and `Location` is a body section
 Do: after the bump, run `agent-cadence run ledger.py migrate --release 2.7 --plan`, then without `--plan`, then `ledger.py --check`, in a PR of its own; write `**Location:**` after the Why and never a `**Waits:**` line.
 See: cadence.md §2.3, §2.12; TD-256.
