@@ -47,13 +47,15 @@ mkrepo "$R"
 mkrepo "$R"; before=$(sha256sum "$B")
 for k in decide look fyi; do
   extra=(); [ $k = fyi ] || extra=(--due "$FUT"); [ $k = decide ] && extra+=(--answer a --answer b)
-  "$EDIT" add --board "$B" --kind $k --text "a $k." "${extra[@]}" --doer shiftlead --no-commit >/dev/null 2>&1 \
-    && bad "add --doer on $k: accepted" || ok "add --doer on $k: refused"
+  "$EDIT" add --board "$B" --kind $k --text "a $k." "${extra[@]}" --doer shiftlead --no-commit >/dev/null 2>"$TMP/err" \
+    && bad "add --doer on $k: accepted" || { grep -qi "act" "$TMP/err" && ok "add --doer on $k: refused, an act's alone" || bad "add --doer on $k: refused for another reason: $(cat "$TMP/err")"; }
 done
-"$EDIT" add --board "$B" --kind act --text "x." --due "$FUT" --doer "shiftlead." --no-commit >/dev/null 2>&1 \
-  && bad "add --doer 'shiftlead.': accepted" || ok "add --doer: a repo ending in . refused"
-"$EDIT" add --board "$B" --text "x." --answer Go --answer No --decided Go --doer shiftlead --no-commit >/dev/null 2>&1 \
-  && bad "add --doer --decided: accepted" || ok "add --doer with --decided: refused"
+"$EDIT" add --board "$B" --kind act --text "x." --due "$FUT" --doer "shiftlead." --no-commit >/dev/null 2>"$TMP/err"
+[ $? -ne 0 ] && grep -qi "doer" "$TMP/err" && ok "add --doer: a repo ending in . refused, by the doer rule" \
+  || bad "add --doer 'shiftlead.': $(cat "$TMP/err")"
+"$EDIT" add --board "$B" --text "x." --context TD-9 --answer Go --answer No --decided Go --by Pat --doer shiftlead --no-commit >/dev/null 2>"$TMP/err"
+[ $? -ne 0 ] && grep -qi "doer" "$TMP/err" && ok "add --doer with --decided: refused, by the doer rule" \
+  || bad "add --doer --decided: $(cat "$TMP/err")"
 [ "$(sha256sum "$B")" = "$before" ] && ok "refused --doer adds wrote nothing" || bad "a refused --doer add wrote the board"
 
 # --- 3) decide fills a form; a form as written, its head alone, or a bare placeholder is refused
@@ -101,6 +103,25 @@ mkrepo "$R"
 "$EDIT" reply --board "$B" --line 12 --expect "decide" --text "Hold: actually wait" --no-commit >/dev/null 2>&1 \
   && sed -n 12p "$B" | grep -q "— Pat, $TODAY: Hold: actually wait" && sed -n 12p "$B" | grep -q "Decided: Yes (by Pat) ($PAST)" \
   && ok "reply 'Hold: …' on a decided line: a reply" || bad "reply on decided: $(sed -n 12p "$B")"
+
+# --- 5) a raw label with a consequence; a committed press's subject; a press on a gated item keeps decide's lift refusal
+mkrepo "$R"
+sed -i "13s/Answers: Works | Not right: <what>\./Answers: Works — fine | Not right: <what> — say what./" "$B"; git -C "$R" commit -qam consequence
+"$EDIT" reply --board "$B" --line 13 --expect "watch" --text "not right: slow" --no-commit >/dev/null 2>&1 \
+  && sed -n 13p "$B" | grep -q "Decided: Not right: slow (by Pat)" && ok "reply press: answers with consequences" \
+  || bad "reply press with consequences: $(sed -n 13p "$B")"
+mkrepo "$R"
+out=$("$EDIT" reply --board "$B" --line 9 --expect "decide" --text "Hold: wait" 2>&1); rc=$?
+[ $rc = 0 ] && [ "$(git -C "$R" log -1 --format=%s)" = "board_edit: decide end the rounds?: Hold: wait (session n/a)" ] \
+  && ok "a committed press commits as a decide" || bad "press commit (rc=$rc): $(git -C "$R" log -1 --format=%s) $out"
+mkdir -p "$TMP/bin"; printf '#!/usr/bin/env bash\necho %s\n' "'[{\"id\":\"s-me\",\"by_person\":false,\"unattended\":true,\"seat\":null,\"controllers\":[\"mgr\"]}]'" > "$TMP/bin/ao"; chmod +x "$TMP/bin/ao"
+rm -rf "$R"; git init -q -b main "$R"; mkdir -p "$R/docs/ledger"
+printf '# board\n\nPeople: Pat\n\n## Needs the user\n\n- [ ] decide %s (n/a) — end the rounds? Context: TD-001 decision (Pat). Due: %s. Answers: Go | Hold: <note>. Lifts: Go.\n' "$PAST" "$FUT" > "$B"
+printf '## TD-001: a plan\n\n**Priority:** Low\n**Added:** %s\n**Status:** Open\n**Blocked by:** decision (Pat)\n\n**Why:** x.\n\n**Ask:** go?\n\n**Fix:** y.\n' "$PAST" > "$R/docs/ledger/TD-001.md"
+git -C "$R" add -A; git -C "$R" commit -qm gated; before=$(cat "$B" "$R/docs/ledger/TD-001.md" | sha256sum)
+out=$(PATH="$TMP/bin:$PATH" SHIFTLEAD_SESSION=s-me "$EDIT" reply --board "$B" --line 7 --expect "decide" --text "Hold: later" --no-commit 2>&1); rc=$?
+[ $rc = 1 ] && grep -q "the answer lifts TD-001: " <<<"$out" && [ "$(cat "$B" "$R/docs/ledger/TD-001.md" | sha256sum)" = "$before" ] \
+  && ok "a press on a gated item from an unattended session: decide's refusal, nothing written" || bad "gated press (rc=$rc): $out"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
