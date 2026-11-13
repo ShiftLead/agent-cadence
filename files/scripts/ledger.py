@@ -1463,7 +1463,7 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
                             f"({LB._item_gate(pick[1].text)[0]}), which the board writer will not answer here: "
                             f"write its Context as a bare {LBL.tid_of(tid)} first, "
                             f"then lift — nothing was written: {pick[1].text[:80]!r}", 1)
-    if pick is not None and not LB._lifting(label, pick[1].lifts):
+    if pick is not None and not LB._lifting(label, pick[1].lifts, pick[1].answers):
         return w.say("set", f"refused — {label!r} does not lift the covering item (its Lifts: "
                             f"{', '.join(pick[1].lifts or ['Go'])}): {pick[1].text[:80]!r}", 1)
     suffix = ("no board item" if pick is None else None if pick[0] == own else f"board {names.get(pick[0], pick[0])}")
