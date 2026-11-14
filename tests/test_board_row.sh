@@ -192,6 +192,25 @@ git -C "$V" reset -q --hard origin/main
 (cd "$S" && python3 -m ledgerboard.board split --board "$V/docs/user_attention.md" >/dev/null)
 git -C "$V" add -A; git -C "$V" commit -qm split
 st=$(row open HEAD); [ "${st%% *}" = pass ] && ok "a split PR (v2 base, directory head) passes" || bad "split: $st"
+# TD-263's review: a direct commit to a v2 board passes (⚠ board-v2) only as a v2 writer's, never a hand edit
+v2chk() { python3 - "$V" "$S" <<'EOF'
+import sys
+root, s = sys.argv[1:]
+sys.path.insert(0, s)
+import check_cadence as C
+sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
+subj = C.git(["log", "-1", "--format=%s"], cwd=root).strip()
+files = [f for f in C.git(["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", sha], cwd=root).split("\0") if f]
+print(C.classify_direct(root, sha, subj, files)[0])
+EOF
+}
+git -C "$V" reset -q --hard origin/main
+printf -- '- [ ] %s (n/a) — c. Context: TD-3. Due: %s.\n' "$P" "$F" >> "$V/docs/user_attention.md"; git -C "$V" commit -qam "hand edit"
+[ "$(v2chk)" = fail ] && ok "direct audit: a hand edit of a v2 board fails" || bad "v2 hand: $(v2chk)"
+git -C "$V" commit -q --amend -m "board_edit.py: append c (session n/a)"
+[ "$(v2chk)" = board-v2 ] && ok "direct audit: a v2 writer's append to a v2 board is board-v2 (⚠)" || bad "v2 writer: $(v2chk)"
+echo x > "$V/other.txt"; git -C "$V" add -A; git -C "$V" commit -qm "board_edit.py: append d (session n/a)"
+[ "$(v2chk)" = fail ] && ok "direct audit: a v2 writer's subject over a non-board file fails" || bad "v2 other: $(v2chk)"
 R="$R0"
 # the direct audit: the writer's own edit passes; a hand slip under an edit subject fails
 chk() { python3 - "$R" "$S" <<'EOF'
@@ -224,6 +243,15 @@ s3=$(lbw add --board "$B" --today "$T" --text "a new thing" --context TD-3 --due
 git -C "$R" reset -q --hard origin/main
 sed -i 's/^Ledgerboard: 3$/Ledgerboard: 3\nSwept: '"$T"' (h, quick)/' "$B/README.md"; commit "stamp"
 [ "$(chk)" = stamp ] && ok "direct audit: a Swept: stamp in README.md is stamp" || bad "direct stamp: $(chk)"
+git -C "$R" reset -q --hard origin/main
+# TD-263's review: a file under the board that no reader reads rides along with a genuine edit
+lbw snooze --board "$B" --id "$I1" --to "$F" >/dev/null; mkdir -p "$B/junk"; echo anything > "$B/junk/$I1.md"; commit "$s1"
+[ "$(chk)" = fail ] && ok "direct audit: a writer's edit plus a nested file no reader reads fails" || bad "direct nested: $(chk)"
+st=$(row open HEAD); [ "${st%% *}" = fail ] && ok "board row: a PR adding a nested file under the board fails" || bad "row nested: $st"
+git -C "$R" reset -q --hard origin/main
+git -C "$R" rm -rq "$B" "$R/docs/user_attention.md"; git -C "$R" commit -qm "$s1"
+[ "$(chk)" = fail ] && ok "direct audit: removing the board fails" || bad "direct removed: $(chk)"
+git -C "$R" reset -q --hard origin/main
 
 # --- 3) the tool-made board PRs (TD-083, TD-237, TD-238; once test_board_writers.sh's sections 3–6c): the review
 #        row's board-edit and board-append carve-outs (row_board_edit_pr), read with the direct audit's class

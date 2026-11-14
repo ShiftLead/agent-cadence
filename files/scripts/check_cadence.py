@@ -2008,6 +2008,22 @@ def _readme_diff_lines(root, sha):
     return None if got is None else got[0] + [a for _, a in got[1]]
 
 
+def _board_rel_problem(rel):
+    """Why a path under the board's directory is none a board reader reads (``README.md``, ``<id>.md`` directly
+    in it, ``archive/<YYYY-MM>/<id>.md``), or None. A file elsewhere under it is read by nothing, so no check would
+    judge it (TD-263's review)."""
+    lb = _lb()
+    parts = rel.split("/")
+    if parts == [lb.BOARD_README]:
+        return None
+    if len(parts) == 1 and rel.endswith(".md") and lb.is_item_id(rel[:-3]):
+        return None
+    if (len(parts) == 3 and parts[0] == "archive" and re.fullmatch(r"\d{4}-\d{2}", parts[1])
+            and parts[2].endswith(".md") and lb.is_item_id(parts[2][:-3])):
+        return None
+    return f"{BOARD_DIR}/{rel} is no file a board reader reads (README.md, <id>.md, archive/<YYYY-MM>/<id>.md)"
+
+
 def classify_direct(root, sha, subject, files):
     """(class, detail) for one direct commit; class is stamp | board-append | board-edit | board-v2 | fail
     (ledgerboard v3.0: the board is a directory, TD-263)."""
@@ -2018,12 +2034,19 @@ def classify_direct(root, sha, subject, files):
         return "fail", "the board holds a line break other than a newline (or is unreadable), which no carve-out reads"
     lb = _lb()
     base, head = board_of(base_t), board_of(head_t)
-    if head.form == "file" or (head.form is None and base.form == "file"):
+    if head.form is None and base.form is not None:
+        return "fail", "the commit removes the board"
+    if head.form == "file":
         if files == [BOARD_STUB]:
             diff = _board_diff(root, sha, BOARD_STUB)
             changed = [x for x in (diff[0] + [a for _, a in diff[1]] if diff else []) if x.strip()]
             if changed and all(lb.is_stamp(x, SWEEP_STAMPS) for x in changed):
                 return "stamp", "only the Swept:/Swept-deep: stamp lines (a v2 board)"
+        v2_subject = any(r.match(subject or "") for r in (lb.EDIT_SUBJECT_RE, lb.APPEND_SUBJECT_RE,
+                                                          lb.ARCHIVE_SUBJECT_RE))
+        if not (v2_subject and set(files) <= {BOARD_STUB, BOARD_V2_ARCHIVE}):
+            return "fail", ("a direct write to a v2 board (docs/user_attention.md) that is not a v2 writer's: "
+                            "its fixed message, the board and its archive alone")
         return "board-v2", ("⚠ a write to a v2 board (docs/user_attention.md), before its split: ledgerboard v3.0's "
                             "writers write none, so it is not replayed (TD-263)")
     if BOARD_STUB in files or BOARD_V2_ARCHIVE in files:
@@ -2033,6 +2056,9 @@ def classify_direct(root, sha, subject, files):
         return "fail", "the parent's v2 board does not split (ledgerboard split_board())"
     pre = BOARD_DIR + "/"
     rels = sorted(f[len(pre):] for f in files)
+    odd = [m for r in rels if (m := _board_rel_problem(r))]
+    if odd:
+        return "fail", odd[0]
     if rels == [lb.BOARD_README]:
         changed = [x for x in (_readme_diff_lines(root, sha) or []) if x.strip()]
         if changed and all(lb.is_stamp(x, SWEEP_STAMPS) for x in changed):
@@ -2090,6 +2116,9 @@ def row_board(pr, root):
         if pr["state"] == "merged":
             return row("board", "pass", f"⚠ {what} (merged before the board's split)")
         return row("board", "fail", f"{what} — split it first (board.py split, TD-263)")
+    odd = [m for f in files if f.startswith(BOARD_DIR + "/") and (m := _board_rel_problem(f[len(BOARD_DIR) + 1:]))]
+    if odd:
+        return row("board", "fail", "; ".join(odd[:3]))
     split = base.form == "file"
     base = _as_v3(base, base_t)
     if base is None:
