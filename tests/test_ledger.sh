@@ -56,7 +56,7 @@ cat > "$L" <<EOF2
 
 **Priority:** High
 **Status:** Open
-**Blocked by:** decision (Alex) — docs/user_attention.md, the $TODAY item
+**Blocked by:** decision (Alex) — the $TODAY item on docs/user_attention.md
 
 ## TD-008: blocked on nothing that exists
 
@@ -102,14 +102,15 @@ blk = {e["id"]: e["blocked_by"] for e in r["blocked"]}
 flags = "\n".join(r["flags"])
 # TD-119: TD-003 (Medium) blocks High TD-4, so their card sorts at the High key of TD-4, ahead of TD-010
 assert pick == ["TD-003", "TD-010", "TD-006", "TD-005", "TD-011"], pick
-assert blk == {"TD-4": ["TD-003"], "TD-007": ["decision (Alex)"], "TD-008": ["TD-999"],
+assert blk.pop("TD-007")[0].startswith("\x27decision (Alex) — the "), blk  # v3.0: the old form is no item
+assert blk == {"TD-4": ["TD-003"], "TD-008": ["TD-999"],
                "TD-009": ["\x27once CI lands\x27"],
                "TD-012": ["TD-003", "decision (Alex)"]}, blk  # v2.4: a comma after a decision starts the next item
 assert "TD-006: every blocker is archived (TD-001, TD-002)" in flags, flags
 assert "TD-008: Blocked by TD-999, which names no entry" in flags, flags
 assert "TD-009: cannot read Blocked by item" in flags, flags
 assert "TD-012: cannot read" not in flags, flags
-assert "TD-007: Blocked by item \x27decision (Alex) — docs/user_attention.md" in flags and "is retired" in flags, flags  # v2.4: the old form
+assert "TD-007: cannot read Blocked by item \x27decision (Alex) — the " in flags, flags  # v3.0: the old form is gone
 assert "TD-012: Blocked by names decision (Alex) and the entry has no **Ask:**" in flags, flags  # v2.4 ask-missing
 assert "TD-011" not in flags, flags
 assert len(r["flags"]) == 5, flags
@@ -440,7 +441,7 @@ r = json.loads(sys.argv[1])
 assert [e["id"] for e in r["pickable"]] == ["TD-101", "TD-106"], r["pickable"]
 blk = {e["id"]: e["blocked_by"] for e in r["blocked"]}
 assert blk == {"TD-102": ["other#TD-040"], "TD-103": ["nowhere#TD-001"], "TD-104": ["other#TD-999"],
-               "TD-105": ["dup#TD-001"], "TD-107": ["noledger#TD-001"], "TD-108": ["decision (Alex)"],
+               "TD-105": ["dup#TD-001"], "TD-107": ["noledger#TD-001"], "TD-108": ["\x27decision (Alex) — see the board\x27"],
                "TD-109": ["Zed/Dup#TD-001", "TD-101"]}, blk
 x = {e["id"]: e["cross_repo"] for e in r["pickable"] + r["blocked"]}
 assert [(c["state"], c["source"]) for c in x["TD-102"]] == [("open", "origin/main")], x["TD-102"]
@@ -455,7 +456,7 @@ for want in ("TD-101: every blocker is archived (other#TD-036)",
              "TD-105: cannot resolve dup#TD-001 — 2 roster repos are named dup — write owner/name",
              "TD-107: cannot resolve noledger#TD-001 — no readable docs/technical_debt.md"):
     assert want in fl, (want, fl)
-assert "TD-108: Blocked by item \x27decision (Alex) — see the board\x27 is retired" in fl, fl  # v2.4: the old form
+assert "TD-108: cannot read Blocked by item \x27decision (Alex) — see the board\x27" in fl, fl  # v3.0: the old form is gone
 assert "TD-102" not in fl and "TD-109" not in fl, fl
 assert len(r["flags"]) == 7, fl
 print("ok")' "$out" 2>&1)
@@ -553,25 +554,7 @@ cgit add -A; cgit commit -qm "prose waits"
 out=$(cd "$C" && python3 "$LEDGER_PY" --check --since HEAD --json)
 echo "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); w=[f for f in d["flags"] if f["kind"]=="prose-wait"]; assert len(w)==3 and all(f["standing"] for f in w), w' \
   && ok "--check --since: a prose wait already there at REF is standing" || bad "prose-wait standing: $out"
-# TD-172: an id in Blocked by's decision pointer (never parsed) is a prose wait too, unless an item names it
-cp "$CL" "$TMP/ledger.saved"
-{ printf '# ledger\n\n'
-  ent TD-002 '**Priority:** Low' '**Status:** Open'
-  ent TD-010 '**Priority:** Low' '**Status:** Open' '**Blocked by:** decision (Alex) — once TD-005 is built, and TD-002'
-  ent TD-011 '**Priority:** Low' '**Status:** Open' '**Blocked by:** TD-002, decision (Alex) — once TD-002 lands'
-  ent TD-012 '**Priority:** Low' '**Status:** Open' '**Blocked by:** decision (Alex) — after shiftlead#TD-77 is live'
-  ent TD-013 '**Priority:** Low' '**Status:** Open' '**Blocked by:** decision (Alex) — see shiftlead TD-1014'; } > "$CL"
-out=$(chk --json); rc=$?
-echo "$out" | python3 -c '
-import json, sys
-d = json.load(sys.stdin)
-got = sorted((f["id"], f["field"], f["text"].split(" names ")[1].split(",")[0]) for f in d["flags"] if f["kind"] == "prose-wait")
-assert got == [("TD-010", "blocked by", "TD-002"), ("TD-010", "blocked by", "TD-005"), ("TD-012", "blocked by", "shiftlead#TD-77")], got
-assert d["errors"] == 0, d' && [ $rc -eq 0 ] \
-  && ok "--check: an id in a Blocked by's decision pointer is a prose wait; one an item names, or a foreign bare id, is not (TD-172)" || bad "pointer wait: rc=$rc $out"
-out=$(chk); grep -qF "ℹ TD-012: its Blocked by's decision pointer names shiftlead#TD-77, which no item of it names — move it before the decision (shiftlead#TD-77, decision (…) — …)" <<< "$out" \
-  && ok "--check text: the pointer wait says to move the id before the decision" || bad "pointer wait text: $out"
-cp "$TMP/ledger.saved" "$CL"
+# TD-172's decision pointer is gone at ledgerboard v3.0 (TD-263): `decision (<p>) — …` is an unreadable item, no pointer
 rm "$C/docs/technical_debt_archive.md"; cgit rm -q --cached docs/technical_debt_archive.md; cgit commit -qm "no archive"
 # the text form prints the flag, then the tally
 { printf '# ledger\n\n'; ent TD-001 '**Priority:** Low' '**Type:** chore' '**Status:** Open'; } > "$CL"

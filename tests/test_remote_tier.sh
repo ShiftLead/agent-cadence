@@ -56,6 +56,19 @@ if [ "$1" = "api" ] && [[ "$2" == repos/*/contents/docs/user_attention.md ]]; th
   [ -f "$FAKE/board_${key}.md" ] && { cat "$FAKE/board_${key}.md"; exit 0; }
   echo "gh: Not Found (HTTP 404)" >&2; exit 1
 fi
+# v3.0 (TD-263): a v3 board's directory, as GitHub's contents API gives it: a directory read is its JSON
+# listing, a file read its text. Served from $FAKE/dir_<owner>_<repo>/ (the board's docs/user_attention/).
+if [ "$1" = "api" ] && [[ "$2" == repos/*/contents/docs/user_attention/* || "$2" == repos/*/contents/docs/user_attention ]]; then
+  rest="${2#repos/}"; owner="${rest%%/*}"; rest="${rest#*/}"; repo="${rest%%/*}"; path="${rest#*/contents/docs/user_attention}"
+  d="$FAKE/dir_${owner}_${repo}${path}"
+  if [ -d "$d" ]; then
+    printf '['; sep=""
+    for f in "$d"/*; do [ -e "$f" ] || continue; t=file; [ -d "$f" ] && t=dir; printf '%s{"name":"%s","type":"%s"}' "$sep" "$(basename "$f")" "$t"; sep=,; done
+    printf ']\n'; exit 0
+  fi
+  [ -f "$d" ] && { cat "$d"; exit 0; }
+  echo "gh: Not Found (HTTP 404)" >&2; exit 1
+fi
 echo "gh-shim: unhandled: $*" >&2; exit 64
 SHIM
 chmod +x "$BIN/gh"
@@ -202,6 +215,24 @@ printf '# b\n\n- [ ] 2026-08-10 (n/a) — theirs.\n' > "$FAKE/board_someorg_thei
 out=$(run)
 if echo "$out" | grep -q "== someorg/theirs" && ! grep -q "api user " "$FAKE/calls.log"; then
   ok "owner filter scans that owner only"; else bad "owner filter: $(cat "$FAKE/calls.log")"; fi
+
+# --- v3.0 (TD-263): a remote v3 board — its stub read, its directory listed through the forge, its items shown
+reset_fake
+printf '[{"nameWithOwner":"tester/remotev3","isArchived":false}]\n' > "$FAKE/list_tester.json"
+PYTHONPATH="$ROOT/files/scripts" python3 -c 'import ledgerboard as LB; print(LB.board_stub("board", "user_attention"), end="")' > "$FAKE/board_tester_remotev3.md"
+VD="$FAKE/dir_tester_remotev3"; mkdir -p "$VD"
+printf '# board\n\nLedgerboard: 3\n' > "$VD/README.md"
+L="$TMP/v3local/docs"; mkdir -p "$L/user_attention"; cp "$VD/README.md" "$L/user_attention/"; cp "$FAKE/board_tester_remotev3.md" "$L/user_attention.md"
+(cd "$ROOT/files/scripts" && python3 -m ledgerboard.board add --board "$L/user_attention.md" --kind act --text "remote v3 late." --due "$LATE" >/dev/null)
+cp "$L"/user_attention/*.md "$VD/"
+out=$(run)
+if echo "$out" | grep -q "== tester/remotev3 (remote-only, pushed state)" && echo "$out" | grep -q "remote v3 late\." \
+   && ! echo "$out" | grep -A3 "tester/remotev3" | grep -q "not read"; then
+  ok "remote v3 board: its directory listed and read through the forge"; else bad "remote v3 board: $out"; fi
+rm -rf "$VD"; mkdir -p "$TMP/emptyv3"   # a forge that lists no directory: the stub alone, said, never an empty board
+out=$(run)
+echo "$out" | grep -A2 "tester/remotev3" | grep -q "not read: stub" && ok "remote v3 board whose directory cannot be listed: said" \
+  || bad "remote v3 unlisted: $(echo "$out" | grep -A2 remotev3)"
 
 echo; echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

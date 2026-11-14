@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # TD-218: the review row's decide-lift carve-out (check_cadence.py row_lift_pr, ledgerboard v2.4's
-# lift_pr_verdict) and the direct audit's (d) (classify_direct: a gate item's answer lands by PR only).
+# lift_pr_verdict) and the direct audit's (d) (classify_direct: a gate item's answer lands by PR only), on
+# ledgerboard v3.0's board directory (TD-263).
 # The verdict's own cases are ledgerboard's fixtures (tests/ledgerboard/verdict, run by
 # test_ledgerboard_fixtures.sh); this suite lays a few into a git repo and reads the rows. A gate-less decide
-# staying the plain board-edit carve-out is test_board_writers.sh's.
+# staying the plain board-edit carve-out is test_board_row.sh's.
 # Offline: temp git repos with a bare origin and a stub forge; HOME/XDG_CONFIG_HOME are temp. The fixtures'
 # dates are ledgerboard's own, and created_at is given to match them, so nothing reads the run date (TD-24).
 set -u
@@ -55,11 +56,18 @@ cls, _ = C.classify_direct(root, sha, subj, one)
 print(f"{r['status']}\t{cls}\t{r['detail']}\t{r.get('carve_out')}")
 EOF
 }
-case_pr() {  # $1 = a verdict case, $2 = the commit's subject, $3.. = only these paths of its head (default all)
+case_pr() {  # $1 = a verdict case, $2 = the commit's subject, $3.. = only these paths of its head (default all);
+  #             the case's deletes (cases.json) are made with the paths they pair with
   local name=$1 subj=$2; shift 2
   git -C "$R" switch -q -C topic origin/main
   if [ $# -eq 0 ]; then cp -r "$V/cases/$name/head/docs/." "$R/docs/"
-  else for p in "$@"; do cp "$V/cases/$name/head/$p" "$R/$p"; done; fi
+  else for p in "$@"; do mkdir -p "$(dirname "$R/$p")"; cp "$V/cases/$name/head/$p" "$R/$p"; done; fi
+  python3 - "$V/cases.json" "$name" <<'EOF' | while IFS= read -r p; do rm -f "$R/$p"; done
+import json, sys
+for c in json.load(open(sys.argv[1]))["verdict"]:
+    if c["name"] == sys.argv[2]:
+        print("\n".join(c.get("delete", [])))
+EOF
   git -C "$R" add -A; git -C "$R" commit -qm "$subj"
 }
 
@@ -75,7 +83,8 @@ root, s = sys.argv[1:]
 sys.path.insert(0, s)
 import check_cadence as C
 sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
-pr = {"state": "open", "head_sha": sha, "files": ["docs/ledger/TD-100.md", "docs/user_attention.md"]}
+files = sorted(set(C.git(["diff", "--name-only", "origin/main", sha], cwd=root).split()))
+pr = {"state": "open", "head_sha": sha, "files": files}
 print(C.row_board(pr, root)["status"], C.row_gates(pr, root)["status"])
 EOF2
 )
@@ -95,8 +104,9 @@ IFS=$'\t' read -r st cls det <<< "$(judge open 2026-01-18T09:00:00Z)"
 [ "$st" = fail ] && echo "$det" | grep -q "answers a gate item and is not a decide lift" \
   && ok "a lift dated outside the PR's window takes review, the row naming why" || bad "window: $st $det"
 # two commits, the decide last: not a lift PR
-git -C "$R" switch -q -C topic origin/main; echo z >> "$R/other.txt"; git -C "$R" commit -qam unrelated
-cp -r "$V/cases/$LIFT/head/docs/." "$R/docs/"; git -C "$R" add -A; git -C "$R" commit -qm "$DECIDE"
+git -C "$R" switch -q -C topic origin/main; git -C "$R" commit -q --allow-empty -m unrelated
+cp -r "$V/cases/$LIFT/head/docs/." "$R/docs/"; rm "$R/docs/user_attention/2026-01-06-85a7b461.md"
+git -C "$R" add -A; git -C "$R" commit -qm "$DECIDE"
 IFS=$'\t' read -r st cls det <<< "$(judge open 2026-01-15T09:00:00Z)"
 [ "$st" = fail ] && echo "$det" | grep -q "one commit" && ok "a two-commit lift takes review (a lift PR is one commit)" || bad "two commits: $st $det"
 # a subject that is not the board's decide
@@ -110,7 +120,7 @@ IFS=$'\t' read -r st cls det <<< "$(judge open "")"
 
 # the board's answer alone, under the decide subject: the old board-edit carve-out no longer takes it, and the
 # direct audit refuses it — a gate item's answer lands by PR only (d)
-case_pr "$LIFT" "$DECIDE" docs/user_attention.md
+case_pr "$LIFT" "$DECIDE" docs/user_attention/archive/2026-01/2026-01-06-85a7b461.md
 IFS=$'\t' read -r st cls det <<< "$(judge open 2026-01-15T09:00:00Z)"
 [ "$st" = fail ] && [ "$cls" = fail ] && echo "$det" | grep -q "not a decide lift" \
   && ok "a gate item answered on the board alone is not the board-edit carve-out" || bad "board alone: $st $cls $det"
@@ -120,25 +130,25 @@ root, s = sys.argv[1:]
 sys.path.insert(0, s)
 import check_cadence as C
 sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
-print(C.classify_direct(root, sha, C.git(["log", "-1", "--format=%s"], cwd=root).strip(), ["docs/user_attention.md"]))
+files = sorted(C.git(["diff-tree", "--no-commit-id", "--name-only", "-r", sha], cwd=root).split())
+print(C.classify_direct(root, sha, C.git(["log", "-1", "--format=%s"], cwd=root).strip(), files))
 EOF
 
 # a board holding a line break other than a newline (here U+2028 in a gate item's text, already at the base) is
 # never a carve-out's: the carve-outs read lines by splitlines(), the verdicts by "\n" (TD-218 review, PR #101)
 git -C "$R" switch -q -C sep origin/main
-python3 - "$R/docs/user_attention.md" <<'EOF2'
+IT="$R/docs/user_attention/2026-01-06-85a7b461.md"
+python3 - "$IT" <<'EOF2'
 import sys
 p = sys.argv[1]; t = open(p, encoding="utf-8").read()
-open(p, "w", encoding="utf-8").write(t.replace("Warm the cache", "Warm\u2028 the cache", 1))
+open(p, "w", encoding="utf-8").write(t.replace("**Session:** w-1", "**Session:** w-1\n**Note:** a\u2028b", 1))
 EOF2
 git -C "$R" commit -qam "a separator on the board"
-python3 - "$R/docs/user_attention.md" <<'EOF2'
+python3 - "$IT" <<'EOF2'
 import sys
 p = sys.argv[1]; t = open(p, encoding="utf-8").read()
-lines = t.split("\n")
-i = next(n for n, ln in enumerate(lines) if "Warm" in ln)
-lines[i] = lines[i].replace("One more round.", "One more round. Decided: Go (by pat) (2026-01-15).")
-open(p, "w", encoding="utf-8").write("\n".join(lines))
+open(p, "w", encoding="utf-8").write(t.replace("**Answers:**", "**Decided:** 2026-01-15 by pat — Go\n**Answers:**", 1)
+         if "**Decided:**" not in t else t)
 EOF2
 git -C "$R" commit -qam "$DECIDE"
 python3 - "$R" "$S" <<'EOF2' | grep -q "^none fail fail$" && ok "a U+2028 board: no carve-out passes a gate answer, PR or direct" || bad "separator: $(python3 - "$R" "$S" <<<'' 2>&1 | tail -1)"
@@ -154,11 +164,12 @@ C.FORGE = Stub()
 sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
 subj = C.git(["log", "-1", "--format=%s", sha], cwd=root).strip()
 C.git(["update-ref", "refs/remotes/origin/main", f"{sha}^"], cwd=root)  # the PR is the answer commit alone
-pr = {"number": 5, "ref": "#5", "state": "open", "head_sha": sha, "files": ["docs/user_attention.md"], "title": subj,
+files = ["docs/user_attention/2026-01-06-85a7b461.md"]
+pr = {"number": 5, "ref": "#5", "state": "open", "head_sha": sha, "files": files, "title": subj,
       "created_at": "2026-01-15T09:00:00Z"}
 e = C.row_board_edit_pr(pr, root)
 r = C.board_edit_or_review(pr, root)
-print("none" if e is None else e["status"], r["status"], C.classify_direct(root, sha, subj, ["docs/user_attention.md"])[0])
+print("none" if e is None else e["status"], r["status"], C.classify_direct(root, sha, subj, files)[0])
 EOF2
 git -C "$R" update-ref refs/remotes/origin/main "$(git -C "$R.git" rev-parse main)"
 
@@ -177,7 +188,8 @@ class Stub:
 C.FORGE = Stub()
 sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
 pr = {"number": 5, "ref": "#5", "state": "open", "head_sha": sha, "title": "x", "created_at": "2026-01-15T09:00:00Z",
-      "files": ["docs/ledger/TD-100.md", "docs/user_attention.md"]}
+      "files": ["docs/ledger/TD-100.md", "docs/user_attention/2026-01-06-85a7b461.md",
+                "docs/user_attention/archive/2026-01/2026-01-06-85a7b461.md"]}
 print(C.board_edit_or_review(pr, root)["status"])
 EOF2
 )

@@ -109,6 +109,7 @@ RETIRED_FILES=(
 )
 SEED_FILES=(
     "docs/user_attention.md"
+    "docs/user_attention/README.md"
     "docs/technical_debt.md"
     "docs/technical_debt_archive.md"
     "docs/claude-memory/MEMORY.md"

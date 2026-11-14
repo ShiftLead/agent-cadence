@@ -57,14 +57,48 @@ EOF
 chmod +x "$TMP/bin/gh"
 export GH_LOG="$TMP/gh.log"
 export PATH="$TMP/bin:$PATH"
-
 entry() {  # $1 file, $2 id, $3 title, $4 extra header lines (each ending \n)
   printf '## %s: %s\n\n**Priority:** Low\n**Added:** %s\n**Status:** Open\n%b\n**Why:** a fixture.\n\n**Ask:** go?\n' \
     "$2" "$3" "$TODAY" "$4" > "$1"
 }
-item() {  # $1 Context, $2 its Parts (". Parts: …", with the leading ". ") or "", $3 answers, $4 " Lifts: ….", or ""
-  printf -- '- [ ] decide %s (n/a) — Go on this one? Context: %s%s. Due: %s. Answers: %s.%s\n' "$LOCAL" "$1" "$2" "$DUE" "$3" "${4:-}"
+# The board is v3 (ledgerboard v3.0, TD-263): docs/user_attention/README.md, the stub at docs/user_attention.md, and
+# one file per item. mkb.py writes an item file as the writers do; each fixture item has a fixed id.
+cat > "$TMP/mkb.py" <<'PY'
+# mkb.py <board dir> <id> <words> <context> <answers> [parts=…] [lifts=…] [due=…] [decided=<ans>:<by>:<day>[:close]]
+#   or: mkb.py --decide <item file> <ans> <by> <day> — an open item decided in place
+import datetime as d, os, sys
+import ledgerboard as LB
+if sys.argv[1] == "--decide":
+    f, ans, by, day = sys.argv[2:6]
+    new = LB.edit_item(open(f).read(), "decide", answer=ans, by=by, today=d.date.fromisoformat(day))
+    open(f, "w").write(new)
+    sys.exit(0)
+board, iid, words, ctx, answers, *opts = sys.argv[1:]
+o = dict(x.split("=", 1) for x in opts)
+labels = [a.strip() for a in answers.split("|")]
+default = next((i for i, a in enumerate(labels) if a.endswith(" (default)")), None)
+labels = [a.removesuffix(" (default)") for a in labels]
+added = iid[:10]
+f = LB.item_file(words, o.get("due"), added, None, None, ctx, kind="decide", answers=labels, default=default,
+                 parts=o["parts"].split(", ") if "parts" in o else None,
+                 lifts=o["lifts"].split(" | ") if "lifts" in o else None,
+                 detail={"context": "a fixture", "question": "go?", "recommended": "go"})
+if "decided" in o:
+    ans, by, day, *close = o["decided"].split(":")
+    f = LB.edit_item(f, "decide", answer=ans, by=by, today=d.date.fromisoformat(day), close=bool(close))
+shut = LB.parse_item(f).closed
+path = os.path.join(board, LB.item_path(iid, shut[0].isoformat() if shut else None))
+os.makedirs(os.path.dirname(path), exist_ok=True)
+open(path, "w").write(f)
+PY
+mkb() { PYTHONPATH="$DC/files/scripts" python3 "$TMP/mkb.py" "$@"; }
+vboard() {  # vboard <repo dir> <people>: an empty v3 board
+  mkdir -p "$1/docs/user_attention"
+  printf '# Board\n\nLedgerboard: 3\n\nPeople: %s\n' "$2" > "$1/docs/user_attention/README.md"
+  PYTHONPATH="$DC/files/scripts" python3 -c 'import ledgerboard as LB; print(LB.board_stub("Board", "user_attention"), end="")' \
+    > "$1/docs/user_attention.md"
 }
+I2="$LOCAL-00000002"; I3="$LOCAL-00000003"; I10="$LOCAL-00000010"; I30="$LOCAL-00000030"; I20="$LOCAL-00000020"
 
 mkrepo() {  # $1 origin, $2 clone — the ledger and the board below; committed and pushed
   rm -rf "$1" "$2" "$TMP/seed"; git init -q --bare -b main "$1"
@@ -81,28 +115,30 @@ mkrepo() {  # $1 origin, $2 clone — the ledger and the board below; committed 
   entry "$L/TD-031.md" TD-031 "nobody's board" '**Blocked by:** decision (Kim)\n'
   entry "$L/TD-030.md" TD-030 "named as another's" '**Blocked by:** decision (Robin)\n'
   entry "$L/TD-040.md" TD-040 "Lee's, on another board" '**Blocked by:** decision (Lee)\n'
-  { printf '# Board\n\nPeople: Robin, Sam\n\n## Needs the user\n\n'
-    item "TD-002 decision (Robin)" "" "Go (default) | Not yet"
-    item "TD-003 decision (Robin)" "" "CSV (default) | JSON | Not yet" " Lifts: CSV | JSON."
-    item "TD-010 decision (Robin)" ". Parts: TD-011, TD-012" "Go (default) | Not yet"
-    item "w#TD-030 decision (Robin)" "" "Go (default) | Not yet"
-  } > "$TMP/seed/docs/user_attention.md"
+  local BD="$TMP/seed/docs/user_attention"; vboard "$TMP/seed" "Robin, Sam"
+  mkb "$BD" "$I2" "Go on this one?" "TD-002 decision (Robin)" "Go (default) | Not yet" due="$DUE"
+  mkb "$BD" "$I3" "Go on this one?" "TD-003 decision (Robin)" "CSV (default) | JSON | Not yet" due="$DUE" "lifts=CSV | JSON"
+  mkb "$BD" "$I10" "Go on this one?" "TD-010 decision (Robin)" "Go (default) | Not yet" due="$DUE" "parts=TD-011, TD-012"
+  mkb "$BD" "$I30" "Go on this one?" "w#TD-030 decision (Robin)" "Go (default) | Not yet" due="$DUE"
   git -C "$TMP/seed" add -A; git -C "$TMP/seed" commit -qm seed
   git -C "$TMP/seed" push -q "$1" main; rm -rf "$TMP/seed"
   git clone -q "$1" "$2"
 }
 O="$TMP/o"; W="$TMP/w"; mkrepo "$O" "$W"
-L="$W/docs/ledger"; B="$W/docs/user_attention.md"
+L="$W/docs/ledger"; B="$W/docs/user_attention.md"; BD="$W/docs/user_attention"; BS="docs/user_attention.md docs/user_attention"
 lp() { (cd "$W" && python3 "$LEDGER_PY" "$@"); }
-same() { git -C "$W" diff --quiet -- "$@"; }   # as committed
-reset() { git -C "$W" checkout -q -- docs; }
+same() { [ -z "$(git -C "$W" status --porcelain -- "$@")" ]; }   # as committed, no file added either
+reset() { git -C "$W" checkout -q -- docs; git -C "$W" clean -fdq -- docs; }
 logline() { grep -E "^- $TODAY: gate lifted" "$L/$1.md"; }
-line_of() { grep -n -- "Context: $1" "$B" | head -1 | cut -d: -f1; }
+flat() {  # flat <board dir>: one line per item file, its path in the board first, its lines joined by spaces
+  local f; for f in $(cd "$1" && find . -name '*.md' ! -name README.md | sort); do
+    printf '%s: %s \n' "${f#./}" "$(tr '\n' ' ' < "$1/$f")"; done; }
+at() { ls "$BD/$1.md" "$BD"/archive/*/"$1.md" 2>/dev/null | head -1; }   # an item's file, open or archived
 
 # another roster repo whose board (at its origin/main) asks about TD-020 of this one
-git init -q --bare -b main "$TMP/o2"; git init -q -b main "$TMP/seed2"; mkdir -p "$TMP/seed2/docs"
-{ printf '# Board\n\nPeople: Robin, Lee\n\n## Needs the user\n\n'; item "w#TD-020 decision (Robin)" "" "Go (default) | Not yet"; } \
-  > "$TMP/seed2/docs/user_attention.md"
+git init -q --bare -b main "$TMP/o2"; git init -q -b main "$TMP/seed2"
+vboard "$TMP/seed2" "Robin, Lee"
+mkb "$TMP/seed2/docs/user_attention" "$I20" "Go on this one?" "w#TD-020 decision (Robin)" "Go (default) | Not yet" due="$DUE"
 git -C "$TMP/seed2" add -A; git -C "$TMP/seed2" commit -qm seed; git -C "$TMP/seed2" push -q "$TMP/o2" main
 git clone -q "$TMP/o2" "$TMP/tools"; rm -rf "$TMP/seed2"
 printf '%s\n%s\n' "$W" "$TMP/tools" > "$AGENT_CADENCE_REG_DIR/repos.txt"
@@ -127,17 +163,17 @@ reset
 # --- 3) no item covers the gate: `no board item`, the board untouched
 out=$(lp set TD-001 --blocked-by "" --by Robin 2>"$TMP/err"); rc=$?
 [ $rc -eq 0 ] && [ "$out" = "$L/TD-001.md" ] && ! grep -q 'Blocked by' "$L/TD-001.md" \
-  && logline TD-001 | grep -q 'decision (Robin) — by Robin; answer "Go"; no board item' && same docs/user_attention.md \
+  && logline TD-001 | grep -q 'decision (Robin) — by Robin; answer "Go"; no board item' && same $BS \
   && ok "no covering item: the lift logs 'no board item' and leaves the board alone" || bad "no item (rc=$rc): $(cat "$TMP/err") $(cat "$L/TD-001.md")"
 
-# --- 4) the item on this board: answered by the board-only half, closed — lifted
-n=$(line_of "TD-002 decision"); before=$(sed -n "${n}p" "$B")
+# --- 4) the item on this board: answered by the board-only half, closed — lifted (its file moved into archive/)
 out=$(lp set TD-002 --blocked-by "" --by Robin 2>"$TMP/err"); rc=$?
-got=$(sed -n "${n}p" "$B")
-[ $rc -eq 0 ] && [ "$(printf '%s\n' "$out" | tail -1)" = "$B" ] && logline TD-002 | grep -q 'by Robin; answer "Go"$' \
-  && printf '%s' "$got" | grep -q "^- \[x\] .*Decided: Go (by Robin) ($LOCAL)\. Closed: $LOCAL — lifted\.$" \
+got=$(at "$I2")
+[ $rc -eq 0 ] && grep -q "/archive/.*/$I2.md$" <<< "$out" && logline TD-002 | grep -q 'by Robin; answer "Go"$' \
+  && case "$got" in */archive/*) true ;; *) false ;; esac \
+  && grep -qx "\*\*Decided:\*\* $LOCAL by Robin — Go" "$got" && grep -qx "\*\*Closed:\*\* $LOCAL — lifted" "$got" \
   && ok "the covering item on this board is answered (Decided, by) and closed as lifted; the Log has no suffix" \
-  || bad "own item (rc=$rc): $(cat "$TMP/err") | $got | $(logline TD-002)"
+  || bad "own item (rc=$rc): $(cat "$TMP/err") | $out | $got | $(logline TD-002)"
 tw() {  # ledgerboard's tripwire on origin/main's tree against the working tree: its flags, one per line
   (cd "$W" && python3 - "$DC/files/scripts" <<'EOF'
 import os, subprocess, sys
@@ -185,40 +221,36 @@ lp set TD-001 --blocked-by "" --by robin >/dev/null 2>"$TMP/err"; rc=$?
 reset
 # --- 4c) an item on this board naming the entry as <repo>#TD-n: refused before anything is written
 out=$(lp set TD-030 --blocked-by "" --by Robin 2>"$TMP/err"); rc=$?
-[ $rc -eq 1 ] && [ -z "$out" ] && same docs && grep -q 'bare TD-030' "$TMP/err" \
-  && ok "an own-board item naming the entry as w#TD-030 is refused, nothing written or printed" \
+[ $rc -eq 1 ] && [ -z "$out" ] && same docs && grep -q 'bare TD-030' "$TMP/err" && grep -q "$I30" "$TMP/err" \
+  && ok "an own-board item naming the entry as w#TD-030 is refused, nothing written or printed, the item named by id" \
   || bad "own #ref (rc=$rc): out=$out $(cat "$TMP/err")"
 
 # --- 5) Lifts: a label the item does not lift is refused; its non-default lifting label lifts
 lp set TD-003 --blocked-by "" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && same docs && grep -q "does not lift" "$TMP/err" \
   && ok "Go is refused on an item whose Lifts: are CSV | JSON, writing nothing" || bad "lifts refuse (rc=$rc): $(cat "$TMP/err")"
-n=$(line_of "TD-003 decision")
 lp set TD-003 --blocked-by "" --by Robin --answer JSON >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 0 ] && logline TD-003 | grep -q 'answer "JSON"$' && sed -n "${n}p" "$B" | grep -q 'Decided: JSON (by Robin)' \
+[ $rc -eq 0 ] && logline TD-003 | grep -q 'answer "JSON"$' && grep -qx "\*\*Decided:\*\* $LOCAL by Robin — JSON" "$(at "$I3")" \
   && [ -z "$(tw)" ] && ok "an either/or item's non-default lifting label lifts, and the tripwire passes it" \
   || bad "either/or (rc=$rc): $(cat "$TMP/err") $(tw)"
 reset
 
 # --- 6) a parent snapshot whose other part still carries the gate: the board half writes nothing (ledgerboard
 # v2.7, its TD-067 plan *Consumers*: paths [], left_open) and that is a success — the ledger path alone printed,
-# the item left open said on stderr, the board as committed
-n=$(line_of "TD-010 decision")
-was=$(sed -n "${n}p" "$B")
+# the item left open said on stderr (by its id), the board as committed
 out=$(lp set TD-011 --blocked-by "" --by Robin 2>"$TMP/err"); rc=$?
-got=$(sed -n "${n}p" "$B")
 [ $rc -eq 0 ] && logline TD-011 | grep -q 'answer "Go"; shared board item left open$' \
-  && [ "$got" = "$was" ] && same docs/user_attention.md && grep -q 'decision (Robin)' "$L/TD-012.md" \
+  && same $BS && grep -q 'decision (Robin)' "$L/TD-012.md" \
   && [ "$out" = "$(cd "$W" && pwd -P)/docs/ledger/TD-011.md" ] \
-  && grep -q "left open, unanswered: TD-012 still carry decision (Robin)" "$TMP/err" \
+  && grep -q "item $I10 is left open, unanswered: TD-012 still carry decision (Robin)" "$TMP/err" \
   && [ -z "$(tw)" ] && ok "a shared parent snapshot: board left unwritten and unanswered, only the ledger printed, left_open said; tripwire passes" \
-  || bad "shared (rc=$rc): out=$out err=$(cat "$TMP/err") | $got | $(logline TD-011) | $(tw)"
+  || bad "shared (rc=$rc): out=$out err=$(cat "$TMP/err") | $(logline TD-011) | $(tw)"
 reset
 
 # --- 7) the only covering item is another roster repo's: `board <repo>`, no board written
 lp set TD-020 --blocked-by "" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
 git -C "$TMP/tools" diff --quiet; rc3=$?
-[ $rc -eq 0 ] && [ $rc3 -eq 0 ] && logline TD-020 | grep -q 'board tools$' && same docs/user_attention.md \
+[ $rc -eq 0 ] && [ $rc3 -eq 0 ] && logline TD-020 | grep -q 'board tools$' && same $BS \
   && [ -z "$(tw)" ] && ok "an item on another roster board logs 'board tools' and writes no board; tripwire passes" \
   || bad "elsewhere (rc=$rc): $(cat "$TMP/err") | $(logline TD-020) | $(tw)"
 reset
@@ -231,14 +263,15 @@ lp set TD-002 --blocked-by "decision (Sam)" --by Robin >/dev/null 2>"$TMP/err"; 
 [ $rc -eq 1 ] && same docs && grep -qi 'why' "$TMP/err" \
   && ok "a reassign without --why is refused, writing nothing" || bad "reassign no why (rc=$rc): $(cat "$TMP/err")"
 lp set TD-002 --blocked-by "decision (Sam)" --by Robin --why "Sam owns exports now" >/dev/null 2>"$TMP/err"; rc=$?
+f=$(flat "$BD")
 [ $rc -eq 0 ] && grep -qx '\*\*Blocked by:\*\* decision (Sam)' "$L/TD-002.md" \
   && grep -q "^- $TODAY: gate reassigned: decision (Robin) → decision (Sam) — by Robin; Sam owns exports now" "$L/TD-002.md" \
-  && grep -q "^- \[x\] .*Context: TD-002 decision (Robin)\..*Closed: $LOCAL — moved to decision (Sam) by Robin\.$" "$B" \
-  && grep -q '^- \[ \] decide .*Context: TD-002 decision (Sam)\. Due: ' "$B" \
-  && grep -q '^- \[ \] fyi .*TD-002.s decision moved from you to Sam, by Robin: Sam owns exports now.* Context: TD-002\.' "$B" \
+  && grep -q "^archive/.*/$I2.md: .*Context:\*\* TD-002 decision (Robin) .*Closed:\*\* $LOCAL — moved to decision (Sam) by Robin " <<< "$f" \
+  && grep -q '^[0-9][^/]*: .*Kind:\*\* decide .*Context:\*\* TD-002 decision (Sam) .*Due:\*\* ' <<< "$f" \
+  && grep -q '^[0-9][^/]*: ## TD-002.s decision moved from you to Sam, by Robin: Sam owns exports now.*Kind:\*\* fyi .*Context:\*\* TD-002 ' <<< "$f" \
   && [ -z "$(tw)" ] && [ -z "$(uc)" ] \
   && ok "a reassign: Log, a's item closed as moved, b's decide item filed, a's fyi; tripwire and coverage pass" \
-  || bad "reassign (rc=$rc): $(cat "$TMP/err") | $(grep -n 'TD-002' "$B") | $(tw) | $(uc)"
+  || bad "reassign (rc=$rc): $(cat "$TMP/err") | $(grep 'TD-002' <<< "$f") | $(tw) | $(uc)"
 reset
 lp set TD-031 --blocked-by "" --by Robin --override "Kim is away" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && same docs && grep -q 'Kim has no board' "$TMP/err" \
@@ -246,17 +279,19 @@ lp set TD-031 --blocked-by "" --by Robin --override "Kim is away" >/dev/null 2>"
 lp set TD-002 --blocked-by "" --by Sam --override "Robin is away a month" --answer Go >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 2 ] && same docs && ok "an override takes no --answer (a usage error), writing nothing" || bad "override answer (rc=$rc): $(cat "$TMP/err")"
 lp set TD-002 --blocked-by "" --by Sam --override "Robin is away a month" >/dev/null 2>"$TMP/err"; rc=$?
+f=$(flat "$BD")
 [ $rc -eq 0 ] && ! grep -q 'Blocked by' "$L/TD-002.md" && grep -q "^- $TODAY: .*override: Robin is away a month" "$L/TD-002.md" \
-  && grep -q "^- \[x\] .*Context: TD-002 decision (Robin)\..*Closed: $LOCAL — lifted by override by Sam\.$" "$B" \
-  && grep -q "^- \[ \] fyi .*TD-002.s decision (Robin) was lifted by override, by Sam: Robin is away a month" "$B" \
+  && grep -q "^archive/.*/$I2.md: .*Context:\*\* TD-002 decision (Robin) .*Closed:\*\* $LOCAL — lifted by override by Sam " <<< "$f" \
+  && grep -q "^[0-9][^/]*: ## TD-002.s decision (Robin) was lifted by override, by Sam: Robin is away a month.*Kind:\*\* fyi " <<< "$f" \
   && [ -z "$(tw)" ] && ok "an override: Log, a's item closed, a's fyi; the tripwire passes" \
-  || bad "override (rc=$rc): $(cat "$TMP/err") | $(grep -n 'TD-002' "$B" "$L/TD-002.md") | $(tw)"
+  || bad "override (rc=$rc): $(cat "$TMP/err") | $(grep 'TD-002' <<< "$f") | $(tw)"
 reset
 lp set TD-011 --blocked-by "decision (Sam)" --by Robin --why "Sam owns part one" >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 0 ] && grep -q '^- \[ \] decide .*Context: TD-010 decision (Robin)\. Parts: TD-011, TD-012\.' "$B" \
-  && grep -q '^- \[ \] decide .*Context: TD-011 decision (Sam)\.' "$B" && [ -z "$(tw)" ] && [ -z "$(uc)" ] \
+f=$(flat "$BD")
+[ $rc -eq 0 ] && grep -q "^$I10.md: .*Context:\*\* TD-010 decision (Robin) \*\*Parts:\*\* TD-011, TD-012 " <<< "$f" \
+  && grep -q '^[0-9][^/]*: .*Kind:\*\* decide .*Context:\*\* TD-011 decision (Sam) ' <<< "$f" && [ -z "$(tw)" ] && [ -z "$(uc)" ] \
   && ok "a reassign leaves a shared parent snapshot open while another part still carries the gate" \
-  || bad "reassign shared (rc=$rc): $(cat "$TMP/err") | $(grep -n 'TD-010' "$B") | $(tw) | $(uc)"
+  || bad "reassign shared (rc=$rc): $(cat "$TMP/err") | $(grep 'TD-01' <<< "$f") | $(tw) | $(uc)"
 reset
 lp set TD-002 --blocked-by "decision (Sam)" --by Robin --override "away" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 2 ] && same docs && ok "--override with a Blocked by that swaps the decision is a usage error" \
@@ -269,79 +304,93 @@ lp set TD-021 --blocked-by "decision (Sam)" --by Sam >/dev/null 2>"$TMP/err"; rc
   || bad "wrong person (rc=$rc): $(cat "$TMP/err")"
 
 # --- 8b) a notice whose person's board is another roster repo's goes there by a PR, left open (TD-226)
-onb() { git -C "$TMP/o2" show "$1:docs/user_attention.md" 2>/dev/null; }   # the board on that branch at origin
+onb() {  # the board on that branch at origin, flattened as flat() does
+  local f; for f in $(git -C "$TMP/o2" ls-tree -r --name-only "$1" -- docs/user_attention 2>/dev/null | grep -v '/README.md$'); do
+    printf '%s: %s \n' "${f#docs/user_attention/}" "$(git -C "$TMP/o2" show "$1:$f" | tr '\n' ' ')"; done; }
 out=$(lp set TD-002 --blocked-by "decision (Lee)" --by Robin --why "Lee owns exports now" 2>"$TMP/err"); rc=$?
+f=$(flat "$BD"); n=$(onb notices/w-TD-002-lee)
 [ $rc -eq 0 ] && grep -qx '\*\*Blocked by:\*\* decision (Lee)' "$L/TD-002.md" \
-  && grep -q "^- \[x\] .*Context: TD-002 decision (Robin)\..*Closed: $LOCAL — moved to decision (Lee) by Robin\.$" "$B" \
-  && grep -q '^- \[ \] fyi .*TD-002.s decision moved from you to Lee, by Robin' "$B" \
-  && ! grep -q 'Context: TD-002 decision (Lee)' "$B" \
-  && onb notices/w-TD-002-lee | grep -q '^- \[ \] decide .*Context: w#TD-002 decision (Lee)\. Due: ' \
-  && onb notices/w-TD-002-lee | grep -q "w#TD-002.s decision moved from Robin to you" \
-  && ! onb notices/w-TD-002-lee | grep -q "[^#]TD-002" \
+  && grep -q "^archive/.*/$I2.md: .*Context:\*\* TD-002 decision (Robin) .*Closed:\*\* $LOCAL — moved to decision (Lee) by Robin " <<< "$f" \
+  && grep -q '^[0-9][^/]*: ## TD-002.s decision moved from you to Lee, by Robin' <<< "$f" \
+  && ! grep -q 'Context:\*\* TD-002 decision (Lee)' <<< "$f" \
+  && grep -q '^[0-9][^/]*: .*Kind:\*\* decide .*Context:\*\* w#TD-002 decision (Lee) .*Due:\*\* ' <<< "$n" \
+  && grep -q "w#TD-002.s decision moved from Robin to you" <<< "$n" \
+  && ! sed 's/^[^:]*: //' <<< "$n" | grep -q "[^#]TD-002" \
   && [ "$(sort -u "$GH_LOG.pwd")" = "$(cd "$TMP/tools" && pwd -P)" ] \
-  && [ "$(onb notices/w-TD-002-lee | grep -c '^- \[')" -eq 2 ] \
+  && [ "$(grep -vc '^archive/' <<< "$n")" -eq 2 ] \
   && grep -q '^pr create --head notices/w-TD-002-lee --base main --title board: w#TD-002 decision (Robin) moved to decision (Lee)' "$GH_LOG" \
   && [ "$(printf '%s\n' "$out" | tail -1)" = "https://github.com/o/tools/pull/1" ] \
   && [ -z "$(git -C "$TMP/tools" status --porcelain)" ] && ! git -C "$TMP/tools" rev-parse -q --verify notices/w-TD-002-lee >/dev/null \
   && ! uc | grep -q "decision-uncovered" \
   && ok "a reassign to a person on another roster board: a's notices here, b's decide item there by a PR left open" \
-  || bad "reassign elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-002-lee | tail -2) | $(cat "$GH_LOG")"
+  || bad "reassign elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $n | $(cat "$GH_LOG")"
 reset
 out=$(lp set TD-040 --blocked-by "" --by Robin --override "Lee is away" 2>"$TMP/err"); rc=$?
-[ $rc -eq 0 ] && ! grep -q 'Blocked by' "$L/TD-040.md" && same docs/user_attention.md \
-  && onb notices/w-TD-040-override | grep -q "^- \[ \] fyi .*TD-040.s decision (Lee) was lifted by override, by Robin: Lee is away.* Context: w#TD-040\." \
+[ $rc -eq 0 ] && ! grep -q 'Blocked by' "$L/TD-040.md" && same $BS \
+  && onb notices/w-TD-040-override | grep -q "^[0-9][^/]*: ## w#TD-040.s decision (Lee) was lifted by override, by Robin: Lee is away.*Kind:\*\* fyi .*Context:\*\* w#TD-040 " \
   && grep -q '^pr create --head notices/w-TD-040-override ' "$GH_LOG" \
   && ok "an override for a person on another roster board: the fyi there by a PR, this board untouched" \
-  || bad "override elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-040-override | tail -1)"
+  || bad "override elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-040-override)"
 reset
 out=$(lp set TD-020 --blocked-by "decision (Sam)" --by Robin --why "Sam owns it now" 2>"$TMP/err"); rc=$?
-[ $rc -eq 0 ] && grep -q '^- \[ \] decide .*Context: TD-020 decision (Sam)\. Due: ' "$B" \
-  && grep -q '^- \[ \] fyi .*TD-020.s decision moved from you to Sam' "$B" \
-  && onb notices/w-TD-020-sam | grep -q "^- \[x\] .*Context: w#TD-020 decision (Robin)\..*Closed: $LOCAL — moved to decision (Sam) by Robin\.$" \
-  && [ "$(onb notices/w-TD-020-sam | grep -c '^- \[')" -eq 1 ] && grep -q '^pr create --head notices/w-TD-020-sam ' "$GH_LOG" \
+f=$(flat "$BD"); n=$(onb notices/w-TD-020-sam)
+[ $rc -eq 0 ] && grep -q '^[0-9][^/]*: .*Kind:\*\* decide .*Context:\*\* TD-020 decision (Sam) .*Due:\*\* ' <<< "$f" \
+  && grep -q '^[0-9][^/]*: ## TD-020.s decision moved from you to Sam' <<< "$f" \
+  && grep -q "^archive/.*/$I20.md: .*Context:\*\* w#TD-020 decision (Robin) .*Closed:\*\* $LOCAL — moved to decision (Sam) by Robin " <<< "$n" \
+  && [ "$(wc -l <<< "$n")" -eq 1 ] && grep -q '^pr create --head notices/w-TD-020-sam ' "$GH_LOG" \
   && ok "a reassign whose old item is on another roster board: closed there as moved, by a PR left open" \
-  || bad "close elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $(onb notices/w-TD-020-sam)"
+  || bad "close elsewhere (rc=$rc): $(cat "$TMP/err") | $out | $n"
 reset
 git -C "$TMP/o2" branch -q -D notices/w-TD-040-override
 GH_FAIL=1 lp set TD-040 --blocked-by "" --by Robin --override "Lee is away" >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 1 ] && same docs && grep -q 'boom' "$TMP/err" && ! onb notices/w-TD-040-override >/dev/null \
+[ $rc -eq 1 ] && same docs && grep -q 'boom' "$TMP/err" && [ -z "$(onb notices/w-TD-040-override)" ] \
   && ok "a notices PR the forge refuses: both files here put back, the pushed branch deleted again" \
   || bad "notices refused (rc=$rc): $(cat "$TMP/err")"
+# a reassign whose notice goes to a board still v2 (TD-263): refused before anything is written, naming its split
+git clone -q "$TMP/o2" "$TMP/v2b"; rm -rf "$TMP/v2b/docs/user_attention"
+printf '# Board\n\nPeople: Robin, Lee\n\n## Needs the user\n\n- (none)\n' > "$TMP/v2b/docs/user_attention.md"
+git -C "$TMP/v2b" add -A; git -C "$TMP/v2b" commit -qm "a v2 board"; git -C "$TMP/v2b" push -q origin HEAD:refs/heads/v2
+m=$(git -C "$TMP/tools" rev-parse origin/main)
+git -C "$TMP/tools" fetch -q origin; git -C "$TMP/tools" update-ref refs/remotes/origin/main refs/remotes/origin/v2
+lp set TD-040 --blocked-by "" --by Robin --override "Lee is away" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -q "tools's board is still v2 (docs/user_attention.md): tools splits it first (board.py split" "$TMP/err" \
+  && ok "a notice for a board still v2: refused, writing nothing, the refusal naming that repo's split" \
+  || bad "v2 target (rc=$rc): $(cat "$TMP/err")"
+git -C "$TMP/tools" update-ref refs/remotes/origin/main "$m"
 
 # --- 9) board_edit.py decide's two-file lift is attested the same way
 EDIT="$DC/files/scripts/board_edit.py"
-n=$(line_of "TD-002 decision")
-AO_MODE=grinder SHIFTLEAD_SESSION=s-me python3 "$EDIT" decide --board "$B" --line "$n" --expect "decide $LOCAL" \
+AO_MODE=grinder SHIFTLEAD_SESSION=s-me python3 "$EDIT" decide --board "$B" --id "$I2" \
   --answer Go --by Robin --no-commit >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && same docs && grep -q 'lifts TD-002' "$TMP/err" \
   && ok "board_edit.py decide refuses a lift from an unattended session, writing nothing" || bad "decide attest (rc=$rc): $(cat "$TMP/err")"
-AO_MODE=person SHIFTLEAD_SESSION=s-me python3 "$EDIT" decide --board "$B" --line "$n" --expect "decide $LOCAL" \
+AO_MODE=person SHIFTLEAD_SESSION=s-me python3 "$EDIT" decide --board "$B" --id "$I2" \
   --answer Go --by Robin --no-commit >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 0 ] && ! grep -q 'Blocked by' "$L/TD-002.md" && sed -n "${n}p" "$B" | grep -q 'Decided: Go (by Robin)' \
+[ $rc -eq 0 ] && ! grep -q 'Blocked by' "$L/TD-002.md" && grep -qx "\*\*Decided:\*\* $LOCAL by Robin — Go" "$(at "$I2")" \
   && ok "a person's own session's decide lifts the gate and answers the item" || bad "decide person (rc=$rc): $(cat "$TMP/err")"
 reset
 
 # --- 10) TD-260: a session applies the person's answer already recorded on origin's default branch (a Queue press)
-n2=$(line_of "TD-002 decision"); n3=$(line_of "TD-003 decision"); n10=$(line_of "TD-010 decision")
 OLD=$(date -d "-10 days" +%F 2>/dev/null || date -v-10d +%F); YEST=$(date -u -d "-1 day" +%F 2>/dev/null || date -u -v-1d +%F)
-git clone -q "$O" "$TMP/press"; PB="$TMP/press/docs/user_attention.md"
-sed -i "${n2}s/\$/ Decided: Go (by Robin) ($LOCAL)./; ${n3}s/\$/ Decided: CSV (by Sam) ($LOCAL)./; ${n10}s/\$/ Decided: Go (by Robin) ($LOCAL)./" "$PB"
+git clone -q "$O" "$TMP/press"; PB="$TMP/press/docs/user_attention"
+mkb --decide "$PB/$I2.md" Go Robin "$LOCAL"; mkb --decide "$PB/$I3.md" CSV Sam "$LOCAL"; mkb --decide "$PB/$I10.md" Go Robin "$LOCAL"
 # an earlier round's answer, carried out and closed; and an answer from before the gate was last added
-sed -i "/^## Needs the user/a - [x] decide $OLD (n/a) — an earlier round? Context: TD-001 decision (Robin). Due: $OLD. Answers: Ship | Not yet. Decided: Ship (by Robin) ($OLD). Closed: $OLD — lifted." "$PB"
-sed -i "/^## Needs the user/a - [ ] decide $YEST (n/a) — before the gate: Go? Context: TD-031. Due: $DUE. Answers: Go | Not yet. Decided: Go (by Kim) ($YEST)." "$PB"
+mkb "$PB" "$OLD-000000e1" "an earlier round?" "TD-001 decision (Robin)" "Ship | Not yet" due="$OLD" "lifts=Ship" "decided=Ship:Robin:$OLD:close"
+mkb "$PB" "$YEST-000000e2" "before the gate: Go?" "TD-031" "Go | Not yet" due="$DUE" "decided=Go:Kim:$YEST"
 printf '\n**Log:**\n- %s: gate added: decision (Kim)\n' "$TODAY" >> "$TMP/press/docs/ledger/TD-031.md"
-sed -i "/^## Needs the user/a - [ ] decide $LOCAL (n/a) — no item: Lift it? Context: TD-001. Due: $DUE. Answers: Lift it | Not yet. Decided: Lift it (by Robin) ($LOCAL)." "$PB"
-git -C "$TMP/press" commit -qam "board: the Queue's presses"; git -C "$TMP/press" push -q origin main
+mkb "$PB" "$LOCAL-000000e3" "no item: Lift it?" "TD-001" "Lift it | Not yet" due="$DUE" "decided=Lift it:Robin:$LOCAL"
+git -C "$TMP/press" add -A; git -C "$TMP/press" commit -qm "board: the Queue's presses"; git -C "$TMP/press" push -q origin main
 git -C "$W" pull -q --ff-only
 g() { AO_MODE=grinder SHIFTLEAD_SESSION=s-me lp "$@"; }
 out=$(g set TD-002 --blocked-by "" --by Robin 2>"$TMP/err"); rc=$?
-n=$(line_of "TD-002 decision")
+got=$(at "$I2")
 [ $rc -eq 0 ] && ! grep -q 'Blocked by' "$L/TD-002.md" && logline TD-002 | grep -q 'by Robin; answer "Go"$' \
-  && grep -qE "^- $TODAY: lifted by a session on Robin's answer 'Go' \($LOCAL\) on the board item .*at origin/main$" "$L/TD-002.md" \
-  && sed -n "${n}p" "$B" | grep -q "^- \[x\] .*Decided: Go (by Robin) ($LOCAL)\. Closed: $LOCAL — lifted\.$" \
+  && grep -qE "^- $TODAY: lifted by a session on Robin's answer 'Go' \($LOCAL\) on the board item $I2 .*at origin/main$" "$L/TD-002.md" \
+  && case "$got" in */archive/*) true ;; *) false ;; esac \
+  && grep -qx "\*\*Decided:\*\* $LOCAL by Robin — Go" "$got" && grep -qx "\*\*Closed:\*\* $LOCAL — lifted" "$got" \
   && [ -z "$(tw)" ] \
   && ok "an unattended session lifts a gate whose item origin/main holds decided by its person; the Log names the answer" \
-  || bad "recorded board answer (rc=$rc): $(cat "$TMP/err") | $(sed -n "${n}p" "$B") | $(tail -3 "$L/TD-002.md") | $(tw)"
+  || bad "recorded board answer (rc=$rc): $(cat "$TMP/err") | $got | $(tail -3 "$L/TD-002.md") | $(tw)"
 reset
 out=$(g set TD-001 --blocked-by "" --by Robin --answer "Lift it" 2>"$TMP/err"); rc=$?
 [ $rc -eq 0 ] && logline TD-001 | grep -q 'answer "Lift it"; no board item' && grep -q "lifted by a session on Robin's answer 'Lift it'" "$L/TD-001.md" \
@@ -358,8 +407,8 @@ g set TD-003 --blocked-by "" --by Robin --answer CSV >/dev/null 2>"$TMP/err"; rc
 g set TD-002 --blocked-by "" --by Sam >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && same docs && grep -q "only Robin's own recorded answer" "$TMP/err" \
   && ok "a session's lift --by someone other than the gate's person is refused" || bad "by other (rc=$rc): $(cat "$TMP/err")"
-sed -i "/^## Needs the user/a - [ ] decide $LOCAL (n/a) — two: Go? Context: TD-021 decision (Robin). Due: $DUE. Answers: Go | Not yet. Decided: Go (by Robin) ($LOCAL)." "$B"
-git -C "$W" commit -qam "a session's own decided line, not on origin"
+mkb "$BD" "$LOCAL-000000e4" "two: Go?" "TD-021 decision (Robin)" "Go | Not yet" due="$DUE" "decided=Go:Robin:$LOCAL"
+git -C "$W" add -A docs; git -C "$W" commit -qm "a session's own decided item, not on origin"
 g set TD-021 --blocked-by "decision (Sam)" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && same docs/ledger && grep -q "records no answer" "$TMP/err" \
   && ok "a decided item only on the session's own branch, not on origin/main, is no recorded answer" || bad "branch only (rc=$rc): $(cat "$TMP/err")"

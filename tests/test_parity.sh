@@ -21,8 +21,8 @@ import nudge_user_attention as N, check_cadence as K, cadence_changes as C, list
 
 today = dt.date.today().isoformat()          # never a hardcoded calendar date (TD-24)
 import os
-# the seed's board and this repo's own
-BOARDS = ["files/docs/user_attention.md", "docs/user_attention.md"]
+# the seed's board and this repo's own: a v3 board's preamble is its directory's README.md (TD-263)
+BOARD_READMES = ["files/docs/user_attention/README.md", "docs/user_attention/README.md"]
 res = []
 def check(name, cond, detail=""):
     res.append(("PASS" if cond else "FAIL") + ": " + name + ("" if cond else f" — {detail}"))
@@ -70,64 +70,25 @@ if m:
         g = K.REVIEW_RE.match(line)
         check(f"REVIEW_RE reads cadence.md's template with verdict {v}", g and g.group("verdict").upper() == v, line)
 
-# --- 3) the board Format line: seed user_attention.md (writer) -> ITEM_RE / DUE_RE / SESSION_RE
-for board in BOARDS:
-    fm = re.search(r"^Format: `([^`]+)`", read(board), re.M)
-    check(f"{board}: states a Format: line", fm)
-    if not fm:
-        continue
-    item = fill(fm.group(1), **{"<first-8-of-session-uuid>": "0a1b2c3d", "<host>": "testhost"})
-    gi = N.ITEM_RE.match(item)
-    check(f"{board}: ITEM_RE reads the Format example as an open item", gi, item)
-    gd = N.DUE_RE.search(item)
-    check(f"{board}: DUE_RE reads its Due: date", gd and gd.group("due") == today, item)
-    check(f"{board}: list_sessions.SESSION_RE reads its session id",
-          L.SESSION_RE.findall(item) == ["0a1b2c3d"], str(L.SESSION_RE.findall(item)))
-    # TD-039: the Kinds: line names exactly the reader's KINDS, and each reads back as the kind
+# --- 3) the board (ledgerboard v3.0, TD-263): the item file's forms are the module's, pinned by its fixtures;
+#        what stays here is each board README's Kinds: line against the reader's KINDS, and the seed stub,
+#        a static file, against board_stub() so it cannot drift from the module
+import ledgerboard as LBM
+for board in BOARD_READMES:
     fk = re.search(r"^Kinds: `([^`]+)`", read(board), re.M)
     check(f"{board}: states a Kinds: line", fk)
     if fk:
         kinds = tuple(k.strip() for k in fk.group(1).split("|"))
-        check(f"{board}: Kinds: matches KIND_RE's KINDS", sorted(kinds) == sorted(N.KINDS), str(kinds))
-        for k in kinds:
-            kitem = item.replace("- [ ] ", f"- [ ] {k} ", 1)
-            check(f"{board}: KIND_RE reads '{k}' before the Format example's date",
-                  N.parse_board(kitem, warn=False)[0].kind == k, kitem)
-    # TD-036: the trailing fields, appended the way the header shows them, read back
-    fa = re.search(r"`(Answers: [^`]+)`", read(board))
-    fd = re.search(r"`(Decided: [^`]+)`", read(board))
-    check(f"{board}: states the Answers: and Decided: templates", fa and fd)
-    if fa and fd:
-        full = f"{item} {fill(fa.group(1), **{'<answer>': 'yes'})} {fill(fd.group(1), **{'<text>': 'yes', '<person>': 'pat'})}"
-        check(f"{board}: ANSWERS_RE reads the Answers: template", N.parse_answers(full) == ["yes", "yes"], full)
-        fdef = re.search(r"`(Answers: <answer> \(default\)[^`]*)`", read(board))
-        check(f"{board}: states the Answers: (default) template", fdef)
-        if fdef:
-            full2 = f"{item} {fill(fdef.group(1), **{'<answer>': 'yes'})}"
-            check(f"{board}: DEFAULT_MARK_RE reads the (default) template",
-                  N.parse_default(full2) == "yes" and N.parse_answers(full2) == ["yes", "yes"], full2)
-        check(f"{board}: DECIDED_RE reads the Decided: template (who answered too, ledgerboard v2.3)",
-              N.parse_decided(full) == ("yes", dt.date.today())
-              and N.parse_board(full, warn=False)[0].decided_by == "pat", full)
-        check(f"{board}: DUE_RE still reads the Due: date with both fields after it",
-              N.parse_board(full, warn=False)[0].due == dt.date.today(), full)
-
-# --- 3a) TD-062 closing: the seed's Closed: literal -> CLOSED_ITEM_RE / CLOSED_RE / item_key;
-#          the archive threshold as written in cadence.md, the seed and the procedure -> ARCHIVE_AT
-seed = read("files/docs/user_attention.md")
-m = re.search(r"`(Closed: YYYY-MM-DD[^`]*)`", seed)
-check("seed board states the Closed: template", m, "no `Closed: YYYY-MM-DD …` literal")
-if m:
-    open_ = f"- [ ] {today} (session n/a) — an item. Context: TD-1. Due: {today}."
-    closed = "- [x]" + open_[5:] + " " + fill(m.group(1), **{"<why>": "done in PR #1"})
-    g = N.CLOSED_RE.search(closed)
-    check("Closed: — CLOSED_RE reads the date", g and g.group("date") == today, closed)
-    check("Closed: — CLOSED_ITEM_RE reads the line as closed, ITEM_RE not as open",
-          N.CLOSED_ITEM_RE.match(closed) and not N.ITEM_RE.match(closed), closed)
-    check("Closed: — item_key matches its open twin", N.item_key(closed) == N.item_key(open_), closed)
-for f in ("files/docs/cadence.md", "files/docs/user_attention.md", "files/docs/procedures/stranded-work.md"):
-    check(f"{f} states the archive threshold ARCHIVE_AT={N.ARCHIVE_AT}",
-          f"{N.ARCHIVE_AT} or more closed" in read(f), "no '<N> or more closed' phrase")
+        check(f"{board}: Kinds: matches the reader's KINDS", sorted(kinds) == sorted(LBM.KINDS), str(kinds))
+    check(f"{board}: declares Ledgerboard: 3", re.search(r"^Ledgerboard: 3$", read(board), re.M))
+check("the seed stub files/docs/user_attention.md is board_stub()'s bytes for the skeleton's title",
+      read("files/docs/user_attention.md") == LBM.board_stub("User Attention Board", "user_attention"),
+      read("files/docs/user_attention.md")[:120])
+check("the seed README is the skeleton the stub names (its title the stub's)",
+      read("files/docs/user_attention/README.md").startswith("# User Attention Board\n"))
+for f in ("files/docs/cadence.md", "files/docs/procedures/stranded-work.md", "files/docs/user_attention/README.md"):
+    check(f"{f} names no retired archive threshold (ARCHIVE_AT went with ledgerboard v3.0)",
+          not re.search(r"\d+ or more closed", read(f)), "a '<N> or more closed' phrase")
 
 # --- 3b) TD-064 Blocked by: the seed template's field line and §2's example -> ledger.py
 tmpl = read("files/docs/technical_debt.md")
@@ -137,7 +98,7 @@ sec2 = read("files/docs/cadence.md")
 m = re.search(r"comma-separated entry IDs \(`([^`]+)`", sec2)
 check("cadence.md §2 gives a Blocked by ID example", m, "no `(TD-…, TD-…)` example")
 if m:
-    ids, who, bad = LG.parse_blocked(m.group(1) + ", decision (Alex) — a pointer, with a comma")
+    ids, who, bad = LG.parse_blocked(m.group(1) + ", decision (Alex)")   # v3.0: the gate is the whole item, no pointer
     check("§2's example parses: its IDs, one decision, nothing unreadable",
           ids == [x.strip() for x in m.group(1).split(",")] and who == ["Alex"] and not bad, (ids, who, bad))
 
@@ -183,21 +144,18 @@ from collections import Counter
 dups = [n for n, c in Counter(re.findall(r"^\s*- \*\*(§[0-9A]+\.[0-9]+)\*\*", sec2, re.M)).items() if c > 1]
 check("cadence.md rule numbers are unique", not dups, dups)
 
-# --- 3e) TD-084: §3.3's detail-block example (writer) reads back through detail_block() with
-# its labels in order, its fields still on the head line; each board header names the same labels
+# --- 3e) TD-084: §3.3's item-file example (writer) reads back through ledgerboard's parse_item() with
+# the detail block's labels in order, and its Due:, Answers: and (default) read from the header block
 LABELS = ["Context", "Question", "Caveats", "Recommended"]
 m = re.search(r"An item explains itself.*?```\n(.*?)\n\s*```", read("files/docs/cadence.md"), re.S)
-check("cadence.md §3.3 shows a detail-block example", m)
+check("cadence.md §3.3 shows an item-file example", m)
 if m:
-    ex = "\n".join(ln[2:] for ln in fill(m.group(1), **{"<id>": "0a1b2c3d", "<host>": "testhost"}).splitlines())
-    it = N.parse_board(ex, warn=False)
-    got = [re.match(r"- \*\*(\w+):\*\*", d).group(1) for d in (it[0].detail if it else []) if re.match(r"- \*\*(\w+):\*\*", d)]
-    check("§3.3's example: detail_block() reads the labels in order", got == LABELS, got)
-    check("§3.3's example: Due:, Answers: and (default) read from the head line",
-          it and it[0].due and it[0].default == "Nightly" and len(it[0].answers) == 3, it)
-for board in BOARDS:
-    got = re.findall(r"`\*\*(\w+):\*\*", read(board))
-    check(f"{board}: names the detail block's labels in §3.3's order", got[:4] == LABELS, got)
+    ex = "\n".join(ln[2:] for ln in fill(m.group(1), **{"<id>": "0a1b2c3d", "<host>": "testhost"}).splitlines()) + "\n"
+    it = LBM.parse_item(ex, f"{today}-0a1b2c3d.md")
+    got = [re.match(r"- \*\*(\w+):\*\*", d).group(1) for d in (it.detail if it else []) if re.match(r"- \*\*(\w+):\*\*", d)]
+    check("§3.3's example: the detail block reads the labels in order", got == LABELS, got)
+    check("§3.3's example: Due:, Answers: and (default) read from the header block",
+          it and it.due and it.default == "Nightly" and len(it.answers) == 3, it)
 
 # --- 4) cadence-changes.md: every heading is one HEADING_RE reads (an entry typed with '-'
 #        or '###' silently merges into the entry above and never prints), newest first,
@@ -317,10 +275,10 @@ check("adopt writes the header as the hooks detect it", block and '[agent-cadenc
 # --- 0) the registry: cadence.md §7's Parity pairs table names this test on the pairs above
 tbl = read("files/docs/cadence.md")
 sect = tbl[tbl.find("**Parity pairs"):tbl.find("- **§7.10**")]   # the table, however long it grows
-for key in ("Swept:", "cadence-review:", "Format:", "cadence-changes.md", "CADENCE_HOOK_LINE", "Harvested:", "[agent-cadence]"):
+for key in ("Swept:", "cadence-review:", "Kinds:", "cadence-changes.md", "CADENCE_HOOK_LINE", "Harvested:", "[agent-cadence]"):
     row = next((l for l in sect.splitlines() if l.lstrip().startswith("|") and key in l), "")
     check(f"cadence.md §7 Parity pairs table has a row for {key}", row, "row missing")
-for key in ("Swept:", "cadence-review:", "Format:", "cadence-changes.md", "Harvested:", "[agent-cadence]"):
+for key in ("Swept:", "cadence-review:", "Kinds:", "cadence-changes.md", "Harvested:", "[agent-cadence]"):
     row = next((l for l in sect.splitlines() if l.lstrip().startswith("|") and key in l), "")
     check(f"  ... and that row names tests/test_parity.sh", "test_parity.sh" in row, row[:120])
 

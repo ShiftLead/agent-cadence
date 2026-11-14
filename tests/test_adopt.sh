@@ -95,6 +95,38 @@ T="$TMP/t3c5"; newrepo "$T"; mkdir -p "$T/docs/ledger"; printf '# Technical Debt
 printf '## TD-002: wrong file\n\n**Priority:** low\n**Type:** debt\n**Status:** Open\n\n**Why:** x\n' > "$T/docs/ledger/TD-001.md"
 refuse "$T" "docs/ledger/: ledger.py --check" "a v2 ledger failing ledger.py --check: refused"
 
+# --- 3d) TD-263: the board seed is a v3 board — the stub (board_stub()'s bytes) and its directory's README,
+# written together or not at all; a kept v2 board gets no README beside it; a v3 board is judged by its directory
+T="$TMP/t1"
+python3 -c 'import sys; sys.path.insert(0, sys.argv[2]); import ledgerboard as LB
+sys.exit(0 if open(sys.argv[1]).read() == LB.board_stub("User Attention Board", "user_attention") else 1)' \
+    "$T/docs/user_attention.md" "$DC/files/scripts" && grep -q '^Ledgerboard: 3$' "$T/docs/user_attention/README.md" \
+    && ok "a new repo's board is the v3 stub and its directory's README" || bad "v3 seed: $(cat "$T/docs/user_attention.md")"
+T="$TMP/t3d1"; newrepo "$T"; mkdir -p "$T/docs"; printf -- '# Board\n\n- [ ] %s (session n/a) — an item. Due: %s.\n' "$(date +%F)" "$(date +%F)" > "$T/docs/user_attention.md"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && [ ! -e "$T/docs/user_attention/README.md" ] && grep -q "keep  docs/user_attention.md" <<< "$out" \
+    && grep -q "skip  docs/user_attention/README.md" <<< "$out" \
+    && ok "a kept v2 board: no stray docs/user_attention/README.md beside it" || bad "v2 kept rc=$rc: $out"
+T="$TMP/t3d2"; newrepo "$T"; mkdir -p "$T/docs"
+printf '[skip-seed]\n"docs/user_attention.md" = "docs/plans/own-board.md"\n' > "$T/docs/cadence.toml"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && [ ! -e "$T/docs/user_attention.md" ] && [ ! -e "$T/docs/user_attention/README.md" ] \
+    && ok "skip-seed of the board's stub covers its README too" || bad "skip stub rc=$rc: $out"
+T="$TMP/t3d3"; newrepo "$T"; mkdir -p "$T/docs"
+printf '[skip-seed]\n"docs/user_attention/README.md" = "docs/plans/own-board.md"\n' > "$T/docs/cadence.toml"
+out=$(adopt "$T"); rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"skip-seed names docs/user_attention/README.md alone"* ]] && [ ! -e "$T/docs/user_attention.md" ] \
+    && ok "skip-seed of the board's README alone is refused" || bad "skip README rc=$rc: $out"
+T="$TMP/t3d4"; newrepo "$T"; mkdir -p "$T/docs/user_attention"; cp "$DC/files/docs/user_attention.md" "$T/docs/"
+printf '# Board\n\nLedgerboard: 3\n\n- a list in prose\n' > "$T/docs/user_attention/README.md"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 0 ] && ok "a v3 board's README list is prose, not a skipped item line" || bad "v3 prose rc=$rc: $out"
+T="$TMP/t3d5"; newrepo "$T"; mkdir -p "$T/docs/user_attention"; cp "$DC/files/docs/user_attention.md" "$T/docs/"
+printf '# Board\n\nLedgerboard: 3\n' > "$T/docs/user_attention/README.md"; echo junk > "$T/docs/user_attention/notes.md"
+out=$(adopt "$T"); rc=$?
+[ $rc -eq 2 ] && [[ "$out" == *"docs/user_attention/notes.md: name: not an item file"* ]] && [ ! -e "$T/AGENTS.md" ] \
+    && ok "a v3 board is judged by board_dir_problems(): a stray file refused by path" || bad "v3 dir rc=$rc: $out"
+
 # --- 4) refusals, each exit 2 with its reason, nothing written
 refuse() {  # refuse <label> <expected text> <target>
     local out rc; out=$(adopt "$3"); rc=$?

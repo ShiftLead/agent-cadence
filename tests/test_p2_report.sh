@@ -74,8 +74,8 @@ else bad "--report registry coverage (rc=$rc)"; echo "$out" | head -30; fi
 
 # --- 5) header counts + overdue-first ordering + 4-way tags
 if e "5 open item(s)" && e "2 due/overdue" \
-   && echo "$out" | grep -q "d overdue) 2026-08-01" \
-   && e "(due today) 2026-08-10 (n/a) — today thing" \
+   && echo "$out" | grep -q "d overdue) very late thing" \
+   && e "(due today) today thing" \
    && e "(due $FUT)" && e "(no due date)"; then
   first=$(echo "$out" | grep -n "very late thing" | cut -d: -f1)
   last=$(echo "$out" | grep -n "undated thing" | cut -d: -f1)
@@ -317,7 +317,7 @@ if python3 "$NEW" --due-only >/dev/null 2>&1; then
   bad "--due-only alone did not error"; else ok "--due-only requires --report"; fi
 
 
-# --- --report --json: one object, board line numbers, parsed due dates; --due-only filters
+# --- --report --json: one object, item ids, parsed due dates; --due-only filters
 printf '%s\n%s\n%s\n' "$R1" "$R2" "$R3" > "$REG"
 cat > "$R1/docs/user_attention.md" <<EOF
 # board
@@ -332,13 +332,13 @@ import json, sys
 d = json.load(sys.stdin)
 rows = {r["label"]: r for r in d["boards"]}
 a = rows["alpha"]["items"]
-assert [i["line"] for i in a] == [3, 5], a
+assert len(a) == 2 and all(i["id"] for i in a) and "line" not in a[0], a   # v3.0: ids, never lines (TD-263)
 assert a[0]["due"] == sys.argv[1] and a[0]["overdue_days"] == 11 and a[0]["due_tag"] == "11d overdue", a[0]
 assert a[1]["due"] is None and a[1]["overdue_days"] is None, a[1]
 assert rows["gamma"]["board"] is None and "no board" in rows["gamma"]["note"], rows["gamma"]
 assert rows["alpha"]["sweep"], rows["alpha"]
 print("ok")' "$VLATE" 2>&1)
-if [ "$rc" = 0 ] && [ "$chk" = ok ]; then ok "--report --json: rows, line numbers, due dates"
+if [ "$rc" = 0 ] && [ "$chk" = ok ]; then ok "--report --json: rows, item ids, due dates"
 else bad "--report --json (rc=$rc): $chk"; fi
 
 outj=$(python3 "$NEW" --report --json --due-only 2>/dev/null)
@@ -449,6 +449,83 @@ assert any("bot-appended customer" in i["text"] for i in r["items"]), r["items"]
 print("ok")' 2>&1)
 if [ "$rc" = 0 ] && [ "$chk" = ok ]; then ok "--report --json --fetch: fetch_note, stale slot, origin-landed items"
 else bad "--json --fetch (rc=$rc): $chk"; fi
+
+# --- the nudge's item advice names a writer command on every line (design §4's general rule; moved here from
+#     test_board_writers.sh at ledgerboard v3.0, TD-263): an oversized board, an escalated item, an unparseable Due:,
+#     an fyi carrying a Due: and a twin (v3.0: a board problem; the archive prompt is gone), through the full report
+#     and the session-start text; stamp advice and the summary header (it names /attention) are exempt
+PAST=$(date -d '3 days ago' +%F); OLDD=$(date -d "40 days ago" +%F)
+NB="$TMP/n/docs/user_attention.md"; mkdir -p "$(dirname "$NB")"
+{
+  printf '# board\n\nPeople: Pat\n\nSwept: %s (h, deep)\nSwept-deep: %s\n\n## Needs the user\n\n' "$TODAY" "$TODAY"
+  printf -- '- [ ] %s (n/a) — a twin. Context: TD-1. Due: %s.\n- [ ] %s (n/a) — a twin. Context: TD-1. Due: %s.\n' "$PAST" "$FUT" "$PAST" "$PAST"
+  printf -- '- [ ] %s (n/a) — long overdue. Context: TD-2. Due: %s.\n' "$OLDD" "$OLDD"
+  printf -- '- [ ] %s (n/a) — a typo date. Context: TD-3. Due: 2026-9-5.\n' "$PAST"
+  printf -- '- [ ] fyi %s (n/a) — heads-up. Context: TD-4. Due: %s.\n' "$PAST" "$PAST"
+  for i in $(seq 1 14); do printf -- '- [ ] %s (n/a) — filler %s. Context: TD-5. Due: %s.\n' "$PAST" "$i" "$PAST"; done
+} > "$NB"
+full=$(python3 "$NEW" --report --board "$NB" 2>&1)
+due=$(python3 "$NEW" --report --due-only --board "$NB" 2>&1)
+miss=$(printf '%s\n%s\n' "$full" "$due" | grep '⚠' | grep -v 'Swept' | grep -v 'run /attention for the full report' | grep -v 'board_edit.py\|ledger.py')
+conds=0
+for want in "board problem(s)" "open items on this board" "overdue 40d" "unparseable due date" "an fyi carries no Due:" "escalate-overdue-days"; do
+  printf '%s\n%s\n' "$full" "$due" | grep -qF "$want" && conds=$((conds+1)) || echo "  (condition not triggered: $want)"
+done
+[ -z "$miss" ] && [ $conds -eq 6 ] && ok "the nudge's item advice names board_edit.py or ledger.py on every line, all six conditions triggered" \
+  || bad "advice without a command ($conds/6 conditions): $miss"
+# a twin (moved from test_board_edit.sh): named as a board problem; a clean board has none, and no archive prompt
+grep -qF "duplicate: " <<< "$full" && ok "a twin is named (Board.problems' duplicate)" || bad "twin not named: $(grep '⚠' <<< "$full")"
+CB="$TMP/clean/docs/user_attention.md"; mkdir -p "$(dirname "$CB")"
+{ printf '# board\n\n'; for i in $(seq 1 10); do printf -- '- [x] %s (n/a) — closed %s. Due: %s. Closed: %s — done.\n' "$PAST" "$i" "$PAST" "$PAST"; done
+  printf -- '- [ ] %s (n/a) — one open. Due: %s.\n' "$PAST" "$FUT"; } > "$CB"
+out=$(python3 "$NEW" --report --board "$CB" 2>&1)
+! grep -q "board problem\|appear twice\|closed item(s) on the board" <<< "$out" && grep -q "one open" <<< "$out" \
+  && ok "a clean board: no problem note, and no archive prompt (retired at v3.0)" || bad "clean board: $(grep '⚠' <<< "$out")"
+
+# --- v3.0 (TD-263): a v3 board's directory — items from item files, the stamps from README.md, ids in --json
+lbadd() { (cd "$ROOT/files/scripts" && python3 -m ledgerboard.board add --board "$1" --json "${@:2}") | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])'; }
+mkv3() {  # $1 repo root: a v3 board, its README stamped today
+  mkdir -p "$1/docs/user_attention"
+  printf '# board\n\nLedgerboard: 3\nSwept: %s (h, deep)\nSwept-deep: %s\nPeople: Pat\n' "$TODAY" "$TODAY" > "$1/docs/user_attention/README.md"
+  PYTHONPATH="$ROOT/files/scripts" python3 -c 'import ledgerboard as LB; print(LB.board_stub("board", "user_attention"), end="")' > "$1/docs/user_attention.md"
+}
+V3="$TMP/v3a"; mk "$V3"; mkv3 "$V3"
+VI1=$(lbadd "$V3/docs/user_attention.md" --kind act --text "v3 overdue thing." --due "$VLATE" --context "TD-7")
+VI2=$(lbadd "$V3/docs/user_attention.md" --kind act --text "v3 later thing." --due "$FUT")
+out=$(python3 "$NEW" --report --board "$V3/docs/user_attention.md" 2>&1)
+grep -q "(11d overdue) v3 overdue thing\." <<< "$out" && grep -q "(due $FUT) v3 later thing\." <<< "$out" \
+  && ! grep -q "never swept\|no deep sweep\|last sweep" <<< "$out" && grep -q "2 open item(s)" <<< "$out" \
+  && ok "v3 board: items read from the directory, Swept:/Swept-deep: read from README.md" || bad "v3 report: $out"
+chk=$(python3 "$NEW" --report --json --board "$V3/docs/user_attention.md" 2>/dev/null | python3 -c '
+import json, sys
+it = json.load(sys.stdin)["boards"][0]["items"]
+assert sorted(i["id"] for i in it) == sorted(sys.argv[1:3]) and all("line" not in i for i in it), it
+assert [i["refs"] for i in it if i["id"] == sys.argv[1]] == [["TD-7"]], it
+print("ok")' "$VI1" "$VI2" 2>&1)
+[ "$chk" = ok ] && ok "v3 board --json: items by id, refs from Context" || bad "v3 json: $chk"
+out=$(env -u NUDGE_COMMAND python3 "$NEW" --board "$V3/docs/user_attention.md" --dry-run 2>&1)
+grep -q "v3 overdue thing\." <<< "$out" && ! grep -q "v3 later thing" <<< "$out" && ok "v3 board: nudge mode lists the due item" || bad "v3 nudge: $out"
+out=$(python3 "$NEW" --report --board "$V3/docs/user_attention" 2>&1)
+grep -q "v3 overdue thing" <<< "$out" && ok "v3 board: the directory named itself reads too" || bad "v3 dir path: $out"
+
+# --- v3.0 --fetch: the directory compared whole at origin (behind: origin's items shown; local edits; matches)
+O3="$TMP/v3o.git"; git init -q --bare -b main "$O3"
+A3="$TMP/v3x"; git clone -q "$O3" "$A3" 2>/dev/null; mkv3 "$A3"
+lbadd "$A3/docs/user_attention.md" --kind act --text "first v3 item." --due "$TMRW" >/dev/null
+git -C "$A3" add -A && git -C "$A3" commit -qm seed && git -C "$A3" push -q origin main 2>/dev/null
+B3="$TMP/v3y"; git clone -q "$O3" "$B3" 2>/dev/null
+lbadd "$A3/docs/user_attention.md" --kind act --text "pushed from elsewhere." --due "$TMRW" >/dev/null
+git -C "$A3" add -A && git -C "$A3" commit -qm second && git -C "$A3" push -q origin main 2>/dev/null
+out=$(cd "$B3" && python3 "$NEW" --report --fetch --board "$B3/docs/user_attention.md" 2>&1)
+grep -q "local clone is behind" <<< "$out" && grep -q "pushed from elsewhere\." <<< "$out" \
+  && ok "v3 --fetch: a clone behind shows origin's directory, its new item among them" || bad "v3 fetch behind: $out"
+git -C "$B3" pull -q 2>/dev/null
+out=$(cd "$B3" && python3 "$NEW" --report --fetch --board "$B3/docs/user_attention.md" 2>&1)
+grep -q "board matches origin/main" <<< "$out" && ok "v3 --fetch: same directory reads as matches" || bad "v3 fetch matches: $out"
+lbadd "$B3/docs/user_attention.md" --kind act --text "local only." --due "$TMRW" >/dev/null
+out=$(cd "$B3" && python3 "$NEW" --report --fetch --board "$B3/docs/user_attention.md" 2>&1)
+grep -q "local edits not pushed" <<< "$out" && grep -q "local only\." <<< "$out" \
+  && ok "v3 --fetch: an item file added locally reads as local edits not pushed" || bad "v3 fetch local: $out"
 
 echo; echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

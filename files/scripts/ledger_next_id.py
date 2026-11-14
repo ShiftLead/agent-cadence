@@ -320,7 +320,7 @@ def judge(new: set[int], takes: dict[int, dict], texts: list[str], branch: str, 
           ) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """New ids against the counter's takes, for the cadence check's ``ledger`` row and ``ledger.py --check
     --since`` alike (TD-145): ledgerboard's ``judge_takes()`` (TD-188), with the transition's
-    ``Id take`` required (TD-188 step 4: ``accept_taken_by`` off, so ``Taken by`` is not read) — a new id's
+    ``Id take`` required (TD-188 step 4; ``Taken by`` is retired at ledgerboard v3.0, never read) — a new id's
     entry with none fails ``id-no-take``, one naming another id's take or no take fails ``id-take``, each
     pointing at ``--show``; ledgerboard's ``id-branch`` warning is retired here with it. ``texts`` are the
     ledger and archive holding the new entries, ``branch`` the one they are for, ``default`` the default
@@ -328,7 +328,7 @@ def judge(new: set[int], takes: dict[int, dict], texts: list[str], branch: str, 
     each a list of (kind, text)."""
     every = getattr(takes, "all", None) or list({id(t): t for t in takes.values()}.values())
     every = [t if t.get("ids") else {**t, "ids": [n for n, v in takes.items() if v is t]} for t in every]
-    fails, warns = L.LB.judge_takes(new, every, texts, branch, default, accept_taken_by=False)
+    fails, warns = L.LB.judge_takes(new, every, texts, branch, default)
     show = " (a session that lost its line: `ledger_next_id.py --show TD-N`; cadence §2.10)"
     here = {"id-untaken": " (here: `ledger_next_id.py`, and `ledger_next_id.py --claim TD-N` for a printed one; cadence §2.10)",
             "id-no-take": show, "id-take": show}

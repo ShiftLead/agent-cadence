@@ -361,6 +361,16 @@ fi
 #    `set -u` an unbound reference is a hard crash of the whole hook (found in
 #    review when deleting #5's body took the assignment with it).
 BOARD="$REPO_ROOT/docs/user_attention.md"
+# The board's open items, without a subprocess (the order invariant below): a v3 board (ledgerboard v3.0,
+# TD-263) is the directory beside that stub, one `<YYYY-MM-DD>-<hex>.md` per open item directly in it (closed
+# ones are under archive/); a v2 board is the file itself, its open items `- [ ]` lines.
+board_has_open_items() {
+  local f
+  for f in "${BOARD%.md}"/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.md; do
+    [ -f "$f" ] && return 0
+  done
+  [ -f "$BOARD" ] && grep -Eq '^[[:space:]]*-[[:space:]]*\[ \]' "$BOARD"
+}
 
 # 6) Machine roster coverage (plan 2026-08-10 P1): does this machine's registry
 #    ($AGENT_CADENCE_REG_DIR, else ${XDG_CONFIG_HOME:-~/.config}/agent-cadence, /repos.txt)
@@ -377,7 +387,7 @@ BOARD="$REPO_ROOT/docs/user_attention.md"
 REGISTRY="${AGENT_CADENCE_REG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/agent-cadence}/repos.txt"   # TD-029
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)"
 if [ -f "$REGISTRY" ] \
-   && [ -f "$BOARD" ] && grep -Eq '^[[:space:]]*-[[:space:]]*\[ \]' "$BOARD" \
+   && board_has_open_items \
    && git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   roster_warn=$(python3 - "$REPO_ROOT" "$REGISTRY" "$SCRIPT_DIR" <<'PY' 2>/dev/null
 import os, subprocess, sys, time

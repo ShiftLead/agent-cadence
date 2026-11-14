@@ -15,7 +15,7 @@ docs/publish-accept.txt *
 docs/ledger/* a name your publish-names lists (Paul)
 docs/briefs/* a name your publish-names lists (Paul)
 docs/claude-memory/* a name your publish-names lists (Paul)
-docs/user_attention.md a name your publish-names lists (Paul)
+docs/user_attention/* a name your publish-names lists (Paul)
 docs/plans/* a name your publish-names lists (Paul)
 docs/review-data/* a name your publish-names lists (Paul)
 docs/reviews/* a name your publish-names lists (Paul)
@@ -23,8 +23,8 @@ docs/reviews/* a name your publish-names lists (Paul)
 
 # A board item and a sweep stamp name the machine they were written on, as the board's format says;
 # the machine's name is public (Paul, 2026-10-28).
-docs/user_attention.md this machine's short name (*) :: *(session * on *)*
-docs/user_attention.md this machine's short name (*) :: Swept*
+docs/user_attention/* this machine's short name (*) :: *Session:* * on *
+docs/user_attention/* this machine's short name (*) :: Swept*
 
 # ShiftLead's own projects stay in the public tree (decided 2026-10-27).
 * a repo on this machine's roster (shiftlead)
