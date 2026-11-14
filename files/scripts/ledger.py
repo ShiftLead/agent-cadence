@@ -66,8 +66,8 @@ type, vocabulary, blocked-item, cross-repo, blocked-unknown, blockers-archived, 
 undeclared-field, rank (a rank file line), prose-wait (TD-166: a header field that names an id after *waits on/for* or *blocked by*
 while its Blocked by does not), no-ask (TD-122: an entry waiting on the person — Owner: person or a
 decision holder's name, decision (<who>), an **Answers:** line — with no **Ask:** line in its body), no-gate (TD-264: an
-open entry with an **Ask:** or an Owner who is the person, and no ``decision (<who>)`` in its Blocked by — an error,
-standing where REF flagged it too, refused by ``new`` and ``set``), and the ids' id-untaken, id-take, id-before-counter,
+open entry with an **Ask:** or an Owner who is the person, and no ``decision (<who>)`` in its Blocked by — an error
+with ``--since`` (standing where REF flagged it or carried a decision), ℹ without, refused by ``new`` and ``set``), and the ids' id-untaken, id-take, id-before-counter,
 id-no-take, id-by-unhashed, id-counter; with ``--since``, archive-loss (an id archived at REF that is now in
 neither the ledger nor the archive, TD-179), archive-reopened (ℹ: one back in the ledger) and, in a v2
 ledger, not-canonical (TD-201: an entry file that differs from the merge-base's, or is new, and is not in
@@ -2127,7 +2127,10 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"ledger: --since: not read — {e}", file=sys.stderr)
                 return 2
         recs = check(text, arch, old, rank_text=rank_text) + prose_wait_flags(text, arch, old) + ask_flags(text, arch, old)
-        recs += ungated_flags(text, arch, old)
+        # TD-264: the bare run judges the ledger, not an edit — a wait left unseen before the rule is ℹ there, so
+        # `adopt` (which runs it) never refuses a repo for one; --since, the writers and the ledger row refuse it
+        recs += [r if a.since is not None else dict(r, level="info", text="ℹ" + r["text"][1:])
+                 for r in ungated_flags(text, arch, old)]
         if a.since is not None:
             # what the archive held where this edit started, not at REF's tip: an entry REF archived
             # after the branch left it is not this edit's loss (TD-179)

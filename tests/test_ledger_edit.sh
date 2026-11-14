@@ -194,9 +194,9 @@ printf '## TD-007: seven\n\n**Priority:** Low\n**Owner:** person\n**Status:** Op
 git -C "$W" add docs/ledger/TD-007.md; git -C "$W" commit -qm seven; git -C "$W" push -q origin main
 lp set TD-007 --priority High >/dev/null 2>"$TMP/err"; rc=$?
 c=$(lp --check --since origin/main 2>&1); crc=$?
-lp --check >/dev/null 2>&1; brc=$?
-[ $rc -eq 0 ] && [ $crc -eq 0 ] && ! grep -q 'TD-007 .*no decision' <<< "$c" && [ $brc -eq 1 ] \
-  && ok "an entry already ungated on origin is standing: a set on it passes, --check --since passes, a bare --check fails" \
+bc=$(lp --check 2>&1); brc=$?
+[ $rc -eq 0 ] && [ $crc -eq 0 ] && ! grep -q 'TD-007 .*no decision' <<< "$c" && [ $brc -eq 0 ] && grep -q '^ℹ TD-007 waits on the person (Owner: person) but .*no decision' <<< "$bc" \
+  && ok "an entry already ungated on origin is standing: a set on it passes, --check --since passes, a bare --check (adopt's) says it as ℹ, rc 0" \
   || bad "standing ungated (rc=$rc crc=$crc): $(cat "$TMP/err") $c"
 out=$(cd "$DC/files/scripts" && python3 - <<'PY'
 import ledger as L
