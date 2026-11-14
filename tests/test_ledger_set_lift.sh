@@ -321,5 +321,47 @@ AO_MODE=person SHIFTLEAD_SESSION=s-me python3 "$EDIT" decide --board "$B" --line
   && ok "a person's own session's decide lifts the gate and answers the item" || bad "decide person (rc=$rc): $(cat "$TMP/err")"
 reset
 
+# --- 10) TD-260: a session applies the person's answer already recorded on origin's default branch (a Queue press)
+n2=$(line_of "TD-002 decision"); n3=$(line_of "TD-003 decision")
+git clone -q "$O" "$TMP/press"; PB="$TMP/press/docs/user_attention.md"
+sed -i "${n2}s/\$/ Decided: Go (by Robin) ($LOCAL)./; ${n3}s/\$/ Decided: CSV (by Sam) ($LOCAL)./" "$PB"
+sed -i "/^## Needs the user/a - [ ] decide $LOCAL (n/a) — no item: Lift it? Context: TD-001. Due: $DUE. Answers: Lift it | Not yet. Decided: Lift it (by Robin) ($LOCAL)." "$PB"
+git -C "$TMP/press" commit -qam "board: the Queue's presses"; git -C "$TMP/press" push -q origin main
+git -C "$W" pull -q --ff-only
+g() { AO_MODE=grinder SHIFTLEAD_SESSION=s-me lp "$@"; }
+out=$(g set TD-002 --blocked-by "" --by Robin 2>"$TMP/err"); rc=$?
+n=$(line_of "TD-002 decision")
+[ $rc -eq 0 ] && ! grep -q 'Blocked by' "$L/TD-002.md" && logline TD-002 | grep -q 'by Robin; answer "Go"$' \
+  && grep -qE "^- $TODAY: lifted by a session on Robin's answer 'Go' \($LOCAL\) on the board item .*at origin/main$" "$L/TD-002.md" \
+  && sed -n "${n}p" "$B" | grep -q "^- \[x\] .*Decided: Go (by Robin) ($LOCAL)\. Closed: $LOCAL — lifted\.$" \
+  && [ -z "$(tw)" ] \
+  && ok "an unattended session lifts a gate whose item origin/main holds decided by its person; the Log names the answer" \
+  || bad "recorded board answer (rc=$rc): $(cat "$TMP/err") | $(sed -n "${n}p" "$B") | $(tail -3 "$L/TD-002.md") | $(tw)"
+reset
+out=$(g set TD-001 --blocked-by "" --by Robin --answer "Lift it" 2>"$TMP/err"); rc=$?
+[ $rc -eq 0 ] && logline TD-001 | grep -q 'answer "Lift it"; no board item' && grep -q "lifted by a session on Robin's answer 'Lift it'" "$L/TD-001.md" \
+  && [ -z "$(tw)" ] \
+  && ok "the Queue's decided line for an entry (Context: the bare id) is a recorded answer too" \
+  || bad "bare-id answer (rc=$rc): $(cat "$TMP/err") | $(tail -3 "$L/TD-001.md") | $(tw)"
+reset
+g set TD-001 --blocked-by "" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -q "records no answer 'Go' by Robin" "$TMP/err" \
+  && ok "an answer other than the recorded one is refused, writing nothing" || bad "other label (rc=$rc): $(cat "$TMP/err")"
+g set TD-003 --blocked-by "" --by Robin --answer CSV >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -q "records no answer" "$TMP/err" \
+  && ok "an answer recorded by someone other than the gate's person is refused" || bad "other person (rc=$rc): $(cat "$TMP/err")"
+g set TD-002 --blocked-by "" --by Sam >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -q "only Robin's own recorded answer" "$TMP/err" \
+  && ok "a session's lift --by someone other than the gate's person is refused" || bad "by other (rc=$rc): $(cat "$TMP/err")"
+sed -i "/^## Needs the user/a - [ ] decide $LOCAL (n/a) — two: Go? Context: TD-021 decision (Robin). Due: $DUE. Answers: Go | Not yet. Decided: Go (by Robin) ($LOCAL)." "$B"
+git -C "$W" commit -qam "a session's own decided line, not on origin"
+g set TD-021 --blocked-by "decision (Sam)" --by Robin >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs/ledger && grep -q "records no answer" "$TMP/err" \
+  && ok "a decided item only on the session's own branch, not on origin/main, is no recorded answer" || bad "branch only (rc=$rc): $(cat "$TMP/err")"
+git -C "$W" reset -q --hard origin/main
+g set TD-002 --blocked-by "" --by Robin --override "away" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -q 'refused' "$TMP/err" \
+  && ok "an override from an unattended session is still refused, a recorded answer or not" || bad "override (rc=$rc): $(cat "$TMP/err")"
+
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -989,3 +989,53 @@ def person_session_refusal(env: "dict | None" = None) -> "str | None":
     if why:
         return f"session {sid} is {'; '.join(why)} — only a person's own session lifts a person's gate"
     return None
+
+
+def recorded_answer(root, tid: str, gate: str, label: str, ref: str,
+                    board_rel: str = "docs/user_attention.md") -> "str | None":
+    """Where the person recorded the answer ``label`` to ``tid``'s ``gate`` (``decision (<p>)``) — None when
+    nowhere (TD-260, ShiftLead TD-1796). A session ``person_session_refusal()`` refuses may still lift a gate
+    whose person has already answered it: a button press on the Queue is the person's act, and the session that
+    applies it carries out their recorded answer rather than deciding anything. The record read is this repo's
+    board at ``ref`` (origin's default branch), never the working tree, so a session's own uncommitted or
+    unmerged edit is not evidence: a decide item — open or closed — whose Context names the entry (a bare
+    ``TD-n``, or ``TD-n`` and this gate, or a parent with the entry among its ``Parts:``), whose ``Decided:``
+    answer is ``label`` and whose ``(by …)`` is the gate's person. The Queue's two writes land there: a decide
+    on a gate's item (ShiftLead's board write-back) and its answer to an entry that waits on the person (a
+    decided line, ``Context:`` the bare id). Returns the record in words, for the Log.
+
+    Forgeable as the attestation is: an item hand-written as decided and merged would pass. What catches that is
+    the merge gate's tripwire and review of the PR that put it on the default branch."""
+    import ledgerboard as LB  # the board format, defined once (a sibling package; ledger.py imports it too)
+    gate_m = re.fullmatch(r"decision \((?P<who>[^)]+)\)", " ".join(gate.split()))
+    if not gate_m:
+        return None
+    person = gate_m.group("who").strip().lower()
+    want = " ".join(label.split()).lower()
+    try:
+        r = subprocess.run(["git", "-C", str(root), "show", f"{ref}:{board_rel}"], capture_output=True,
+                           text=True, timeout=AO_TIMEOUT, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    try:
+        num = LB._num(tid)
+        key = LB._gate_key(gate)
+        items = [*LB.parse_board(r.stdout, warn=False), *LB.parse_closed_items(r.stdout)]
+    except (LB.Refused, ValueError):
+        return None
+    for it in items:
+        if not it.decided or (it.decided_by or "").strip().lower() != person:
+            continue
+        if " ".join(it.decided[0].split()).lower() != want:
+            continue
+        ref_, g = LB._item_gate(it.text)
+        if ref_ is None or "#" in ref_ or (g is not None and LB._gate_key(g) != key):
+            continue
+        named = LB._num(ref_) == num
+        part = g is not None and any("#" not in p and LB._num(p) == num for p in it.parts if p)
+        if named or part:
+            return (f"{it.decided_by}'s answer {it.decided[0]!r} ({it.decided[1].isoformat()}) on the board item "
+                    f"{it.text.strip()[:60]!r}, at {ref}")
+    return None
