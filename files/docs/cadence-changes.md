@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-14 — A session applies the person's recorded answer: `set --by <person>` passes on a press already on the board
+Do: to carry out a Queue press that lifts a `decision (<p>)`, run `ledger.py set TD-n --blocked-by … --by <p> --answer <the Decided: answer>` from any session; it passes only where `origin/<default>`'s board holds that answer by <p>, and logs which.
+See: cadence.md §2.4; TD-260.
+
 ## 2026-11-13 — ledgerboard v2.8: an act's `Doer:`, and a form answer is filled, never pressed as written
 Do: after the bump, run `agent-cadence run ledger.py migrate --release 2.8 --plan`, then without `--plan`, in a PR of its own; write an act's doer with `board_edit.py add --doer <repo>|"team <name>"`; answer a form (`Hold: <note>`) with its words, `decide --answer "Hold: <words>"` (a `reply` so begun on an open decide or look decides).
 See: cadence.md §3.5; TD-259, TD-254.

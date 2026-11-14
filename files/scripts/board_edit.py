@@ -571,7 +571,9 @@ def main(argv: list[str] | None = None) -> int:
         if a.action == "decide" and plan.info.get("entries"):   # the two-file decide lift (TD-218)
             why = agent_sessions.person_session_refusal()
             if why:
-                raise Refused(f"the answer lifts {', '.join(plan.info['entries'])}: {why}")
+                raise Refused(f"the answer lifts {', '.join(plan.info['entries'])}: {why} (a decide records the "
+                              "person's words; where they are already on origin's board, `ledger.py set TD-n "
+                              "--blocked-by … --by <person> --answer <label>` applies them, TD-260)")
         if root is not None:
             _clean(root, list(plan.changes))
     except Refused as e:

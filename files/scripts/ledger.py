@@ -1394,7 +1394,10 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
               override: str | None = None) -> int:
     """``set TD-n --blocked-by … --by <person> [--answer <label>]``: the person's lift of the one
     ``decision (<person>)`` the new Blocked by drops (ledgerboard's target design §1.1, §3.1; TD-218). Refused
-    unless the running session is a person's own (``agent_sessions.person_session_refusal()``). The covering
+    unless the running session is a person's own (``agent_sessions.person_session_refusal()``), or (TD-260) the
+    lift carries out the gate's person's answer already recorded on the board at origin/<default>
+    (``agent_sessions.recorded_answer()``; ``--by`` that person), and then a ``note`` beside the Log's lift line
+    names the record; a reassign or an override has no such route. The covering
     board item is picked (``covers()``, open or decided: this repo's own board first — the item whose Context
     names the entry, else the lowest item key — then the other roster boards in ``origin_key`` order), the
     answer must be one of its ``Lifts:`` (``Go`` when it has none), and the Log's suffix follows from it:
@@ -1431,7 +1434,7 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
     if len(added) > 1:
         return w.say("set", "a reassign replaces one decision by one other: set them one at a time", 2)
     refusal = agent_sessions.person_session_refusal()
-    if refusal:
+    if refusal and (added or override is not None or why is not None):  # a reassign or an override: the person's own
         return w.say("set", f"refused — {refusal}; nothing was written", 1)
     if added and override is not None:
         return w.say("set", "--override drops the decision; a Blocked by that swaps it for another is a reassign "
@@ -1443,6 +1446,16 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
     gate = gone[0]
     person = gate[len("decision ("):-1]
     by = person if " ".join(by.split()).lower() == person.lower() else by   # the Log and the board spell it as the gate does
+    recorded = None
+    if refusal:   # TD-260: the person's answer already recorded on the default branch is theirs, whoever applies it
+        if by != person:
+            return w.say("set", f"refused — {refusal}; a session applies only {person}'s own recorded answer "
+                                f"(--by {person}); nothing was written", 1)
+        recorded = agent_sessions.recorded_answer(w.root, text, gate, label, w.ref)
+        if recorded is None:
+            return w.say("set", f"refused — {refusal}, and the board at {w.ref} records no answer {label!r} by "
+                                f"{person} to {LBL.tid_of(tid)} {gate} (an open decide item whose Context names it, "
+                                "Decided: by them since the gate was added); nothing was written", 1)
     try:
         boards, names, repo = _boards(w)
         got = [(b, it) for b, it, st in LB.covers(text, gate, boards, repo) if st in ("open", "decided")]
@@ -1482,6 +1495,20 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
         LBL.apply(plan)
     except OSError as e:
         return w.say("set", f"the write failed, every file restored: {e}", 4)
+    if recorded:   # TD-260: the Log names the answer the lift carried out, beside the lift's own line
+        note = _lb_plan(w, "note", tid, {"words": f"lifted by a session on {recorded}",
+                                         "today": datetime.now(timezone.utc).date().isoformat()})
+        try:
+            if isinstance(note, int):
+                raise OSError("the note was refused")
+            LBL.apply(note)
+        except OSError as e:
+            try:
+                LBL.apply(LBL.Plan("set", None, {path: text}, {}))
+            except OSError as e2:
+                return w.say("set", f"the Log note failed ({e}), and putting {path} back failed: {e2}", 4)
+            return w.say("set", f"refused — the Log note naming the answer: {e}; {path} put back, nothing was "
+                                "written", 1)
     if pick is None or pick[0] != own:
         print(path)
         return 0
