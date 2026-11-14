@@ -669,6 +669,23 @@ class GitHub(_CLI):
                                   "-H", "Accept: application/vnd.github.raw"])
         return (NOT_FOUND if rc > 0 and "HTTP 404" in err else rc), out, err
 
+    def list_dir(self, repo: str, path: str) -> tuple[int, list[str], str]:
+        """The names in the directory ``path`` on the default branch, sorted, a directory's ending in ``/``
+        (TD-266: a v3 board is a directory). rc NOT_FOUND when there is no directory there — none at all, or a
+        file. The contents API answers a directory with its JSON listing (up to 1,000 entries)."""
+        rc, out, err = self.call(["api", f"repos/{repo}/contents/{path}"])
+        if rc > 0 and "HTTP 404" in err:
+            return NOT_FOUND, [], err
+        if rc != 0:
+            return rc, [], err
+        try:
+            listed = json.loads(out)
+        except ValueError as e:
+            return 1, [], f"{self.cli} gave unparseable JSON ({e})"
+        if not isinstance(listed, list):
+            return NOT_FOUND, [], f"{path} is not a directory"
+        return 0, _names(listed, "dir"), ""
+
     # -- event checks (TD-219): each a read of one fact, ForgeUnreadable when it cannot be read --
 
     def _absent(self, args: list[str], codes: tuple[int, ...] = (404,)) -> str | None:
@@ -1280,6 +1297,19 @@ class GitLab(_CLI):
             return NOT_FOUND, out, err
         return rc, out, err
 
+    def list_dir(self, repo: str, path: str) -> tuple[int, list[str], str]:
+        """The names in the directory ``path`` on the default branch, sorted, a directory's ending in ``/``
+        (TD-266: a v3 board is a directory), from the repository tree API, every page. rc NOT_FOUND when the
+        project has no such directory ("404 Tree Not Found") or no commit; a missing project is an error, as
+        in ``read_file``."""
+        rc, got, err = self._call_json(f"projects/{quote(repo, safe='')}/repository/tree"
+                                       f"?path={quote(path, safe='')}&ref=HEAD&per_page=100", paginate=True)
+        if rc > 0 and "(HTTP 404)" in err and "Project Not Found" not in err:
+            return NOT_FOUND, [], err
+        if rc != 0:
+            return rc, [], err
+        return 0, _names(got, "tree"), ""
+
 
 # GitLab's notes call runs from the SessionStart hook too: glab must never prompt there.
 _QUIET_GLAB = {"NO_PROMPT": "true"}
@@ -1502,6 +1532,12 @@ def _ts(s):
     except ValueError:
         return None
     return t.replace(tzinfo=timezone.utc) if t and t.tzinfo is None else t
+
+
+def _names(listed: list, dir_type: str) -> list[str]:
+    """A forge's directory listing as sorted names, each entry whose ``type`` is ``dir_type`` ending in ``/``."""
+    return sorted(str(e["name"]) + ("/" if e.get("type") == dir_type else "")
+                  for e in listed if isinstance(e, dict) and e.get("name"))
 
 
 def _pages(text: str) -> list:
