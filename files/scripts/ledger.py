@@ -7,7 +7,7 @@
     ledger.py --summary | --split
     ledger.py fmt [TD-n …] [--check]
     ledger.py new --title T --priority P --why FILE|- [--fix FILE|-] [--done-when FILE|-] [--type …] [--id TD-n] …
-    ledger.py set TD-n --FIELD VALUE …  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|-
+    ledger.py set TD-n --FIELD VALUE … [--title T]  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|- | --remove
     ledger.py lift TD-n --gate "event (<name>)"|"until D" --by HOST [--evidence E]   (a host's lift, TD-219)
 
 An entry may carry one optional field after **Status:** (cadence.md §2):
@@ -1223,6 +1223,7 @@ def edit(cmd: str, argv: list[str]) -> int:
     ap.add_argument("id", metavar="TD-n")
     if cmd == "set":
         _field_flags(ap, {})
+        ap.add_argument("--title", help="the heading's title, logged retitled: was \"<old>\" (ledgerboard v2.8, TD-265)")
         ap.add_argument("--by", help="who lifts the decision this Blocked by drops: that gate's person, from a "
                                      "session they started (never git's user.name)")
         ap.add_argument("--answer", help="the lifting answer (default Go): one of the covering board item's Lifts:")
@@ -1232,7 +1233,9 @@ def edit(cmd: str, argv: list[str]) -> int:
         ap.add_argument("words", help="the note, one line")
     else:
         ap.add_argument("--section", required=True, help="the section's name: Why, Fix, Done when, …")
-        ap.add_argument("--from", dest="src", required=True, metavar="FILE", help="its new text from a file, or - for stdin")
+        ap.add_argument("--from", dest="src", metavar="FILE", help="its new text from a file, or - for stdin")
+        ap.add_argument("--remove", action="store_true", help="remove the section, in place of --from: only one "
+                        "named Title or as a header field (ledgerboard v2.8, TD-265)")
     ap.add_argument("--ledger", help="a v2 directory; default: docs/ledger/ at the work tree's top")
     a = ap.parse_args(argv)
     if not ID_ITEM_RE.match(a.id):
@@ -1240,8 +1243,14 @@ def edit(cmd: str, argv: list[str]) -> int:
     kw: dict = {"today": datetime.now(timezone.utc).date().isoformat()}  # the UTC day; v2.5 dates a gate a set adds
     if cmd == "set":
         kw["fields"] = dict(given := _fields_given(ap, a))
-        if not kw["fields"]:
-            ap.error("give at least one field to set")
+        if a.title is not None:
+            if not a.title.strip():
+                ap.error("--title is empty: an entry keeps a title")
+            if a.by is not None:
+                ap.error("--title retitles, --by lifts a decision: give one")
+            kw["title"] = a.title
+        if not kw["fields"] and a.title is None:
+            ap.error("give at least one field, or --title, to set")
         for flag, v in (("--answer", a.answer), ("--why", a.why), ("--override", a.override)):
             if v is not None and a.by is None:
                 ap.error(f"{flag} is a gate route's: give --by, who answered")
@@ -1252,9 +1261,16 @@ def edit(cmd: str, argv: list[str]) -> int:
     elif cmd == "note":
         kw.update(words=a.words)
     else:
-        kw.update(section=a.section, words=_read_body(ap, "--from", a.src).strip())
-        if not kw["words"]:
-            ap.error("--from is empty: a section is never emptied by edit")
+        if a.remove and a.src is not None:
+            ap.error("--remove takes no --from: it removes the section")
+        if a.remove:
+            kw.update(section=a.section, remove=True)
+        elif a.src is None:
+            ap.error("give --from FILE|- with the section's text, or --remove")
+        else:
+            kw.update(section=a.section, words=_read_body(ap, "--from", a.src).strip())
+            if not kw["words"]:
+                ap.error("--from is empty: a section is never emptied by edit (--remove removes it)")
 
     w = _Writer.open(cmd, a.ledger)
     if isinstance(w, int):
