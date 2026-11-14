@@ -99,6 +99,10 @@ lp new --title waits --priority Low --field "Stage=next, waits on TD-001" --why 
 [ $rc -eq 1 ] && grep -q 'refused — .*waits on TD-001' "$TMP/err" && [ "$(last "$O")" = 4 ] \
   && ok "a wait written in prose is refused (name it in Blocked by), before the take" \
   || bad "prose wait (rc=$rc): $(cat "$TMP/err")"
+lp new --title person --priority Low --owner person --why "$TMP/why.md" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'refused — ⚠ TD-.* waits on the person (Owner: person) but its Blocked by has no decision' "$TMP/err" \
+  && [ "$(last "$O")" = 4 ] && ok "an entry owned by the person with no decision gate is refused (TD-264), before the take" \
+  || bad "ungated person (rc=$rc): $(cat "$TMP/err")"
 printf '**Bold** opens a section.\n\n**Another:** lead\n' > "$TMP/boldy.md"
 lp new --title bold --priority Low --why "$TMP/boldy.md" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused' "$TMP/err" && [ "$(last "$O")" = 4 ] \

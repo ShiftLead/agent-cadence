@@ -12,6 +12,9 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-14 — An entry with an Ask, or owned by the person, carries a `decision (<person>)` gate
+Add the Ask, then `ledger.py set TD-n --blocked-by "decision (<person>)"` and its `decide` item; `new`, `set` and the cadence check's `ledger` row refuse the entry without one. cadence.md §2.14 (TD-264).
+
 ## 2026-11-14 — Retitle an entry with `ledger.py set TD-n --title "…"`; drop a misplaced section with `edit --section NAME --remove`
 Do: retitle through `set --title` (logged *retitled: was "<old>"*), never by hand; `edit --remove` takes the place of `--from` and removes only a misplaced section (one named Title or as a header field) — a section in its place is still a hand edit (ledgerboard's writer, v2.8). cadence.md §2.12 (TD-265).
 

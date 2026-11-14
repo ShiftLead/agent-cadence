@@ -1103,14 +1103,17 @@ apr() { # n, branch, head
   pr "$1" OPEN "$2" "TD-0$1: ask" docs/technical_debt.md docs/technical_debt_archive.md; sethead "$1" "$3"
   comments "$1" "$(c 'cadence-review: SHIP · sonnet · docs · 0' "$BEFORE" "$BEFORE")"
 }
+# TD-264 (rule 6): an entry owned by the person with no decision gate is on no Queue, so the row fails it
 apr 11 ask-add "$ADD"; out=$(arun --pr 11); rc=$?
-[ "$(rowstat "$out" ledger)" = PASS ] && lrow "$out" | grep -qF "⚠ TD-011 waits on the person (Owner: person) with no **Ask:** line" && ! lrow "$out" | grep -q "TD-010" \
-  && ok "ledger: an added entry owned by the person with no Ask: warns, the row stays PASS; the unchanged one on main does not" || bad "ask added: rc=$rc $(lrow "$out")"
+[ "$(rowstat "$out" ledger)" = FAIL ] && [ $rc -eq 1 ] && lrow "$out" | grep -qF "⚠ TD-011 waits on the person (Owner: person) but its Blocked by has no decision (<person>) gate" && ! lrow "$out" | grep -q "TD-010" \
+  && ok "ledger: an added entry owned by the person with no decision gate fails the row (TD-264); the unchanged one on main is not named" || bad "ask added: rc=$rc $(lrow "$out")"
 apr 12 ask-ok "$OKA"; out=$(arun --pr 12)
 [ "$(rowstat "$out" ledger)" = PASS ] && ! lrow "$out" | grep -q "Ask:" && ok "ledger: an added entry with an Ask: line below its header does not warn" || bad "ask ok: $(lrow "$out")"
 apr 13 ask-hdr "$HDR"; out=$(arun --pr 13)
-[ "$(rowstat "$out" ledger)" = PASS ] && lrow "$out" | grep -qF "TD-013 waits on the person (Answers:; its Ask: is in the header)" \
-  && ok "ledger: an Answers: entry whose Ask: sits in the header block warns, and says where it is" || bad "ask header: $(lrow "$out")"
+hc=$( cd "$AR" && git checkout -q ask-hdr && python3 "$DC/files/scripts/ledger.py" --check --since origin/main 2>&1 )
+[ "$(rowstat "$out" ledger)" = FAIL ] && lrow "$out" | grep -qF "⚠ TD-013 waits on the person (an **Ask:**) but its Blocked by has no decision" \
+  && grep -qF "TD-013 waits on the person (Answers:; its Ask: is in the header)" <<< "$hc" \
+  && ok "ledger: an Ask: in the header block counts as a wait on the person (TD-264 fails it ungated); --check says where the Ask: is" || bad "ask header: $(lrow "$out") $hc"
 apr 10 ask-edit "$EDT"; out=$(arun --pr 10)
 # ledgerboard v2.4 (SPEC *The ledger*, ask-missing in EDIT_ERRORS): a decision gate with no Ask: on an entry the
 # edit changed is an error — the row fails, naming it; an Owner: person with none still only warns (TD-011 above)
@@ -1119,8 +1122,13 @@ apr 10 ask-edit "$EDT"; out=$(arun --pr 10)
 apr 14 ask-arch "$ARC"; out=$(arun --pr 14)
 [ "$(rowstat "$out" ledger)" = PASS ] && ! lrow "$out" | grep -q "waits on the person" && ok "ledger: an entry moved to the archive does not warn" || bad "ask archived: $(lrow "$out")"
 ( cd "$AR" && git checkout -q ask-add ) && out=$( cd "$AR" && python3 "$DC/files/scripts/ledger.py" --check --since origin/main ); rc=$?
-[ $rc -eq 0 ] && grep -qF "ℹ TD-011 waits on the person" <<< "$out" && ! grep -q "TD-010" <<< "$out" \
-  && ok "ledger.py --check --since: the no-ask ℹ names the new entry, rc 0, and the unchanged one is standing" || bad "ask --check: rc=$rc $out"
+[ $rc -eq 1 ] && grep -qF "ℹ TD-011 waits on the person (Owner: person) with no **Ask:**" <<< "$out" && grep -qF "⚠ TD-011 waits on the person (Owner: person) but" <<< "$out" && ! grep -q "TD-010" <<< "$out" \
+  && ok "ledger.py --check --since: the new entry's no-ask ℹ and no-gate ⚠ (rc 1), and the unchanged one is standing" || bad "ask --check: rc=$rc $out"
+# a person's lift that leaves the entry owned by them is their answer: standing, the row passes (TD-264)
+LFT=$(abranch ask-lift 'sed -i "s/^\*\*Blocked by:\*\* decision (Alex)$/**Owner:** person/" docs/technical_debt.md')
+apr 15 ask-lift "$LFT"; out=$(arun --pr 15)
+! lrow "$out" | grep -q "no decision (<person>) gate" && [ "$(rowstat "$out" ledger)" = PASS ] \
+  && ok "ledger: an entry whose decision was lifted, left owned by the person, is not failed (only its person drops a decision)" || bad "ask lift: $(lrow "$out")"
 
 # --- 19) TD-124: the ledger row on an open PR judges the ids it adds — head's ledger and archive
 # minus its merge-base's. Main holds unpadded TD-1..TD-3, and TD-10 only as an archive table row.
