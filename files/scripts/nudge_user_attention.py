@@ -1440,24 +1440,15 @@ def remote_tier(local_roots: list[Path], today: date, spent: dict | None = None)
 
 def _remote_board(forge, name: str, stub: str, today: date) -> Board:
     """A remote repo's board (v3.0, TD-263), read through the forge: ``stub`` is ``docs/user_attention.md``'s
-    text — a v2 board, or a v3 board's stub, whose directory is read through the forge's directory listing (a
-    GitHub contents read of a directory is its JSON listing), its archive from this month alone (the remote tier
-    shows open items). A forge that lists no directory reads the stub alone: an empty Board naming the missing
+    text — a v2 board, or a v3 board's stub, whose directory is read through the forge's ``list_dir`` (GitHub's
+    contents API, GitLab's repository tree: TD-266), its archive from this month alone (the remote tier shows
+    open items). A directory the forge cannot list reads the stub alone: an empty Board naming the missing
     directory."""
     def ls(path: str) -> list[str] | None:
         if path == "docs/user_attention.md":
             return None
-        rc, out, _err = forge.read_file(name, path)
-        if rc != 0:
-            return None
-        try:
-            listed = json.loads(out)
-        except ValueError:
-            return None
-        if not isinstance(listed, list):
-            return None
-        return sorted(str(e.get("name", "")) + ("/" if e.get("type") == "dir" else "")
-                      for e in listed if isinstance(e, dict) and e.get("name"))
+        rc, names, _err = forge.list_dir(name, path)
+        return names if rc == 0 else None
 
     def read(path: str) -> str | None:
         if path == "docs/user_attention.md":

@@ -65,6 +65,27 @@ if m:
     if os.path.exists(f"{F}/empty_{key}"):
         http404("Commit")
     http404("Project")
+# TD-266: a v3 board's directory, as GitLab's repository API gives it — the tree endpoint lists a
+# directory (type "tree" or "blob"; "404 Tree Not Found" for none), a file read under it its text.
+# Served from $FAKE/dir_<key>/ (the board's docs/user_attention/).
+from urllib.parse import parse_qs, unquote
+m = re.fullmatch(r"projects/([^/]+)/repository/tree", path)
+if m:
+    key = m[1].replace("%2F", "_")
+    sub = parse_qs(ep.split("?", 1)[1])["path"][0]
+    d = f"{F}/dir_{key}/" + sub.removeprefix("docs/user_attention").lstrip("/")
+    if sub.startswith("docs/user_attention") and os.path.isdir(d):
+        import json
+        sys.stdout.write(json.dumps([{"name": n, "type": "tree" if os.path.isdir(f"{d}/{n}") else "blob",
+                                      "path": f"{sub}/{n}"} for n in sorted(os.listdir(d))]))
+        sys.exit(0)
+    http404("Tree")
+m = re.fullmatch(r"projects/([^/]+)/repository/files/docs%2Fuser_attention%2F(.+)/raw", path)
+if m:
+    f = f"{F}/dir_{m[1].replace('%2F', '_')}/{unquote(m[2])}"
+    if os.path.isfile(f):
+        sys.stdout.write(open(f).read()); sys.exit(0)
+    http404("File")
 print(f"glab-shim: unhandled api {ep}", file=sys.stderr); sys.exit(64)
 SHIM
 cat > "$BIN/gh" <<'SHIM'
@@ -187,6 +208,36 @@ printf '# b\n\n- [ ] 2026-10-01 (n/a) — reported.\n' > "$FAKE/board_grp_a.md"
 out=$(python3 "$S/nudge_user_attention.py" --report --remote 2>/dev/null)
 grep -q "== gitlab.com/grp/a (remote-only, pushed state)" <<< "$out" && grep -q "reported" <<< "$out" \
   && ok "8 nudge_user_attention.py --report --remote lists it" || bad "8: $out"
+
+# 9. TD-266: a v3 board (a stub naming its directory) is listed through GitLab's repository tree and its
+# open items shown, as a GitHub repo's are; a directory GitLab cannot list says so, never an empty board
+reset
+printf 'gitlab.com/grp\n' > "$FILTER"
+echo "[$(proj grp/v3)]" > "$FAKE/gproj_grp.json"
+PYTHONPATH="$S" python3 -c 'import ledgerboard as LB; print(LB.board_stub("board", "user_attention"), end="")' > "$FAKE/board_grp_v3.md"
+LATE=$(date -u -d "-3 days" +%F)
+V3="$TMP/v3local/docs"; rm -rf "$V3"; mkdir -p "$V3/user_attention"; cp "$FAKE/board_grp_v3.md" "$V3/user_attention.md"
+printf '# board\n\nLedgerboard: 3\n' > "$V3/user_attention/README.md"
+(cd "$S" && python3 -m ledgerboard.board add --board "$V3/user_attention.md" --kind act --text "gitlab v3 late." --due "$LATE" >/dev/null)
+mkdir -p "$FAKE/dir_grp_v3/archive/2020-01"; cp "$V3"/user_attention/*.md "$FAKE/dir_grp_v3/"
+out=$(tier)
+grep -q "== gitlab.com/grp/v3 (remote-only, pushed state)" <<< "$out" && grep -q "gitlab v3 late\." <<< "$out" \
+  && ! grep -A3 "grp/v3" <<< "$out" | grep -q "not read" \
+  && ok "9a a GitLab v3 board: its directory listed through the repository tree, its open item shown" || bad "9a: $out"
+grep -q "projects/grp%2Fv3/repository/tree?path=docs%2Fuser_attention&ref=HEAD.* --paginate" "$FAKE/glab.log" \
+  && ok "9b the listing names the directory and asks for every page" || bad "9b: $(grep tree "$FAKE/glab.log")"
+rm -rf "$FAKE/dir_grp_v3"
+out=$(tier)
+grep -A2 "grp/v3" <<< "$out" | grep -q "not read: stub" && ok "9c a v3 board whose directory GitLab cannot list: said" \
+  || bad "9c: $(grep -A2 grp/v3 <<< "$out")"
+mkdir -p "$FAKE/dir_grp_v3"   # an older GitLab answers an empty list for a missing path: still no directory
+out=$(tier)
+grep -A2 "grp/v3" <<< "$out" | grep -q "not read: stub" && ok "9c' an empty tree listing reads as no directory, never an empty board" \
+  || bad "9c': $(grep -A2 grp/v3 <<< "$out")"
+mkdir -p "$FAKE/dir_grp_v3"; cp "$V3"/user_attention/*.md "$FAKE/dir_grp_v3/"
+out=$(python3 "$S/nudge_user_attention.py" --report --remote 2>/dev/null)
+grep -q "== gitlab.com/grp/v3 (remote-only, pushed state)" <<< "$out" && grep -q "gitlab v3 late\." <<< "$out" \
+  && ok "9d nudge_user_attention.py --report --remote lists the GitLab v3 board's item" || bad "9d: $out"
 
 echo; echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
