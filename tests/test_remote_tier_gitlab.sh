@@ -230,6 +230,10 @@ rm -rf "$FAKE/dir_grp_v3"
 out=$(tier)
 grep -A2 "grp/v3" <<< "$out" | grep -q "not read: stub" && ok "9c a v3 board whose directory GitLab cannot list: said" \
   || bad "9c: $(grep -A2 grp/v3 <<< "$out")"
+mkdir -p "$FAKE/dir_grp_v3"   # an older GitLab answers an empty list for a missing path: still no directory
+out=$(tier)
+grep -A2 "grp/v3" <<< "$out" | grep -q "not read: stub" && ok "9c' an empty tree listing reads as no directory, never an empty board" \
+  || bad "9c': $(grep -A2 grp/v3 <<< "$out")"
 mkdir -p "$FAKE/dir_grp_v3"; cp "$V3"/user_attention/*.md "$FAKE/dir_grp_v3/"
 out=$(python3 "$S/nudge_user_attention.py" --report --remote 2>/dev/null)
 grep -q "== gitlab.com/grp/v3 (remote-only, pushed state)" <<< "$out" && grep -q "gitlab v3 late\." <<< "$out" \

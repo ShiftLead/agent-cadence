@@ -1300,7 +1300,7 @@ class GitLab(_CLI):
     def list_dir(self, repo: str, path: str) -> tuple[int, list[str], str]:
         """The names in the directory ``path`` on the default branch, sorted, a directory's ending in ``/``
         (TD-266: a v3 board is a directory), from the repository tree API, every page. rc NOT_FOUND when the
-        project has no such directory ("404 Tree Not Found") or no commit; a missing project is an error, as
+        project has no such directory ("404 Tree Not Found", or an empty listing) or no commit; a missing project is an error, as
         in ``read_file``."""
         rc, got, err = self._call_json(f"projects/{quote(repo, safe='')}/repository/tree"
                                        f"?path={quote(path, safe='')}&ref=HEAD&per_page=100", paginate=True)
@@ -1308,6 +1308,8 @@ class GitLab(_CLI):
             return NOT_FOUND, [], err
         if rc != 0:
             return rc, [], err
+        if not got:   # git keeps no empty tree: an empty answer (an older GitLab's for a missing path) is none
+            return NOT_FOUND, [], f"{path}: no such directory"
         return 0, _names(got, "tree"), ""
 
 
