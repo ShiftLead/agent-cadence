@@ -65,7 +65,9 @@ retired, is not read); an id older than the counter and a counter origin did not
 type, vocabulary, blocked-item, cross-repo, blocked-unknown, blockers-archived, pickable-disagrees,
 undeclared-field, rank (a rank file line), prose-wait (TD-166: a header field that names an id after *waits on/for* or *blocked by*
 while its Blocked by does not), no-ask (TD-122: an entry waiting on the person — Owner: person or a
-decision holder's name, decision (<who>), an **Answers:** line — with no **Ask:** line in its body), and the ids' id-untaken, id-take, id-before-counter,
+decision holder's name, decision (<who>), an **Answers:** line — with no **Ask:** line in its body), no-gate (TD-264: an
+open entry with an **Ask:** or an Owner who is the person, and no ``decision (<who>)`` in its Blocked by — an error
+with ``--since`` (standing where REF flagged it or carried a decision), ℹ without, refused by ``new`` and ``set``), and the ids' id-untaken, id-take, id-before-counter,
 id-no-take, id-by-unhashed, id-counter; with ``--since``, archive-loss (an id archived at REF that is now in
 neither the ledger nor the archive, TD-179), archive-reopened (ℹ: one back in the ledger) and, in a v2
 ledger, not-canonical (TD-201: an entry file that differs from the merge-base's, or is new, and is not in
@@ -548,6 +550,47 @@ def ask_flags(ledger: str, archive: str, old: str | None = None) -> list[dict]:
             for tid, why in ask_missing(ledger, archive).items()]
 
 
+# TD-264 (rule 6): nothing that waits on the person is invisible. An open entry with an **Ask:** (in its body
+# or, the old place, its header) or an Owner who is a person (ask_missing()'s people) and no decision (<who>)
+# gate is on no Queue: the gate sweep files a decide only for a gate, and Owner never blocks (cadence.md §2.14).
+def ungated_waits(ledger: str, archive: str = "") -> dict[str, str]:
+    """id -> why the open entry waits on the person (``an **Ask:**``, ``Owner: <person>``), for each one whose
+    Blocked by names no ``decision (<who>)``."""
+    people = {"person"}
+    for e in LB.entries(ledger) + LB.entries(archive):
+        people.update(w.lower() for w in LB.parse_blocked(e["blocked_raw"] or "")[1])
+    bodies = _bodies(ledger)
+    out = {}
+    for e in LB.entries(ledger):
+        if LB.parse_blocked(e["blocked_raw"] or "")[1]:
+            continue
+        owner = LB.first_word(e["fields"].get("owner"))
+        if owner in people:
+            out[e["id"]] = f"Owner: {owner}"
+        elif ASK_RE.search(bodies.get(e["id"], "")) or "ask" in e["fields"]:
+            out[e["id"]] = "an **Ask:**"
+    return out
+
+
+def ungated_flags(ledger: str, archive: str, old: str | None = None) -> list[dict]:
+    """⚠ per open entry waiting on the person with no decision gate (kind no-gate). With ``old``, the flag is
+    standing and ℹ where the ledger at REF flagged the entry too, or where the entry carried a decision gate
+    there: only its person can drop one (TD-218), so a lift that leaves the wait is their answer, never the
+    writer's slip. An edit is judged on the waits it makes unseen."""
+    then = ungated_waits(old, archive) if old is not None else {}
+    decided = {e["id"] for e in LB.entries(old)
+               if LB.parse_blocked(e["blocked_raw"] or "")[1]} if old is not None else set()
+    out = []
+    for tid, why in ungated_waits(ledger, archive).items():
+        standing = tid in then or tid in decided
+        out.append({"level": "info" if standing else "error", "id": tid, "field": "blocked by", "kind": "no-gate",
+                    "standing": standing,
+                    "text": f"{'ℹ' if standing else '⚠'} {tid} waits on the person ({why}) but its Blocked by has no "
+                            "decision (<person>) gate, so no Queue shows it — add the gate and its board item "
+                            "(cadence.md §2.14), or give the work to a lane and drop the Ask"})
+    return out
+
+
 def canonical_flags(rel: str, now: tuple[LB.Ls, LB.Read], then: tuple[LB.Ls, LB.Read] | None) -> list[dict]:
     """TD-201: an error for each entry file of the v2 ledger ``rel`` that ``now`` holds and ``then`` (the
     ref the edit started at) does not hold the same — new, a file new in ``archive/`` included — and
@@ -938,7 +981,8 @@ def _gate_flags(ledger: Path, io: tuple[LB.Ls, LB.Read], ref: str, then: tuple[s
     """``--check --since ref``'s flags (and prose waits) on the ledger ``io`` reads; ``ids``: the id flags too."""
     text, arch = read_pair(str(ledger), None, io)
     old = then[0] if then else None
-    recs = check(text or "", arch, old, roster, io[1](LB.rank_path(str(ledger)))) + prose_wait_flags(text or "", arch, old)
+    recs = (check(text or "", arch, old, roster, io[1](LB.rank_path(str(ledger)))) + prose_wait_flags(text or "", arch, old)
+            + ungated_flags(text or "", arch, old))
     if then:
         recs += archive_loss_flags(text or "", arch, *then)
     if ids:
@@ -2083,6 +2127,10 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"ledger: --since: not read — {e}", file=sys.stderr)
                 return 2
         recs = check(text, arch, old, rank_text=rank_text) + prose_wait_flags(text, arch, old) + ask_flags(text, arch, old)
+        # TD-264: the bare run judges the ledger, not an edit — a wait left unseen before the rule is ℹ there, so
+        # `adopt` (which runs it) never refuses a repo for one; --since, the writers and the ledger row refuse it
+        recs += [r if a.since is not None else dict(r, level="info", text="ℹ" + r["text"][1:])
+                 for r in ungated_flags(text, arch, old)]
         if a.since is not None:
             # what the archive held where this edit started, not at REF's tip: an entry REF archived
             # after the branch left it is not this edit's loss (TD-179)

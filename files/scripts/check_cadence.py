@@ -1187,6 +1187,8 @@ def ledger_edit_check(pr, root):
     except L.N.FormatTooNew as e:
         return [], f"ledger fields not checked: {e}"
     recs = L.check(text, arch, before)
+    # TD-264: an entry this PR makes wait on the person (an Ask:, Owner: <person>) with no decision gate fails
+    recs += L.ungated_flags(text, arch, before)
     # TD-201: a v2 entry an open PR changed, judged by its file's form — a merged one is not: the
     # sweep would fail every PR merged before the rule, which nobody can now amend
     if not lp.endswith(".md") and pr["state"] != "merged":

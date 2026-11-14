@@ -178,5 +178,36 @@ lp edit TD-002 --section Why --remove >/dev/null 2>&1; r4=$?
   && ok "edit refuses --remove with --from, neither, a Title, and an archived entry, writing nothing" || bad "remove refusals: $r1 $r2 $r3 $r4"
 lp set TD-002 --title nope >/dev/null 2>&1 && bad "set --title on an archived entry was accepted" || ok "set --title refuses an archived entry"
 
+# --- TD-264 (rule 6): nothing that waits on the person is invisible. A set that makes an open entry wait on the
+# person (an Owner who is one, an **Ask:**) with no decision (<person>) gate is refused; one already so on origin
+# is standing; the Ask then the gate is the way in; a person's lift that leaves the wait is standing too.
+cp "$L/TD-004.md" "$TMP/td4"
+lp set TD-004 --owner person >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'refused — ⚠ TD-004 waits on the person (Owner: person) but its Blocked by has no decision' "$TMP/err" \
+  && cmp -s "$L/TD-004.md" "$TMP/td4" && ok "set refuses Owner: person with no decision gate, writing nothing" || bad "ungated owner (rc=$rc): $(cat "$TMP/err")"
+printf 'Should it? Yes or no.\n' > "$TMP/ask.md"
+lp edit TD-004 --section Ask --from "$TMP/ask.md" >/dev/null 2>"$TMP/err" \
+  && lp set TD-004 --owner person --blocked-by "decision (Alex)" >/dev/null 2>>"$TMP/err" \
+  && grep -qx '\*\*Blocked by:\*\* decision (Alex)' "$L/TD-004.md" \
+  && ok "the Ask, then the Owner with its decision gate, is written" || bad "gated owner: $(cat "$TMP/err")"
+printf '## TD-007: seven\n\n**Priority:** Low\n**Owner:** person\n**Status:** Open\n\n**Why:** standing.\n' > "$L/TD-007.md"
+git -C "$W" add docs/ledger/TD-007.md; git -C "$W" commit -qm seven; git -C "$W" push -q origin main
+lp set TD-007 --priority High >/dev/null 2>"$TMP/err"; rc=$?
+c=$(lp --check --since origin/main 2>&1); crc=$?
+bc=$(lp --check 2>&1); brc=$?
+[ $rc -eq 0 ] && [ $crc -eq 0 ] && ! grep -q 'TD-007 .*no decision' <<< "$c" && [ $brc -eq 0 ] && grep -q '^ℹ TD-007 waits on the person (Owner: person) but .*no decision' <<< "$bc" \
+  && ok "an entry already ungated on origin is standing: a set on it passes, --check --since passes, a bare --check (adopt's) says it as ℹ, rc 0" \
+  || bad "standing ungated (rc=$rc crc=$crc): $(cat "$TMP/err") $c"
+out=$(cd "$DC/files/scripts" && python3 - <<'PY'
+import ledger as L
+was = "## TD-009: x\n\n**Priority:** Low\n**Owner:** person\n**Status:** Open\n**Blocked by:** decision (Alex)\n\n**Why:** x.\n\n**Ask:** Go?\n"
+now = was.replace("**Blocked by:** decision (Alex)\n", "")
+new = now.replace("TD-009", "TD-010")
+print(sorted((r["id"], r["level"]) for r in L.ungated_flags(now + new, "", was)))
+PY
+)
+[ "$out" = "[('TD-009', 'info'), ('TD-010', 'error')]" ] \
+  && ok "a lift that leaves the wait is standing (only its person drops a decision); a new ungated entry is an error" || bad "lift standing: $out"
+
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
