@@ -157,7 +157,7 @@ lp set TD-001 --title "one again" --priority High >/dev/null 2>"$TMP/err" && hea
   && grep -qx '\*\*Priority:\*\* High' "$L/TD-001.md" && ok "set --title with a field sets both" || bad "retitle+field: $(cat "$TMP/err")"
 cp "$L/TD-004.md" "$TMP/td4"
 lp set TD-004 --title "  " >/dev/null 2>&1; r1=$?
-lp set TD-004 --title x --by paul >/dev/null 2>&1; r2=$?
+lp set TD-004 --title x --by alex >/dev/null 2>&1; r2=$?
 [ $r1 -ne 0 ] && [ $r2 -ne 0 ] && cmp -s "$L/TD-004.md" "$TMP/td4" \
   && ok "set refuses an empty --title, and --title beside --by, writing nothing" || bad "title refusals: $r1 $r2"
 printf '## TD-006: six\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** a fixture.\n\n**Title:** stray\n' > "$L/TD-006.md"
