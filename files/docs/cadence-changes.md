@@ -12,6 +12,9 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-14 — Retitle an entry with `ledger.py set TD-n --title "…"`; drop a misplaced section with `edit --section NAME --remove`
+Do: retitle through `set --title` (logged *retitled: was "<old>"*), never by hand; `edit --remove` takes the place of `--from` and removes only a misplaced section (one named Title or as a header field) — a section in its place is still a hand edit (ledgerboard's writer, v2.8). cadence.md §2.12 (TD-265).
+
 ## 2026-11-14 — The board is a directory, one file per item (ledgerboard v3.0): edit an item by `--id`, never by line
 Do: write and edit the board only through `board_edit.py` — `add`, then `done|snooze|due|decide|reply --id <id>` (the id from `--report --json`); `--line`/`--expect`, `replay` and `archive` are gone, and `done` moves the item into `archive/<YYYY-MM>/`.
 `docs/user_attention.md` is a stub naming `docs/user_attention/`; the sweep stamps are lines of its `README.md`; a v2 board is split once with `board.py split` in the bump that brings v3.0. `ledger.py migrate` is gone with the ledger's old forms (run it before the bump, on v2.x). cadence.md §3.3–§3.5, §4.3–§4.6 (TD-263).

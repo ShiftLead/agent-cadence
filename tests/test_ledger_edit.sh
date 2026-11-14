@@ -148,5 +148,35 @@ r2=$( (cd "$W3" && python3 "$LEDGER_PY" edit TD-001 --section Why --from "$TMP/w
   && ok "a below-block entry elsewhere, unchanged since origin, refuses no note or edit of another entry (TD-222)" \
   || bad "below-block elsewhere: $r1 $r2 $(cat "$TMP/err")"
 
+# --- TD-265: set --title retitles, edit --remove removes a section (ledgerboard v2.8's writer, passed through)
+mkrepo "$O" "$W"
+lp set TD-003 --title "three, retitled" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && head -1 "$L/TD-003.md" | grep -qx '## TD-003: three, retitled' && grep -q 'retitled: was "three"' "$L/TD-003.md" \
+  && ok "set --title retitles an open entry, logging the old title" || bad "retitle (rc=$rc): $(cat "$TMP/err") $(head -1 "$L/TD-003.md")"
+lp set TD-001 --title "one again" --priority High >/dev/null 2>"$TMP/err" && head -1 "$L/TD-001.md" | grep -qx '## TD-001: one again' \
+  && grep -qx '\*\*Priority:\*\* High' "$L/TD-001.md" && ok "set --title with a field sets both" || bad "retitle+field: $(cat "$TMP/err")"
+cp "$L/TD-004.md" "$TMP/td4"
+lp set TD-004 --title "  " >/dev/null 2>&1; r1=$?
+lp set TD-004 --title x --by paul >/dev/null 2>&1; r2=$?
+[ $r1 -ne 0 ] && [ $r2 -ne 0 ] && cmp -s "$L/TD-004.md" "$TMP/td4" \
+  && ok "set refuses an empty --title, and --title beside --by, writing nothing" || bad "title refusals: $r1 $r2"
+printf '## TD-006: six\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** a fixture.\n\n**Title:** stray\n' > "$L/TD-006.md"
+git -C "$W" add -A; git -C "$W" commit -qm six; git -C "$W" push -q origin main
+lp edit TD-006 --section Title --remove >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && ! grep -q '^\*\*Title:' "$L/TD-006.md" && grep -q '^\*\*Why:\*\* a fixture' "$L/TD-006.md" \
+  && ok "edit --remove removes a misplaced section (one named Title) and keeps the rest" || bad "remove (rc=$rc): $(cat "$TMP/err")"
+cp "$L/TD-003.md" "$TMP/td3"
+lp edit TD-003 --section Fix --remove >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'not misplaced' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
+  && ok "edit --remove refuses a section in its place (the writer removes only a misplaced one)" || bad "remove placed (rc=$rc): $(cat "$TMP/err")"
+printf 'x\n' > "$TMP/x.md"
+lp edit TD-004 --section Related --remove --from "$TMP/x.md" >/dev/null 2>&1; r1=$?
+lp edit TD-004 --section Related >/dev/null 2>&1; r2=$?
+lp edit TD-004 --section Title --remove >/dev/null 2>&1; r3=$?
+lp edit TD-002 --section Why --remove >/dev/null 2>&1; r4=$?
+[ $r1 -ne 0 ] && [ $r2 -ne 0 ] && [ $r3 -ne 0 ] && [ $r4 -ne 0 ] && cmp -s "$L/TD-004.md" "$TMP/td4" \
+  && ok "edit refuses --remove with --from, neither, a Title, and an archived entry, writing nothing" || bad "remove refusals: $r1 $r2 $r3 $r4"
+lp set TD-002 --title nope >/dev/null 2>&1 && bad "set --title on an archived entry was accepted" || ok "set --title refuses an archived entry"
+
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
