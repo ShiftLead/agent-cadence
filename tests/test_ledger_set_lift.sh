@@ -322,9 +322,14 @@ AO_MODE=person SHIFTLEAD_SESSION=s-me python3 "$EDIT" decide --board "$B" --line
 reset
 
 # --- 10) TD-260: a session applies the person's answer already recorded on origin's default branch (a Queue press)
-n2=$(line_of "TD-002 decision"); n3=$(line_of "TD-003 decision")
+n2=$(line_of "TD-002 decision"); n3=$(line_of "TD-003 decision"); n10=$(line_of "TD-010 decision")
+OLD=$(date -d "-10 days" +%F 2>/dev/null || date -v-10d +%F); YEST=$(date -u -d "-1 day" +%F 2>/dev/null || date -u -v-1d +%F)
 git clone -q "$O" "$TMP/press"; PB="$TMP/press/docs/user_attention.md"
-sed -i "${n2}s/\$/ Decided: Go (by Robin) ($LOCAL)./; ${n3}s/\$/ Decided: CSV (by Sam) ($LOCAL)./" "$PB"
+sed -i "${n2}s/\$/ Decided: Go (by Robin) ($LOCAL)./; ${n3}s/\$/ Decided: CSV (by Sam) ($LOCAL)./; ${n10}s/\$/ Decided: Go (by Robin) ($LOCAL)./" "$PB"
+# an earlier round's answer, carried out and closed; and an answer from before the gate was last added
+sed -i "/^## Needs the user/a - [x] decide $OLD (n/a) — an earlier round? Context: TD-001 decision (Robin). Due: $OLD. Answers: Ship | Not yet. Decided: Ship (by Robin) ($OLD). Closed: $OLD — lifted." "$PB"
+sed -i "/^## Needs the user/a - [ ] decide $YEST (n/a) — before the gate: Go? Context: TD-031. Due: $DUE. Answers: Go | Not yet. Decided: Go (by Kim) ($YEST)." "$PB"
+printf '\n**Log:**\n- %s: gate added: decision (Kim)\n' "$TODAY" >> "$TMP/press/docs/ledger/TD-031.md"
 sed -i "/^## Needs the user/a - [ ] decide $LOCAL (n/a) — no item: Lift it? Context: TD-001. Due: $DUE. Answers: Lift it | Not yet. Decided: Lift it (by Robin) ($LOCAL)." "$PB"
 git -C "$TMP/press" commit -qam "board: the Queue's presses"; git -C "$TMP/press" push -q origin main
 git -C "$W" pull -q --ff-only
@@ -359,8 +364,22 @@ g set TD-021 --blocked-by "decision (Sam)" --by Robin >/dev/null 2>"$TMP/err"; r
 [ $rc -eq 1 ] && same docs/ledger && grep -q "records no answer" "$TMP/err" \
   && ok "a decided item only on the session's own branch, not on origin/main, is no recorded answer" || bad "branch only (rc=$rc): $(cat "$TMP/err")"
 git -C "$W" reset -q --hard origin/main
+g set TD-001 --blocked-by "" --by Robin --answer Ship >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -q "records no answer" "$TMP/err" \
+  && ok "an earlier round's answer, closed on origin's board, is never replayed" || bad "stale closed (rc=$rc): $(cat "$TMP/err")"
+g set TD-031 --blocked-by "" --by Kim >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -q "records no answer" "$TMP/err" \
+  && ok "an answer dated before the gate's last 'gate added' line is no record" || bad "before gate (rc=$rc): $(cat "$TMP/err")"
+out=$(g set TD-011 --blocked-by "" --by Robin 2>"$TMP/err"); rc=$?
+[ $rc -eq 0 ] && ! grep -q 'Blocked by' "$L/TD-011.md" && grep -q "lifted by a session on Robin's answer 'Go'" "$L/TD-011.md" \
+  && ok "the parent's decided item listing the part in Parts: is a record for the part" \
+  || bad "parts (rc=$rc): $(cat "$TMP/err") | $(tail -2 "$L/TD-011.md")"
+reset
+g set TD-002 --blocked-by "decision (Sam)" --by Robin --why "Sam owns it" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && same docs && grep -q "only a person's own session" "$TMP/err" \
+  && ok "a reassign from an unattended session is still refused, a recorded answer or not" || bad "reassign (rc=$rc): $(cat "$TMP/err")"
 g set TD-002 --blocked-by "" --by Robin --override "away" >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 1 ] && same docs && grep -q 'refused' "$TMP/err" \
+[ $rc -eq 1 ] && same docs && grep -q "only a person's own session" "$TMP/err" \
   && ok "an override from an unattended session is still refused, a recorded answer or not" || bad "override (rc=$rc): $(cat "$TMP/err")"
 
 echo "---- $PASS passed, $FAIL failed"

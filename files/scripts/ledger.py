@@ -1451,11 +1451,11 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
         if by != person:
             return w.say("set", f"refused — {refusal}; a session applies only {person}'s own recorded answer "
                                 f"(--by {person}); nothing was written", 1)
-        recorded = agent_sessions.recorded_answer(w.root, tid, gate, label, w.ref)
+        recorded = agent_sessions.recorded_answer(w.root, text, gate, label, w.ref)
         if recorded is None:
             return w.say("set", f"refused — {refusal}, and the board at {w.ref} records no answer {label!r} by "
-                                f"{person} to {LBL.tid_of(tid)} {gate} (a decide item whose Context names it, "
-                                "Decided: by them); nothing was written", 1)
+                                f"{person} to {LBL.tid_of(tid)} {gate} (an open decide item whose Context names it, "
+                                "Decided: by them since the gate was added); nothing was written", 1)
     try:
         boards, names, repo = _boards(w)
         got = [(b, it) for b, it, st in LB.covers(text, gate, boards, repo) if st in ("open", "decided")]

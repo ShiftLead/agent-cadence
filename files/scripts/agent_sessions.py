@@ -991,18 +991,21 @@ def person_session_refusal(env: "dict | None" = None) -> "str | None":
     return None
 
 
-def recorded_answer(root, tid: str, gate: str, label: str, ref: str,
+def recorded_answer(root, entry_text: str, gate: str, label: str, ref: str,
                     board_rel: str = "docs/user_attention.md") -> "str | None":
-    """Where the person recorded the answer ``label`` to ``tid``'s ``gate`` (``decision (<p>)``) — None when
+    """Where the person recorded the answer ``label`` to this entry's ``gate`` (``decision (<p>)``) — None when
     nowhere (TD-260, ShiftLead TD-1796). A session ``person_session_refusal()`` refuses may still lift a gate
     whose person has already answered it: a button press on the Queue is the person's act, and the session that
     applies it carries out their recorded answer rather than deciding anything. The record read is this repo's
     board at ``ref`` (origin's default branch), never the working tree, so a session's own uncommitted or
-    unmerged edit is not evidence: a decide item — open or closed — whose Context names the entry (a bare
-    ``TD-n``, or ``TD-n`` and this gate, or a parent with the entry among its ``Parts:``), whose ``Decided:``
-    answer is ``label`` and whose ``(by …)`` is the gate's person. The Queue's two writes land there: a decide
-    on a gate's item (ShiftLead's board write-back) and its answer to an entry that waits on the person (a
-    decided line, ``Context:`` the bare id). Returns the record in words, for the Log.
+    unmerged edit is not evidence: an **open** ``decide`` item — the work order not yet carried out — whose
+    Context names the entry (a bare ``TD-n``, or ``TD-n`` and this gate, or the entry's ``Part of`` parent with
+    the entry among its ``Parts:``), whose ``Decided:`` answer is ``label``, whose ``(by …)`` is the gate's
+    person, and whose date is not before the gate's last ``gate added`` Log line (where the Log has one), so an
+    answer to an earlier round of the same gate is never replayed. The Queue's two writes land such an item: a
+    decide on a gate's item that leaves the gate to a session (ShiftLead's board write-back) and its answer to
+    an entry that waits on the person (a decided line, ``Context:`` the bare id). Returns the record in words,
+    for the Log.
 
     Forgeable as the attestation is: an item hand-written as decided and merged would pass. What catches that is
     the merge gate's tripwire and review of the PR that put it on the default branch."""
@@ -1020,21 +1023,25 @@ def recorded_answer(root, tid: str, gate: str, label: str, ref: str,
     if r.returncode != 0:
         return None
     try:
-        num = LB._num(tid)
+        ent = LB.entries(entry_text)[0]
+        num = LB._num(ent["id"])
+        parent, _ = LB.parse_part_of(ent["part_of_raw"])
+        since = LB.gate_added(entry_text, gate)
         key = LB._gate_key(gate)
-        items = [*LB.parse_board(r.stdout, warn=False), *LB.parse_closed_items(r.stdout)]
-    except (LB.Refused, ValueError):
+        items = LB.parse_board(r.stdout, warn=False)   # open items only: a closed one was carried out already
+    except (LB.Refused, ValueError, IndexError, KeyError):
         return None
     for it in items:
-        if not it.decided or (it.decided_by or "").strip().lower() != person:
+        if it.kind != "decide" or not it.decided or (it.decided_by or "").strip().lower() != person:
             continue
-        if " ".join(it.decided[0].split()).lower() != want:
+        if " ".join(it.decided[0].split()).lower() != want or (since is not None and it.decided[1] < since):
             continue
         ref_, g = LB._item_gate(it.text)
         if ref_ is None or "#" in ref_ or (g is not None and LB._gate_key(g) != key):
             continue
         named = LB._num(ref_) == num
-        part = g is not None and any("#" not in p and LB._num(p) == num for p in it.parts if p)
+        part = (g is not None and parent is not None and "#" not in parent and LB._num(ref_) == LB._num(parent)
+                and any("#" not in p and LB._num(p) == num for p in it.parts if p))
         if named or part:
             return (f"{it.decided_by}'s answer {it.decided[0]!r} ({it.decided[1].isoformat()}) on the board item "
                     f"{it.text.strip()[:60]!r}, at {ref}")
