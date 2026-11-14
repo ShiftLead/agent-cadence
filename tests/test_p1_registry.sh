@@ -71,5 +71,14 @@ if ! run_guard "$T4" | grep -q "roster"; then ok "same-origin checkout covered -
 printf '%s\n%s\n' "$TMP/gone-repo" "$(realpath "$T2")" > "$REG"
 if ! run_guard "$T4" | grep -q "roster"; then ok "dead registry line skipped, coverage still found"; else bad "dead line broke coverage"; fi
 
+# --- 11) TD-263: a v3 board (ledgerboard v3.0) — the stub, and its open items as files in the directory beside it
+T5="$TMP/repo5"; mkrepo "$T5"; mkdir -p "$T5/docs/user_attention/archive/2026-01"
+cp "$DC/files/docs/user_attention.md" "$T5/docs/"; printf '# B\n\nLedgerboard: 3\n' > "$T5/docs/user_attention/README.md"
+printf '%s\n' "$(realpath "$T1")" > "$REG"
+printf '## closed\n' > "$T5/docs/user_attention/archive/2026-01/2026-01-02-0a1b2c3d.md"
+if ! run_guard "$T5" | grep -q "roster"; then ok "v3 board with only archived items -> silent"; else bad "v3 archived-only board warned"; fi
+printf '## open\n' > "$T5/docs/user_attention/$(date +%F)-0a1b2c3d.md"
+if run_guard "$T5" | grep -q "roster"; then ok "v3 board with an open item file -> uncovered repo warns"; else bad "v3 open item did not warn"; fi
+
 echo; echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

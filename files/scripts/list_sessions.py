@@ -61,6 +61,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_sessions  # noqa: E402
 from agent_sessions import PROJECT_DIR_MAX, munge, project_dirs  # noqa: E402,F401
+from ledgerboard import load_board  # noqa: E402  # sibling SYNC package (TD-263)
 
 
 def short_path(p: Path) -> str:
@@ -70,10 +71,6 @@ def short_path(p: Path) -> str:
     return "~" + s[len(home):] if s.startswith(home + "/") else s
 
 
-# Board items name the session that parked them — `(session <first-8-of-uuid> on <host>)`,
-# the Format line of docs/user_attention.md. A parity pair with that line (cadence.md §7
-# Parity pairs; tests/test_parity.sh runs the Format line's example through this).
-SESSION_RE = re.compile(r"session (\w{8})")
 
 RECAP_BOILERPLATE = re.compile(
     r"^.{0,40}(This session is being continued from a previous conversation[^:]*:|"
@@ -205,22 +202,29 @@ def active_sessions() -> dict[str, str]:
     return {s["id"]: s.get("cwd", "") for s in seen.items if s.get("id")}
 
 
-def board_items(repo: Path) -> dict[str, list[str]]:
-    """Open items on docs/user_attention.md keyed by the 8-char session id they cite."""
-    board = repo / "docs" / "user_attention.md"
-    if not board.is_file():
-        return {}
-    items: dict[str, list[str]] = {}
+def _ls(path: str) -> list[str] | None:
+    if not os.path.isdir(path):
+        return None
+    return sorted(n + "/" if os.path.isdir(os.path.join(path, n)) else n for n in os.listdir(path))
+
+
+def _read(path: str) -> str | None:
     try:
-        board_text = board.read_text(encoding="utf-8", errors="replace")
+        return Path(path).read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return {}
-    for line in board_text.splitlines():
-        if not re.match(r"\s*-\s*\[ \]", line):
-            continue  # only unchecked (still-open) board entries
-        text = re.sub(r"^\s*-\s*\[ \]\s*", "", " ".join(line.split()))
-        for sid in SESSION_RE.findall(line):
-            items.setdefault(sid, []).append(text)
+        return None
+
+
+def board_items(repo: Path) -> dict[str, list[str]]:
+    """The open items of the repo's attention board, keyed by the session each names (its ``Session``'s name,
+    the 8-character session id a session writes; ``on <host>`` aside), each listed by its words. The board is
+    read through ledgerboard's load_board() (v3.0, TD-263): a v2 ``docs/user_attention.md``, or a v3 board's
+    directory through its stub."""
+    board = load_board(str(repo / "docs" / "user_attention.md"), _ls, _read)
+    items: dict[str, list[str]] = {}
+    for it in board.items:
+        if it.session:
+            items.setdefault(it.session, []).append(" ".join(it.words.split()))
     return items
 
 

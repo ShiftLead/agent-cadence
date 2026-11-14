@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-14 — The board is a directory, one file per item (ledgerboard v3.0): edit an item by `--id`, never by line
+Do: write and edit the board only through `board_edit.py` — `add`, then `done|snooze|due|decide|reply --id <id>` (the id from `--report --json`); `--line`/`--expect`, `replay` and `archive` are gone, and `done` moves the item into `archive/<YYYY-MM>/`.
+`docs/user_attention.md` is a stub naming `docs/user_attention/`; the sweep stamps are lines of its `README.md`; a v2 board is split once with `board.py split` in the bump that brings v3.0. cadence.md §3.3–§3.5, §4.3–§4.6 (TD-263).
+
 ## 2026-11-14 — A session applies the person's recorded answer: `set --by <person>` passes on a press already on the board
 Do: to carry out a Queue press that lifts a `decision (<p>)`, run `ledger.py set TD-n --blocked-by … --by <p> --answer <the Decided: answer>` from any session; it passes only where `origin/<default>`'s board holds that answer by <p>, and logs which.
 See: cadence.md §2.4; TD-260.

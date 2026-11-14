@@ -51,7 +51,47 @@ fx repos/o/oth/pulls/3 '{"state":"closed","merged":true}'
 
 TODAY=$(date -u +%F)
 PAST=$(python3 -c 'import datetime as d, sys; print(d.date.fromisoformat(sys.argv[1]) - d.timedelta(days=3))' "$TODAY")
-board() { printf '# Attention\n\nPeople: %s\n\n## Needs the user\n\n%s\n' "$1" "${2:-}"; }
+# A v3 board (ledgerboard v3.0, TD-263): board <repo> <people> writes docs/user_attention/README.md and the stub,
+# with no item; item <repo> … adds one item file (mkitem.py below), and prints its id.
+board() {
+  rm -rf "$1/docs/user_attention" "$1/docs/user_attention.md" "$1/docs/user_attention_archive.md"
+  mkdir -p "$1/docs/user_attention"
+  printf '# Attention\n\nLedgerboard: 3\n\nPeople: %s\n' "$2" > "$1/docs/user_attention/README.md"
+  PYTHONPATH="$S" python3 -c 'import ledgerboard as LB; print(LB.board_stub("Attention", "user_attention"), end="")' > "$1/docs/user_attention.md"
+}
+cat > "$TMP/mkitem.py" <<'PY'
+# mkitem.py <board dir> sweep <tid> <ref> <gate> <ask> <title> [edit] | act <words> <context> [edit]
+# edit: done | decide:<answer>:<by> | close:<answer>:<by> (a decide that closes) — the item file as the writers make it
+import datetime as d, os, secrets, sys
+import ledgerboard as LB
+board, mode, *a = sys.argv[1:]
+t = d.date.today()
+if mode == "sweep":
+    it = LB._sweep_item("uncovered", a[0], a[1], a[2], ask=a[3], title=a[4])
+    text, ctx, rest = it.pop("text"), it.pop("context"), a[5:]
+    f = LB.item_file(text, t.isoformat(), t.isoformat(), "s", None, ctx, **it)
+else:
+    f = LB.item_file(a[0], t.isoformat(), t.isoformat(), "s", None, a[1], kind="act")
+    rest = a[2:]
+for e in rest:
+    if e == "done":
+        f = LB.edit_item(f, "done", why="seen", today=t)
+    else:
+        how, ans, by = e.split(":")
+        f = LB.edit_item(f, "decide", answer=ans, by=by, today=t, close=how == "close")
+iid = f"{t.isoformat()}-{secrets.token_hex(4)}"
+shut = LB.parse_item(f).closed
+path = os.path.join(board, LB.item_path(iid, shut[0].isoformat() if shut else None))
+os.makedirs(os.path.dirname(path), exist_ok=True)
+open(path, "w").write(f)
+print(iid)
+PY
+item() { local r="$1"; shift; PYTHONPATH="$S" python3 "$TMP/mkitem.py" "$r/docs/user_attention" "$@"; }
+# bshow <bare> <ref>: the board under docs/user_attention/ at <ref>, one line per item file, its path first
+bshow() { local f; for f in $(git -C "$1" ls-tree -r --name-only "$2" -- docs/user_attention 2>/dev/null); do
+  printf '%s: %s\n' "${f#docs/user_attention/}" "$(git -C "$1" show "$2:$f" | tr '\n' ' ')"; done; }
+# boardonly <bare> <a> <b>: the diff between two refs touches files under docs/user_attention/ alone, and some
+boardonly() { local d; d=$(git -C "$1" diff --name-only "$2" "$3"); [ -n "$d" ] && ! grep -qv '^docs/user_attention/' <<< "$d"; }
 entry() {   # entry <dir> <n> <blocked by or -> [more body]
   { printf '## TD-%03d: entry %s\n\n**Priority:** Medium\n**Added:** 2026-01-01\n**Status:** Open\n' "$2" "$2"
     [ "$3" != - ] && printf '**Blocked by:** %s\n' "$3"
@@ -69,20 +109,8 @@ OWN="$TMP/own"; mkrepo "$OWN" https://github.com/o/own.git
 BARE="$TMP/own.git"; git init -q --bare "$BARE"; git -C "$OWN" remote set-url --push origin "$BARE"
 mkrepo "$OTH" https://github.com/o/oth.git
 OBARE="$TMP/oth.git"; git init -q --bare "$OBARE"; git -C "$OTH" remote set-url --push origin "$OBARE"
-OSTALE=$(python3 - "$S" "$TODAY" <<'PY'
-import sys; sys.path.insert(0, sys.argv[1]); import ledgerboard as LB
-print(LB.item_line("Lift of event (gone) on o/own#TD-007 was closed", sys.argv[2], sys.argv[2], "s", None,
-                   "o/own#TD-007 event (gone) lift", kind="act"))
-PY
-)
-board sam "$OSTALE" > "$OTH/docs/user_attention.md"
-STALE=$(python3 - "$S" "$TODAY" <<'PY'
-import sys; sys.path.insert(0, sys.argv[1]); import ledgerboard as LB
-print(LB.item_line("Lift of event (gone) on TD-007 was closed", sys.argv[2], sys.argv[2], "s", None,
-                   "TD-007 event (gone) lift", kind="act"))
-PY
-)
-board alex "$STALE" > "$OWN/docs/user_attention.md"
+board "$OTH" sam; item "$OTH" act "Lift of event (gone) on o/own#TD-007 was closed" "o/own#TD-007 event (gone) lift" >/dev/null
+board "$OWN" alex; item "$OWN" act "Lift of event (gone) on TD-007 was closed" "TD-007 event (gone) lift" >/dev/null
 entry "$OWN" 1 "decision (alex)" '**Ask:** Ship the thing?'
 entry "$OWN" 2 "decision (sam)" '**Ask:** Rename it, as TD-002 says?'
 entry "$OWN" 3 "until $PAST"
@@ -106,20 +134,20 @@ grep -q "gate lifted: event (landed) — by testhost; pr-merged passed; o/oth#3"
   && ok "2c a lift PR changes its entry alone" || bad "2c: $(git -C "$BARE" diff --name-only main lift/TD-004/landed)"
 grep -q '^pr create --head lift/TD-004/landed --base main --title TD-004: lift event (landed) — its check passed: o/oth#3 (gate sweep)' "$GH_LOG" \
   && ok "2d the lift PR's title names the entry, the gate and the evidence" || bad "2d: $(grep 'pr create' "$GH_LOG")"
-b=$(shown "sweep/$TODAY:docs/user_attention.md")
-grep -q 'Ship the thing?.*Context: TD-001 decision (alex)' <<< "$b" && ok "3a the sweep PR files this board's decide item" || bad "3a: $b / $out"
-grep -q '^- \[x\] .*Lift of event (gone) on TD-007 was closed.*Closed: .* the gate sweep' <<< "$b" \
+b=$(bshow "$BARE" "sweep/$TODAY")
+grep -q 'Ship the thing?.*Context:\*\* TD-001 decision (alex)' <<< "$b" && ok "3a the sweep PR files this board's decide item" || bad "3a: $b / $out"
+grep -q '^archive/.*Lift of event (gone) on TD-007 was closed.*Closed:\*\* .* the gate sweep' <<< "$b" \
   && ok "3b ... and closes an item whose gate is gone" || bad "3b: $b"
-ob=$(git -C "$OBARE" show "notices/o-own-sweep-$TODAY:docs/user_attention.md" 2>/dev/null)
-! grep -q 'Rename it' <<< "$b" && grep -q 'Rename it, as o/own#TD-002 says?.*Context: o/own#TD-002 decision (sam)' <<< "$ob" \
+ob=$(bshow "$OBARE" "notices/o-own-sweep-$TODAY")
+! grep -q 'Rename it' <<< "$b" && grep -q 'Rename it, as o/own#TD-002 says?.*Context:\*\* o/own#TD-002 decision (sam)' <<< "$ob" \
   && has "board github.com/o/oth: opened https://github.com/o/oth/pull/" \
   && ok "3c another repo's board: its item in a PR there, on notices/o-own-sweep-<date>, the entry named o/own#TD-n" || bad "3c: $out / $ob"
 grep -q "^oth: pr create --head notices/o-own-sweep-$TODAY --base main --title board: o/own's gate sweep $TODAY — 1 filed" "$GH_LOG" \
-  && [ "$(git -C "$OBARE" diff --name-only main "notices/o-own-sweep-$TODAY")" = docs/user_attention.md ] \
+  && boardonly "$OBARE" main "notices/o-own-sweep-$TODAY" \
   && [ "$(git -C "$OTH" worktree list | wc -l)" = 1 ] && [ -z "$(git -C "$OTH" branch --list 'notices/*')" ] \
-  && grep -q '^- \[x\] .*Lift of event (gone) on o/own#TD-007 was closed.*Closed: .* the gate sweep of o/own' <<< "$ob" \
+  && grep -q '^archive/.*Lift of event (gone) on o/own#TD-007 was closed.*Closed:\*\* .* the gate sweep of o/own' <<< "$ob" \
   && ok "3e ... opened on that repo's forge, its board alone (a close there too), its clone left as it was" || bad "3e: $(grep 'oth:' "$GH_LOG") / $(git -C "$OTH" worktree list)"
-[ "$(git -C "$BARE" diff --name-only main "sweep/$TODAY")" = docs/user_attention.md ] && ok "3d the sweep PR changes the board alone" || bad "3d"
+boardonly "$BARE" main "sweep/$TODAY" && ok "3d the sweep PR changes the board alone" || bad "3d"
 [ "$(git -C "$OWN" rev-parse HEAD)" = "$before" ] && [ -z "$(git -C "$OWN" status --porcelain)" ] \
   && [ "$(git -C "$OWN" worktree list | wc -l)" = 1 ] && [ -z "$(git -C "$OWN" branch --list 'lift/*' 'sweep/*')" ] \
   && [ -z "$(ls "$TMP" | grep gate-sweep-)" ] \
@@ -144,7 +172,7 @@ out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
 has "lift TD-004 event (landed): PR #7 already lifts it — nothing to do" && ! git -C "$BARE" rev-parse -q --verify lift/TD-004/landed >/dev/null \
   && ok "6a another open PR's diff lifts the gate: no second lift PR" || bad "6a: $out"
 has "lift TD-003 until $PAST: its PR #9 was closed unmerged — not reopened" && ! git -C "$BARE" rev-parse -q --verify lift/TD-003/until-$PAST >/dev/null \
-  && grep -q "Lift of until $PAST on TD-003 was closed.*Context: TD-003 until $PAST lift" <<< "$(shown "sweep/$TODAY:docs/user_attention.md")" \
+  && grep -q "Lift of until $PAST on TD-003 was closed.*Context:\*\* TD-003 until $PAST lift" <<< "$(bshow "$BARE" "sweep/$TODAY")" \
   && ok "6b a lift PR closed unmerged: not reopened, an act item filed in the sweep PR" || bad "6b: $out"
 git -C "$OWN" fetch -q "$BARE" "sweep/$TODAY" && git -C "$OWN" update-ref refs/remotes/origin/main FETCH_HEAD
 git -C "$BARE" branch -q -D "sweep/$TODAY"
@@ -158,7 +186,7 @@ git -C "$OWN" update-ref refs/remotes/origin/main "$before"   # the fetch from b
 printf '[{"number":120,"state":"MERGED","headRefName":"sweep/%s","body":"- file: [act] Lift of until %s on TD-003 was closed — Context: TD-003 until %s lift"}]' "$TODAY" "$PAST" "$PAST" > "$FIX/search.json"
 out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
 has "lift TD-003 until $PAST: its PR #9 was closed unmerged — not reopened; asked on the board already" \
-  && ! grep -q "Lift of until" <<< "$(shown "sweep/$TODAY:docs/user_attention.md")" \
+  && ! grep -q "Lift of until" <<< "$(bshow "$BARE" "sweep/$TODAY")" \
   && ok "8a origin not fetched since the sweep PR merged: the item is not filed again" || bad "8a: $out"
 git -C "$BARE" branch -q -D "sweep/$TODAY" 2>/dev/null
 printf '[{"number":9,"state":"CLOSED"},{"number":11,"state":"MERGED"}]' > "$FIX/head_lift_TD-003_until-$PAST"
@@ -209,7 +237,7 @@ printf '[{"number":5,"state":"CLOSED","title":"TD-003: lift until %s — date re
 out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
 t3=$(shown "lift/TD-003/until-$PAST2:docs/ledger/TD-003.md")
 has "lift TD-003 until $PAST2: opened" && grep -q "gate lifted: until $PAST2 — by testhost; date reached" <<< "$t3" \
-  && ! grep -q "Lift of until" <<< "$(shown "sweep/$TODAY:docs/user_attention.md")" \
+  && ! grep -q "Lift of until" <<< "$(bshow "$BARE" "sweep/$TODAY")" \
   && ok "11a an earlier until's lifts closed and merged (dated and dateless branch): the new date gets its own lift PR" || bad "11a: $out"
 for b in $(git -C "$BARE" branch --format='%(refname:short)' --list 'lift/*' 'sweep/*'); do git -C "$BARE" branch -q -D "$b"; done
 printf '[{"number":5,"state":"CLOSED","title":"TD-003: lift until %s — date reached (gate sweep)"}]' "$PAST2" > "$FIX/head_lift_TD-003_until"
@@ -224,6 +252,17 @@ out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
 has "lift TD-003 until $PAST2: PR #8 already lifts it — nothing to do" && ! git -C "$BARE" rev-parse -q --verify "lift/TD-003/until-$PAST2" >/dev/null \
   && ok "11c an open lift of this date on the dateless branch: the diff check holds it, no second PR" || bad "11c: $out"
 echo "[]" > "$FIX/open.json"; rm -f "$FIX/head_lift_TD-003_until-$PAST"
+
+# 12. another roster repo's board still v2 (TD-263): read, but never written — the skip names its split
+for b in $(git -C "$BARE" branch --format='%(refname:short)' --list 'lift/*' 'sweep/*'); do git -C "$BARE" branch -q -D "$b"; done
+git -C "$OBARE" branch -q -D "notices/o-own-sweep-$TODAY" 2>/dev/null
+rm -rf "$OTH/docs/user_attention"; printf '# Attention\n\nPeople: sam\n\n## Needs the user\n\n- (none)\n' > "$OTH/docs/user_attention.md"
+publish "$OTH"; git -C "$OTH" push -q -f "$OBARE" HEAD:refs/heads/main
+m0=$(grep -c '^oth: pr create' "$GH_LOG")
+out=$(cd "$OWN" && python3 "$S/gate_sweep.py" --apply 2>&1)
+has "board github.com/o/oth: not done — github.com/o/oth's board cannot be written: a v2 board (split first: board.py split) — github.com/o/oth splits its board first, in its own v3.0 bump" \
+  && [ "$(grep -c '^oth: pr create' "$GH_LOG")" = "$m0" ] && [ -z "$(git -C "$OBARE" branch --list 'notices/*')" ] \
+  && ok "12a a v2 board on the roster: read, not written, the skip naming its split" || bad "12a: $out"
 
 # 7. ledger.py lift: a host's lift only
 W="$TMP/w"; git clone -q -b main "$BARE" "$W" 2>/dev/null

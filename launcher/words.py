@@ -73,6 +73,7 @@ import sys
 TREE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 PAYLOAD = os.path.join(TREE, "files")
 V1_LEDGER = ("docs/technical_debt.md", "docs/technical_debt_archive.md")   # seeds a v2 ledger (docs/ledger/) holds (TD-160)
+BOARD_STUB, BOARD_README = "docs/user_attention.md", "docs/user_attention/README.md"   # one v3 board seed (TD-263)
 INSTALL_LINE = ("clone agent-cadence at its latest tag, then run: "
                 "install -m 755 launcher/agent_cadence.py ~/.local/bin/agent-cadence")
 
@@ -954,7 +955,10 @@ def _format_problems(dest, adopt, skip):
     formats (`Ledgerboard: N`); for a NEW repo (``adopt``) also a ledger failing `ledger.py --check`, a v1
     or v2 one, and anything the readers would skip — an entry that is not a `## TD-NNN:` body, a summary
     row with no body, a board line that is not a `- [ ]` item. Converting a foreign ledger or board is the
-    person's, so adopt refuses on any, before it writes. ``skip``: the repo's skip-seed opt-outs."""
+    person's, so adopt refuses on any, before it writes. ``skip``: the repo's skip-seed opt-outs.
+    The board is read whole through ledgerboard's ``load_board()`` (v3.0, TD-263), never as text: its version
+    by ``version_problem(board)``; a v2 board file's lines by the SKIP_BOARD scan, a v3 board directory by
+    ``board_dir_problems()``."""
     import json
     import subprocess
     scripts = os.path.join(PAYLOAD, "scripts")
@@ -962,13 +966,14 @@ def _format_problems(dest, adopt, skip):
         sys.path.insert(0, scripts)
     sys.dont_write_bytecode = True   # the clone adopt runs from stays as clean as it was (a pin names a commit)
     import ledgerboard as LB
-    LEDGER, ARCHIVE, BOARD = (*V1_LEDGER, "docs/user_attention.md")
+    from ledgerboard import board as LBB
+    LEDGER, ARCHIVE, BOARD = (*V1_LEDGER, BOARD_STUB)
     V2 = "docs/ledger"   # TD-160: its README.md carries the version; ledger.py --check reads the directory
     SKIP_HEAD = re.compile(r"^(?!## TD-\d+:)#{1,6}[ \t]*[*_`]*TD-\d+", re.MULTILINE)
     SKIP_ITEM = re.compile(r"^[ \t]*[-*+][ \t]+[*_`]*TD-\d+", re.MULTILINE)
     NO_ID_SHAPE = re.compile(r"^(?:[ \t]*[-*+][ \t]+\S|#{2,6}[ \t]+(?!Summary[ \t]*$)\S)", re.MULTILINE)  # a list line, a section
     SKIP_BOARD = re.compile(r"^[-*+][ \t]+(?!\[[ xX]\][ \t])(?!\(none\))", re.MULTILINE)
-    kept = [f for f in (LEDGER, ARCHIVE, BOARD) if os.path.lexists(os.path.join(dest, f)) and f not in skip]
+    kept = [f for f in (LEDGER, ARCHIVE) if os.path.lexists(os.path.join(dest, f)) and f not in skip]
     if os.path.isfile(os.path.join(dest, V2, "README.md")):
         kept.append(f"{V2}/README.md")   # a v2 ledger's version line
     problems, texts = [], {}
@@ -982,6 +987,12 @@ def _format_problems(dest, adopt, skip):
         why = LB.version_problem(texts[f])
         if why:
             problems.append(f"{f}: {why}")
+    board = None
+    if BOARD not in skip and (os.path.lexists(os.path.join(dest, BOARD)) or os.path.isdir(os.path.join(dest, BOARD[:-3]))):
+        board = LB.load_board(os.path.join(dest, BOARD), LBB.fs_ls, LBB.fs_read)   # an ls that lists subdirectories
+        why = LB.version_problem(board)
+        if why:
+            problems.append(f"{BOARD}: {why}")
     if not adopt or problems:
         return problems
 
@@ -1019,10 +1030,13 @@ def _format_problems(dest, adopt, skip):
     # before a v1 file beside it — so the directory is checked whenever there is one
     if os.path.isdir(os.path.join(dest, V2)):
         problems += check(f"{V2}/", "--ledger", os.path.join(dest, V2))
-    if BOARD in texts:
-        t = uncommented(texts[BOARD])
+    if board is not None and board.form == "file":   # a v2 board file: its lines, as the v2 reader skips them
+        t = uncommented(LBB.fs_read(os.path.join(dest, BOARD)) or "")
         problems += [f"{BOARD}:{lineno(t, m)}: a list line the readers skip — an item is `- [ ] …`"
                      for m in SKIP_BOARD.finditer(t)]
+    elif board is not None and board.form == "dir":   # a v3 board: its directory, every rule (a README list is prose)
+        problems += [f"{os.path.relpath(p, dest) if os.path.isabs(p) else BOARD[:-3] + '/' + p}: {msg}"
+                     for p, msg in LB.board_dir_problems(os.path.join(dest, BOARD), LBB.fs_ls, LBB.fs_read)]
     return problems
 
 
@@ -1148,6 +1162,12 @@ def w_adopt(args):
             skip_seed[val] = f"skip-seed: {why or 'no ADR named'} — {src}"
         elif kind == "not-adopted" and val.lstrip("§") == "4":
             skip_hooks.append("pre-push")   # §4's teeth: its only opt-out
+    # TD-263: the board's two seeds are one — a skip of the stub covers its README; the README alone is refused
+    if BOARD_README in skip_seed and BOARD_STUB not in skip_seed:
+        return fail(f"{toml_path}: skip-seed names {BOARD_README} alone — it is one seed with {BOARD_STUB} "
+                    f"(a stub with no directory reads as an empty board): skip {BOARD_STUB}, which covers both")
+    if BOARD_STUB in skip_seed and BOARD_README in seed_files:
+        skip_seed[BOARD_README] = skip_seed[BOARD_STUB]
     # TD-168: the repo's own ledger and board, read by the pinned readers before anything is written
     problems = _format_problems(dest, not migrate, skip_seed)
     if problems:
@@ -1188,12 +1208,15 @@ def w_adopt(args):
             return fail(f"{toml_path}: the pin would not read back as written (origin {source!r}) — nothing "
                         "changed; add it by hand")
     kept = _retire(dest, lock) if migrate else []
+    seeded = set()
     for f in [*seed_files, *pointers]:
         dst = os.path.join(dest, f)
         if f in skip_seed:
             print(f"  skip  {f} ({skip_seed[f]}; never created)")
         elif f in V1_LEDGER and not os.path.lexists(dst) and os.path.isdir(os.path.join(dest, "docs", "ledger")):
             print(f"  skip  {f} (the ledger is docs/ledger/, a directory: never created)")   # TD-160, as the retired copy did
+        elif f == BOARD_README and BOARD_STUB not in seeded:   # TD-263: written only where the stub is
+            print(f"  skip  {f} (the board {BOARD_STUB} was kept, so its directory is not seeded beside it)")
         elif os.path.lexists(dst):
             print(f"  keep  {f} (exists — never overwritten)")
         else:
@@ -1206,6 +1229,7 @@ def w_adopt(args):
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             with open(dst, "wb") as out:
                 out.write(body)
+            seeded.add(f)
             print(f"  seed  {f}")
     # the pin, checked above, replaces the file in one rename
     if pinned:

@@ -93,38 +93,41 @@ print("ok")' "$DC/files/scripts" 2>&1)
 [ "$got" = ok ] && ok "--json --fetch: fetch_case is one word per case (all of FETCH_CASES), fetch_why only on a skip, fetch_note kept" || bad "fetch cases: $got"
 
 # --- 3) the SessionStart line keeps a reply tail whole past the clip ---------------------
+# v3.0 (TD-263): a v3 board's directory, its items written by ledgerboard's own board writer; an item's replies
+# are its Log's lines, printed whole after the clipped words.
 LONG=$(printf 'word %.0s' $(seq 1 80))   # 400 chars: well past MAX_ITEM_CHARS
 TAILTXT="— Alex, $T0: yes, but only the second half — and keep the old name. — Alex, $T0: also tell the techlead"
-cat > "$B" <<BOARD
-# board
-
-## Needs the user
-
-- [ ] decide $RAISED (session abcdef12 on testhost) — ${LONG}end-of-prose. Context: TD-1. Due: $T0. $TAILTXT
-- [ ] act $RAISED (session abcdef12 on testhost) — ${LONG}no-reply-here. Due: $T0.
-- [ ] act $RAISED (session abcdef12 on testhost) — short. Due: $T0. — Alex, $T0: fine
-- [ ] act $RAISED (session abcdef12 on testhost) — looks-like-a-reply — Merged, $T0: ${LONG}prose-end. Due: $T0.
-BOARD
-out=$(python3 "$N" --report --due-only --board "$B" 2>&1)
-l1=$(grep "decide $RAISED" <<< "$out"); l2=$(grep "no-reply-here\|word word" <<< "$out" | grep -v "decide $RAISED" | head -1); l3=$(grep "short\." <<< "$out")
+V="$TMP/v3/docs/user_attention.md"; mkdir -p "$TMP/v3/docs/user_attention"
+printf '# board\n\nLedgerboard: 3\nPeople: Alex\n' > "$TMP/v3/docs/user_attention/README.md"
+PYTHONPATH="$DC/files/scripts" python3 -c 'import ledgerboard as LB; print(LB.board_stub("board", "user_attention"), end="")' > "$V"
+lb() { (cd "$DC/files/scripts" && python3 -m ledgerboard.board "$@" --board "$V" --json) | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])'; }
+I1=$(lb add --kind act --text "first ${LONG}end-of-prose" --due "$T0" --session abcdef12 --host testhost --context TD-1)
+lb reply --id "$I1" --by Alex --text "yes, but only the second half — and keep the old name." >/dev/null
+lb reply --id "$I1" --by Alex --text "also tell the techlead" >/dev/null
+I2=$(lb add --kind act --text "second ${LONG}no-reply-here" --due "$T0" --session abcdef12 --host testhost)
+I3=$(lb add --kind act --text "short." --due "$T0" --session abcdef12 --host testhost)
+lb reply --id "$I3" --by Alex --text "fine" >/dev/null
+I4=$(lb add --kind act --text "looks-like-a-reply — Merged, $T0: ${LONG}prose-end" --due "$T0" --session abcdef12 --host testhost)
+out=$(python3 "$N" --report --due-only --board "$V" 2>&1)
+l1=$(grep "first word" <<< "$out"); l2=$(grep "second word" <<< "$out"); l3=$(grep "short\." <<< "$out")
 grep -qF "… $TAILTXT" <<< "$l1" && ! grep -q "end-of-prose" <<< "$l1" && ok "due-only: a clipped item prints its reply tails whole after the clipped head" || bad "reply tail: $l1"
 [ -n "$l2" ] && ! grep -q "no-reply-here" <<< "$l2" && [[ "$l2" == *"…" ]] && ok "due-only: an item with no reply is clipped as before" || bad "plain clip: $l2"
-grep -qF "short. Due: $T0. — Alex, $T0: fine" <<< "$l3" && ok "due-only: a short item with a reply is printed as written" || bad "short reply: $l3"
+grep -qF "short. — Alex, $T0: fine" <<< "$l3" && ok "due-only: a short item with a reply is printed as written" || bad "short reply: $l3"
 
-chk=$(python3 "$N" --report --json --board "$B" 2>&1 | python3 -c '
+chk=$(python3 "$N" --report --json --board "$V" 2>&1 | python3 -c '
 import json, sys
-t0 = sys.argv[1]
+t0, i1, i2, i3, i4 = sys.argv[1:]
 it = json.load(sys.stdin)["boards"][0]["items"]
-by = {i["line"]: i["replies"] for i in it}
-assert by[5] == [{"by": "Alex", "date": t0, "text": "yes, but only the second half — and keep the old name."},
-                 {"by": "Alex", "date": t0, "text": "also tell the techlead"}], by[5]
-assert by[6] == [] and by[8] == [], (by[6], by[8])
-assert by[7] == [{"by": "Alex", "date": t0, "text": "fine"}], by[7]
-print("ok")' "$T0" 2>&1)
-[ "$chk" = ok ] && ok "--json: replies (by, date, text) in order; none for a plain item or for prose before the Due:" || bad "replies json: $chk"
+by = {i["id"]: i["replies"] for i in it}
+assert by[i1] == [{"by": "Alex", "date": t0, "text": "yes, but only the second half — and keep the old name."},
+                  {"by": "Alex", "date": t0, "text": "also tell the techlead"}], by[i1]
+assert by[i2] == [] and by[i4] == [], (by[i2], by[i4])
+assert by[i3] == [{"by": "Alex", "date": t0, "text": "fine"}], by[i3]
+print("ok")' "$T0" "$I1" "$I2" "$I3" "$I4" 2>&1)
+[ "$chk" = ok ] && ok "--json: replies (by, date, text) in order, by item id; none for a plain item or for words shaped like a reply" || bad "replies json: $chk"
 
 l4=$(grep "looks-like-a-reply" <<< "$out")
-! grep -q "prose-end" <<< "$l4" && [[ "$l4" == *"…" ]] && ok "due-only: prose shaped like a reply, before the Due:, does not defeat the clip" || bad "false reply: ${l4:0:300}"
+! grep -q "prose-end" <<< "$l4" && [[ "$l4" == *"…" ]] && ok "due-only: words shaped like a reply do not defeat the clip" || bad "false reply: ${l4:0:300}"
 
 # --- 4) TD-152: each ref's state, stated and never judged — a bare TD is the board's own repo's
 # (archived, with its Resolved date; open; unresolved), a PR is asked of the forge only under --fetch

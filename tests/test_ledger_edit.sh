@@ -84,8 +84,8 @@ lp set TD-003 --field "Stage=next, waits on TD-001 now" >/dev/null 2>"$TMP/err";
 [ $rc -eq 1 ] && grep -q 'refused — .*waits on TD-001' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
   && ok "set refuses a wait written in prose in a field (TD-166; a note goes to the Log, which is no field)" || bad "prose set (rc=$rc): $(cat "$TMP/err")"
 lp set TD-003 --blocked-by "decision (owner) — after TD-001 lands" >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 1 ] && grep -q 'refused — .*old form' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
-  && ok "set refuses a decision with a pointer: v2.4 never writes the old form (TD-172's id in it with it)" || bad "pointer (rc=$rc): $(cat "$TMP/err")"
+[ $rc -eq 1 ] && grep -q 'refused — .*old decision form' "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \
+  && ok "set refuses a decision with a pointer: the old form is gone at v3.0" || bad "pointer (rc=$rc): $(cat "$TMP/err")"
 O2="$TMP/o2"; R2="$TMP/other"; mkrepo "$O2" "$R2"; echo "$R2" > "$AGENT_CADENCE_REG_DIR/repos.txt"
 lp set TD-003 --blocked-by "other#TD-099" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'other has no TD-099' "$TMP/err" && grep -q fetch "$TMP/err" && cmp -s "$L/TD-003.md" "$TMP/td3" \

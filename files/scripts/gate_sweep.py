@@ -10,8 +10,10 @@ Every gate in ``**Blocked by:**`` has a way out (a decision is answered, an ``un
 check passes); the sweep is what notices one that is stuck. **What it decides is ledgerboard's ``sweep()``**,
 a pure function; this script is the I/O around it:
 
-- **What it reads.** This repo's ledger and archive, and every board on this machine's roster
-  (``docs/user_attention.md`` and ``docs/user_attention_archive.md``, ``$AGENT_CADENCE_REG_DIR`` honoured) —
+- **What it reads.** This repo's ledger and archive, and every board on this machine's roster, each read
+  whole through ledgerboard's ``load_board()`` (v3.0, TD-263: the directory ``docs/user_attention/`` where the
+  tree holds one, else ``docs/user_attention.md`` — a v2 board and its archive, or a stub naming the
+  directory; ``$AGENT_CADENCE_REG_DIR`` honoured) —
   each read from its clone's ``origin/<default>`` where that ref exists (what is merged, never a session's
   edit in progress), else its working tree. Nothing is fetched: a stale clone reads stale, and a board
   missing from a clone counts as not covering (§3.2). This repo's own board must be there: event items go
@@ -24,7 +26,7 @@ a pure function; this script is the I/O around it:
   this board, ``Context: TD-n event (<name>) unanswered``, filed once ever and closed by the sweep once
   this host answers, another item names the gate, or the gate is on no open entry.
 - **What it prints.** The plan: each item to file (on which board, its kind, text and ``Context:``), each
-  item to close (by board and key), and each host lift (``until`` reached, an event passed, with its
+  item to close (by board and item id), and each host lift (``until`` reached, an event passed, with its
   evidence). ``--json``: ``{repo, source, boards: [{board, source}], unread, checks, to_file, to_close, lifts}``.
   A board that is there and cannot be read (a git call failed or timed out) is left out and named under
   ``unread``, never read as absent; this repo's own ledger or board unreadable is no plan at all.
@@ -118,15 +120,24 @@ def origin_url(root: Path) -> str:
     return (L._git(root, "remote", "get-url", "origin") or "").strip()
 
 
+def board_at(io: tuple[LB.Ls, LB.Read], where: str) -> LB.Board | None:
+    """The board in the tree ``io`` reads, whole, as ``load_board()`` gives it (v3.0, TD-263): at ``BOARD_DIR`` when
+    the tree holds that directory, else at ``BOARD_V2_PATH`` (a v2 board and its archive, or a stub naming the
+    directory); None when it has none. Unreadable when a file of it is there and cannot be read."""
+    ls = io[0]
+    path = LB.BOARD_DIR if ls(LB.BOARD_DIR) is not None else LB.BOARD_V2_PATH
+    board = LB.load_board(path, ls, lambda p: read(io, p, where))
+    return None if board.form is None else board
+
+
 def board_of(root: Path) -> tuple[tuple | None, str]:
-    """(``(origin_url, basename, text, archive_text)`` of the board at ``root``, as ``sweep()`` takes it, or None
-    when it has none; where it was read). Unreadable when the board or its archive is there and cannot be read."""
+    """(``(origin_url, basename, Board)`` of the board at ``root``, as ``sweep()`` takes it, or None when it has
+    none; where it was read). Unreadable when a file of the board is there and cannot be read."""
     io, source = tree_io(root)
-    where = f"{root.name} ({source})"
-    text = read(io, LB.BOARD_PATH, where)
-    if text is None:
+    board = board_at(io, f"{root.name} ({source})")
+    if board is None:
         return None, source
-    return (origin_url(root), root.name, text, read(io, LB.BOARD_ARCHIVE_PATH, where) or ""), source
+    return (origin_url(root), root.name, board), source
 
 
 def plan(top: Path, roster: list[Path], runner: E.Runner, *, today_utc: date, today_local: date,
@@ -146,7 +157,8 @@ def plan(top: Path, roster: list[Path], runner: E.Runner, *, today_utc: date, to
         else:   # every entry file and archived one: a failed read is no plan, never a missing entry
             for d in (rel, f"{rel}/{LB.LEDGER_ARCHIVE}"):
                 for name in io[0](d) or []:
-                    read(io, f"{d}/{name}", top.name)
+                    if not name.endswith("/"):   # an ls lists a subdirectory with `/` (v3.0)
+                        read(io, f"{d}/{name}", top.name)
         text, arch = L.read_pair(rel, arel, io)
         # host-log (TD-230): the repo's sources from the same tree as the ledger, never the checkout's
         runner.log_sources = read(io, E.LOG_SOURCES, top.name) or ""
@@ -156,7 +168,8 @@ def plan(top: Path, roster: list[Path], runner: E.Runner, *, today_utc: date, to
     if text is None:
         raise LB.Refused(f"no ledger at {rel} ({source})")
     if own is None:
-        raise LB.Refused(f"no {LB.BOARD_PATH} ({source}): the sweep's event items go on this repo's own board")
+        raise LB.Refused(f"no board at {LB.BOARD_DIR}/ or {LB.BOARD_V2_PATH} ({source}): the sweep's event items go "
+                         "on this repo's own board")
     boards, seen = [own], {LB.origin_key(url) or str(top.resolve())}
     read_from = [{"board": LB.origin_key(url) or top.name, "source": source}]
     unread: list[str] = []
@@ -196,7 +209,7 @@ UNANSWERED = "unanswered"  # the warning item's Context qualifier: TD-n event (<
 def unanswered(text: str, checks: list[dict], boards: list, repo: str, today_utc: date,
                event_age_days: int) -> tuple[list[dict], list[str]]:
     """The host-side warning for a ``host-log`` gate no host has answered (TD-230 Fix 4; ledgerboard's
-    ``docs/plans/TD-045-host-log.md``, *The builds*): ``(items to file, keys to close)`` on this repo's own board.
+    ``docs/plans/TD-045-host-log.md``, *The builds*): ``(items to file, ids to close)`` on this repo's own board.
 
     ``sweep()`` gets no outcome for a gate no host answers, so it neither lifts it nor files anything, and
     such a gate waits silently (a source only an unselected profile declares passes ``validate --ledger``).
@@ -235,7 +248,7 @@ def unanswered(text: str, checks: list[dict], boards: list, repo: str, today_utc
                                "rewrite the gate.",
                        "context": f"{tid} {gate} {UNANSWERED}", "kind": "act", "answers": None, "default": None,
                        "detail": None, "lifts": None})
-    closing = [LB.item_key(r["line"]) for r in reads
+    closing = [r["item"].id for r in reads
                if r["own"] and r["state"] in ("open", "decided") and r["ctx"] is not None
                and r["ctx"][2] == UNANSWERED and r["ctx"][:2] not in silent
                # a work order (decided, not waiting-only) waits for whoever acts on it, as sweep()'s closes do
@@ -323,16 +336,21 @@ def _ship(top: Path, wt: Path, be, branch: str, base: str, subject: str, body: s
                                    f"is left on origin: delete it (git push origin --delete {branch})")) from None
 
 
-def _closes(board: str, keys: list[str]) -> list[tuple[int, str, str]]:
-    """(line, expect, key) of each open item of ``board`` whose ``item_key`` is one of ``keys``."""
-    lines = board.splitlines()
-    out = []
-    for it in LB.parse_board(board, warn=False):
-        raw = lines[it.line - 1]
-        if LB.item_key(raw) in keys:
-            m = LB.ITEM_RE.match(raw)
-            out.append((it.line, m.group("text")[:60] if m else raw.strip()[:60], LB.item_key(raw)))
-    return out
+def _closes(board: str, ids: list[str]) -> list[str]:
+    """The ids among ``ids`` of an open item on the v3 board at ``board`` (a path), in ``ids``' order (v3.0:
+    an item is named by its id, which no other close moves). LB.Refused when ``board`` is no v3 board: a v2
+    one says to split it first (``board.py split``)."""
+    open_ = {it.id for it in LBB.load_v3(board).items}
+    return [i for i in ids if i in open_]
+
+
+def _writable(path: str, name: str) -> None:
+    """RuntimeError naming ``name``'s split when the board at ``path`` cannot take a v3.0 write (a v2 board: the
+    writers refuse it, D12), else nothing: what a sweep skips is said, never a silent no-op."""
+    why = LBB.v3_problem(LBB._load(path))
+    if why:
+        raise RuntimeError(f"{name}'s board cannot be written: {why}"
+                           + (f" — {name} splits its board first, in its own v3.0 bump" if "v2" in why else ""))
 
 
 OTHER_BRANCH = "notices/"        # a PR on another repo's board: notices/<this repo>-sweep-<UTC date> (TD-229)
@@ -372,7 +390,8 @@ def _other_board(top: Path, repo: str, board: str, root: str | None, items: list
         branch = f"{prefix}{today_utc.isoformat()}"
         session = os.environ.get("SHIFTLEAD_SESSION", "").strip() or "gate-sweep"
         with Scratch(root_p, f"origin/{default}", branch) as wt:
-            path = str(wt / LB.BOARD_PATH)
+            path = str(wt / LB.BOARD_V2_PATH)   # the stub names the directory; a v2 board is refused (split first)
+            _writable(path, board)
             for it in items:
                 # sweep() writes the Context as <repo>#TD-n; a bare TD-n in the words would read as that repo's own
                 m = re.match(r"\S+#(TD-\d+)\b", it["context"])
@@ -385,13 +404,10 @@ def _other_board(top: Path, repo: str, board: str, root: str | None, items: list
                                        detail=detail, lifts=it["lifts"], session=session, host=by,
                                        today=today_local, tool="gate-sweep"))
             closed = 0
-            for key in keys:   # one at a time: each close may move the lines below it
-                hit = _closes(LBB.read(path), [key])
-                if hit:
-                    line, expect, _ = hit[0]
-                    LBB.apply(LBB.plan_edit(path, "done", line, expect, today=today_local, tool="gate-sweep",
-                                            why=f"the gate sweep of {repo}: its condition no longer holds"))
-                    closed += 1
+            for key in _closes(path, keys):
+                LBB.apply(LBB.plan_edit(path, "done", key, today=today_local, tool="gate-sweep",
+                                        why=f"the gate sweep of {repo}: its condition no longer holds"))
+                closed += 1
             subject = f"board: {repo}'s gate sweep {today_utc.isoformat()} — {len(items)} filed, {closed} closed"
             body = "\n".join([f"The gate sweep of {repo} (its TD-219; ledgerboard's target design §3.2) found items "
                               "that belong on this repo's board, whose `People:` names the person (TD-229).", ""]
@@ -419,11 +435,11 @@ def apply(top: Path, p: dict, be, *, today_local: date, today_utc: date, by: str
     extra: list[dict] = []   # the "lift was closed" items, filed with the sweep's own
     # sweep() does not file these (they are forge state), so it cannot de-dupe them: an item with the Context
     # on this board, open, decided or closed (the board and its archive), is not filed again
+    # The board read whole (no ``since``): its open items and every archived one, by their Context (v3.0).
     io, _ = tree_io(top)
-    mine = (read(io, LB.BOARD_PATH, top.name) or "") + "\n" + (read(io, LB.BOARD_ARCHIVE_PATH, top.name) or "")
-    asked = {" ".join(c.group("ctx").split()).rstrip(".").lower()
-             for it in LB.parse_board(mine, warn=False) + LB.parse_closed_items(mine)
-             for c in [LB.CONTEXT_RE.search(it.text)] if c}
+    mine = board_at(io, top.name)
+    asked = {" ".join(it.context.split()).rstrip(".").lower()
+             for it in ([*mine.items, *mine.closed] if mine else []) if it.context}
 
     for x in p["lifts"]:
         tid, gate = x["id"], x["gate"]
@@ -506,7 +522,8 @@ def apply(top: Path, p: dict, be, *, today_local: date, today_utc: date, by: str
     branch = f"{SWEEP_BRANCH}{today_utc.isoformat()}"
     try:
         with Scratch(top, base, branch) as wt:
-            board = str(wt / LB.BOARD_PATH)
+            board = str(wt / LB.BOARD_V2_PATH)   # the stub names the directory; a v2 board is refused (split first)
+            _writable(board, own)
             host = by
             session = os.environ.get("SHIFTLEAD_SESSION", "").strip() or "gate-sweep"
             for it in items:
@@ -515,13 +532,10 @@ def apply(top: Path, p: dict, be, *, today_local: date, today_utc: date, by: str
                                        detail=it["detail"], lifts=it["lifts"], session=session, host=host,
                                        today=today_local, tool="gate-sweep"))
             closed = 0
-            for key in keys:   # one at a time: each close may move the lines below it
-                hit = _closes(LBB.read(board), [key])
-                if hit:
-                    line, expect, _ = hit[0]
-                    LBB.apply(LBB.plan_edit(board, "done", line, expect, why="the gate sweep: its condition no longer holds",
-                                            today=today_local, tool="gate-sweep"))
-                    closed += 1
+            for key in _closes(board, keys):
+                LBB.apply(LBB.plan_edit(board, "done", key, why="the gate sweep: its condition no longer holds",
+                                        today=today_local, tool="gate-sweep"))
+                closed += 1
             subject = f"board: gate sweep {today_utc.isoformat()} — {len(items)} filed, {closed} closed (TD-219)"
             body = "\n".join(["The gate sweep (TD-219; ledgerboard's target design §3.2) on this repo's own board.", ""]
                              + [f"- file: [{it['kind']}] {it['text']} — Context: {it['context']}" for it in items]

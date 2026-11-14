@@ -100,6 +100,7 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -118,8 +119,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ledgerboard import (  # noqa: E402,F401  # sibling SYNC file: the board format, defined once (ShiftLead/ledgerboard); re-exported
     ANSWER_SPLIT_RE,
     ANSWERS_RE,
-    CLOSED_ITEM_RE,
-    CLOSED_RE,
     CONTEXT_RE,
     DECIDED_RE,
     DEFAULT_MARK_RE,
@@ -127,7 +126,6 @@ from ledgerboard import (  # noqa: E402,F401  # sibling SYNC file: the board for
     DUE_RE,
     HEAD_HOST_RE,
     HEAD_RE,
-    ITEM_RE,
     KIND_RE,
     KINDS,
     LIVE_LOOK_ANSWERS,
@@ -136,18 +134,19 @@ from ledgerboard import (  # noqa: E402,F401  # sibling SYNC file: the board for
     REF_PR_RE,
     REF_TD_RE,
     REPLY_TAIL_RE,
+    Board,
     BoardItem,
     _raw_answers,
     _trailer,
+    context_refs,
     detail_block,
     due_tag,
     item_head,
-    item_key,
     item_record,
     item_refs,
+    load_board,
     needs_you,
     parse_answers,
-    parse_board,
     parse_decided,
     parse_default,
     parse_replies,
@@ -163,14 +162,15 @@ class FormatTooNew(ValueError):
     """A ledger or board that declares a newer major of the formats than the ledgerboard package reads."""
 
 
-def checked(text: str, where: object) -> str:
-    """`text` once ledgerboard's version_problem() finds nothing in it; else FormatTooNew naming
+def checked(text, where: object):
+    """`text` (a ledger's text, or a board's ``Board``) once ledgerboard's version_problem() finds nothing in it;
+    else FormatTooNew naming
     `where` (TD-133, cadence.md §2.12). The spec's rule is that a reader meeting a newer major reads
     nothing and says so, and no parser checks for its caller — so every agent-cadence script that
     parses a ledger or a board reads it through here (this script, ledger.py, ledger_next_id.py,
     check_cadence.py), and a reader added later does too; board_edit.py, which imports ledgerboard
     alone, calls version_problem() itself."""
-    why = version_problem(text or "")
+    why = version_problem(text if isinstance(text, Board) else (text or ""))
     if why:
         raise FormatTooNew(f"{where}: {why}")
     return text
@@ -241,13 +241,67 @@ DUE_ONLY_LIST_CAP = 12
 
 
 
-def needing(content: str, today: date, warn: bool = False) -> list[BoardItem]:
+def _fs_ls(path: str) -> list[str] | None:
+    """A directory's entries, each subdirectory's name ending ``/`` (the ``ls`` ``load_board()`` takes); None
+    when ``path`` is no directory."""
+    if not os.path.isdir(path):
+        return None
+    return sorted(n + "/" if os.path.isdir(os.path.join(path, n)) else n for n in os.listdir(path))
+
+
+def _fs_read(path: str) -> str | None:
+    try:
+        return Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def board_exists(path: Path) -> bool:
+    """A board at ``path``: its file (a v2 board, or a v3 board's stub), or the v3 directory beside it."""
+    return path.is_file() or (path.suffix == ".md" and path.with_suffix("").is_dir()) or path.is_dir()
+
+
+def load_local(path: Path, since: date | None = None) -> Board:
+    """The board at ``path`` on disk, through ledgerboard's load_board() (v3.0, TD-263): a v2 file and its archive,
+    or a v3 board's directory, through its stub or named itself (a stub that is missing reads the directory
+    beside it). Raises OSError for a board file it may not read; else what it could not read is in the Board's
+    ``problems``."""
+    p = str(path)
+    if path.is_file():
+        path.open("rb").close()   # an unreadable board file is an OSError the reports name, never an empty board
+    if not path.exists() and p.endswith(".md") and path.with_suffix("").is_dir():
+        p = str(path.with_suffix(""))
+    return load_board(p, _fs_ls, _fs_read, since=since)
+
+
+def item_words(item: BoardItem) -> str:
+    """The item as the reports print it (v3.0): its words, then each reply, `` — <by>, <date>: <words>``."""
+    return item.words + "".join(f" — {by}, {d}: {w}" for by, d, w in item.replies)
+
+
+def item_context_refs(item: BoardItem) -> list[str]:
+    """The TDs, PRs and branches the item's ``Context`` names (v3.0: never a reply's)."""
+    return context_refs(item.context) if item.context else []
+
+
+def board_problems_note(board: Board) -> str | None:
+    """What the read of the board skipped or could not settle (ledgerboard's ``Board.problems``: a duplicate
+    item a merge kept, a file it cannot read), which a person settles by hand (cadence.md §3.4)."""
+    if not board.problems:
+        return None
+    where, what = board.problems[0]
+    more = f" (and {len(board.problems) - 1} more)" if len(board.problems) > 1 else ""
+    return (f"⚠ {len(board.problems)} board problem(s) — {where}: {what}{more}; settle each by hand, a duplicate by "
+            "`board_edit.py done --id` on the wrong copy once the board is split (cadence.md §3.4)")
+
+
+def needing(board: Board, today: date) -> list[BoardItem]:
     """The open items that need the person, in board order: ledgerboard's needs_you() (v2.3, TD-213) —
     every open item but one its `Hide until:` hides until a later date (a decided item never is). What
     this report lists, surfaces, escalates and counts; a hidden item stays on the board (its size counts
     it), and in --json with `hidden: true`."""
-    live = {it.line for it, _, _ in needs_you(content, today)}
-    return [it for it in parse_board(content, warn=warn) if it.line in live]
+    live = {id(it) for it, _, _ in needs_you(board, today)}
+    return [it for it in board.items if id(it) in live]
 
 
 def escalation(item: BoardItem, today: date) -> str | None:
@@ -260,31 +314,6 @@ def escalation(item: BoardItem, today: date) -> str | None:
     if days is not None and days >= LIMITS["escalate-overdue-days"]:
         return f"overdue {days}d"
     return None
-
-
-def archive_note(content: str) -> str | None:
-    """TD-062: the prompt to archive closed items, once ARCHIVE_AT or more are on the board."""
-    n = len(closed_items(content))
-    if n < ARCHIVE_AT:
-        return None
-    return (f"⚠ {n} closed item(s) on the board — `board_edit.py archive` moves them to "
-            "docs/user_attention_archive.md (the next `board_edit.py done` does it too) (cadence.md §3.4)")
-
-
-def twin_note(content: str) -> str | None:
-    """TD-062: open items that appear twice (item_key equal) — a merge kept both copies of
-    an in-place edit (a snooze, a Decided:), which only a reader of the two can settle."""
-    seen: dict[str, int] = {}
-    for ln in content.splitlines():
-        if ITEM_RE.match(ln):
-            k = item_key(ln)
-            seen[k] = seen.get(k, 0) + 1
-    n = sum(1 for c in seen.values() if c > 1)
-    if not n:
-        return None
-    return (f"⚠ {n} open item(s) appear twice — a merge kept both copies of a snooze or "
-            "Decided:; close the wrong one with `board_edit.py done --why \"duplicate of …\"`, never delete it (cadence.md §3.4)")
-
 
 
 def size_note(items: list[BoardItem]) -> str | None:
@@ -315,14 +344,14 @@ def _detail_lines(item: BoardItem) -> list[str]:
 
 
 
-def _clip_keep_replies(text: str) -> str:
-    """The SessionStart line's clip (TD-075): the item is cut at MAX_ITEM_CHARS as ever, but a
-    reply tail — what the person said back on the line — is printed whole after it. A reply
-    lost to the clip is an answer the session it was written for never reads."""
-    span = reply_span(text)
-    if span is None or len(text) <= MAX_ITEM_CHARS:
-        return _clip(text)
-    return _clip(text[: span[0]]) + text[span[0]:]
+def _clip_keep_replies(item: BoardItem) -> str:
+    """The SessionStart line's clip (TD-075): the item's words are cut at MAX_ITEM_CHARS as ever, but its
+    replies — what the person said back on it — are printed whole after them. A reply lost to the clip is an
+    answer the session it was written for never reads."""
+    whole = item_words(item)
+    if not item.replies or len(whole) <= MAX_ITEM_CHARS:
+        return _clip(whole)
+    return _clip(item.words) + whole[len(item.words):]
 
 
 
@@ -390,16 +419,16 @@ def build_message(items: list[BoardItem], today: date, weekly: bool) -> str | No
 
     lines: list[str] = []
     if due_items:
-        lines.append(f"📌 user_attention.md — {len(due_items)} item(s) due:")
+        lines.append(f"📌 attention board — {len(due_items)} item(s) due:")
         for item, days in sorted(due_items, key=lambda p: -p[1]):
-            lines.append(f"• ({due_tag(item, today)}) {_clip(item.text)}")
+            lines.append(f"• ({due_tag(item, today)}) {_clip(item_words(item))}")
 
     if weekly and items:
         lines.append("")
         lines.append(f"🗓 Weekly board review — {len(items)} open item(s):")
         for item in items:
             marker = f" [due {item.due.isoformat()}]" if item.due else " [no due date]"
-            lines.append(f"• {_clip(item.text)}{marker}")
+            lines.append(f"• {_clip(item_words(item))}{marker}")
         # (The old "run /stranded-work" Monday reminder is retired — TD-7/TD-12:
         # the Swept:/Swept-deep: staleness warnings are its pull-side successor.)
 
@@ -643,9 +672,9 @@ def resolve_board(explicit: str | None) -> Path | None:
     candidates = [Path(explicit)] if explicit else []
     candidates += _default_boards()
     for path in candidates:
-        if path.is_file():
+        if board_exists(path):
             return path
-    logger.error("No user_attention.md found (tried: %s)", ", ".join(str(p) for p in candidates))
+    logger.error("No attention board found (tried: %s)", ", ".join(str(p) for p in candidates))
     return None
 
 
@@ -896,13 +925,14 @@ class FetchResult:
     """Outcome of one repo's origin comparison (TD-030).
 
     note     — the human line for the full report.
-    content  — when set, the board text to READ instead of the local file:
+    content  — when set, the Board to READ instead of the local one (v3.0: a
+               ``Board``, read whole from the ref's directory or file):
                origin's copy, used only when the local board carries nothing
-               origin lacks (see _fetch_board). None = read the local file.
+               origin lacks (see _fetch_board). None = read the local board.
     source   — the ref the content came from (e.g. "origin/main"), for labels.
     """
     note: str
-    content: str | None = None
+    content: Board | None = None
     source: str | None = None
     # TD-075: which case the comparison found, as a word a tool can key on — the note's
     # sentence is for people and may be reworded. One of FETCH_CASES; `why` is set for a skip.
@@ -949,10 +979,12 @@ def _fetch_board(root: Path, board: Path, deadline: float | None = None) -> Fetc
     10 s on each local call — ALL of them further clipped to the remaining
     aggregate ``deadline`` when one is given — and every failure path degrades
     to a 'fetch skipped' note. A board that is missing locally is fine: it
-    reads as "" and the compare decides whether origin's copy is the answer.
+    reads as no files and the compare decides whether origin's copy is the answer.
 
-    Three-way compare (TD-030): local working-tree board vs the board blob at
-    origin/<default> vs the blob at their merge-base. Branch-independent —
+    Three-way compare (TD-030): the local working tree's board vs the board at
+    origin/<default> vs the board at their merge-base — every file of it (v3.0,
+    TD-263): the board file or stub, a v2 archive, and each file under a v3
+    board's directory, compared by git's blob ids. Branch-independent —
     whatever branch or detached state the repo is on.
       local == origin            → matches
       local == base, origin ≠    → origin moved and local is untouched: read
@@ -983,9 +1015,45 @@ def _fetch_board(root: Path, board: Path, deadline: float | None = None) -> Fetc
         return subprocess.run(["git", "-C", str(root), *args],
                               check=False, capture_output=True, timeout=timeout, env=env)
 
-    def blob(ref: str, rel: str) -> str | None:
-        r = git(["show", f"{ref}:{rel}"], 10)
-        return r.stdout.decode("utf-8", errors="replace") if r.returncode == 0 else None
+    def snapshot(ref: str, rels: list[str]) -> dict[str, str]:
+        """{path: blob sha} of every file of the board at ``ref``: its file (or stub), a v2 archive, and each file
+        under a v3 board's directory (v3.0, TD-263: a directory board is compared whole, never by its stub)."""
+        r = git(["ls-tree", "-r", "--full-tree", ref, "--", *rels], 10)
+        if r.returncode != 0:
+            return {}
+        out: dict[str, str] = {}
+        for ln in r.stdout.decode("utf-8", errors="replace").splitlines():
+            meta, _, path = ln.partition("\t")
+            parts = meta.split()
+            if len(parts) == 3 and parts[1] == "blob":
+                out[path] = parts[2]
+        return out
+
+    def local_snapshot(rels: list[str]) -> dict[str, str]:
+        """The working tree's files of the board, as snapshot() lists a ref's (git's blob sha of each)."""
+        out: dict[str, str] = {}
+        for rel in rels:
+            p = root / rel
+            files = [p] if p.is_file() else sorted(q for q in p.rglob("*") if q.is_file()) if p.is_dir() else []
+            for f in files:
+                data = f.read_bytes()
+                out[f.relative_to(root).as_posix()] = hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()  # noqa: S324  # git's object id, not a security hash
+        return out
+
+    def board_at(ref: str, rel: str, snap: dict[str, str]) -> Board:
+        """The board at ``ref`` through load_board(), its ls from the snapshot's paths, its reads by blob."""
+        def ls(path: str) -> list[str] | None:
+            pre = path.rstrip("/") + "/"
+            names = {k[len(pre):].split("/", 1)[0] + ("/" if "/" in k[len(pre):] else "") for k in snap if k.startswith(pre)}
+            return sorted(names) if names else None
+
+        def read(path: str) -> str | None:
+            sha = snap.get(path)
+            if sha is None:
+                return None
+            r = git(["cat-file", "blob", sha], 10)
+            return r.stdout.decode("utf-8", errors="replace") if r.returncode == 0 else None
+        return load_board(rel, ls, read)
 
     try:
         # TD-044: only the default branch, and never --prune — this is a reader; it must
@@ -1009,21 +1077,23 @@ def _fetch_board(root: Path, board: Path, deadline: float | None = None) -> Fetc
             return FetchResult(f"fetch skipped ({why})", why=why)
         ref = f"origin/{branch}"
         rel = (board.relative_to(root) if board.is_relative_to(root) else Path("docs/user_attention.md")).as_posix()
-        origin = blob(ref, rel)
-        if origin is None:
+        stem = rel[:-3] if rel.endswith(".md") else rel
+        rels = [rel, f"{stem}_archive.md", stem] if rel.endswith(".md") else [rel]
+        origin = snapshot(ref, rels)
+        if not origin:
             return FetchResult(f"fetched; no board at {ref}", case="none")
-        local = board.read_text(encoding="utf-8", errors="replace") if board.is_file() else ""
+        local = local_snapshot(rels)
         if origin == local:
             return FetchResult(f"fetched; board matches {ref}", case="matches")
         mb = git(["merge-base", "HEAD", ref], 10)
         if mb.returncode != 0:
             return FetchResult(f"fetched; board DIFFERS from {ref} (no common history to compare) — pull/push; showing local",
                                case="unrelated")
-        base = blob(mb.stdout.decode().strip(), rel) or ""
+        base = snapshot(mb.stdout.decode().strip(), rels)
         if local == base:
             return FetchResult(
                 f"fetched; local clone is behind — showing {ref}'s board (pull to catch up)",
-                content=origin, source=ref, case="behind")
+                content=board_at(ref, rel, origin), source=ref, case="behind")
         if origin == base:
             return FetchResult(f"fetched; board DIFFERS from {ref} (local edits not pushed) — push for the cross-machine view",
                                case="local")
@@ -1323,7 +1393,7 @@ def remote_tier(local_roots: list[Path], today: date, spent: dict | None = None)
     def shown(h: str, name: str) -> str:
         return name if h == "github.com" else f"{h}/{name}"
 
-    boards: list[tuple[str, str]] = []
+    boards: list[tuple[str, Board]] = []
     unprobeable: list[tuple[str, str]] = []
     probed = 0
     for h, name in sorted(probes, key=lambda c: shown(*c)):
@@ -1333,7 +1403,7 @@ def remote_tier(local_roots: list[Path], today: date, spent: dict | None = None)
             break
         probed += 1
         if rc == 0:
-            boards.append((shown(h, name), out))
+            boards.append((shown(h, name), _remote_board(forge, name, out, today)))
         elif rc == F.NOT_FOUND:
             continue                                # no board — silent by design
         else:
@@ -1355,14 +1425,46 @@ def remote_tier(local_roots: list[Path], today: date, spent: dict | None = None)
         except FormatTooNew as e:
             lines.append(f"  ⚠ not read: {e}")
             continue
+        if content.form is None and content.problems:
+            lines.append(f"  ⚠ not read: {content.problems[0][1]}")
+            continue
         items = needing(content, today)
         if items:
             for item in sorted(items, key=lambda i: _report_sort_key(i, today)):
-                lines.append(f"  • ({due_tag(item, today)}) {_clip(item.text)}")
+                lines.append(f"  • ({due_tag(item, today)}) {_clip(item_words(item))}")
                 lines.extend(_detail_lines(item))  # TD-084
         else:
             lines.append("  (no open items)")
     return lines
+
+
+def _remote_board(forge, name: str, stub: str, today: date) -> Board:
+    """A remote repo's board (v3.0, TD-263), read through the forge: ``stub`` is ``docs/user_attention.md``'s
+    text — a v2 board, or a v3 board's stub, whose directory is read through the forge's directory listing (a
+    GitHub contents read of a directory is its JSON listing), its archive from this month alone (the remote tier
+    shows open items). A forge that lists no directory reads the stub alone: an empty Board naming the missing
+    directory."""
+    def ls(path: str) -> list[str] | None:
+        if path == "docs/user_attention.md":
+            return None
+        rc, out, _err = forge.read_file(name, path)
+        if rc != 0:
+            return None
+        try:
+            listed = json.loads(out)
+        except ValueError:
+            return None
+        if not isinstance(listed, list):
+            return None
+        return sorted(str(e.get("name", "")) + ("/" if e.get("type") == "dir" else "")
+                      for e in listed if isinstance(e, dict) and e.get("name"))
+
+    def read(path: str) -> str | None:
+        if path == "docs/user_attention.md":
+            return stub
+        rc, out, _err = forge.read_file(name, path)
+        return out if rc == 0 else None
+    return load_board("docs/user_attention.md", ls, read, since=today.replace(day=1))
 
 
 def _item_json(item: BoardItem, today: date) -> dict:
@@ -1509,16 +1611,16 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
         for b in boards_cli:
             board = Path(b).resolve()
             root = board.parent.parent if board.parent.name == "docs" else board.parent
-            if not board.is_file():
+            if not board_exists(board):
                 missing[len(rows)] = board
-            rows.append((root.name, board if board.is_file() else None, root,
-                         None if board.is_file() else f"missing board file ({board})"))
+            rows.append((root.name, board if board_exists(board) else None, root,
+                         None if board_exists(board) else f"missing board file ({board})"))
     else:
         entries = read_registry()
         if entries is None and own_board is not None:
             pass   # TD-146: no roster, nothing to count — the board named is the one row (appended below)
         elif entries is None:
-            if due_only and not any(p.is_file() for p in _default_boards()):
+            if due_only and not any(board_exists(p) for p in _default_boards()):
                 # SessionStart hook path (TD-7): a repo with no board yet has
                 # nothing due — exit 0 with NO output and no ERROR log, per the
                 # hooks-never-break-a-session rule (cadence.md §1). The JSON
@@ -1540,11 +1642,11 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
                 if not (root / ".git").exists():
                     rows.append((root.name, None, None, f"roster path is not a git repo ({root})"))
                     continue
-                board = root / "docs" / "user_attention.md"
-                if not board.is_file():
+                board = root / "docs" / "user_attention.md"   # a v2 board, or a v3 board's stub (load_local)
+                if not board_exists(board):
                     missing[len(rows)] = board
-                rows.append((root.name, board if board.is_file() else None, root,
-                             None if board.is_file() else "no board (docs/user_attention.md not found)"))
+                rows.append((root.name, board if board_exists(board) else None, root,
+                             None if board_exists(board) else "no board (docs/user_attention.md not found)"))
 
     own_idx: int | None = None
     if own_repo is not None:
@@ -1567,14 +1669,14 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
             if root is not None and own_main is not None and root.resolve() == own_main:
                 own_idx = i
                 break
-        if own_idx is None and not ob.is_file() and not due_only:
+        if own_idx is None and not board_exists(ob) and not due_only:
             pass   # a repo off the roster with no board: nothing to show in full — every board is (more, never less)
         elif own_idx is None:   # not on the roster (or no roster): the board named is the row
             own_idx = len(rows)
             root = ob.parent.parent if ob.parent.name == "docs" else ob.parent
-            if not ob.is_file():
+            if not board_exists(ob):
                 missing[own_idx] = ob
-            rows.append((root.name, ob if ob.is_file() else None, root, None))
+            rows.append((root.name, ob if board_exists(ob) else None, root, None))
 
     # TD-030: with --fetch, each row's board may be read from origin/<default>
     # when the local clone is merely behind. Full report: no aggregate budget
@@ -1609,18 +1711,19 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
             print(f"attention: fetch budget ({DUE_FETCH_BUDGET:g}s) ran out — {len(starved)} repo(s) "
                   f"read from their last fetch: {', '.join(starved)}", file=sys.stderr)
 
-    def read_board(i: int, board: Path) -> str:
+    def read_board(i: int, board: Path) -> Board:
+        """The row's board (v3.0): origin's, where --fetch found the clone merely behind, else the disk's."""
         fr = fetched.get(i)
         if fr is not None and fr.content is not None:
             return checked(fr.content, f"{board} ({fr.source})")
-        return checked(board.read_text(encoding="utf-8", errors="replace"), board)
+        return checked(load_local(board), board)
 
     ref_cache: dict = {}   # TD-152: one roster read, one PR lookup per (repo, PR) per report
     if as_json:
         json_gh_spent = {"t": 0.0, "hit": False}
         # One object, every row, no delivery — the tool-facing twin of the text
-        # report. Items come back in board order with their line numbers so a
-        # consumer can edit the board (snooze = Hide until:, due = Due: edit, done = tick) by line.
+        # report. Items come back in board order with their ids (v3.0, TD-263) so a
+        # consumer can edit the board (snooze, due, done, decide, reply) by `--id`.
         out_rows: list[dict] = []
         for i, (label, board, root, note) in enumerate(rows):
             limits_problems = use_limits(root)   # TD-134: this board's repo's thresholds
@@ -1651,9 +1754,9 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
                     row["note"] = f"not read: {e}"
                     content = None
                 if content is not None:
-                    row["sweep"] = sweep_note_for(content, today, root)
-                    row["archive"] = " ".join(n for n in (archive_note(content), twin_note(content)) if n) or None
-                    all_items = parse_board(content, warn=False)
+                    row["sweep"] = sweep_note_for(content.preamble, today, root)
+                    row["archive"] = board_problems_note(content)   # v3.0: no archive prompt; the read's problems
+                    all_items = content.items
                     row["size"] = size_note(all_items)  # TD-039
                     row["items"] = [_item_json(it, today) for it in all_items
                                     if not due_only or surfaces_at_start(it, today)]
@@ -1685,7 +1788,7 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
                 continue
             if own_idx is not None and i != own_idx:
                 try:
-                    other = parse_board(read_board(i, board), warn=False)
+                    other = read_board(i, board).items
                 except (OSError, FormatTooNew):
                     continue   # the full report names an unreadable board; the count is a pointer
                 for item in other:
@@ -1705,14 +1808,14 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
                 continue
             fr = fetched.get(i)
             tag = f" [{fr.source} — local clone behind, pull]" if fr is not None and fr.source else ""
-            items = parse_board(content, warn=False)
+            items = content.items
             if len(items) > LIMITS["board-size-warn"]:
                 oversized.append(f"{label} {len(items)}")
             for item in sorted(items, key=lambda it: _report_sort_key(it, today)):
                 if not surfaces_at_start(item, today):
                     continue
                 n_escalate += escalation(item, today) is not None
-                ln = f"  • {label}{tag}: ({item_tag(item, today)}) {_clip_keep_replies(item.text)}"
+                ln = f"  • {label}{tag}: ({item_tag(item, today)}) {_clip_keep_replies(item)}"
                 if item.decided is not None:
                     decided_lines.append(ln)
                 elif item.bad_due is not None:
@@ -1792,7 +1895,7 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
                 content = None
             if content is not None:
                 n_boards += 1
-                on_board = parse_board(content, warn=False)
+                on_board = content.items
                 items = needing(content, today)   # TD-213: an item hidden until a later date is left out
                 total_items += len(items)
                 all_items += items
@@ -1802,9 +1905,9 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
                 total_decided += sum(1 for i in items if i.decided is not None)
                 if items:
                     for item in sorted(items, key=lambda i: _report_sort_key(i, today)):
-                        body.append(f"  • ({item_tag(item, today)}) {_clip(item.text)}")
+                        body.append(f"  • ({item_tag(item, today)}) {_clip(item_words(item))}")
                         body.extend(_detail_lines(item))  # TD-084
-                        refs_ln = ref_states_line(ref_states(item_refs(item.text), root, fetch, ref_cache))
+                        refs_ln = ref_states_line(ref_states(item_context_refs(item), root, fetch, ref_cache))
                         if refs_ln:   # TD-152
                             body.append(refs_ln)
                 else:
@@ -1817,11 +1920,11 @@ def report(boards_cli: list[str], fetch: bool, due_only: bool = False, remote: b
                 # 2026-08-12): the sweep covers PRs, worktrees, unpushed
                 # commits, and memories — an empty board proves nothing about
                 # those, so staleness warns unconditionally.
-                sweep = sweep_note_for(content, today, root)
+                sweep = sweep_note_for(content.preamble, today, root)
                 if sweep:
                     body.append(f"  {sweep}")
                     routine.add(body[-1])
-                for extra in (size_note(on_board), archive_note(content), twin_note(content)):
+                for extra in (size_note(on_board), board_problems_note(content)):
                     if extra:
                         body.append(f"  {extra}")
                         routine.add(body[-1])
@@ -1937,7 +2040,7 @@ def main() -> int:
     today = date.today()  # noqa: DTZ011  # local civil dates by design (TD-15: one-day skew tolerated at the sweep comparisons)
     weekly = args.force_weekly or today.weekday() == 0  # Monday
     try:
-        items = needing(checked(board.read_text(encoding="utf-8"), board), today, warn=True)
+        items = needing(checked(load_local(board), board), today)
     except FormatTooNew as e:
         logger.error("not read: %s", e)
         return 1

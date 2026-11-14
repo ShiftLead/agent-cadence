@@ -13,10 +13,11 @@
 An entry may carry one optional field after **Status:** (cadence.md §2):
 
     **Blocked by:** TD-047, TD-042
-    **Blocked by:** decision (person) — docs/user_attention.md, 2026-09-25 item
+    **Blocked by:** TD-047, decision (person)
 
-Comma-separated entry IDs, then optionally ``decision (<who>)`` — last, because the pointer
-after it runs to the end of the line and may hold anything. An ID may name another repo's entry
+Comma-separated items: entry IDs, ``decision (<who>)`` (whose words are the body's **Ask:**; the old
+pointer form, ``decision (<who>) — …``, is gone at ledgerboard v3.0), ``until YYYY-MM-DD`` and
+``event (<name>)``. An ID may name another repo's entry
 (TD-071), ``<repo>#TD-NNN`` — ``<repo>`` a roster path's basename, or ``owner/name`` (its origin)
 when basenames collide:
 
@@ -220,10 +221,11 @@ def _git(root: Path, *args: str) -> str | None:
 
 
 def fs_io() -> tuple[LB.Ls, LB.Read]:
-    """(ls, read) over the file system, as ``LB.load()`` takes them."""
+    """(ls, read) over the file system, as ``LB.load()`` and ``LB.load_board()`` take them: an ``ls`` lists a
+    subdirectory with ``/`` (ledgerboard v3.0, TD-092's D6), so a v3 board's ``archive/`` is read."""
     def ls(path: str) -> list[str] | None:
         p = Path(path)
-        return sorted(x.name for x in p.iterdir() if x.is_file()) if p.is_dir() else None
+        return sorted(x.name + "/" if x.is_dir() else x.name for x in p.iterdir()) if p.is_dir() else None
 
     def read(path: str) -> str | None:
         try:
@@ -247,11 +249,13 @@ def git_io(root: Path, ref: str, under: str = "") -> tuple[LB.Ls, LB.Read] | Non
             blobs[path] = meta.split()[2]
     cache: dict[str, str | None] = {}
 
-    def ls(path: str) -> list[str] | None:
-        pre = f"{path.rstrip('/')}/" if path else ""
+    def ls(path: str) -> list[str] | None:   # a subdirectory with `/` (ledgerboard v3.0, TD-092's D6)
+        path = path.rstrip("/")
+        pre = f"{path}/" if path else ""
         if path in blobs or not any(p.startswith(pre) for p in blobs):
             return None
-        return sorted(p[len(pre):] for p in blobs if p.startswith(pre) and "/" not in p[len(pre):])
+        return sorted({p[len(pre):].split("/", 1)[0] + ("/" if "/" in p[len(pre):] else "")
+                       for p in blobs if p.startswith(pre)})
 
     def read(path: str) -> str | None:
         if path not in blobs:
@@ -461,9 +465,8 @@ def prose_waits(ledger: str, archive: str = "") -> dict[str, list[tuple[str, str
     """id -> [(field, the id as written)] for each id an entry's header names as a wait — after *waits
     on/for* or *blocked by* in any field but Blocked by, up to the end of that clause — that its Blocked
     by does not name. A Waits: line's event may cite an entry for context; only the phrase makes it a wait. A bare id names an entry here or in the archive, or it is someone
-    else's written without its repo (*shiftlead TD-1014*) and not read. TD-172: Blocked by's own decision pointer
-    (what follows ``decision (<who>)``, which ``parse_blocked()`` never reads) is read too — every id in it that
-    the field's items do not name, phrase or none, as field ``blocked by``."""
+    else's written without its repo (*shiftlead TD-1014*) and not read. Blocked by itself is never read here: TD-172's
+    decision pointer (``decision (<who>) — …``) is gone at ledgerboard v3.0, an unreadable item ``--check`` faults."""
     known = LB.heading_nums(ledger) | LB.heading_nums(archive)
     out: dict[str, list[tuple[str, str]]] = {}
     for e in LB.entries(ledger):
@@ -471,11 +474,9 @@ def prose_waits(ledger: str, archive: str = "") -> dict[str, list[tuple[str, str
         named = {_wait_key(m["repo"], m["n"]) for i in ids if (m := WAIT_ID_RE.fullmatch(i.strip()))}
         named.add(_wait_key(None, e["id"][3:]))
         for field, value in e["fields"].items():
-            if field == "blocked by" or field in NO_WAIT_FIELDS:  # v3.0: a decision gate is the whole item, no pointer
+            if field in NO_WAIT_FIELDS:
                 continue
-                continue
-            else:
-                spans = [re.split(r"[.;:](?:\s|$)|\(|\)", value[m.end():], maxsplit=1)[0] for m in WAIT_PHRASE_RE.finditer(value)]
+            spans = [re.split(r"[.;:](?:\s|$)|\(|\)", value[m.end():], maxsplit=1)[0] for m in WAIT_PHRASE_RE.finditer(value)]
             for span in spans:
                 for m in WAIT_ID_RE.finditer(span):
                     if m["repo"] is None and int(m["n"]) not in known:
@@ -489,10 +490,7 @@ def prose_wait_flags(ledger: str, archive: str, old: str | None = None) -> list[
     """--check's ℹ per prose wait (kind prose-wait); with ``old``, one already there at REF is standing."""
     then = prose_waits(old, archive) if old is not None else {}
     return [{"level": "info", "id": tid, "field": field, "kind": "prose-wait", "standing": (field, ref) in then.get(tid, []),
-             "text": (f"ℹ {tid}: its Blocked by's decision pointer names {ref}, which no item of it names — move it "
-                      f"before the decision ({ref}, decision (…) — …), where --pickable sees it archived (cadence.md §2.4)"
-                      if field == "blocked by" else
-                      f"ℹ {tid}: its {field.capitalize()} field waits on {ref}, which its Blocked by does not name — "
+             "text": (f"ℹ {tid}: its {field.capitalize()} field waits on {ref}, which its Blocked by does not name — "
                       "name it in Blocked by, where --pickable sees it archived (cadence.md §2.4)")}
             for tid, waits in prose_waits(ledger, archive).items() for field, ref in waits]
 
@@ -1349,23 +1347,31 @@ def _lb_edit(w: _Writer, cmd: str, tid: str, kw: dict) -> int:
     return 0
 
 
-BOARD_REL, BOARD_ARCHIVE_REL = "docs/user_attention.md", "docs/user_attention_archive.md"  # a repo's board (§3.4)
+BOARD_REL = "docs/user_attention.md"  # a repo's board (§3.4): the stub naming its v3 directory, or a v2 board — a path
+# passed to load_board() (and to board.py's writers), never read as text here (ledgerboard v3.0, TD-263)
+
+
+def _board_in(io: tuple[LB.Ls, LB.Read]) -> LB.Board:
+    """The board in the tree ``io`` reads, whole: at ``LB.BOARD_DIR`` where the tree holds that directory, else at
+    ``BOARD_REL`` (a v2 board and its archive, or a stub naming the directory) — ``form`` None when there is none."""
+    return LB.load_board(LB.BOARD_DIR if io[0](LB.BOARD_DIR) is not None else BOARD_REL, *io)
 
 
 def _boards(w: _Writer) -> tuple[list[tuple], dict[str, str], str]:
     """What ``covers()`` reads for the ``set`` lift (TD-218; ledgerboard's target design §1.1): this repo's own
     board as the working tree holds it, then every other roster repo's board at its origin/<default>, in
-    ``origin_key`` order — ``[(origin_url, basename, text, archive_text)]`` — with {board name: the repo
-    the ``; board <repo>`` Log text names, its lowercased ``origin_path`` else its basename} and this repo's."""
+    ``origin_key`` order — ``[(origin_url, basename, Board)]``, each read whole through ``load_board()`` (v3.0: a
+    v3 directory, or a v2 board and its archive) — with {board name: the repo the ``; board <repo>`` Log text
+    names, its lowercased ``origin_path`` else its basename} and this repo's."""
     def origin(root: Path) -> str:
         return (_git(root, "remote", "get-url", "origin") or "").strip()
 
     def named(url: str, root: Path) -> tuple[str, str]:
         return LB.origin_key(url) or root.name, LB.origin_path(url) or root.name
 
-    fread = fs_io()[1]
+    fls, fread = fs_io()
     url = origin(w.root)
-    own = (url, w.root.name, fread(str(w.root / BOARD_REL)) or "", fread(str(w.root / BOARD_ARCHIVE_REL)) or "")
+    own = (url, w.root.name, _board_in(((lambda p: fls(str(w.root / p))), (lambda p: fread(str(w.root / p))))))
     key, repo = named(url, w.root)
     names = {key: repo}
     others = []
@@ -1376,14 +1382,14 @@ def _boards(w: _Writer) -> tuple[list[tuple], dict[str, str], str]:
         io = git_io(root, f"origin/{N.default_branch(root)}", "docs")
         if io is None:
             continue
-        text = io[1](BOARD_REL)
-        if text is None:
+        board = _board_in(io)
+        if board.form is None:
             continue
         k, r = named(u, root)
         if k in names:
             continue
         names[k] = r
-        others.append((u, root.name, text, io[1](BOARD_ARCHIVE_REL) or ""))
+        others.append((u, root.name, board))
     others.sort(key=lambda b: (0, LB.origin_key(b[0])) if LB.origin_key(b[0]) else (1, b[1].lower()))  # §3.2: no origin last
     return [own, *others], names, repo
 
@@ -1397,7 +1403,7 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
     (``agent_sessions.recorded_answer()``; ``--by`` that person), and then a ``note`` beside the Log's lift line
     names the record; a reassign or an override has no such route. The covering
     board item is picked (``covers()``, open or decided: this repo's own board first — the item whose Context
-    names the entry, else the lowest item key — then the other roster boards in ``origin_key`` order), the
+    names the entry, else the lowest item id — then the other roster boards in ``origin_key`` order), the
     answer must be one of its ``Lifts:`` (``Go`` when it has none), and the Log's suffix follows from it:
     none, the item on this board answered by ``board.py decide --board-only`` (the same label and ``by``);
     ``shared board item left open`` when it still asks about other parts (v2.7: the board half then writes
@@ -1465,18 +1471,19 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
 
     def rank(t: tuple) -> tuple:
         b, it = t
-        ref = LB._item_gate(it.text)[0] or ""
+        ref = LB._item_gate(it)[0] or ""
         direct = "#" not in ref and ID_ITEM_RE.match(ref) is not None and _num(ref) == me
-        return (order.index(b) if b in order else len(order), not (b == own and direct), LB.item_key(it.text))
+        # ties: the item's id, ascending — its Added day first, so the oldest (v3.0, TD-098's F452)
+        return (order.index(b) if b in order else len(order), not (b == own and direct), it.id or "")
     pick = min(got, key=rank) if got else None
-    if pick is not None and pick[0] == own and "#" in (LB._item_gate(pick[1].text)[0] or ""):
+    if pick is not None and pick[0] == own and "#" in (LB._item_gate(pick[1])[0] or ""):
         return w.say("set", f"refused — the covering item names this entry as another repo's "
-                            f"({LB._item_gate(pick[1].text)[0]}), which the board writer will not answer here: "
+                            f"({LB._item_gate(pick[1])[0]}), which the board writer will not answer here: "
                             f"write its Context as a bare {LBL.tid_of(tid)} first, "
-                            f"then lift — nothing was written: {pick[1].text[:80]!r}", 1)
+                            f"then lift — nothing was written: {pick[1].id} {pick[1].words[:80]!r}", 1)
     if pick is not None and not LB._lifting(label, pick[1].lifts, pick[1].answers):
         return w.say("set", f"refused — {label!r} does not lift the covering item (its Lifts: "
-                            f"{', '.join(pick[1].lifts or ['Go'])}): {pick[1].text[:80]!r}", 1)
+                            f"{', '.join(pick[1].lifts or ['Go'])}): {pick[1].id} {pick[1].words[:80]!r}", 1)
     suffix = ("no board item" if pick is None else None if pick[0] == own else f"board {names.get(pick[0], pick[0])}")
     kw = {"fields": fields, "by": by, "answer": label, "suffix": suffix}
     plan = _lb_plan(w, "set", tid, kw)
@@ -1512,8 +1519,7 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
         return 0
     board = str(w.root / BOARD_REL)
     try:
-        bplan = LBB.plan_edit(board, "decide", item.line, item.text.strip()[:40], answer=label,
-                              by=by, board_only=True, ledger=str(w.ledger))
+        bplan = LBB.plan_edit(board, "decide", item.id, answer=label, by=by, board_only=True, ledger=str(w.ledger))
         written = LBB.apply(bplan)
     except (LB.Refused, LBL.Unusable, OSError) as e:
         try:
@@ -1522,7 +1528,7 @@ def _set_lift(w: _Writer, tid: str, fields: dict, by: str, answer: str | None, w
             return w.say("set", f"the board refused ({e}), and putting {path} back failed: {e2}", 4)
         return w.say("set", f"refused — the board half: {e}; {path} put back, nothing was written", 1)
     if "left_open" in bplan.info:   # v2.7: a shared item still asking about other parts — the board is not written
-        w.say("set", f"note — the board item on line {item.line} is left open, unanswered: "
+        w.say("set", f"note — the board item {item.id} is left open, unanswered: "
                      f"{', '.join(bplan.info['left_open'])} still carry {gate}; nothing was written to {board}", 0)
     print(path)
     for p in written:   # only what the board half wrote (ledgerboard TD-067 plan, *Consumers*)
@@ -1534,7 +1540,7 @@ def _person_board(boards: list[tuple], person: str) -> int | None:
     """The index in ``boards`` (``_boards()``'s order: this repo's, then the roster's by ``origin_key``) of
     *the person's board* (ledgerboard's target design §3.2): the first whose ``People:`` lists them, or None."""
     for i, b in enumerate(boards):
-        if person.lower() in {x.lower() for x in LB.board_people(b[2]) or []}:
+        if person.lower() in {x.lower() for x in LB.board_people(b[2]) or []}:   # the Board, never text (v3.0)
             return i
     return None
 
@@ -1589,6 +1595,10 @@ def _set_moved(w: _Writer, tid: str, fields: dict, by: str, gate: str, to: str |
     for i, it in covered:
         if i:
             closes.setdefault(i, []).append(it)
+    for i in sorted(set(where.values()) | set(closes) | ({0} if items else set())):   # each board this writes
+        if boards[i][2].form != "dir":   # v3.0's writers refuse a v2 board (D12): said before anything is written
+            return w.say("set", f"refused — {boards[i][1]}'s board is still v2 ({BOARD_REL}): {boards[i][1]} splits "
+                                "it first (board.py split, in its v3.0 bump), then run set again; nothing was written", 1)
     roots = {}
     for i in sorted({i for i in where.values() if i} | set(closes)):
         root = _roster_root(boards[i][0], boards[i][1])
@@ -1596,7 +1606,13 @@ def _set_moved(w: _Writer, tid: str, fields: dict, by: str, gate: str, to: str |
             return w.say("set", f"refused — {boards[i][1]}'s board was read, but no roster clone of it was found to "
                                 "open its PR from; nothing was written", 1)
         roots[i] = root
-    old_board = LBB.read(board)
+    undo: dict[str, str | None] = {}   # each board file a write below changes, as it was (None: it was not there)
+
+    def board_apply(bplan: "LBB.Plan") -> None:
+        for f in bplan.changes:
+            if f not in undo:
+                undo[f] = LBB.fs_read(f) if os.path.exists(f) else None
+        LBB.apply(bplan)
     me = LBL.tid_of(tid)
     said = " ".join((why if b else override).split())
     day = datetime.now().astimezone().date()   # a board date is the person's local day
@@ -1616,17 +1632,18 @@ def _set_moved(w: _Writer, tid: str, fields: dict, by: str, gate: str, to: str |
     opened: list[str] = []
     try:
         LBL.apply(plan)
-        for it in items:   # a done keeps every line where it was
-            LBB.apply(LBB.plan_edit(board, "done", it.line, it.text.strip()[:40], why=done_why))
+        for it in items:   # by id: a close moves the item's file into archive/ (v3.0)
+            board_apply(LBB.plan_edit(board, "done", it.id, why=done_why))
         for spec in adds.get(0, []):
-            LBB.apply(LBB.plan_add(board, spec.pop("text"), **spec))
+            board_apply(LBB.plan_add(board, spec.pop("text"), **spec))
         for i in sorted(roots):
             opened.append(_notices_pr(roots[i], adds.get(i, []), closes.get(i, []), done_why, me, repo, gate, to,
                                       by, said))
     except (LB.Refused, LBL.Unusable, OSError, RuntimeError, subprocess.SubprocessError) as e:
         left = (f"; close the PR already opened: {', '.join(opened)}" if opened else "")
         try:
-            LBL.apply(LBL.Plan("set", None, {path: text, board: old_board}, {}))
+            LBL.apply(LBL.Plan("set", None, {path: text}, {}))
+            LBB.write(undo)
         except OSError as e2:
             return w.say("set", f"the board refused ({e}), and putting the files back failed: {e2}{left}", 4)
         return w.say("set", f"refused — the board: {e}; both files put back, nothing was written here{left}", 1)
@@ -1674,7 +1691,7 @@ def _notices_pr(root: Path, specs: list[dict], closes: list, done_why: str, me: 
     with G.Scratch(root, f"origin/{default}", branch) as wt:
         board = str(wt / BOARD_REL)
         for it in closes:
-            LBB.apply(LBB.plan_edit(board, "done", it.line, it.text.strip()[:40], why=done_why))
+            LBB.apply(LBB.plan_edit(board, "done", it.id, why=done_why))
         for spec in specs:
             s = dict(spec)
             s["context"] = re.sub(r"^TD-\d+", xid, s["context"])
@@ -1687,7 +1704,7 @@ def _notices_pr(root: Path, specs: list[dict], closes: list, done_why: str, me: 
         subject = f"board: {xid} {gate} {what} — the notices ({repo}'s ledger.py set)"
         body = (f"`ledger.py set` in {repo} changed {xid}'s `{gate}` ({what}, by {by}: {said}), and the notices it owes "
                 f"belong on this repo's board, whose `People:` names the person (TD-226):\n\n"
-                + "\n".join([*(f"- close: {it.text.strip()[:80]}" for it in closes),
+                + "\n".join([*(f"- close: {it.id} {it.words[:80]}" for it in closes),
                              *(f"- [{s['kind']}] {s['text']}" for s in specs)])
                 + f"\n\nThis PR belongs with {repo}'s PR carrying that ledger change: merge it once that one is "
                   "merged, and close it if that one is closed. Review it like any PR (cadence.md §4).")
@@ -1709,7 +1726,7 @@ def _still_asked(led: "LBL.Ledger", item: "LB.BoardItem", tid: str, gate: str) -
 def _parts_after(led: "LBL.Ledger", item: "LB.BoardItem", changed: Mapping[str, str]) -> dict[str, str]:
     """{TD-n: text} of the open entries a covering item asks about — its Context entry and its bare
     ``Parts:`` — as the lift leaves them (``changed``: path to its new text), for ``closes()``."""
-    ref = LB._item_gate(item.text)[0] or ""
+    ref = LB._item_gate(item)[0] or ""
     out = {}
     for x in [ref, *item.parts]:
         if "#" in x or not ID_ITEM_RE.match(x):
@@ -1943,74 +1960,6 @@ def renumber(argv: list[str]) -> int:
     return 0
 
 
-def archived_dates(root: Path, rel: str) -> dict[str, str]:
-    """Each archived entry's archiving date from git: the UTC day of the newest commit that added
-    ``<rel>/archive/TD-n.md`` (a reopen and a second archive takes the later), keyed ``TD-n``. Empty when git
-    cannot say. ``migrate``'s ``--closed-dates``, read only for an archived Status with no date of its own."""
-    out = _git(root, "log", "--diff-filter=A", "--format=@%ct", "--name-only", "--", f"{rel}/{LB.LEDGER_ARCHIVE}")
-    dates: dict[str, str] = {}
-    when = None
-    for ln in (out or "").splitlines():
-        if ln.startswith("@"):
-            when = datetime.fromtimestamp(int(ln[1:]), timezone.utc).date().isoformat()
-        elif ln.strip() and when:
-            m = re.fullmatch(r"TD-0*(\d+)\.md", Path(ln.strip()).name)
-            if m:
-                dates.setdefault(f"TD-{int(m.group(1)):03d}", when)   # git log is newest first
-    return dates
-
-
-def _undated(ledger: Path, dates: Mapping[str, str]) -> dict[str, str]:
-    """``dates`` kept only for the archived entries ``migrate_entry()`` finds no date for in their own text:
-    an entry's written day outranks git's, whose commit day can be a day off it (a merge late in the evening,
-    or the seed commit for an entry archived before this repo began)."""
-    day = datetime.now(timezone.utc).date().isoformat()
-    out: dict[str, str] = {}
-    for tid, d in dates.items():
-        p = ledger / LB.LEDGER_ARCHIVE / f"{tid}.md"
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        if "no date for the Status" in LB.migrate_entry(text, archived=True, today=day)["stops"]:
-            out[tid] = d
-    return out
-
-
-def migrate(argv: list[str]) -> int:
-    """``ledger.py migrate [TD-n …] --release X.Y [--closed-dates FILE] [--stage-kind WORD=KIND]… [--as TD-n=FORM]…
-    [--plan|--dry-run] [--json]``: ledgerboard's ``migrate`` (v2.7, SPEC *Migrating to v2.7*) over this repo's
-    ``docs/ledger/`` and its archive — each Status into the closed set (``Open``; ``Resolved D``, ``Superseded D
-    by TD-n``, ``Dropped D``), its words moved to the Log, a header ``Location`` into the body. Any stop stops
-    the run and writes nothing: give that entry a person's ``--as`` (an open entry's form is ``open``), or ask.
-    Unless ``--closed-dates`` is given, an archived entry whose own text gives no date for its Status gets git's
-    (``archived_dates()``: the UTC day its archive file was added), as this script passes its other dates. Run ``--plan`` (or ``--dry-run``)
-    first, then ``--check`` on the result; nothing is committed — ``--json`` prints the commit subject."""
-    if any(x in ("-h", "--help") for x in argv):
-        return LBL.run_migrate(argv)
-    def given(flag: str) -> str | None:
-        for i, x in enumerate(argv):
-            if x == flag and i + 1 < len(argv):
-                return argv[i + 1]
-            if x.startswith(flag + "="):
-                return x[len(flag) + 1:]
-        return None
-    ledger = given("--ledger")
-    args = list(argv) if ledger else [*argv, "--ledger", str(ledger := str(_toplevel() / LEDGER_DIR_REL))]
-    if given("--closed-dates") is None:
-        root, rel, _ = _rel(Path(ledger))
-        dates = _undated(Path(ledger), archived_dates(root, rel) if root is not None else {})
-        if dates:
-            fd, tmp = tempfile.mkstemp(prefix="ledger-migrate-", suffix=".json")
-            try:
-                with os.fdopen(fd, "w") as f:
-                    json.dump(dates, f)
-                return LBL.run_migrate(args + ["--closed-dates", tmp])
-            finally:
-                os.unlink(tmp)
-    return LBL.run_migrate(args)
-
-
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["fmt"]:
@@ -2025,8 +1974,6 @@ def main(argv: list[str] | None = None) -> int:
         return renumber(argv[1:])
     if argv[:1] == ["lift"]:
         return lift(argv[1:])
-    if argv[:1] == ["migrate"]:
-        return migrate(argv[1:])
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--pickable", nargs="?", const=True, default=None, metavar="yes|no",
                     help="alone: print the pick order, the blocked entries and the flags; "

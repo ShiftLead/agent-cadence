@@ -94,7 +94,7 @@ never a fake pass):
               A PR that answers a gate item (an item whose Context names a gate gains
               a Decided:) is judged by ledgerboard's lift_pr_verdict (v2.4, TD-218),
               never the board-edit carve-out: a decide lift — one commit under the
-              board's decide subject, a base board with People:, the edit_line()
+              board's decide subject, a base board with People:, the edit_item()
               answer and the ledger decide_lift() writes, its Log date within a day
               of the PR's opening and its Decided: date from a day before the
               opening to a day after the merge — passes with no comment; any other
@@ -186,11 +186,15 @@ With --since, a second section audits the window's direct commits (TD-040, caden
 "Default-branch rule") that no PR made — not a listed PR's merge commit, no `(#N)` subject
 suffix, not the root — classified as
 
-    stamp         only Swept:/Swept-deep: lines on docs/user_attention.md
-    board-append  whole `- [ ]` items with a Due:, under a `## Needs…` heading, nothing removed
-    board-edit    one item's tick (+ Closed:), Due:, Decided: or reply tails changed, under board_edit.py's fixed
-                  message (ledgerboard's subject() writes it and subject_kind() reads it) — but never an
-                  answer to a gate item (its Context names a gate), which lands by PR only (TD-218, (d))
+    stamp         only Swept:/Swept-deep: lines in the board's docs/user_attention/README.md
+    board-append  new open item files directly in docs/user_attention/, each with a Due: and no detail
+                  block, nothing else changed (ledgerboard v3.0, TD-263)
+    board-edit    one item's file changed in place, or moved into archive/<YYYY-MM>/ by its close — its
+                  Due:, Hide until:, Decided:, Closed: or a reply — under board_edit.py's fixed message naming
+                  its id (ledgerboard's subject() writes it, subject_kind() and subject_id() read it) — but
+                  never an answer to a gate item (its Context names a gate), which lands by PR only (TD-218, (d))
+    board-v2      a write to a board still a v2 file (docs/user_attention.md), before its split: not replayed,
+                  a ⚠, never a fail
     reviewed      forge = "none" only (TD-105): the commit's body carries a cadence-review:
                   line (REVIEW_RE's grammar, the last if several) — there are no PRs, so the
                   squash commit holds the §4.9 evidence; a BLOCK there is a fail
@@ -1625,8 +1629,10 @@ def row_deploy(pr, root):
 # "audited in review" — but a direct push has no review. This is that audit: every
 # first-parent commit in the --since window that no PR made is classified by what it
 # touches, and anything outside the carve-outs is a fail ("landed without review").
-BOARD = "docs/user_attention.md"
-ARCHIVE = "docs/user_attention_archive.md"  # the board's archive (cadence §3.4): only a board-archive commit writes it
+BOARD_DIR = "docs/user_attention"  # the board (ledgerboard v3.0, TD-263): README.md, <id>.md, archive/<YYYY-MM>/<id>.md
+BOARD = BOARD_DIR  # what a writer's --board names
+BOARD_STUB = "docs/user_attention.md"  # the stub beside it (a v2 board's file before its split)
+BOARD_V2_ARCHIVE = "docs/user_attention_archive.md"  # a v2 board's archive; no writer writes it once split
 LEDGER = "docs/technical_debt.md"  # its rank file, the pick order (TD-119), is named from it by ledgerboard's rank_path()
 LEDGER_DIR = "docs/ledger"  # a split ledger (TD-160): rank_path() names its rank file inside it
 SWEEP_STAMPS = ("Swept", "Swept-deep")  # the stamp lines a sweep writes (cadence §3); their shape is ledgerboard's
@@ -1675,7 +1681,7 @@ def default_ref(root):
     return f"origin/{default_branch(root)}"
 
 
-def _board_diff(root, sha, path=BOARD):
+def _board_diff(root, sha, path):
     """(removed lines, [(new line number, added line)]) of the board (or `path`) in `sha`, or None.
     Only lines inside a hunk count: `---`/`+++` are file headers before the first `@@`, and inside a hunk
     they are a removed `--…` or an added `++…` line (TD-238)."""
@@ -1697,15 +1703,6 @@ def _board_diff(root, sha, path=BOARD):
     return removed, added
 
 
-def _edit_key(line):
-    """An item line with what a tool-made edit may change taken out: ledgerboard's item_key."""
-    return _lb().item_key(line)
-
-
-_DONE_ARCHIVED_RE = re.compile(r"; archived (\d+) \(session [^)]+\)$")
-_CLOSED_WHY_RE = re.compile(r"Closed:\s*\d{4}-\d{2}-\d{2}(?: — (?P<why>.*?))?\.?$")
-
-
 def _show(root, sha, path):
     """`path`'s text at `sha`, "" where that tree has no such file, None when git cannot read the commit."""
     if git(["rev-parse", "--verify", "-q", f"{sha}^{{commit}}"], cwd=root) is None:
@@ -1718,174 +1715,148 @@ def _show(root, sha, path):
         return None
 
 
-def classify_archive(root, sha, subject):
-    """(class, detail) of a commit that changes the board and its archive (TD-206, cadence §3.4): `board-archive`
-    when recomputing the writer's archive from the parent gives the commit's two files, line for line, at the
-    threshold (ARCHIVE_AT closed items) and with the subject's count; `fail` otherwise. Two writers make one:
-    a standalone `archive` (its subject ledgerboard's archive subject), and a `done` that archived in the same
-    write (`<tool>: done <head>; archived <n> (session <s>)`), whose one closed item is found again among the
-    parent's open items and closed by ledgerboard's edit_line() with the date and why the head carries."""
-    lb = _lb()
-    base_b, base_a = _show(root, f"{sha}^", BOARD), _show(root, f"{sha}^", ARCHIVE)
-    head_b, head_a = _show(root, sha, BOARD), _show(root, sha, ARCHIVE)
-    if None in (base_b, base_a, head_b, head_a):
-        return "fail", "board or archive unreadable"
-    kind = lb.subject_kind(subject)
-    if kind == "archive":
-        n = int(re.search(r": archive (\d+) closed", subject).group(1))
-        boards = [base_b]
-    elif kind == "edit" and lb.edit_action(subject) == "done" and _DONE_ARCHIVED_RE.search(subject):
-        n = int(_DONE_ARCHIVED_RE.search(subject).group(1))
-        gained = {lb.item_key(x) for x in head_a.splitlines()[len(base_a.splitlines()):] if lb.is_item(x)}
-        lines = base_b.splitlines(keepends=True)
-        boards = []
-        for i, ln in enumerate(lines):
-            body = ln.rstrip("\r\n")
-            if not (lb.is_open_item(body) and lb.item_key(body) in gained):
-                continue
-            closed = next((x for x in head_a.splitlines() if lb.CLOSED_ITEM_RE.match(x)
-                           and lb.item_key(x) == lb.item_key(body)), None)
-            m = lb.CLOSED_RE.search(closed or "")
-            w = _CLOSED_WHY_RE.match(closed[m.start():]) if m else None
-            if not w:
-                continue
-            try:
-                new = lb.edit_line(body, "done", why=w.group("why"), today=dt.date.fromisoformat(m.group("date")))
-            except (lb.Refused, ValueError):
-                continue
-            boards.append("".join(lines[:i] + [new + ln[len(body):]] + lines[i + 1:]))
-        if not boards:
-            return "fail", "a done that archived, but no open item of the parent closes into the archive"
-    else:
-        return "fail", "the board and its archive changed together without board_edit.py's archive or done subject"
-    for b in boards:
-        c = len(lb.closed_items(b))
-        if c < lb.ARCHIVE_AT:
+# --- the board as a directory (ledgerboard v3.0, TD-263) ------------------------------------------------------
+# The board is docs/user_attention/: README.md (the preamble and its stamps), one <id>.md per open item, and
+# archive/<YYYY-MM>/<id>.md per closed one; docs/user_attention.md is the stub a reader is pointed at. A board
+# check reads a commit's board as a tree — README.md and every file directly in the directory, the archive/ paths
+# the change names, and the v2 pair where the tree still has it — through ledgerboard's load_board(), and pairs
+# items across two trees by id (TD-098's plan, *Consumers*; TD-095's plan, *Consumers*).
+
+
+def board_path(path):
+    """Whether a repo path is the board's: a file under BOARD_DIR, the stub, or the v2 archive."""
+    return path.startswith(BOARD_DIR + "/") or path in (BOARD_STUB, BOARD_V2_ARCHIVE)
+
+
+def _tree_ls(tree):
+    """A {path: text} tree's ``ls`` as load_board() takes it: the names directly under a path, each subdirectory
+    once as ``<name>/``; None when no path of the tree lies under it."""
+    def ls(path):
+        pre = path.rstrip("/") + "/"
+        under = [k[len(pre):] for k in tree if k.startswith(pre)]
+        return sorted({x.split("/", 1)[0] + "/" if "/" in x else x for x in under if x}) if under else None
+    return ls
+
+
+def board_of(tree):
+    """The board a {path: text} tree holds, through load_board(): at BOARD_DIR when the tree holds a file under
+    it, else at the v2 path (a v2 board file, or nothing: an empty Board, form None)."""
+    pre = BOARD_DIR + "/"
+    path = BOARD_DIR if any(k.startswith(pre) for k in tree) else BOARD_STUB
+    return _lb().load_board(path, _tree_ls(tree), tree.get)
+
+
+def _board_tree(root, sha, files=()):
+    """{path: text} of the board at ``sha``: every file directly in BOARD_DIR (README.md and the open items), the
+    archive/ paths ``files`` names that the tree has, and the stub and v2 archive where it has them. None when the
+    commit or a file cannot be read."""
+    if git(["rev-parse", "--verify", "-q", f"{sha}^{{commit}}"], cwd=root) is None:
+        return None
+    listing = git(["ls-tree", "-z", sha, BOARD_DIR + "/"], cwd=root)
+    if listing is None:
+        return None
+    paths = [e.split("\t", 1)[1] for e in listing.split("\0") if "\t" in e and e.split()[1] == "blob"]
+    paths += [f for f in files if f.startswith(BOARD_DIR + "/" + _lb().BOARD_ARCHIVE + "/")]
+    paths += [BOARD_STUB, BOARD_V2_ARCHIVE]
+    tree = {}
+    for p in dict.fromkeys(paths):
+        if git(["cat-file", "-e", f"{sha}:{p}"], cwd=root) is None:
             continue
         try:
-            got = lb.archive_closed(b, base_a)
-        except lb.Refused:
-            continue
-        if got == (head_b, head_a) and c == n:
-            return "board-archive", f"{n} closed items archived by the writer (ARCHIVE_AT {lb.ARCHIVE_AT})"
-    return "fail", (f"not the writer's archive at the threshold (ARCHIVE_AT {lb.ARCHIVE_AT}) with the "
-                    f"subject's count {n}: run board_edit.py archive (or the done that reaches it)")
+            text = git(["show", f"{sha}:{p}"], cwd=root)
+        except UnicodeDecodeError:
+            return None
+        if text is None:
+            return None
+        tree[p] = text
+    return tree
 
 
-# --- the board row (TD-206, design §3): each item's net change, by the writers' rules -------------------
-
-_CLOSED_TAIL_RE = re.compile(r"Closed:\s*(?P<date>\d{4}-\d{2}-\d{2})(?: — (?P<why>.*?))?\.?$")
-_DECIDE_LEADS = {"context": "Context", "question": "Question", "recommended": "Recommended"}
-
-
-def _item_lines(text):
-    """[(1-based line, line)] of every item line (`- [ ]` or `- [x]` at any indent) of a board's text."""
-    return [(n, ln) for n, ln in enumerate(text.splitlines(), 1) if _lb().is_item(ln)]
-
-
-def _fields(line):
-    """The fields an edit changes, read from an open item line: Due:, Hide until:, Decided: (and by), replies."""
+def _as_v3(board, tree):
+    """A v2 board (form "file") as the v3 board its split gives (ledgerboard's split_board()), so a change across
+    a split pairs its items by id; any other board as it is. None when the v2 board does not split."""
+    if board.form != "file":
+        return board
     lb = _lb()
-    got = lb.parse_board(line, warn=False)
-    it = got[0] if got else None
-    m = lb.ITEM_RE.match(line)
-    return {"due": it.due if it else None, "hide": it.hide_until if it else None,
-            "decided": (it.decided, it.decided_by) if it else (None, None),
-            "replies": lb.parse_replies(m.group("text")) if m else []}
-
-
-def _read_back(line):
-    """(open form, (date, why) or None): a closed line's Closed: read and cut first, with item_key's own cut,
-    since DECIDED_RE is anchored at the line's end; an open line is its own open form."""
-    lb = _lb()
-    m = lb.CLOSED_RE.search(line)
-    if not (lb.CLOSED_ITEM_RE.match(line) and m):
-        return line, None
-    w = _CLOSED_TAIL_RE.match(line[m.start():])
-    if not w:
-        return line, None
     try:
-        when = dt.date.fromisoformat(w.group("date"))
-    except ValueError:  # a date no writer writes: read as no Closed: at all
-        return line, None
-    line = re.sub(r"^(\s*-\s*)\[[xX]\]", r"\1[ ]", line)
-    line = re.sub(r"\s*" + lb.CLOSED_RE.pattern, "", line)
-    return line, (when, w.group("why"))
+        files = lb.split_board(tree.get(BOARD_STUB) or "", tree.get(BOARD_V2_ARCHIVE) or "")
+    except lb.Refused:
+        return None
+    return board_of({f"{BOARD_DIR}/{k}": v for k, v in files.items()})
 
 
-def writers_made(base, added):
-    """True when replaying the net change of the fields item_key strips (Due:, Hide until:, new replies,
-    Decided:, Closed:) through edit_line, in the writers' order (due, snooze, each new reply oldest first,
-    decide, done; the replies also after decide, for a line whose text ends no sentence), on `base` or on
-    canonical_item(base) (fmt first), gives `added` byte for byte (design §3 rule 1). A field no writer writes
-    (an impossible date) is simply not writer-made."""
+def _item_fields(it):
+    return it.due, it.hide_until, it.replies, (it.decided, it.decided_by), it.closed
+
+
+def writers_made(base, head):
+    """True when replaying the net change of the fields an edit writes (Due:, Hide until:, new replies, Decided:,
+    Closed:) through ledgerboard's edit_item(), in the writers' order (due, snooze, each new reply oldest first,
+    decide, done; the replies also after decide; a decide that closes its gate item last), on the item file
+    ``base`` or on canonical_item_file(base) (fmt first), gives ``head`` byte for byte (design §3 rule 1). A
+    field no writer writes (an impossible date) is simply not writer-made."""
     try:
-        return _writers_made(base, added)
+        return _writers_made(base, head)
     except ValueError:
         return False
 
 
-def _writers_made(base, added):
+def _writers_made(base, head):
     lb = _lb()
-    if not lb.ITEM_RE.match(base):
-        return False  # the writers edit open lines only
-    open_a, closed = _read_back(added)
-    if lb.CLOSED_ITEM_RE.match(added) and closed is None or not lb.ITEM_RE.match(open_a):
+    b, h = lb.parse_item(base), lb.parse_item(head)
+    if b is None or h is None or b.closed is not None:
+        return False  # the writers edit open items only
+    if h.closed is not None and h.closed[0] is None:
         return False
-    fa = _fields(open_a)
     starts = [base]
     try:
-        fmt = lb.canonical_item(base + "\n").rstrip("\n")
+        fmt = lb.canonical_item_file(base)
         if fmt != base:
             starts.append(fmt)
     except lb.Refused:
         pass
-    for b in starts:
-        fb = _fields(b)
-        if fa["replies"][: len(fb["replies"])] != fb["replies"]:
+    for s in starts:
+        fb = lb.parse_item(s)
+        if fb is None or h.replies[: len(fb.replies)] != fb.replies:
             continue
         pre = []
-        if fa["due"] != fb["due"]:
-            if fa["due"] is None:
+        if h.due != fb.due:
+            if h.due is None:
                 continue  # no writer removes a Due:
-            pre.append(("due", {"to": fa["due"]}))
-        if fa["hide"] != fb["hide"]:
-            if fa["hide"] is None:
+            pre.append(("due", {"to": h.due}))
+        if h.hide_until != fb.hide_until:
+            if h.hide_until is None:
                 continue
-            pre.append(("snooze", {"to": fa["hide"]}))
-        reps = [("reply", {"reply": t, "by": by, "today": dt.date.fromisoformat(d)})
-                for by, d, t in fa["replies"][len(fb["replies"]):]]
+            pre.append(("snooze", {"to": h.hide_until}))
+        reps = [("reply", {"reply": w, "by": by, "today": dt.date.fromisoformat(d)})
+                for by, d, w in h.replies[len(fb.replies):]]
         dec = []
-        if fa["decided"] != fb["decided"]:
-            (d, by) = fa["decided"]
-            if d is None:
+        if (h.decided, h.decided_by) != (fb.decided, fb.decided_by):
+            if h.decided is None:
                 continue
-            dec = [("decide", {"answer": d[0], "by": by, "today": d[1]})]
-        done = [("done", {"why": closed[1], "today": closed[0]})] if closed else []
-        for order in (pre + reps + dec + done, pre + dec + reps + done):
-            cur = b
+            dec = [("decide", {"answer": h.decided[0], "by": h.decided_by, "today": h.decided[1]})]
+        done = [("done", {"why": h.closed[1], "today": h.closed[0]})] if h.closed else []
+        orders = [pre + reps + dec + done, pre + dec + reps + done]
+        if h.closed and dec:
+            orders.append(pre + reps + [("decide", {**dec[0][1], "close": True})])
+        for order in orders:
+            cur = s
             try:
                 for act, kw in order:
-                    cur = lb.edit_line(cur, act, **kw)
+                    cur = lb.edit_item(cur, act, **kw)
             except (lb.Refused, ValueError):
                 continue
-            if cur == added:
+            if cur == head:
                 return True
     return False
 
 
-def _prefix(line):
-    """`<kind> <date> (<head>) —`: what a line changed outside the writer's fields still shares."""
-    m = _lb().ANY_ITEM_RE.match(line)
-    rest = line[m.end():] if m else line
-    return rest.split(" — ", 1)[0] if " — " in rest else None
-
-
 def _people_check(base, head):
-    """Rule 6: the People: line's faults fail only when the diff touches that line."""
+    """Rule 6: the People: line's faults fail only when the change touches that line (README.md's)."""
     lb = _lb()
-    def ppl(text):
-        return [ln for ln in text.splitlines() if lb.PEOPLE_RE.match(ln)]
+
+    def ppl(board):
+        return [ln for ln in (board.preamble or "").splitlines() if lb.PEOPLE_RE.match(ln)]
     touched = ppl(base) != ppl(head)
     out = []
     for _, why in lb.people_problems(head):
@@ -1895,313 +1866,242 @@ def _people_check(base, head):
     return out
 
 
-def _decided_check(line, people, what):
-    """Rule 3: a new or changed Decided: carries (by <person>), on People: where the board has one."""
-    lb = _lb()
-    open_l, _ = _read_back(line)
-    text = lb.ITEM_RE.match(open_l).group("text") if lb.ITEM_RE.match(open_l) else ""
-    if lb.parse_decided(text) is None:
+def _decided_check(it, people, what):
+    """Rule 3: a new or changed Decided: carries its `by <person>`, on People: where the board has one."""
+    if it.decided is None:
         return None
-    by = lb.parse_decided_by(text)
+    by = it.decided_by
     if not by:
-        return f"{what}: its Decided: names no `(by <person>)` — write it with board_edit.py decide"
+        return f"{what}: its Decided: names no `by <person>` — write it with board_edit.py decide"
     if people is not None and by.lower() not in {p.lower() for p in people}:
         return f"{what}: its Decided: is by {by}, who is not on the board's People: — board_edit.py decide --by <person>"
     return None
 
 
-def archive_gain(base_arch, head_arch):
-    """The lines the archive gained, or None when its existing lines changed (only an append is a writer's)."""
-    b, h = base_arch.splitlines(), head_arch.splitlines()
-    if h[: len(b)] != b:
-        return None
-    return h[len(b):]
+_DECIDE_LEADS = {"context": "Context", "question": "Question", "recommended": "Recommended"}
 
 
-def archive_net_problems(gained, unpaired):
-    """The merged PR's net check on its archive (rule 5): gained item lines are closed (Closed: CLOSED_RE reads)
-    or an open twin of a gained closed one; each is matched to its own line the board lost unpaired — the same
-    bytes, or the writers' close of it (writers_made) — so no line is moved twice or changed on the way; other
-    gained lines are blank or in those items' detail blocks; and at least ARCHIVE_AT closed item lines arrive."""
+def board_change_problems(base, head):
+    """[(status, message)] — `fail` or `info` — for a change of the board from the Board ``base`` to the Board
+    ``head`` (design §3, ledgerboard v3.0): each item's net change, paired by id. An item the change leaves
+    byte-equal is never judged; a changed open item is what the writers make of its base (writers_made), at the
+    path they put it (`<id>.md` open, `archive/<YYYY-MM>/<id>.md` closed); a new item is an open item file the
+    writer would write (item_file_problem(), the gate's board_problems(), a decide's detail block); a Decided:
+    names who answered (rule 3); an open item gone from the head was deleted (the board closes, never deletes);
+    an archived item never changes. A closed item the head holds is one the change names, so a base archive the
+    change leaves alone is never read as deleted."""
     lb = _lb()
     out = []
-    items = [ln for ln in gained if lb.is_item(ln)]
-    closed = [ln for ln in items if lb.CLOSED_ITEM_RE.match(ln) and lb.CLOSED_RE.search(ln)]
-    ckeys = {lb.item_key(ln) for ln in closed}
-    pool = list(unpaired)
-    for ln in items:
-        if ln in closed or (lb.is_open_item(ln) and lb.item_key(ln) in ckeys):
-            hit = next((i for i, r in enumerate(pool) if r == ln), None)
-            if hit is None:
-                hit = next((i for i, r in enumerate(pool)
-                            if lb.item_key(r) == lb.item_key(ln) and writers_made(r, ln)), None)
-            if hit is None:
-                out.append(f"the archive gained {ln[:70]!r}, which is not a line the board lost, nor the writers' "
-                           "close of one — board_edit.py done, then archive")
-            else:
-                pool.pop(hit)
+    people = lb.board_people(head) if head.form else None
+    base_by = {it.id: it for it in [*base.items, *base.closed] if it.id is not None}
+    gate = {}
+    if head.form == "dir":
+        try:
+            gate = {p: why for p, why in lb.board_problems(head, base) if p != lb.BOARD_README and not why.startswith("ℹ")}
+        except lb.Refused:
+            gate = {}
+    seen = set()
+    for it in [*head.items, *head.closed]:
+        where = it.path or "an item"
+        if it.id is None:
+            out.append(("fail", f"{where}: not an item file the writers write (its name is no id) — board_edit.py add"))
             continue
-        out.append(f"the archive gained {ln[:70]!r}: neither a closed item with its Closed: nor the open twin of one "
-                   "— board_edit.py done, then archive")
-    block = False
-    for ln in gained:
-        if lb.is_item(ln):
-            block = True
-        elif not ln.strip():
-            block = False
-        elif not (block and ln[:1].isspace()):
-            out.append(f"the archive gained {ln[:70]!r}, outside any item's detail block — only board_edit.py archive moves lines")
-    if items and len(closed) < lb.ARCHIVE_AT:
-        out.append(f"the archive gained {len(closed)} closed item(s), under ARCHIVE_AT ({lb.ARCHIVE_AT}): "
-                   "a writer's archive moves them only at the threshold")
-    return out
-
-
-def board_change_problems(base, head, base_arch="", head_arch="", *, net_archive=False):
-    """[(status, message)] — `fail` or `info` — for a change of the board from `base` to `head` (design §3):
-    rules 1–6 on each item's net change, with the archive's gain exempting the items it took; `net_archive`
-    (a merged PR) adds the archive's net check. Byte-equal item lines added and removed cancel, so a moved item
-    or a reordered section judges nothing; lines the change leaves alone are never judged."""
-    lb = _lb()
-    out = []
-    people = lb.board_people(head)
-    bl, hl = _item_lines(base), _item_lines(head)
-    pool = {}
-    for _, ln in bl:
-        pool[ln] = pool.get(ln, 0) + 1
-    added = []
-    for n, ln in hl:
-        if pool.get(ln):
-            pool[ln] -= 1
-        else:
-            added.append((n, ln))
-    hpool = {}
-    for _, ln in hl:
-        hpool[ln] = hpool.get(ln, 0) + 1
-    removed = []
-    for n, ln in bl:
-        if hpool.get(ln):
-            hpool[ln] -= 1
-        else:
-            removed.append((n, ln))
-    used = set()
-    new_items = []
-    head_lines = head.splitlines()
-    gate = {n: why for n, why in lb.board_problems(head, base) if not why.startswith("ℹ")}
-    for n, ln in added:
-        where = f"line {n}"
-        cands = [i for i, (_, r) in enumerate(removed) if i not in used and lb.item_key(r) == lb.item_key(ln)]
-        if cands:
-            hit = next((i for i in cands if writers_made(removed[i][1], ln)), None)
-            used.add(cands[0] if hit is None else hit)
-            if hit is None:
-                cmd = "done" if lb.CLOSED_ITEM_RE.match(ln) else "fmt"
-                out.append(("fail", f"{where}: not what the writers make of its base line — board_edit.py {cmd} "
+        seen.add(it.id)
+        if it.closed is not None and it.closed[0] is None:
+            out.append(("fail", f"{where}: under archive/ with no Closed: date the writers write — board_edit.py done"))
+            continue
+        b = base_by.get(it.id)
+        if b is not None:
+            if b.raw == it.raw and b.path == it.path:
+                continue
+            if b.closed is not None:
+                out.append(("fail", f"{where}: an archived item changed — no writer edits a closed item"))
+                continue
+            if not writers_made(b.raw, it.raw):
+                cmd = "done" if it.closed else "fmt"
+                out.append(("fail", f"{where}: not what the writers make of its base file — board_edit.py {cmd} "
                                     "(or the command for the field it changes)"))
                 continue
-            base_l = removed[hit][1]
-            if _fields(_read_back(ln)[0])["decided"] != _fields(base_l)["decided"]:
-                why = _decided_check(ln, people, where)
+            want = lb.item_path(it.id, it.closed[0].isoformat()) if it.closed else lb.item_path(it.id)
+            if it.path != want:
+                out.append(("fail", f"{where}: the writers put this item at {want}"))
+                continue
+            if (it.decided, it.decided_by) != (b.decided, b.decided_by):
+                why = _decided_check(it, people, where)
                 if why:
                     out.append(("fail", why))
             continue
-        new_items.append((n, ln))
-        if lb.CLOSED_ITEM_RE.match(ln):
-            out.append(("fail", f"{where}: a closed line with no open line it closes — board_edit.py done"))
+        if it.closed is not None:
+            out.append(("fail", f"{where}: a closed item with no open item it closes — board_edit.py done"))
             continue
-        problem = lb.item_problem(ln)
-        if problem is None:
-            try:
-                if lb.canonical_item(ln + "\n") != ln + "\n":
-                    problem = "not in the writers' form"
-            except lb.Refused as e:
-                problem = str(e)
+        if it.path != lb.item_path(it.id):
+            out.append(("fail", f"{where}: an open item is <id>.md directly in the board — board_edit.py add"))
+            continue
+        problem = lb.item_file_problem(it.raw)
         if problem:
             out.append(("fail", f"{where}: a new item the writer would not write ({problem}) — board_edit.py add"))
             continue
-        if n in gate:
-            out.append(("fail", f"{where}: {gate[n]} — board_edit.py add"))
+        if where in gate:
+            out.append(("fail", f"{where}: {gate[where]} — board_edit.py add"))
             continue
-        text = lb.ITEM_RE.match(ln).group("text")
-        k = lb.KIND_RE.match(text.strip())
-        if k and k.group("kind").lower() == "decide" and lb.parse_decided(text) is None:
-            blk = lb.detail_block(head_lines, n)
+        if it.kind == "decide" and it.decided is None:
             missing = [lead for lead in lb.DECIDE_NEEDS
-                       if not any(re.match(rf"^- \*\*{_DECIDE_LEADS[lead]}:\*\* ", b) for b in blk)]
+                       if not any(re.match(rf"^- \*\*{_DECIDE_LEADS[lead]}:\*\* ", x) for x in it.detail)]
             if missing:
                 out.append(("fail", f"{where}: a new open decide without its detail block's "
                                     f"{', '.join(_DECIDE_LEADS[m] for m in missing)} — board_edit.py add --detail"))
                 continue
-        why = _decided_check(ln, people, where)
+        why = _decided_check(it, people, where)
         if why:
             out.append(("fail", why))
-    gained = archive_gain(base_arch, head_arch) if head_arch != base_arch else []
-    if gained is None:
-        out.append(("fail", "the archive's existing lines changed — only board_edit.py archive writes it, and it appends"))
-        gained = []
-    gkeys = {lb.item_key(ln) for ln in gained if lb.is_item(ln)}
-    unpaired = [(n, r) for i, (n, r) in enumerate(removed) if i not in used]
-    for n, r in unpaired:
-        if lb.item_key(r) in gkeys:
-            continue
-        pre = _prefix(r)
-        twin = next((m for m, a in new_items if pre and _prefix(a) == pre), None)
-        if twin is not None:
-            out.append(("fail", f"base line {n} → line {twin}: a line changed outside the writer's fields — "
-                                "board_edit.py fmt, or the command for the field (a corrected text is done plus add)"))
-        else:
-            out.append(("fail", f"base line {n}: an item deleted — the board closes, never deletes: board_edit.py done "
-                                f"({r[:60]!r})"))
-    if net_archive and gained:
-        out += [("fail", why) for why in archive_net_problems(gained, [r for _, r in unpaired])]
-    out += _people_check(base, head)
+    old_problems = set(base.problems)
+    for p, why in head.problems:
+        if (p, why) not in old_problems and not p.endswith(lb.BOARD_README):
+            out.append(("fail", f"{p}: {why} — board_edit.py add"))
+    for b in base.items:
+        if b.id is not None and b.id not in seen:
+            out.append(("fail", f"{b.path}: an item deleted — the board closes, never deletes: board_edit.py done "
+                                f"({b.words[:60]!r})"))
+    if head.form:
+        out += _people_check(base, head)
     return out
-
-
-def _direct_rules(root, sha):
-    """The board row's rules on one direct commit's board change (TD-206): the failures, joined, or ""."""
-    base, head = _show(root, f"{sha}^", BOARD), _show(root, sha, BOARD)
-    if base is None or head is None:
-        return "board unreadable"
-    return "; ".join(m for st, m in board_change_problems(base, head) if st == "fail")
 
 
 # The line breaks str.splitlines() honours beyond \n and \r: the carve-outs read a board by splitlines() and
 # ledgerboard's verdicts by "\n", so a board holding one could show the two different lines. Such a board is
 # never a carve-out's: it takes review (TD-218 review, PR #101).
-ODD_BREAK_RE = re.compile("[\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
+ODD_BREAK_RE = re.compile("[\x0b\x0c\x1c\x1d\x1e\x85  ]")
 
 
-def _odd_break(root, sha):
-    """Whether the board at ``sha`` or at its parent holds an ODD_BREAK_RE character (an unreadable board too)."""
-    texts = [_show(root, c, BOARD) for c in (f"{sha}^", sha)]
-    return any(t is None or ODD_BREAK_RE.search(t) for t in texts)
+def _odd_tree(tree):
+    """Whether a board tree is unreadable (None) or holds an ODD_BREAK_RE character in any file."""
+    return tree is None or any(ODD_BREAK_RE.search(t) for t in tree.values())
 
 
-def gate_answer(base_line, head_line):
-    """Whether one board line, changed in place, answers a gate item (ledgerboard v2.4, SPEC *The merge gate's
-    verdicts*): an open item at the base whose Context names one entry and one gate gains or changes a
-    `Decided:` at the head (open or closed), whatever its kind (SPEC: "an item that gains Decided: with a gate in
-    its Context"; lift_pr_verdict then refuses a non-decide one, so it takes review). Such an answer is lift_pr_verdict()'s to judge, never the plain
-    board-edit carve-out's. The gate is read by ledgerboard's _item_gate, the test lift_pr_verdict applies
-    (the module has no public name for it)."""
-    lb = _lb()
-    if not lb.ITEM_RE.match(base_line) or lb.item_key(base_line) != lb.item_key(head_line):
+def gate_answer(b, h):
+    """Whether one item, changed in place or closed into the archive, answers a gate item (ledgerboard v2.4, SPEC
+    *The merge gate's verdicts*): open at the base, its Context naming one entry and one gate, it gains or changes a
+    `Decided:` at the head (open or closed), whatever its kind (lift_pr_verdict then refuses a non-decide one, so
+    it takes review). Such an answer is lift_pr_verdict()'s to judge, never the plain board-edit carve-out's. The
+    gate is read by ledgerboard's _item_gate, the test lift_pr_verdict applies."""
+    if b.closed is not None or _lb()._item_gate(b)[1] is None:
         return False
-    got = lb.parse_board(base_line, warn=False)
-    if lb.ITEM_RE.match(head_line):
-        now = lb.parse_board(head_line, warn=False)
-    elif lb.CLOSED_ITEM_RE.match(head_line):
-        now = lb.parse_closed_items(head_line)
-    else:
-        return False
-    if not got or not now or lb._item_gate(got[0].text)[1] is None:
-        return False
-    b, h = got[0], now[0]
     return h.decided is not None and (h.decided, h.decided_by) != (b.decided, b.decided_by)
 
 
 def board_gate_answers(base, head):
-    """The board lines a change answers as gate items (gate_answer), each base line paired with its head
-    line by item key."""
-    lb = _lb()
-    was = {lb.item_key(ln): ln for ln in base.splitlines() if lb.ITEM_RE.match(ln)}
-    out = []
-    for ln in head.splitlines():
-        if lb.ITEM_RE.match(ln) or lb.CLOSED_ITEM_RE.match(ln):
-            b = was.get(lb.item_key(ln))
-            if b is not None and b != ln and gate_answer(b, ln):
-                out.append((b, ln))
-    return out
+    """The items a change answers as gate items (gate_answer), each base item paired with its head item by id."""
+    was = {it.id: it for it in base.items if it.id is not None}
+    return [(was[h.id], h) for h in [*head.items, *head.closed]
+            if h.id in was and was[h.id].raw != h.raw and gate_answer(was[h.id], h)]
+
+
+def _new_items(base, head):
+    """The head's open items whose id no base item has."""
+    ids = {it.id for it in [*base.items, *base.closed]}
+    return [it for it in head.items if it.id not in ids]
+
+
+def _readme_diff_lines(root, sha):
+    """The README.md lines a commit removed and added (inside hunks), or None when the diff cannot be read."""
+    got = _board_diff(root, sha, f"{BOARD_DIR}/{_lb().BOARD_README}")
+    return None if got is None else got[0] + [a for _, a in got[1]]
 
 
 def classify_direct(root, sha, subject, files):
-    """(class, detail) for one direct commit; class is stamp | board-append | board-edit | board-archive | fail."""
-    if BOARD in files and _odd_break(root, sha):
-        return "fail", "the board holds a line break other than a newline (or is unreadable), which no carve-out reads"
-    if sorted(files) == sorted([BOARD, ARCHIVE]):
-        return classify_archive(root, sha, subject)
-    if files != [BOARD]:
+    """(class, detail) for one direct commit; class is stamp | board-append | board-edit | board-v2 | fail
+    (ledgerboard v3.0: the board is a directory, TD-263)."""
+    if not files or not all(board_path(f) for f in files):
         return "fail", "touches " + (", ".join(files[:6]) + (" …" if len(files) > 6 else "") or "nothing")
-    diff = _board_diff(root, sha)
-    if diff is None:
-        return "fail", "board diff unreadable"
-    removed, added = diff
-    new = [a for _, a in added]
-    changed = [x for x in removed + new if x.strip()]  # a stamp's first write brings a blank line
-    if changed and all(_lb().is_stamp(x, SWEEP_STAMPS) for x in changed):
-        return "stamp", "only the Swept:/Swept-deep: stamp lines"
-    items = [(n, a) for n, a in added if a.strip()]  # blank lines may come with an append
-    if not removed and items and all(_lb().is_open_item(a) and "Due:" in a for _, a in items):
-        post = (git(["show", f"{sha}:{BOARD}"], cwd=root) or "").splitlines()
-        heads = []
-        for n, _ in items:
-            above = [x for x in post[: n - 1] if x.startswith("## ")]
-            heads.append(above[-1] if above else "")
-        if all(h.startswith("## Needs") for h in heads):
-            bad = _direct_rules(root, sha)
+    base_t, head_t = _board_tree(root, f"{sha}^", files), _board_tree(root, sha, files)
+    if _odd_tree(base_t) or _odd_tree(head_t):
+        return "fail", "the board holds a line break other than a newline (or is unreadable), which no carve-out reads"
+    lb = _lb()
+    base, head = board_of(base_t), board_of(head_t)
+    if head.form == "file" or (head.form is None and base.form == "file"):
+        if files == [BOARD_STUB]:
+            diff = _board_diff(root, sha, BOARD_STUB)
+            changed = [x for x in (diff[0] + [a for _, a in diff[1]] if diff else []) if x.strip()]
+            if changed and all(lb.is_stamp(x, SWEEP_STAMPS) for x in changed):
+                return "stamp", "only the Swept:/Swept-deep: stamp lines (a v2 board)"
+        return "board-v2", ("⚠ a write to a v2 board (docs/user_attention.md), before its split: ledgerboard v3.0's "
+                            "writers write none, so it is not replayed (TD-263)")
+    if BOARD_STUB in files or BOARD_V2_ARCHIVE in files:
+        return "fail", "changes the board's stub or its v2 archive, which no writer writes once the board is split"
+    base = _as_v3(base, base_t)
+    if base is None:
+        return "fail", "the parent's v2 board does not split (ledgerboard split_board())"
+    pre = BOARD_DIR + "/"
+    rels = sorted(f[len(pre):] for f in files)
+    if rels == [lb.BOARD_README]:
+        changed = [x for x in (_readme_diff_lines(root, sha) or []) if x.strip()]
+        if changed and all(lb.is_stamp(x, SWEEP_STAMPS) for x in changed):
+            return "stamp", "only the Swept:/Swept-deep: stamp lines in README.md"
+        return "fail", "README.md changed beyond its Swept:/Swept-deep: stamp lines"
+    found = board_change_problems(base, head)
+    bad = "; ".join(m for st, m in found if st == "fail")
+    added = [r for r in rels if f"{pre}{r}" not in base_t]
+    if added == rels and all("/" not in r and r.endswith(".md") and lb.is_item_id(r[:-3]) for r in rels):
+        new = {it.path: it for it in head.items}
+        if all(r in new and new[r].due is not None and not new[r].detail for r in rels):
             if bad:
                 return "fail", bad
-            return "board-append", f"{len(items)} whole item line(s) appended under {heads[0]}"
-        return "fail", "appended items outside the ## Needs section"
-    if len(removed) == 1 and len(new) == 1 and _lb().is_open_item(removed[0]) \
-            and _lb().is_item(new[0]) and _edit_key(removed[0]) == _edit_key(new[0]):
-        if gate_answer(removed[0], new[0]):
-            return "fail", ("a gate item's answer lands by PR only (ledgerboard SPEC *The merge gate's verdicts*, (d)): "
-                            "the item's Context names a gate, and it gains a Decided:")
-        if _lb().subject_kind(subject) == "edit":
-            bad = _direct_rules(root, sha)
-            if bad:
-                return "fail", bad
-            return "board-edit", "one item's Due:/tick/Closed:/Decided:/reply, under board_edit.py's message"
-        return "fail", "a one-item board edit without board_edit.py's fixed message"
-    return "fail", f"board change outside the carve-outs (-{len(removed)} +{len(new)} lines)"
+            return "board-append", f"{len(rels)} new item file(s), each with a Due: and no detail block"
+        return "fail", ("an appended item that is not an open item file with a Due: and no detail block "
+                        "(one with a detail block lands by a reviewed PR)")
+    ids = {r.rsplit("/", 1)[-1][:-3] for r in rels if r.endswith(".md")}
+    if len(ids) == 1 and len(rels) <= 2 and all(r.endswith(".md") for r in rels):
+        (iid,) = ids
+        b = next((it for it in base.items if it.id == iid), None)
+        h = next((it for it in [*head.items, *head.closed] if it.id == iid), None)
+        if b is not None and h is not None:
+            if gate_answer(b, h):
+                return "fail", ("a gate item's answer lands by PR only (ledgerboard SPEC *The merge gate's verdicts*, "
+                                "(d)): the item's Context names a gate, and it gains a Decided:")
+            if lb.subject_kind(subject) == "edit" and lb.subject_id(subject) == iid:
+                if bad:
+                    return "fail", bad
+                return "board-edit", "one item's Due:/Hide until:/Closed:/Decided:/reply, under board_edit.py's message"
+            return "fail", "a one-item board edit without board_edit.py's fixed message (naming its id)"
+    return "fail", f"board change outside the carve-outs ({len(files)} file(s))"
 
 
 def row_board(pr, root):
     """TD-206, cadence §3.4: the board row. On a PR that changes the board, each item's net change across it —
     an open PR's merge-base against its head, a merged PR's merge commit against its parent — by the writers'
-    rules (board_change_problems). An open PR's commits that touch the archive must each be a board-archive
-    commit; a merged PR, one commit by then, gets the archive's net check. A hard failure (decision 5)."""
+    rules (board_change_problems), items paired by id (ledgerboard v3.0, TD-263). A change across the board's
+    split (a v2 file at the base, the directory at the head) reads the base as its split gives it. A board still
+    a v2 file at the head is not replayed: open, the row fails (split first); merged, a ⚠. A hard failure."""
     files = pr.get("files") or []
-    if BOARD not in files:
+    if not any(board_path(f) for f in files):
         return row("board", "na", "the PR does not change the board")
     if not root:
         return row("board", "unknown", "no clone to read the board's change from")
-    if pr["state"] == "merged":
-        new = pr.get("merge_sha")
-        old = f"{new}^" if new else None
-    else:
-        new = pr.get("head_sha")
-        old = None
-    if not new:
-        return row("board", "unknown", f"{FORGE.cli if FORGE else 'the forge'} gave no commit")
-    if git(["cat-file", "-e", f"{new}^{{commit}}"], cwd=root) is None:
-        fetch_once(root)
-    if old is None:
-        mb = git(["merge-base", default_ref(root), new], cwd=root)
-        if not mb:
-            return row("board", "unknown", f"no merge-base of {new[:7]} with {default_ref(root)}")
-        old = mb.strip()
-    texts = [_show(root, c, f) for c in (old, new) for f in (BOARD, ARCHIVE)]
-    if None in texts:
+    old, new, why = pr_ends(pr, root)
+    if why:
+        return row("board", "unknown", why)
+    base_t, head_t = _board_tree(root, old, files), _board_tree(root, new, files)
+    if base_t is None or head_t is None:
         return row("board", "unknown", f"the board at {old[:7]} or {new[:7]} is unreadable")
-    base_b, base_a, head_b, head_a = texts
-    found = board_change_problems(base_b, head_b, base_a, head_a, net_archive=pr["state"] == "merged")
-    if pr["state"] != "merged" and ARCHIVE in files:
-        log = git(["log", "--format=%H%x00%s", f"{old}..{new}", "--", ARCHIVE], cwd=root) or ""
-        for line in log.splitlines():
-            sha, _, subject = line.partition("\0")
-            names = git(["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", sha], cwd=root) or ""
-            cls, why = classify_direct(root, sha, subject, [f for f in names.split("\0") if f])
-            if cls != "board-archive":
-                found.insert(0, ("fail", f"commit {sha[:7]} writes the archive but is not the writer's archive ({why})"))
+    base, head = board_of(base_t), board_of(head_t)
+    if head.form == "file":
+        what = ("the board is a v2 file (docs/user_attention.md) at the head: ledgerboard v3.0's writers write none, "
+                "so its change is not replayed")
+        if pr["state"] == "merged":
+            return row("board", "pass", f"⚠ {what} (merged before the board's split)")
+        return row("board", "fail", f"{what} — split it first (board.py split, TD-263)")
+    split = base.form == "file"
+    base = _as_v3(base, base_t)
+    if base is None:
+        return row("board", "unknown", f"the v2 board at {old[:7]} does not split (ledgerboard split_board())")
+    found = board_change_problems(base, head)
     fails = [m for st, m in found if st == "fail"]
     infos = [m for st, m in found if st != "fail"]
     if fails:
         return row("board", "fail", "; ".join(fails[:4]) + (f" (+{len(fails) - 4} more)" if len(fails) > 4 else "")
                    + " (cadence §3.4: the board is written through board_edit.py)")
-    return row("board", "pass", "every changed item line is one the writers would write"
+    return row("board", "pass", "every changed item file is one the writers would write"
+               + (" (the board split from its v2 file)" if split else "")
                + (f" — ℹ {'; '.join(infos)}" if infos else ""))
 
 
@@ -2281,7 +2181,7 @@ def row_gates(pr, root):
     .values() or .items() would see placeholders, so a ledgerboard that starts calling them needs this changed."""
     files = pr.get("files") or []
     if not (ledger_touched(files) or any(f.startswith(LEDGER_DIR + "/") for f in files)
-            or BOARD in files or ARCHIVE in files):
+            or any(board_path(f) for f in files)):
         return row("gates", "na", "the PR touches neither the ledger nor the board")
     if not root:
         return row("gates", "unknown", "no clone to read the gates' change from")
@@ -2458,23 +2358,25 @@ def row_lift_pr(pr, root):
     """TD-218, ledgerboard v2.4 (SPEC *The merge gate's verdicts*): a PR whose board change answers a gate item
     (board_gate_answers: an item whose Context names a gate gains a `Decided:`) is judged by lift_pr_verdict(),
     even when it changes no ledger file. A decide lift — one commit under the board's decide subject, the
-    board's one item answered by edit_line() and the ledger byte-equal to decide_lift()'s result, dated within
+    board's one item answered by edit_item() and the ledger byte-equal to decide_lift()'s result, dated within
     a day of the PR — passes the review row: the person's answer is its review. Any other such PR takes
     ordinary review, its row naming why it is not a lift. None when the PR answers no gate item, or its trees
     cannot be read (the next carve-out, then the ordinary review row, decides)."""
-    if not root or BOARD not in (pr.get("files") or []):
+    files = pr.get("files") or []
+    if not root or not any(board_path(f) for f in files):
         return None
     old, new, why = pr_ends(pr, root)
     if why:
         return None
-    b_board, h_board = _show(root, old, BOARD), _show(root, new, BOARD)
-    if b_board is None or h_board is None:
+    b_tree, h_tree = _board_tree(root, old, files), _board_tree(root, new, files)
+    if b_tree is None or h_tree is None:
         return None
-    if ODD_BREAK_RE.search(b_board) or ODD_BREAK_RE.search(h_board):
+    if _odd_tree(b_tree) or _odd_tree(h_tree):
         ordinary = row_review(pr)
         ordinary["detail"] += " — the board holds a line break other than a newline, so no carve-out reads it"
         return ordinary
-    if not board_gate_answers(b_board, h_board):
+    b_board = _as_v3(board_of(b_tree), b_tree)
+    if b_board is None or not board_gate_answers(b_board, board_of(h_tree)):
         return None
     try:  # the forge's ISO timestamps, as aware datetimes (lift_pr_verdict takes each as its UTC date)
         created = parse_ts(pr.get("created_at"))
@@ -2506,23 +2408,16 @@ def row_lift_pr(pr, root):
     return ordinary
 
 
-def _appends_gate_answer(root, sha):
+def _appends_gate_answer(root, sha, files):
     """Whether a board append at ``sha`` adds an item that carries a `Decided:` and whose Context names a gate
     (ledgerboard's _item_gate, as gate_answer reads it): a gate's answer, which lands as a decide lift (TD-218)
     and is never an append's. True when the board's change cannot be read."""
-    diff = _board_diff(root, sha)
-    if diff is None:
+    b_tree, h_tree = _board_tree(root, f"{sha}^", files), _board_tree(root, sha, files)
+    if b_tree is None or h_tree is None:
         return True
     lb = _lb()
-    for _, line in diff[1]:
-        if not lb.ITEM_RE.match(line):
-            continue
-        got = lb.parse_board(line, warn=False)
-        if not got:
-            return True
-        if got[0].decided is not None and lb._item_gate(got[0].text)[1] is not None:
-            return True
-    return False
+    return any(it.decided is not None and lb._item_gate(it)[1] is not None
+               for it in _new_items(board_of(b_tree), board_of(h_tree)))
 
 
 def row_board_edit_pr(pr, root):
@@ -2536,10 +2431,10 @@ def row_board_edit_pr(pr, root):
     (a `Decided:` on an item whose Context names a gate: a decide lift's, TD-218). None otherwise:
     the ordinary review row decides."""
     kind = _lb().subject_kind(pr.get("title") or "") if root else None
-    if kind not in ("edit", "archive", "append"):
+    if kind not in ("edit", "append"):
         return None
-    allowed = ([BOARD],) if kind == "append" else ([BOARD], sorted([BOARD, ARCHIVE]))
-    if sorted(pr.get("files") or []) not in allowed:
+    files = pr.get("files") or []
+    if not files or not all(f.startswith(BOARD_DIR + "/") for f in files):
         return None
     found = _tool_pr_commit(pr, root)
     if not found:
@@ -2547,20 +2442,16 @@ def row_board_edit_pr(pr, root):
     sha, files = found
     cls, _ = classify_direct(root, sha, pr["title"], files)
     if kind == "append":
-        if cls != "board-append" or _appends_gate_answer(root, sha):
+        if cls != "board-append" or _appends_gate_answer(root, sha, files):
             return None
         out = row("review", "pass", "tool-made board append (cadence §4.4 carve-out, by a PR of its own): the "
-                  "append subject, whole dated item lines under ## Needs… — no comment needed")
+                  "append subject, new item files each with a Due: — no comment needed")
         out["carve_out"] = "board-append"
         return out
-    if cls == "board-archive":
-        out = row("review", "pass", "tool-made board archive (cadence §3.4, §4.5 carve-out): board_edit.py's "
-                  "message, the writer's archive at the threshold — no comment needed")
-    elif cls == "board-edit":
-        out = row("review", "pass", "tool-made board edit (cadence §4.5 carve-out): board_edit.py's message, "
-                  "one item's line — the person's action is the review; no comment needed")
-    else:
+    if cls != "board-edit":
         return None
+    out = row("review", "pass", "tool-made board edit (cadence §4.5 carve-out): board_edit.py's message, "
+              "one item's file — the person's action is the review; no comment needed")
     out["carve_out"] = "board-edit"
     return out
 

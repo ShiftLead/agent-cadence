@@ -998,7 +998,8 @@ def recorded_answer(root, entry_text: str, gate: str, label: str, ref: str,
     whose person has already answered it: a button press on the Queue is the person's act, and the session that
     applies it carries out their recorded answer rather than deciding anything. The record read is this repo's
     board at ``ref`` (origin's default branch), never the working tree, so a session's own uncommitted or
-    unmerged edit is not evidence: an **open** ``decide`` item — the work order not yet carried out — whose
+    unmerged edit is not evidence — read whole through ledgerboard's ``load_board()`` (v3.0, TD-263: its directory
+    where the tree holds one, else ``board_rel``, a v2 board or the stub naming the directory): an **open** ``decide`` item — the work order not yet carried out — whose
     Context names the entry (a bare ``TD-n``, or ``TD-n`` and this gate, or the entry's ``Part of`` parent with
     the entry among its ``Parts:``), whose ``Decided:`` answer is ``label``, whose ``(by …)`` is the gate's
     person, and whose date is not before the gate's last ``gate added`` Log line (where the Log has one), so an
@@ -1015,12 +1016,9 @@ def recorded_answer(root, entry_text: str, gate: str, label: str, ref: str,
         return None
     person = gate_m.group("who").strip().lower()
     want = " ".join(label.split()).lower()
-    try:
-        r = subprocess.run(["git", "-C", str(root), "show", f"{ref}:{board_rel}"], capture_output=True,
-                           text=True, timeout=AO_TIMEOUT, check=False)
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if r.returncode != 0:
+    import ledger as L  # the tree reader (git_io), imported here: ledger.py imports this module
+    io = L.git_io(Path(root), ref, "docs")
+    if io is None:
         return None
     try:
         ent = LB.entries(entry_text)[0]
@@ -1028,7 +1026,8 @@ def recorded_answer(root, entry_text: str, gate: str, label: str, ref: str,
         parent, _ = LB.parse_part_of(ent["part_of_raw"])
         since = LB.gate_added(entry_text, gate)
         key = LB._gate_key(gate)
-        items = LB.parse_board(r.stdout, warn=False)   # open items only: a closed one was carried out already
+        board = LB.load_board(LB.BOARD_DIR if io[0](LB.BOARD_DIR) is not None else board_rel, *io)
+        items = board.items   # open items only: a closed one was carried out already
     except (LB.Refused, ValueError, IndexError, KeyError):
         return None
     for it in items:
@@ -1036,7 +1035,7 @@ def recorded_answer(root, entry_text: str, gate: str, label: str, ref: str,
             continue
         if " ".join(it.decided[0].split()).lower() != want or (since is not None and it.decided[1] < since):
             continue
-        ref_, g = LB._item_gate(it.text)
+        ref_, g = LB._item_gate(it)
         if ref_ is None or "#" in ref_ or (g is not None and LB._gate_key(g) != key):
             continue
         named = LB._num(ref_) == num
@@ -1044,5 +1043,5 @@ def recorded_answer(root, entry_text: str, gate: str, label: str, ref: str,
                 and any("#" not in p and LB._num(p) == num for p in it.parts if p))
         if named or part:
             return (f"{it.decided_by}'s answer {it.decided[0]!r} ({it.decided[1].isoformat()}) on the board item "
-                    f"{it.text.strip()[:60]!r}, at {ref}")
+                    f"{it.id} {it.words[:60]!r}, at {ref}")
     return None

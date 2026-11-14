@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# TD-206 §3: the cadence check's `board` row — each item's net change across a PR, by the writers' rules
-# (check_cadence.py board_change_problems / row_board), and the same rules in the direct-commit audit.
+# TD-206 §3, TD-263: the cadence check's `board` row — each item's net change across a PR, by the writers' rules
+# (check_cadence.py board_change_problems / row_board), on ledgerboard v3.0's board directory (items paired by id),
+# and the same rules in the direct-commit audit (classify_direct).
 # Offline: temp git repos with a bare origin; HOME/XDG_CONFIG_HOME are temp; dates derive from the run date (TD-24).
 set -u
 export TZ=UTC
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 S="$DC/files/scripts"
-EDIT="$S/board_edit.py"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
@@ -16,7 +16,8 @@ PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
 
-# --- 1) the rules, on board texts (board_change_problems): each case passes or fails, a failure naming its command
+# --- 1) the rules, on Boards built from item files (board_change_problems): each case passes or fails, a failure
+#        naming its command
 out=$(python3 - "$S" <<'EOF'
 import sys, itertools
 from datetime import date, timedelta
@@ -24,34 +25,40 @@ sys.path.insert(0, sys.argv[1])
 import check_cadence as C
 import ledgerboard as lb
 T = date.today(); P = T - timedelta(3); F = T + timedelta(9); F2 = T + timedelta(20)
-HEAD = "# board\n\nPeople: Pat\n\nSwept: %s (h, quick)\n\n## Needs the user\n\n" % T
-CAN = f"- [ ] {P} (session `abcdef12` on h) — rotate the key. Context: TD-1. Due: {F}."
-OLD = f"- [ ] {P} (session x on host) — an old head. Due: {F}."
-DEC = (f"- [ ] decide {P} (session `aa` on h) — pick one? Context: TD-2. Due: {F}. Answers: a (default) | b.\n"
-       "  - **Context:** c.\n  - **Question:** q?\n  - **Recommended:** a — x.")
-FYI = f"- [ ] fyi {P} (n/a) — heads up. Context: TD-3."
-UNP = f"- [ ] {P} (n/a) — undated and unpunctuated"
-def board(*items, head=HEAD):
-    return head + "\n".join(items) + "\n"
-def judge(base, head, **kw):
-    return C.board_change_problems(base, head, **kw)
+D = C.BOARD_DIR
+README = "# board\n\nLedgerboard: 3\nSwept: %s (h, quick)\n\nPeople: Pat\n" % T
+def iid(n):
+    return f"{P}-{n:08x}"
+CAN = lb.item_file("rotate the key", F.isoformat(), P.isoformat(), "abcdef12", "h", "TD-1")
+OLD = lb.item_file("an old item", F.isoformat(), P.isoformat(), None, None, None)
+DEC = lb.item_file("pick one?", F.isoformat(), P.isoformat(), "aa", "h", "TD-2", kind="decide", answers=["a", "b"],
+                   default=0, detail={"context": "c.", "question": "q?", "recommended": "x."})
+FYI = lb.item_file("heads up", None, P.isoformat(), None, None, "TD-3", kind="fyi")
+def path(i, text):
+    it = lb.parse_item(text)
+    return f"{D}/" + (lb.item_path(i, it.closed[0].isoformat()) if it and it.closed and it.closed[0] else lb.item_path(i))
+def board(*items, readme=README):
+    """items: (n, text) pairs; a closed text lands under archive/."""
+    tree = {f"{D}/README.md": readme}
+    for n, text in items:
+        tree[path(iid(n), text)] = text
+    return C.board_of(tree)
 def fails(r):
     return [m for s, m in r if s == "fail"]
 results = []
-def case(name, base, head, want_pass, needle=None, **kw):
-    r = fails(judge(base, head, **kw))
+def case(name, base, head, want_pass, needle=None):
+    r = fails(C.board_change_problems(base, head))
     good = (not r) if want_pass else (bool(r) and (needle is None or any(needle in m for m in r)))
     results.append((good, name, r))
-def ed(line, *steps):
+def ed(text, *steps):
     for a, kw in steps:
-        line = lb.edit_line(line, a, today=kw.pop("today", T), **kw)
-    return line
-dec_head = DEC.split("\n")[0]
+        text = lb.edit_item(text, a, today=kw.pop("today", T), **kw)
+    return text
 # replay: every order of the writers' edits on several bases reproduces
 acts = [("due", {"to": F2}), ("snooze", {"to": F}), ("reply", {"reply": "ok then", "by": "Pat"}),
         ("decide", {"answer": "b", "by": "Pat"}), ("done", {"why": "handled"})]
 n = bad_n = 0
-for b in (CAN, OLD, dec_head, FYI, UNP):
+for b in (CAN, OLD, DEC, FYI):
     for k in range(1, 4):
         for seq in itertools.permutations(acts, k):
             if any(a == "done" for a, _ in seq[:-1]):
@@ -64,69 +71,59 @@ for b in (CAN, OLD, dec_head, FYI, UNP):
             if not C.writers_made(b, new):
                 bad_n += 1
 results.append((bad_n == 0 and n > 100, f"replay: {n} writer sequences, {bad_n} not reproduced", []))
-results.append((C.writers_made(UNP, ed(UNP, ("decide", {"answer": "b", "by": "Pat"}), ("reply", {"reply": "x", "by": "Pat"}))),
-                "replay: decide then reply on a line fmt refused (the second order)", []))
+GATE = lb.item_file("lift it?", F.isoformat(), P.isoformat(), "aa", "h", "TD-5 decision (Pat)", kind="decide",
+                    answers=["Go", "Not yet"], default=0, detail={"context": "c.", "question": "q?", "recommended": "x."})
+results.append((C.writers_made(GATE, lb.edit_item(GATE, "decide", answer="Go", by="Pat", today=T, close=True)),
+                "replay: a decide that closes its gate item", []))
 # passing cases
-case("a writer snooze, reply, decide and done on one item, in one PR", board(CAN), board(ed(CAN, ("snooze", {"to": F}), ("reply", {"reply": "fine", "by": "Pat"}), ("decide", {"answer": "go", "by": "Pat"}), ("done", {"why": "did it"}))), True)
-case("a hand-typed line the writer would write", board(CAN), board(CAN), True)
-case("an old line fmt refused takes a writer's snooze, reply and done", board(OLD), board(ed(OLD, ("snooze", {"to": F}), ("reply", {"reply": "ok", "by": "Pat"}), ("done", {"why": "x"}))), True)
-case("add --decided (no block)", board(CAN), board(lb.decided_line("decided already.", "TD-8", [], None, "Go", T.isoformat(), by="Pat").rstrip("\n"), CAN), True)
-case("a moved item", board(CAN, OLD), board(OLD, CAN), True)
-case("a reordered section", board(CAN, OLD, FYI), board(FYI, CAN, OLD), True)
-case("two open copies sharing a key, one closed", board(CAN, CAN), board(CAN, ed(CAN, ("done", {"why": "duplicate of the other"}))), True)
-case("an untouched malformed line beside an unrelated edit", board(UNP, "- [ ] garbage no date", CAN), board(UNP, "- [ ] garbage no date", ed(CAN, ("snooze", {"to": F}))), True)
-case("a detail-block edit", board(DEC), board(DEC.replace("  - **Context:** c.", "  - **Context:** c, and more.")), True)
-case("fmt's rewrite plus a reply", board(f"- [ ] {P} (n/a) — needs a reorder. Due: {F}. Context: TD-9."),
-     board(ed(lb.canonical_item(f"- [ ] {P} (n/a) — needs a reorder. Due: {F}. Context: TD-9.\n").rstrip("\n"), ("reply", {"reply": "y", "by": "Pat"}))), True)
-case("a new canonical decide with its block", board(CAN), board(*DEC.split("\n"), CAN), True)
-case("a corrected item: done on the old line plus add of the new", board(CAN),
-     board(CAN.replace("rotate the key", "rotate both keys"), ed(CAN, ("done", {"why": "superseded by a corrected item"}))), True)
-r = judge(board(CAN).replace("People: Pat", "People: Pat, Pat"), board(ed(CAN, ("snooze", {"to": F}))).replace("People: Pat", "People: Pat, Pat"))
+case("a writer snooze, reply, decide and done on one item, in one PR", board((1, CAN)),
+     board((1, ed(CAN, ("snooze", {"to": F}), ("reply", {"reply": "fine", "by": "Pat"}), ("decide", {"answer": "go", "by": "Pat"}),
+                  ("done", {"why": "did it"})))), True)
+case("an unchanged board", board((1, CAN)), board((1, CAN)), True)
+case("add --decided", board((1, CAN)),
+     board((1, CAN), (2, lb.decided_file("decided already", "TD-8", [], None, "Go", T.isoformat(), by="Pat"))), True)
+case("a new canonical decide with its block", board((1, CAN)), board((1, CAN), (2, DEC)), True)
+case("a detail-block edit is no writer's: fails", board((2, DEC)), board((2, DEC.replace("- **Context:** c.", "- **Context:** c, more."))), False,
+     "board_edit.py fmt")
+case("a corrected item: done on the old one plus add of the new", board((1, CAN)),
+     board((1, ed(CAN, ("done", {"why": "superseded"}))), (2, CAN.replace("rotate the key", "rotate both keys"))), True)
+case("fmt's rewrite plus a reply", board((1, CAN.replace("**Due:**", "**due:**"))),
+     board((1, ed(lb.canonical_item_file(CAN.replace("**Due:**", "**due:**")), ("reply", {"reply": "y", "by": "Pat"})))), True)
+r = C.board_change_problems(board((1, CAN), readme=README.replace("People: Pat", "People: Pat, Pat")),
+                           board((1, ed(CAN, ("snooze", {"to": F}))), readme=README.replace("People: Pat", "People: Pat, Pat")))
 results.append((not fails(r) and any(s == "info" for s, _ in r), "a faulty People: line the PR does not touch is ℹ", r))
 # failing cases, each naming its command
-case("a new malformed line", board(CAN), board(f"- [ ] {T} (n/a) — no context. Due: {F}.", CAN), False, "board_edit.py add")
-case("a same-key reshaped line (Due: moved before Context:)", board(CAN), board(CAN.replace(f"Context: TD-1. Due: {F}.", f"Due: {F}. Context: TD-1.")), False, "board_edit.py")
-case("a hand close with no Closed: field", board(CAN), board(CAN.replace("- [ ]", "- [x]")), False, "board_edit.py done")
-case("a hand Decided: without (by …)", board(dec_head), board(dec_head + f" Decided: b ({T})."), False, "board_edit.py decide")
-case("a Decided: by someone not on People:", board(dec_head), board(ed(dec_head, ("decide", {"answer": "b", "by": "Sam"}))), False, "not on the board's People:")
-case("a new open decide with no detail block", board(CAN), board(dec_head, CAN), False, "board_edit.py add --detail")
-case("an indented item inside a detail block", board(CAN), board(CAN, "  - [ ] " + CAN[6:]), False, "board_edit.py add")
-case("a deleted open item", board(CAN, OLD), board(OLD), False, "board_edit.py done")
-case("a hand-typed Due: nonsense on an old line", board(OLD), board(OLD.replace(" Due:", " Due: nonsense. Due:")), False, "changed outside the writer's fields")
-case("the same slip plus a writer snooze", board(OLD), board(ed(OLD, ("snooze", {"to": F})).replace(" Due:", " Due: nonsense. Due:", 1)), False)
-case("a hand-typed second Due:", board(CAN), board(CAN + f" Due: {F2}."), False)
-case("a closed line with no twin", board(CAN), board(CAN, ed(OLD, ("done", {"why": "x"}))), False, "board_edit.py done")
-case("editing an item's text in place", board(CAN), board(CAN.replace("rotate the key", "rotate both keys")), False, "changed outside the writer's fields")
-case("deleting one of two open copies", board(CAN, CAN), board(CAN), False, "board_edit.py done")
-case("a new decide whose gate person is not on People:", board(CAN),
-     board(*DEC.replace("Context: TD-2.", "Context: TD-2, decision (Sam).").split("\n"), CAN), False, "People:")
-case("an untouched old Decided: without by, then changed", board(dec_head + f" Decided: b ({P})."), board(dec_head + f" Decided: a ({T})."), False, "(by <person>)")
-case("a PR that touches People: and leaves a fault", board(CAN), board(CAN).replace("People: Pat", "People: Pat, Pat"), False, "People:")
-r = fails(judge(board(dec_head + f" Decided: b ({P})."), board(dec_head + f" Decided: b ({P}).", CAN)))
-results.append((not r, "an untouched old Decided: without by passes", r))
-# archive (rule 5): the archive's gain exempts what it took; the merged net check
-closed = [f"- [x] {P} (n/a) — old thing {i}. Context: TD-1. Due: {P}. Closed: {P} — done." for i in range(9)]
-b0 = board(CAN, OLD, *closed)
-b1 = board(ed(CAN, ("done", {"why": "x"})), OLD, *closed)
-nb, na = lb.archive_closed(b1, "")
-case("a threshold done that archives (squashed): net check passes", b0, nb, True, base_arch="", head_arch=na, net_archive=True)
-nb2, na2 = lb.archive_closed(board(ed(CAN, ("snooze", {"to": F})), OLD, *closed).replace(ed(CAN, ("snooze", {"to": F})), ed(ed(CAN, ("snooze", {"to": F})), ("done", {"why": "y"}))), "# archive\n\nsome prose")
-case("a snooze then a threshold done, into an archive ending in prose: net check passes", b0, nb2, True, base_arch="# archive\n\nsome prose", head_arch=na2, net_archive=True)
-case("a hand move of one open item into the archive fails the net check", board(CAN, OLD), board(OLD), False, base_arch="", head_arch=CAN + "\n", net_archive=True)
-case("a closed line moved with no Closed: fails the net check", board(CAN, "- [x] " + OLD[6:]), board(CAN), False, base_arch="", head_arch="- [x] " + OLD[6:] + "\n", net_archive=True)
-case("a hand move of a lone closed item below the threshold fails", board(CAN, closed[0]), board(CAN), False, base_arch="", head_arch=closed[0] + "\n", net_archive=True)
-b8 = board(CAN, CAN, OLD, *closed[:8])
-hand = ed(CAN, ("done", {"why": "x"}))
-case("a hand close from eight closed plus an open twin, then a hand move, fails", b8, board(OLD), False,
-     base_arch="", head_arch="\n".join([hand, CAN, *closed[:8]]) + "\n", net_archive=True)
-case("ten copies of one deleted item's closed form fail the net check", board(CAN, OLD), board(OLD), False,
-     base_arch="", head_arch="\n".join([ed(CAN, ("done", {"why": "k"}))] * 10) + "\n", net_archive=True)
-moved = [c.replace("— done.", "— TOTALLY DIFFERENT.") for c in closed] + [ed(CAN, ("done", {"why": "x"}))]
-case("a hand move at the threshold that changes the moved lines' text fails the net check", b0, board(OLD), False,
-     base_arch="", head_arch="\n".join(moved) + "\n", net_archive=True)
-case("an impossible Closed: date fails, not a crash", board(CAN), board(ed(CAN, ("done", {"why": "x"})).replace(f"Closed: {T}", "Closed: 2026-13-45")), False)
-case("an impossible reply date fails, not a crash", board(CAN), board(CAN + " — Pat, 2026-13-45: hi."), False)
-case("an archive whose earlier lines changed fails", board(CAN), board(CAN), False, base_arch="a\nb\n", head_arch="a\nc\n")
+case("a new malformed item file", board((1, CAN)), board((1, CAN), (2, "## no header\n")), False, "board_edit.py add")
+case("a reshaped item (fields out of order)", board((1, CAN)), board((1, CAN.replace("**Context:** TD-1\n", "").replace("\n\n", "\n\n", 1).replace(f"**Due:** {F}", f"**Due:** {F}\n**Context:** TD-1"))), False, "board_edit.py")
+case("a hand close with no Closed: date the writers write", board((1, CAN)),
+     board((1, CAN.replace(f"**Due:** {F}", f"**Due:** {F}\n**Closed:** soon"))), False, "board_edit.py")
+case("a hand Decided: without by", board((2, DEC)), board((2, DEC.replace(f"**Answers:**", f"**Decided:** {T} — b\n**Answers:**"))), False)
+case("a Decided: by someone not on People:", board((2, DEC)), board((2, ed(DEC, ("decide", {"answer": "b", "by": "Sam"})))), False,
+     "not on the board's People:")
+case("a new open decide with no detail block", board((1, CAN)),
+     board((1, CAN), (2, DEC.split("\n\n- ")[0] + "\n")), False, "board_edit.py add --detail")
+case("a deleted open item", board((1, CAN), (2, OLD)), board((2, OLD)), False, "board_edit.py done")
+case("editing an item's words in place", board((1, CAN)), board((1, CAN.replace("rotate the key", "rotate both keys"))), False,
+     "not what the writers make")
+case("a closed item with no open item it closes", board((1, CAN)), board((1, CAN), (2, ed(OLD, ("done", {"why": "x"})))), False,
+     "board_edit.py done")
+case("an archived item changed", board((1, ed(CAN, ("done", {"why": "x"})))), board((1, ed(CAN, ("done", {"why": "y"})))), False,
+     "archived item changed")
+case("a new decide whose gate person is not on People:", board((1, CAN)),
+     board((1, CAN), (2, DEC.replace("**Context:** TD-2", "**Context:** TD-2 decision (Sam)"))), False, "People:")
+case("a PR that touches People: and leaves a fault", board((1, CAN)),
+     board((1, CAN), readme=README.replace("People: Pat", "People: Pat, Pat")), False, "People:")
+case("an impossible reply date fails, not a crash", board((1, CAN)), board((1, CAN + "\n**Log:**\n- 2026-13-45: Pat: hi\n")), False)
+# a closed item at the wrong path
+tree = {f"{D}/README.md": README, f"{D}/archive/1999-01/{iid(1)}.md": ed(CAN, ("done", {"why": "x"}))}
+case("a done filed under the wrong month", board((1, CAN)), C.board_of(tree), False, "the writers put this item at")
+# across the split: a v2 board's items pair by id with the files split_board() gives
+v2 = f"# board\n\nPeople: Pat\n\n- [ ] {P} (n/a) — rotate the key. Context: TD-1. Due: {F}.\n"
+split = lb.split_board(v2)
+v3 = C.board_of({f"{D}/{k}": v for k, v in split.items()})
+v2b = C.board_of({C.BOARD_STUB: v2})
+results.append((v2b.form == "file" and not fails(C.board_change_problems(C._as_v3(v2b, {C.BOARD_STUB: v2}), v3)),
+                "a split PR: the v2 base, split, against the head's files", []))
 for good, name, r in results:
     print(("ok" if good else "NO") + "\t" + name + ("" if good else "\t" + repr(r)[:300]))
 EOF
@@ -135,19 +132,21 @@ while IFS=$'\t' read -r st name rest; do
   [ "$st" = ok ] && ok "$name" || bad "$name ${rest:-}"
 done <<< "$out"
 
-# --- 2) the row on a PR (row_board): open, multi-commit, judged on its merge-base diff; a hand archive commit fails;
-#        the direct audit applies the same rules
-R="$TMP/r"; git init -q --bare -b main "$R.git"; git init -q -b main "$R"; git -C "$R" remote add origin "$R.git"; mkdir -p "$R/docs"
+# --- 2) the row on a PR (row_board): open, multi-commit, judged on its merge-base; merged, on its squash; the
+#        direct audit applies the same rules
+R="$TMP/r"; git init -q --bare -b main "$R.git"; git init -q -b main "$R"; git -C "$R" remote add origin "$R.git"
+B="$R/docs/user_attention"; mkdir -p "$B"
 P=$(date -d "3 days ago" +%F); F=$(date -d "9 days" +%F); T=$(date +%F)
-{
-  printf '# board\n\nPeople: Pat\n\n## Needs the user\n\n'
-  printf -- '- [ ] %s (session `abcdef12` on h) — rotate the key. Context: TD-1. Due: %s.\n' "$P" "$F"
-  printf -- '- [ ] %s (n/a) — plain item. Context: TD-2. Due: %s.\n' "$P" "$F"
-  for i in $(seq 1 9); do printf -- '- [x] %s (n/a) — old thing %s. Context: TD-1. Due: %s. Closed: %s — done.\n' "$P" "$i" "$P" "$P"; done
-} > "$R/docs/user_attention.md"
+I1="$P-0000000a"; I2="$P-0000000b"
+printf '# board\n\nLedgerboard: 3\n\nPeople: Pat\n' > "$B/README.md"
+printf '# board\n\nLedgerboard: 3\n\nThis board is the directory [user_attention/](user_attention/), one file per item.\n' > "$R/docs/user_attention.md"
+lbw() { (cd "$S" && python3 -m ledgerboard.board "$@" --json); }
+lbw add --board "$B" --id "$I1" --today "$P" --session abcdef12 --host h --text "rotate the key" --context TD-1 --due "$F" >/dev/null
+lbw add --board "$B" --id "$I2" --today "$P" --text "plain item" --context TD-2 --due "$F" >/dev/null
 echo x > "$R/other.txt"; git -C "$R" add -A; git -C "$R" commit -qm base; git -C "$R" push -q origin main 2>/dev/null
 git -C "$R" switch -q -c topic
-B="$R/docs/user_attention.md"
+commit() { git -C "$R" add -A; git -C "$R" commit -qm "$1"; }
+subj() { python3 -c 'import json,sys; print(json.load(sys.stdin)["subject"])'; }
 row() {  # $1 = state (open|merged), $2 = sha
   python3 - "$R" "$1" "$2" "$S" <<'EOF'
 import sys
@@ -163,34 +162,38 @@ r = C.row_board(pr, root)
 print(r["status"], r["detail"])
 EOF
 }
-"$EDIT" snooze --board "$B" --line 7 --expect "$P (session" --to "$F" >/dev/null 2>&1
-"$EDIT" done --board "$B" --line 8 --expect "$P (n/a) — plain" --why handled >/dev/null 2>&1
-st=$(row open HEAD)
-[ "$(git -C "$R" log -1 --format=%s | grep -c 'archived 10')" = 1 ] && [ "${st%% *}" = pass ] \
-  && ok "an open PR: a snooze commit then a threshold done that archives passes (merge-base diff)" || bad "open snooze+done: $st"
+commit "$(lbw snooze --board "$B" --id "$I1" --to "$F" | subj)"
+commit "$(lbw done --board "$B" --id "$I2" --why handled | subj)"
+st=$(row open HEAD); [ "${st%% *}" = pass ] && ok "an open PR: a snooze commit then a done that archives passes (merge-base)" || bad "open snooze+done: $st"
 git -C "$R" switch -q main; git -C "$R" merge -q --squash topic; git -C "$R" commit -qm "squash (#9)"
-st=$(row merged HEAD); [ "${st%% *}" = pass ] && ok "the same PR after its squash merge passes the net check" || bad "merged: $st"
+st=$(row merged HEAD); [ "${st%% *}" = pass ] && ok "the same PR after its squash merge passes" || bad "merged: $st"
 git -C "$R" reset -q --hard origin/main; git -C "$R" switch -q topic; git -C "$R" reset -q --hard origin/main
-# a hand-appended archive commit on an open PR fails the per-commit class check
-python3 - "$B" "$R/docs/user_attention_archive.md" <<'EOF'
-import sys
-b, a = sys.argv[1:]
-lines = open(b).read().splitlines(keepends=True)
-moved = [ln for ln in lines if ln.startswith("- [x]")]
-open(b, "w").write("".join(ln for ln in lines if ln not in moved)); open(a, "w").write("".join(moved))
-EOF
-git -C "$R" add -A; git -C "$R" commit -qm "move the closed items by hand"
-st=$(row open HEAD); [ "${st%% *}" = fail ] && echo "$st" | grep -q "not the writer.s archive" \
-  && ok "an open PR: a hand-made archive commit fails the per-commit check" || bad "hand archive: $st"
+# a hand move into the archive fails
+mkdir -p "$B/archive/${T:0:7}"; git -C "$R" mv "$B/$I2.md" "$B/archive/${T:0:7}/$I2.md"; commit "move by hand"
+st=$(row open HEAD); [ "${st%% *}" = fail ] && echo "$st" | grep -q "board_edit.py" \
+  && ok "an open PR: a hand move into the archive fails, naming the command" || bad "hand move: $st"
 git -C "$R" reset -q --hard origin/main
 # na on a PR that does not touch the board; the row is a hard fail on a hand slip
-echo y >> "$R/other.txt"; git -C "$R" commit -qam other
+echo y >> "$R/other.txt"; commit other
 st=$(row open HEAD); [ "${st%% *}" = na ] && ok "the row is na on a PR that does not change the board" || bad "na: $st"
-sed -i "s/Context: TD-2. Due: $F\./Due: $F. Context: TD-2./" "$B"; git -C "$R" commit -qam "hand reshape"
-st=$(row open HEAD); [ "${st%% *}" = fail ] && echo "$st" | grep -q "board_edit.py" && ok "a hand reshape fails the row (fail, not ℹ), naming the command" || bad "reshape: $st"
-# the direct audit: a direct commit with a hand slip under an edit subject fails; the writer's own passes
+sed -i "s/^\*\*Context:\*\* TD-2$/**Context:** TD-22/" "$B/$I2.md"; commit "hand edit"
+st=$(row open HEAD); [ "${st%% *}" = fail ] && echo "$st" | grep -q "board_edit.py" && ok "a hand edit fails the row (fail, not ℹ), naming the command" || bad "hand edit: $st"
+# a PR whose head is still a v2 board file fails (split first); merged it is a ⚠
 git -C "$R" reset -q --hard origin/main
-"$EDIT" snooze --board "$B" --line 7 --expect "$P (session" --to "$F" >/dev/null 2>&1
+V="$TMP/v"; git init -q --bare -b main "$V.git"; git init -q -b main "$V"; git -C "$V" remote add origin "$V.git"; mkdir -p "$V/docs"
+printf '# board\n\nPeople: Pat\n\n- [ ] %s (n/a) — a. Context: TD-1. Due: %s.\n' "$P" "$F" > "$V/docs/user_attention.md"
+git -C "$V" add -A; git -C "$V" commit -qm base; git -C "$V" push -q origin main 2>/dev/null; git -C "$V" switch -q -c t
+printf -- '- [ ] %s (n/a) — b. Context: TD-2. Due: %s.\n' "$P" "$F" >> "$V/docs/user_attention.md"; git -C "$V" commit -qam add
+R0="$R"; R="$V"
+st=$(row open HEAD); [ "${st%% *}" = fail ] && echo "$st" | grep -q "split" && ok "a v2 board at an open PR's head fails: split first" || bad "v2 open: $st"
+st=$(row merged HEAD); [ "${st%% *}" = pass ] && echo "$st" | grep -q "⚠" && ok "a v2 board at a merged PR's head is a ⚠" || bad "v2 merged: $st"
+# the split itself: the v2 base split against the head's directory passes
+git -C "$V" reset -q --hard origin/main
+(cd "$S" && python3 -m ledgerboard.board split --board "$V/docs/user_attention.md" >/dev/null)
+git -C "$V" add -A; git -C "$V" commit -qm split
+st=$(row open HEAD); [ "${st%% *}" = pass ] && ok "a split PR (v2 base, directory head) passes" || bad "split: $st"
+R="$R0"
+# the direct audit: the writer's own edit passes; a hand slip under an edit subject fails
 chk() { python3 - "$R" "$S" <<'EOF'
 import sys
 root, s = sys.argv[1:]
@@ -198,14 +201,112 @@ sys.path.insert(0, s)
 import check_cadence as C
 sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
 subj = C.git(["log", "-1", "--format=%s"], cwd=root).strip()
-print(C.classify_direct(root, sha, subj, ["docs/user_attention.md"])[0])
+files = [f for f in C.git(["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", sha], cwd=root).split("\0") if f]
+print(C.classify_direct(root, sha, subj, files)[0])
 EOF
 }
+git -C "$R" switch -q main
+s1=$(lbw snooze --board "$B" --id "$I1" --to "$F" | subj); commit "$s1"
 [ "$(chk)" = board-edit ] && ok "direct audit: the writer's snooze is board-edit" || bad "direct writer: $(chk)"
-subj=$(git -C "$R" log -1 --format=%s); git -C "$R" reset -q --hard HEAD^
-sed -i "s/^- \[ \] $P (session \`abcdef12\` on h) — rotate the key. Context: TD-1. Due: $F\./- [ ] $P (session \`abcdef12\` on h) — rotate the key. Context: TD-1. Due: $F. Decided: go ($T)./" "$B"
-git -C "$R" commit -qam "$subj"
+git -C "$R" reset -q --hard origin/main
+s2=$(lbw done --board "$B" --id "$I2" --why ok | subj); commit "$s2"
+[ "$(chk)" = board-edit ] && ok "direct audit: the writer's done (moved into archive/) is board-edit" || bad "direct done: $(chk)"
+git -C "$R" reset -q --hard origin/main
+sed -i "s/^\*\*Due:\*\* $F$/**Due:** $F\n**Decided:** $T — go/" "$B/$I1.md"; commit "$s1"
 [ "$(chk)" = fail ] && ok "direct audit: a hand Decided: without by under an edit subject fails" || bad "direct slip: $(chk)"
+git -C "$R" reset -q --hard origin/main
+lbw snooze --board "$B" --id "$I1" --to "$F" >/dev/null; commit "ledgerboard: snooze $I1 x to $F (session n/a)"
+git -C "$R" commit -q --amend -m "${s1/$I1/$I2}"
+[ "$(chk)" = fail ] && ok "direct audit: an edit whose subject names another item's id fails" || bad "direct wrong id: $(chk)"
+git -C "$R" reset -q --hard origin/main
+s3=$(lbw add --board "$B" --today "$T" --text "a new thing" --context TD-3 --due "$F" | subj); commit "$s3"
+[ "$(chk)" = board-append ] && ok "direct audit: the writer's add is board-append" || bad "direct add: $(chk)"
+git -C "$R" reset -q --hard origin/main
+sed -i 's/^Ledgerboard: 3$/Ledgerboard: 3\nSwept: '"$T"' (h, quick)/' "$B/README.md"; commit "stamp"
+[ "$(chk)" = stamp ] && ok "direct audit: a Swept: stamp in README.md is stamp" || bad "direct stamp: $(chk)"
+
+# --- 3) the tool-made board PRs (TD-083, TD-237, TD-238; once test_board_writers.sh's sections 3–6c): the review
+#        row's board-edit and board-append carve-outs (row_board_edit_pr), read with the direct audit's class
+mkrepo() {  # $1 = repo: a v3 board with People: Pat and one open item ($I1), pushed
+  rm -rf "$1" "$1.git"; git init -q --bare -b main "$1.git"; git init -q -b main "$1"; git -C "$1" remote add origin "$1.git"
+  mkdir -p "$1/docs/user_attention"; printf '# board\n\nLedgerboard: 3\n\nPeople: Pat\n' > "$1/docs/user_attention/README.md"
+  (cd "$S" && python3 -m ledgerboard.board add --board "$1/docs/user_attention" --id "$I1" --today "$P" --text "rotate the key" \
+    --context TD-1 --due "$F" >/dev/null)
+  git -C "$1" add -A; git -C "$1" commit -qm base; git -C "$1" push -q origin main 2>/dev/null
+}
+apr() {  # $1 = repo, $2 = PR title (default: the commit's subject): "<class> <row status|none> <carve_out|-> <lift row|none>"
+  python3 - "$1" "${2:-}" "$S" <<'EOF2'
+import sys
+root, title, s = sys.argv[1:]
+sys.path.insert(0, s)
+import check_cadence as C
+sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
+subj = C.git(["log", "-1", "--format=%s", sha], cwd=root).strip()
+files = sorted(set(C.git(["diff", "--name-only", "origin/main", sha], cwd=root).split()))
+cls_, _ = C.classify_direct(root, sha, subj, files)
+pr = {"state": "open", "head_sha": sha, "title": title or subj, "files": files, "ref": "#9",
+      "created_at": "2026-01-01T00:00:00Z"}
+r = C.row_board_edit_pr(pr, root)
+lift = C.row_lift_pr(pr, root)
+print(cls_, r["status"] if r else "none", (r or {}).get("carve_out", "-"), lift["status"] if lift else "none")
+EOF2
+}
+w() {  # $1 = repo, then the writer's arguments: writes and commits under the writer's subject
+  local r="$1"; shift
+  local sj; sj=$(cd "$S" && python3 -m ledgerboard.board "$@" --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["subject"])')
+  git -C "$r" add -A; git -C "$r" commit -qm "$sj"
+}
+R="$TMP/e1"; mkrepo "$R"; U="$R/docs/user_attention"
+w "$R" done --board "$U" --id "$I1" --why handled
+[ "$(apr "$R")" = "board-edit pass board-edit none" ] && ok "edit PR (a done, moved into archive/): review passes, carve_out board-edit" || bad "done PR: $(apr "$R")"
+git -C "$R" reset -q --soft HEAD^; echo x >> "$U/README.md"; git -C "$R" add -A; git -C "$R" commit -qm "$(git -C "$R" log -1 --format=%s ORIG_HEAD)"
+[ "$(apr "$R" | cut -d' ' -f1-2)" = "fail none" ] && ok "a done beside a changed README.md fails the class and takes review" || bad "done+readme: $(apr "$R")"
+R="$TMP/e2"; mkrepo "$R"; U="$R/docs/user_attention"
+w "$R" snooze --board "$U" --id "$I1" --to "$F"
+[ "$(apr "$R" "Snooze it" | cut -d' ' -f1-2)" = "board-edit none" ] && ok "an edit under a title that is not the edit subject: ordinary review" || bad "edit title: $(apr "$R" "Snooze it")"
+R="$TMP/e3"; mkrepo "$R"; U="$R/docs/user_attention"
+mkdir -p "$U/archive/${T:0:7}"; mv "$U/$I1.md" "$U/archive/${T:0:7}/"; git -C "$R" add -A; git -C "$R" commit -qm "board_edit: archive 1 closed item (session n/a)"
+[ "$(apr "$R" | cut -d' ' -f1-2)" = "fail none" ] && ok "an archive subject (v2's writer, gone at v3.0) over a hand move: fail, ordinary review" || bad "archive: $(apr "$R")"
+# appends
+R="$TMP/a1"; mkrepo "$R"; U="$R/docs/user_attention"
+w "$R" add --board "$U" --today "$T" --text "Put on the board: renew the cert." --due "$F" --session abcdef12
+[ "$(apr "$R")" = "board-append pass board-append none" ] && ok "append PR: review passes, carve_out board-append" || bad "append PR: $(apr "$R")"
+R="$TMP/a2"; mkrepo "$R"; U="$R/docs/user_attention"
+w "$R" add --board "$U" --today "$T" --text "Back up nightly?" --answer Go --answer No --decided Go --by Pat --context TD-5
+[ "$(apr "$R")" = "board-append pass board-append none" ] && ok "append PR (a decided item): review passes, carve_out board-append" || bad "decided append PR: $(apr "$R")"
+R="$TMP/a3"; mkrepo "$R"; U="$R/docs/user_attention"
+w "$R" add --board "$U" --today "$T" --kind decide --text "q?" --due "$F" --answer a --answer b \
+  --detail '{"context": "c.", "question": "q?", "recommended": "x."}'
+[ "$(apr "$R" | cut -d' ' -f1-2)" = "fail none" ] && ok "an append with a detail block lands by a reviewed PR (fail, ordinary review)" || bad "detail append: $(apr "$R")"
+R="$TMP/a4"; mkrepo "$R"; U="$R/docs/user_attention"
+w "$R" add --board "$U" --today "$T" --kind fyi --text "heads up."
+[ "$(apr "$R" | cut -d' ' -f1-2)" = "fail none" ] && ok "an fyi append (no Due:) fails the class" || bad "fyi append: $(apr "$R")"
+R="$TMP/a5"; mkrepo "$R"; U="$R/docs/user_attention"
+(cd "$S" && python3 -m ledgerboard.board add --board "$U" --today "$T" --text "renew the cert." --due "$F" >/dev/null)
+echo x > "$R/other.txt"; git -C "$R" add -A; git -C "$R" commit -qm "ledgerboard: append $T-00000001 renew the cert. (session n/a)"
+[ "$(apr "$R" | cut -d' ' -f2)" = none ] && ok "append PR with a second file outside the board: ordinary review" || bad "two files: $(apr "$R")"
+R="$TMP/a6"; mkrepo "$R"; U="$R/docs/user_attention"
+(cd "$S" && python3 -m ledgerboard.board add --board "$U" --today "$T" --text "renew the cert." --due "$F" >/dev/null)
+git -C "$R" rm -q "$U/$I1.md"; git -C "$R" add -A; git -C "$R" commit -qm "ledgerboard: append $T-00000001 renew the cert. (session n/a)"
+[ "$(apr "$R" | cut -d' ' -f1-2)" = "fail none" ] && ok "append PR that also deletes an item: fail, ordinary review" || bad "removed item: $(apr "$R")"
+R="$TMP/a7"; mkrepo "$R"; U="$R/docs/user_attention"
+w "$R" add --board "$U" --today "$T" --text "renew the cert." --due "$F"
+[ "$(apr "$R" "Add a board line by hand" | cut -d' ' -f1-2)" = "board-append none" ] && ok "an append under a title that is not the append subject: ordinary review" || bad "title: $(apr "$R" "Add a board line by hand")"
+R="$TMP/a8"; mkrepo "$R"; U="$R/docs/user_attention"
+w "$R" add --board "$U" --today "$T" --text "Go to the builds?" --answer Go --answer Hold --decided Go --by Pat --context "TD-5 decision (Pat)"
+[ "$(apr "$R")" = "board-append none - none" ] && ok "a decided append whose Context names a gate: neither carve-out passes it" || bad "gate append: $(apr "$R")"
+R="$TMP/a9"; mkrepo "$R"; U="$R/docs/user_attention"
+w "$R" add --board "$U" --today "$T" --text "first." --due "$F"
+w "$R" add --board "$U" --today "$T" --text "second." --due "$F"
+[ "$(apr "$R" | cut -d' ' -f2)" = none ] && ok "append PR of two commits: ordinary review (TD-224)" || bad "two commits: $(apr "$R")"
+# TD-238: a README line starting with `--` or `++` is content inside a hunk, never a file header
+R="$TMP/s1"; mkrepo "$R"; U="$R/docs/user_attention"
+printf -- '---\n' >> "$U/README.md"; git -C "$R" commit -qam "a rule line"; git -C "$R" push -q origin main 2>/dev/null
+sed -i '/^---$/d' "$U/README.md"; printf 'Swept: %s (h, quick)\n' "$T" >> "$U/README.md"; git -C "$R" commit -qam stamp
+[ "$(apr "$R" | cut -d' ' -f1)" = fail ] && ok "TD-238: a stamp that also removes a --- line is no stamp" || bad "--- removed: $(apr "$R")"
+R="$TMP/s2"; mkrepo "$R"; U="$R/docs/user_attention"
+printf 'Swept: %s (h, quick)\n++ stray\n' "$T" >> "$U/README.md"; git -C "$R" commit -qam stamp
+[ "$(apr "$R" | cut -d' ' -f1)" = fail ] && ok "TD-238: a stamp beside an added ++ line is no stamp" || bad "++ added: $(apr "$R")"
 
 echo; echo "$PASS passed, $FAIL failed"
 [ $FAIL -eq 0 ]

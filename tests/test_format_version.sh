@@ -68,34 +68,47 @@ out=$(cd "$C" && timeout 60 python3 "$S/ledger_next_id.py" 2>&1); rc=$?
 [ "$rc" = 2 ] && grep -qF "refused — not read — refs/remotes/origin/main:docs/technical_debt.md: this file declares Ledgerboard: 3" <<< "$out" \
   && ! grep -qE "^TD-" <<< "$out" && ok "5 ledger_next_id.py: main's newer ledger, exit 2, no id" || bad "5 rc=$rc '$out'"
 
-# --- board_edit.py: refused, the board untouched
+# --- board_edit.py: refused, the board untouched. A board's newer major is 4 (ledgerboard v3.0 reads boards
+# through 3, TD-263); a v2 board (`Ledgerboard: 1`, or none) is refused by every v3.0 writer: split it first.
 BD="$TMP/b"; mkdir -p "$BD/docs"; git init -q -b main "$BD"
-board "Ledgerboard: 3" > "$BD/docs/user_attention.md"
+board "Ledgerboard: 4" > "$BD/docs/user_attention.md"
 before=$(cat "$BD/docs/user_attention.md")
-out=$(python3 "$S/board_edit.py" done --board "$BD/docs/user_attention.md" --line 5 --expect "act" --why x --no-commit 2>&1); rc=$?
-[ "$rc" = 1 ] && grep -qF "this file declares Ledgerboard: 3" <<< "$out" && [ "$before" = "$(cat "$BD/docs/user_attention.md")" ] \
-  && ok "6 board_edit.py: refused (exit 1, ledgerboard v2.4's table), the board untouched" || bad "6 rc=$rc '$out'"
+out=$(python3 "$S/board_edit.py" done --board "$BD/docs/user_attention.md" --id "$TODAY-0000abcd" --why x --no-commit 2>&1); rc=$?
+[ "$rc" != 0 ] && grep -qF "Ledgerboard: 4" <<< "$out" && [ "$before" = "$(cat "$BD/docs/user_attention.md")" ] \
+  && ok "6 board_edit.py: a newer board refused, the board untouched" || bad "6 rc=$rc '$out'"
 board "Ledgerboard: 1" > "$BD/docs/user_attention.md"
-python3 "$S/board_edit.py" done --board "$BD/docs/user_attention.md" --line 5 --expect "act" --why x --no-commit >/dev/null 2>&1 \
-  && grep -q "^- \[x\]" "$BD/docs/user_attention.md" && ok "6b Ledgerboard: 1: edited as before" || bad "6b $(cat "$BD/docs/user_attention.md")"
+before=$(cat "$BD/docs/user_attention.md")
+out=$(python3 "$S/board_edit.py" done --board "$BD/docs/user_attention.md" --id "$TODAY-0000abcd" --why x --no-commit 2>&1); rc=$?
+[ "$rc" != 0 ] && grep -qi "split" <<< "$out" && [ "$before" = "$(cat "$BD/docs/user_attention.md")" ] \
+  && ok "6b Ledgerboard: 1 (a v2 board): refused, split it first; the board untouched" || bad "6b rc=$rc '$out'"
 
 # --- nudge_user_attention.py: the report (text, --json, --due-only) and nudge mode
-board "Ledgerboard: 3" > "$BD/docs/user_attention.md"
+board "Ledgerboard: 4" > "$BD/docs/user_attention.md"
 NU="$S/nudge_user_attention.py"
 out=$(python3 "$NU" --report --board "$BD/docs/user_attention.md" 2>&1); rc=$?
-[ "$rc" = 0 ] && grep -qF "⚠ not read: $BD/docs/user_attention.md: this file declares Ledgerboard: 3" <<< "$out" && ! grep -q "something due" <<< "$out" \
+[ "$rc" = 0 ] && grep -qF "⚠ not read: $BD/docs/user_attention.md: this board declares Ledgerboard: 4" <<< "$out" && ! grep -q "something due" <<< "$out" \
   && ok "7 --report: the board named in place of its items" || bad "7 rc=$rc '$out'"
 out=$(python3 "$NU" --report --json --board "$BD/docs/user_attention.md" 2>&1)
-python3 -c "import json,sys; r=json.loads(sys.argv[1])['boards'][0]; sys.exit(0 if r['note'].startswith('not read: ') and 'Ledgerboard: 3' in r['note'] and r['items']==[] else 1)" "$out" \
+python3 -c "import json,sys; r=json.loads(sys.argv[1])['boards'][0]; sys.exit(0 if r['note'].startswith('not read: ') and 'Ledgerboard: 4' in r['note'] and r['items']==[] else 1)" "$out" \
   && ok "7b --report --json: the row's note, no items" || bad "7b '$out'"
 out=$(python3 "$NU" --report --due-only --board "$BD/docs/user_attention.md" 2>&1)
-grep -q "1 board(s) in a newer format, not read" <<< "$out" && grep -q "not read — .*Ledgerboard: 3" <<< "$out" \
+grep -q "1 board(s) in a newer format, not read" <<< "$out" && grep -q "not read — .*Ledgerboard: 4" <<< "$out" \
   && ok "7c --due-only: said at session start, never counted as a due item" || bad "7c '$out'"
 out=$(python3 "$NU" --board "$BD/docs/user_attention.md" 2>&1); rc=$?
-[ "$rc" = 1 ] && grep -q "not read: .*Ledgerboard: 3" <<< "$out" && ok "7d nudge mode: exit 1, said" || bad "7d rc=$rc '$out'"
+[ "$rc" = 1 ] && grep -q "not read: .*Ledgerboard: 4" <<< "$out" && ok "7d nudge mode: exit 1, said" || bad "7d rc=$rc '$out'"
 board "" > "$BD/docs/user_attention.md"
 out=$(python3 "$NU" --report --board "$BD/docs/user_attention.md" 2>&1)
 grep -q "something due" <<< "$out" && ! grep -q "not read" <<< "$out" && ok "7e no version line: the report as before" || bad "7e '$out'"
+# a v3 board's directory (its stub and README declaring 3) reads; one whose README declares 4 is refused
+V="$TMP/v/docs"; mkdir -p "$V/user_attention"
+printf '# board\n\nLedgerboard: 3\n' > "$V/user_attention/README.md"
+PYTHONPATH="$S" python3 -c 'import ledgerboard as LB; print(LB.board_stub("board", "user_attention"), end="")' > "$V/user_attention.md"
+(cd "$S" && python3 -m ledgerboard.board add --board "$V/user_attention.md" --kind act --text "a v3 item." --due "$TODAY" >/dev/null)
+out=$(python3 "$NU" --report --board "$V/user_attention.md" 2>&1)
+grep -q "a v3 item\." <<< "$out" && ! grep -q "not read" <<< "$out" && ok "7f a v3 board (Ledgerboard: 3) is read" || bad "7f '$out'"
+printf '# board\n\nLedgerboard: 4\n' > "$V/user_attention/README.md"
+out=$(python3 "$NU" --report --board "$V/user_attention.md" 2>&1)
+grep -q "not read: .*Ledgerboard: 4" <<< "$out" && ! grep -q "a v3 item" <<< "$out" && ok "7g a directory whose README declares 4: not read" || bad "7g '$out'"
 
 # --- check_cadence.py: the ledger row's field check says it did not check a newer ledger
 out=$(cd "$C" && python3 - "$S" <<'PY'

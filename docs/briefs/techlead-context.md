@@ -38,8 +38,8 @@ anything about a path:
 | Path | What it is |
 |---|---|
 | `files/**` | the payload consumers run from their pin — **all edits to the system happen here** |
-| `files/docs/technical_debt.md`, `files/docs/user_attention.md` | empty **templates** that seed consumers |
-| `docs/ledger/`, `docs/user_attention.md` | this repo's **live** ledger (one `TD-<NNN>.md` per entry, TD-160) and board |
+| `files/docs/technical_debt.md`, `files/docs/user_attention.md` + `files/docs/user_attention/README.md` | empty **templates** that seed consumers (the board's: the stub and its directory's `README.md`) |
+| `docs/ledger/`, `docs/user_attention/` | this repo's **live** ledger (one `TD-<NNN>.md` per entry, TD-160) and board (one `<id>.md` per item, closed ones in its archive, ledgerboard v3.0, TD-263; `docs/user_attention.md` is its stub) |
 | `docs/ledger/archive/` | resolved entries — the richest record of *why* |
 | `docs/plans/` | this repo's design decisions; there is no `docs/decisions/` |
 | `docs/reviews/` | each design's review record, one file per design entry: its reviews (model, tokens) and findings (TD-204, cadence.md §4.8) |
@@ -54,7 +54,7 @@ changes arrive by an `agent-cadence bump` PR that moves the pin.
 |---|---|
 | How do we work — worktrees, ledger, board, review, merge | `files/docs/cadence.md` §1–§4; §7 for memory and parity; §9 for machine scope and constellations |
 | What this repo enforces on itself, and its known gaps | `CLAUDE.md` — "Conventions this repo enforces on itself", "Known dogfooding gaps" |
-| Is this known / already decided | `docs/ledger/TD-<NNN>.md`, then `docs/ledger/archive/` (`grep -r docs/ledger/`), then `docs/user_attention.md` |
+| Is this known / already decided | `docs/ledger/TD-<NNN>.md`, then `docs/ledger/archive/` (`grep -r docs/ledger/`), then `docs/user_attention/` |
 | Why is it shaped this way | `docs/ledger/archive/` (the Why survives archiving), `docs/plans/` |
 | The distribution contract — the pin, SYNC vs SEED | `CLAUDE.md` "The distribution contract"; `README.md` file-class table; `sync.sh` arrays near the top |
 | What changed recently for every consumer | `files/docs/cadence-changes.md` (append-only, newest first) |
@@ -88,7 +88,7 @@ picking from `files/scripts/ledger.py --pickable` — highest Priority first, ev
    Pass it up.
 5. **"Is this entry safe to pick?"** Yes unless `ledger.py --pickable` lists it as blocked
    (`decision (Paul)` marks his calls — its Blocked section names them), it is on
-   `docs/user_attention.md` awaiting Paul, its Status says the decision is his, or a sibling
+   `docs/user_attention/` awaiting Paul, its Status says the decision is his, or a sibling
    holds a claim (there is no sibling on this team).
 6. **"What is the next TD number?"** Taken, never computed (cadence.md §2.10): `ao td next`, else
    `python3 files/scripts/ledger_next_id.py`, whose exit 3 is an id it could not reserve. Never
@@ -158,7 +158,7 @@ answer is no and it goes up:
 - **Push to main.** `ALLOW_MAIN_PUSH=1` is for the carve-outs in `files/docs/cadence.md` §4,
   and none of them is a grinder's.
 - **Widen permissions** or edit `CLAUDE.md`'s rules.
-- **Anything on `docs/user_attention.md`** that awaits Paul's decision.
+- **Anything on the board (`docs/user_attention/`)** that awaits Paul's decision.
 - **Anything outward-facing**: nothing posted anywhere public, no spending, no credentials, no
   `~/.shiftlead`, `~/.claude`, systemd.
 
@@ -224,7 +224,7 @@ wait for Paul.
 ## 8. Concurrency, because it bites
 
 - The main checkout is Paul's anchor; every team seat runs in `.claude/worktrees/<name>`.
-- `docs/ledger/` and `docs/user_attention.md` are high-churn: pull before editing,
+- `docs/ledger/` and `docs/user_attention/` are high-churn: pull before editing,
   small edits, grep for conflict markers. A ledger entry is written only through
   `files/scripts/ledger.py` (cadence.md §2.12, TD-202), never by hand; a board item line only through
   `files/scripts/board_edit.py` (`add`, `done`, …), which the cadence check's `board` row holds (cadence.md §3.4, TD-206).

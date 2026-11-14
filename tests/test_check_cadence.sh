@@ -767,49 +767,39 @@ pr 6 OPEN nowhere "outside" src/a.py; comments 6 "$(c 'cadence-review: SHIP · s
 out=$( cd "$TMP" && python3 "$SCRIPT" --pr 6 2>&1 ); rc=$?
 [ $rc -eq 0 ] && [ "$(rowstat "$out" base)" = NA ] && [ "$(rowstat "$out" pushed)" = NA ] && [ "$(rowstat "$out" deploy)" = NA ] && ok "no clone: local rows n/a, rc 0" || bad "no clone: rc=$rc $out"
 
-# --- 17) TD-040: direct commits on main — the carve-outs pass, anything else fails
-EDIT="$DC/files/scripts/board_edit.py"
+# --- 17) TD-040: direct commits on main — the carve-outs pass, anything else fails (a v3 board directory, TD-263)
 D="$TMP/direct"; git init -q --bare -b main "$D.git"; git clone -q "$D.git" "$D" 2>/dev/null
 dgit() { git -C "$D" -c user.email=t@t -c user.name=t "$@"; }
 dcommit() { dgit add -A && dgit commit -qm "$1" && dgit push -q origin HEAD:main; }
 TODAY=$(date +%F); FUTD=$(date -d "5 days" +%F); OLDD=$(date -d "2 days ago" +%F)
-dgit checkout -q -b main 2>/dev/null; mkdir -p "$D/docs" "$D/scripts"
+U="$D/docs/user_attention"; IX="$OLDD-aaaa0001"; IY="$TODAY-bbbb0002"
+lbw() {  # the module's board writer, its --json result
+  (cd "$DC/files/scripts" && GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t python3 -m ledgerboard.board "$@" --json)
+}
+wsubj() { python3 -c 'import json,sys; print(json.load(sys.stdin)["subject"])'; }
+wcommit() {  # wcommit <writer args…>: write through the writer and commit under its subject (no push)
+  local sj; sj=$(lbw "$@" | wsubj) && dgit add -A && dgit commit -qm "$sj"
+}
+dgit checkout -q -b main 2>/dev/null; mkdir -p "$U" "$D/scripts"
 printf '# ledger\n' > "$D/docs/technical_debt.md"
-printf '# board\n\nSwept: %s (h, quick)\n\n## Needs the user\n\n- [ ] %s (session aaaa1111 on h) — decide X. Due: %s.\n\n## In-flight (parked by a session)\n\n- (none)\n' "$OLDD" "$OLDD" "$FUTD" > "$D/docs/user_attention.md"
+printf '# board\n\nLedgerboard: 3\nSwept: %s (h, quick)\n' "$OLDD" > "$U/README.md"
+printf '# board\n\nLedgerboard: 3\n\nThis board is the directory [user_attention/](user_attention/), one file per item.\n' > "$D/docs/user_attention.md"
+lbw add --board "$U" --id "$IX" --today "$OLDD" --session aaaa1111 --host h --text "decide X" --due "$FUTD" >/dev/null
 dcommit base                                                       # root: never listed
-sed -i "s/^Swept: .*/Swept: $TODAY (h, quick)/" "$D/docs/user_attention.md"; dcommit "board: sweep stamp"        # stamp
+sed -i "s/^Swept: .*/Swept: $TODAY (h, quick)/" "$U/README.md"; dcommit "board: sweep stamp"        # stamp
 echo old > "$D/scripts/old.sh"; GIT_COMMITTER_DATE="$(date -d '3 days ago' -R)" dcommit "backdated"   # out of window by date:
 # not listed, and must not hide the in-window stamp beneath it (git log --since stops walking there)
-sed -i "s/^Swept: .*/Swept: $TODAY (h, deep)/" "$D/docs/user_attention.md"; echo "- a ledger line" >> "$D/docs/technical_debt.md"
+sed -i "s/^Swept: .*/Swept: $TODAY (h, deep)/" "$U/README.md"; echo "- a ledger line" >> "$D/docs/technical_debt.md"
 dcommit "board: stamp plus a ledger line"                          # fail: two files
-ins() {  # ins <after-this-exact-line> <new line>: insert below it
-  python3 - "$D/docs/user_attention.md" "$1" "$2" <<'P'
-import sys
-p, after, new = sys.argv[1:]
-L = open(p).read().split("\n"); L.insert(L.index(after) + 1, new); open(p, "w").write("\n".join(L))
-P
-}
-ins "## Needs the user" "- [ ] $TODAY (n/a) — a bot's event. Context: TD-1. Due: $FUTD."; ins "## Needs the user" ""; dcommit "bot: append"   # board-append (+ a blank line)
-python3 - "$D/docs/user_attention.md" "- [ ] $TODAY (n/a) — parked. Due: $FUTD." <<'P'
-import sys
-p, new = sys.argv[1:]; s = open(p).read(); assert "- (none)" in s; open(p, "w").write(s.replace("- (none)", new))
-P
-dcommit "bot: append in-flight"                                    # fail: replaces a line
-line=$(grep -n "decide X" "$D/docs/user_attention.md" | cut -d: -f1)
-GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  "$EDIT" decide --board "$D/docs/user_attention.md" --line "$line" --expect "$OLDD (session aaaa1111" --answer yes --by Alex --tool shiftlead >/dev/null \
-  && dgit push -q origin HEAD:main                                 # board-edit, the real writer's message
-GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  "$EDIT" snooze --board "$D/docs/user_attention.md" --line "$line" --expect "$OLDD (session aaaa1111" --to "$(date -d '9 days' +%F)" >/dev/null \
-  && dgit push -q origin HEAD:main                                 # board-edit: a snooze
-GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  "$EDIT" due --board "$D/docs/user_attention.md" --line "$line" --expect "$OLDD (session aaaa1111" --to "$(date -d '12 days' +%F)" >/dev/null \
-  && dgit push -q origin HEAD:main                                 # board-edit: a due (TD-213)
-GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  "$EDIT" reply --board "$D/docs/user_attention.md" --line "$line" --expect "$OLDD (session aaaa1111" --text "not before Friday" --by Alex --tool shiftlead >/dev/null \
-  && dgit push -q origin HEAD:main                                 # board-edit: a reply (TD-075)
-sed -i -E "s/not before Friday/not before Monday/" "$D/docs/user_attention.md"; dcommit "shiftlead: reworded the reply by hand"   # fail: no fixed message
-sed -i -E "s/Due: [0-9-]+\.( Hide until: [0-9-]+\.)? — Alex/Due: $TODAY.\1 — Alex/" "$D/docs/user_attention.md"; dcommit "snoozed it by hand"   # fail: no fixed message
+lbw add --board "$U" --today "$TODAY" --text "a bot's event" --context TD-1 --due "$FUTD" >/dev/null; dcommit "bot: append"   # board-append
+lbw add --board "$U" --today "$TODAY" --text "parked" --due "$FUTD" >/dev/null; echo "In-flight: parked." >> "$U/README.md"
+dcommit "bot: append in-flight"                                    # fail: README.md changed with it
+wcommit decide --board "$U" --id "$IX" --answer yes --by Alex --tool shiftlead && dgit push -q origin HEAD:main   # board-edit, the writer's
+wcommit snooze --board "$U" --id "$IX" --to "$(date -d '9 days' +%F)" && dgit push -q origin HEAD:main             # board-edit: a snooze
+wcommit due --board "$U" --id "$IX" --to "$(date -d '12 days' +%F)" && dgit push -q origin HEAD:main               # board-edit: a due (TD-213)
+wcommit reply --board "$U" --id "$IX" --text "not before Friday" --by Alex --tool shiftlead && dgit push -q origin HEAD:main   # board-edit: a reply (TD-075)
+sed -i -E "s/not before Friday/not before Monday/" "$U/$IX.md"; dcommit "shiftlead: reworded the reply by hand"   # fail: no fixed message
+sed -i -E "s/^\*\*Due:\*\* .*/**Due:** $TODAY/" "$U/$IX.md"; dcommit "snoozed it by hand"   # fail: no fixed message
 echo x > "$D/scripts/a.sh"; dcommit "a script, straight to main"   # fail: a straight push's shape, off the board
 echo y > "$D/scripts/b.sh"; dcommit "a merged PR (#9)"             # a PR's squash: not listed
 printf '[]' > "$FAKE/prlist_since.json"
@@ -819,18 +809,19 @@ import json, sys
 d = json.load(sys.stdin)
 got = [(c["class"], c["subject"]) for c in d["direct"]["commits"]]
 want = [("fail", "a script, straight to main"), ("fail", "snoozed it by hand"), ("fail", "shiftlead: reworded the reply by hand"),
-        ("board-edit", "shiftlead: reply decide X. (session aaaa1111)"), ("board-edit", None), ("board-edit", None), ("board-edit", None),
+        ("board-edit", None), ("board-edit", None), ("board-edit", None), ("board-edit", None),
         ("fail", "bot: append in-flight"), ("board-append", "bot: append"),
         ("fail", "board: stamp plus a ledger line"), ("stamp", "board: sweep stamp")]
 assert len(got) == len(want), got
 for (gc, gs), (wc, ws) in zip(got, want):
     assert gc == wc and (ws is None or gs == ws), (gc, gs, wc, ws)
-assert got[4][1].startswith("board_edit: due decide X. to "), got[4]
-assert got[5][1].startswith("board_edit: snooze decide X. to "), got[5]
-assert got[6][1] == "shiftlead: decide decide X.: yes (session aaaa1111)", got[6]
+assert got[3][1].startswith("shiftlead: reply " + sys.argv[1] + " decide X"), got[3]
+assert got[4][1].startswith("ledgerboard: due " + sys.argv[1] + " decide X to "), got[4]
+assert got[5][1].startswith("ledgerboard: snooze " + sys.argv[1] + " decide X to "), got[5]
+assert got[6][1] == "shiftlead: decide " + sys.argv[1] + " decide X: yes (session aaaa1111)", got[6]
 assert d["verdict"] == "fail" and d["direct"]["status"] == "fail", d["verdict"]
-print("ok")' 2>&1)
-[ "$chk" = ok ] && [ $rc -eq 1 ] && ok "--since: direct commits classified (stamp, board-append, board_edit.py's board-edit pass, a reply and a due among them; stamp+ledger, a removed line, a hand edit, a hand-reworded reply, a script fail; root and (#N) skipped), rc 1" \
+print("ok")' "$IX" 2>&1)
+[ "$chk" = ok ] && [ $rc -eq 1 ] && ok "--since: direct commits classified (stamp, board-append, the writer's board-edit pass, a reply and a due among them; stamp+ledger, an append with README.md, a hand edit, a hand-reworded reply, a script fail; root and (#N) skipped), rc 1" \
   || bad "direct classify rc=$rc: $chk"
 out=$( cd "$D" && python3 "$SCRIPT" --since 1d 2>&1 )
 echo "$out" | grep -q "^Direct commits on origin/main (no PR) — 11 direct commit(s)  \[FAIL\]" && echo "$out" | grep -q "PASS    board-edit" \
@@ -843,7 +834,7 @@ out=$( cd "$TMP" && python3 "$SCRIPT" --since 1d 2>&1 ); rc=$?
 echo "$out" | grep -q "direct commits: n/a" && [ $rc -eq 2 ] && ok "--since with no clone: direct is n/a, empty window still rc 2" || bad "direct no clone rc=$rc: $out"
 
 # --- 17b) TD-083, cadence §4.5: a tool lands its board edit by a PR of its own, merged at once
-# with no review comment. The review row passes it only when the title is board_edit.py's message,
+# with no review comment. The review row passes it only when the title is the writer's message,
 # the PR touches the board alone, and its squash is a one-item edit — the direct audit's rules.
 bepr() {  # bepr <n> <title> <sha> [files...]: a merged PR fixture whose squash is <sha>, carrying $COMMITS commits (default 1; "none": gh gave no list)
   local n=$1 title=$2 sha=$3; shift 3
@@ -861,76 +852,72 @@ J
   printf '{"parents":[{"sha":"a"}]}' > "$FAKE/commit_$sha.json"; comments "$n"
 }
 dgit checkout -q -b tool-tree origin/main
-GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  "$EDIT" done --board "$D/docs/user_attention.md" --line "$line" --expect "$OLDD (session aaaa1111" --why "shipped" --tool shiftlead >/dev/null
+wcommit done --board "$U" --id "$IX" --why "shipped" --tool shiftlead
 btitle=$(dgit log -1 --format=%s)
+BF=(docs/user_attention/$IX.md "docs/user_attention/archive/${TODAY:0:7}/$IX.md")
 dgit checkout -q main && dgit merge -q --squash tool-tree >/dev/null && dgit commit -qm "$btitle (#21)" && dgit push -q origin HEAD:main
 bsha=$(dgit rev-parse HEAD)
-bepr 21 "$btitle" "$bsha" docs/user_attention.md
+bepr 21 "$btitle" "$bsha" "${BF[@]}"
 out=$( cd "$D" && python3 "$SCRIPT" --pr 21 2>&1 ); rc=$?
 [ "$(rowstat "$out" review)" = PASS ] && echo "$out" | grep -q "cadence §4.5 carve-out" && [ $rc -eq 0 ] \
-  && ok "a tool-made board PR (board_edit.py's message, one item) passes review with no comment, rc 0" || bad "board-edit PR rc=$rc: $out"
+  && ok "a tool-made board PR (the writer's message, one item) passes review with no comment, rc 0" || bad "board-edit PR rc=$rc: $out"
 out=$( cd "$D" && python3 "$SCRIPT" --pr 21 --json 2>&1 )
 printf '%s' "$out" | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["prs"][0]["rows"] if x["rule"]=="review"][0]; assert r["carve_out"]=="board-edit" and "reviews" not in r' \
   && ok "TD-231: the board-edit PR's review row carries carve_out board-edit and lists no reviews" || bad "carve_out board-edit: $out"
 out=$( cd "$D" && python3 "$SCRIPT" --since 1d --json 2>&1 )
 printf '%s' "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert not [c for c in d["direct"]["commits"] if c["subject"].endswith("(#21)")], d["direct"]' 2>/dev/null \
   && ok "its squash is a PR's, never listed among the direct commits" || bad "board-edit squash listed as direct: $out"
-bepr 22 "a board tidy" "$bsha" docs/user_attention.md                       # the same edit, not the tool's message
+bepr 22 "a board tidy" "$bsha" "${BF[@]}"                                  # the same edit, not the tool's message
 out=$( cd "$D" && python3 "$SCRIPT" --pr 22 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && echo "$out" | grep -q "no \`cadence-review:\` comment" && ok "a one-item board PR without the fixed message needs a review" || bad "untitled board PR: $out"
 echo z > "$D/scripts/z.sh"; dcommit "$btitle (#23)"; zsha=$(dgit rev-parse HEAD)
-bepr 23 "$btitle" "$zsha" docs/user_attention.md                            # the files list lies; the commit is a script
+bepr 23 "$btitle" "$zsha" "${BF[@]}"                                       # the files list lies; the commit is a script
 out=$( cd "$D" && python3 "$SCRIPT" --pr 23 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && ok "the fixed message on a commit that is not the board edit needs a review" || bad "message on a script: $out"
-bepr 24 "$btitle" "$bsha" docs/user_attention.md docs/technical_debt.md      # more than the board
+bepr 24 "$btitle" "$bsha" "${BF[@]}" docs/technical_debt.md                 # more than the board
 out=$( cd "$D" && python3 "$SCRIPT" --pr 24 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && ok "a PR touching more than the board needs a review" || bad "board+ledger PR: $out"
-bepr 25 "$btitle" "0123456789abcdef0123456789abcdef01234567" docs/user_attention.md   # not in this clone
+bepr 25 "$btitle" "0123456789abcdef0123456789abcdef01234567" "${BF[@]}"     # not in this clone
 out=$( cd "$D" && python3 "$SCRIPT" --pr 25 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && ok "a board PR whose commit this clone cannot read needs a review — never a pass on the title" || bad "unreadable board PR: $out"
 # found in review (PR #207): only a one-commit PR is read whole by its one commit
-ins "## Needs the user" "- [ ] $TODAY (session bbbb2222 on h) — look at Y. Due: $FUTD."; dcommit "bot: append Y (#29)"
+lbw add --board "$U" --id "$IY" --today "$TODAY" --session bbbb2222 --host h --text "look at Y" --due "$FUTD" >/dev/null; dcommit "bot: append Y (#29)"
 dgit checkout -q -B tool-open origin/main
-bline=$(grep -n "look at Y" "$D/docs/user_attention.md" | cut -d: -f1)
-GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  "$EDIT" snooze --board "$D/docs/user_attention.md" --line "$bline" --expect "$TODAY (session bbbb2222" --to "$(date -d '12 days' +%F)" --tool shiftlead >/dev/null
+wcommit snooze --board "$U" --id "$IY" --to "$(date -d '12 days' +%F)" --tool shiftlead
 otitle=$(dgit log -1 --format=%s); osha=$(dgit rev-parse HEAD)
-OPEN=1 bepr 26 "$otitle" "$osha" docs/user_attention.md
+OPEN=1 bepr 26 "$otitle" "$osha" "docs/user_attention/$IY.md"
 out=$( cd "$D" && python3 "$SCRIPT" --pr 26 2>&1 )
 [ "$(rowstat "$out" review)" = PASS ] && echo "$out" | grep -q "cadence §4.5 carve-out" && ok "an open one-commit board PR is read by its head and passes" || bad "open board PR: $out"
 dgit reset -q --hard origin/main
-sed -i '/^## In-flight/,$d' "$D/docs/user_attention.md"; dgit commit -qam "wipe a section"   # commit 1: anything at all
-GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  "$EDIT" snooze --board "$D/docs/user_attention.md" --line "$bline" --expect "$TODAY (session bbbb2222" --to "$(date -d '12 days' +%F)" --tool shiftlead >/dev/null
-OPEN=1 bepr 27 "$(dgit log -1 --format=%s)" "$(dgit rev-parse HEAD)" docs/user_attention.md
+echo "a wiped section" >> "$U/README.md"; dgit commit -qam "wipe a section"   # commit 1: anything at all
+wcommit snooze --board "$U" --id "$IY" --to "$(date -d '12 days' +%F)" --tool shiftlead
+OPEN=1 bepr 27 "$(dgit log -1 --format=%s)" "$(dgit rev-parse HEAD)" "docs/user_attention/$IY.md"
 out=$( cd "$D" && python3 "$SCRIPT" --pr 27 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && ok "an open two-commit board PR needs a review — its head alone hides the first commit" || bad "two-commit open PR: $out"
-COMMITS=2 bepr 28 "$(dgit log -1 --format=%s)" "$(dgit rev-parse HEAD)" docs/user_attention.md   # a rebase merge's last commit
+COMMITS=2 bepr 28 "$(dgit log -1 --format=%s)" "$(dgit rev-parse HEAD)" "docs/user_attention/$IY.md"   # a rebase merge's last commit
 out=$( cd "$D" && python3 "$SCRIPT" --pr 28 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && ok "a rebase-merged two-commit board PR needs a review" || bad "rebase-merged board PR: $out"
 # TD-224: the last commit's subject is whatever its author typed, so a (#n) on it proves nothing
 dgit commit -q --amend -m "$(dgit log -1 --format=%s) (#36)"
-COMMITS=2 bepr 36 "$(dgit log -1 --format=%s | sed 's/ (#36)$//')" "$(dgit rev-parse HEAD)" docs/user_attention.md
+COMMITS=2 bepr 36 "$(dgit log -1 --format=%s | sed 's/ (#36)$//')" "$(dgit rev-parse HEAD)" "docs/user_attention/$IY.md"
 out=$( cd "$D" && python3 "$SCRIPT" --pr 36 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && ok "a rebase-merged two-commit board PR whose last subject ends (#n) still needs a review (TD-224)" || bad "rebase (#n) board PR: $out"
-COMMITS=none bepr 21 "$btitle" "$bsha" docs/user_attention.md
+COMMITS=none bepr 21 "$btitle" "$bsha" "${BF[@]}"
 out=$( cd "$D" && python3 "$SCRIPT" --pr 21 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && ok "a merged board PR whose forge gives no commit count needs a review — never a pass on the subject" || bad "no-count board PR: $out"
-bepr 21 "$btitle" "$bsha" docs/user_attention.md
+bepr 21 "$btitle" "$bsha" "${BF[@]}"
 dgit checkout -q main
 # TD-237, cadence §4.4: a tool's board append landed by a PR of its own passes review as board-append
 dgit checkout -q -B tool-append origin/main
-GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t \
-  "$EDIT" add --board "$D/docs/user_attention.md" --text "renew the cert." --due "$FUTD" --tool shiftlead >/dev/null
-atitle=$(dgit log -1 --format=%s)
+wcommit add --board "$U" --today "$TODAY" --text "renew the cert." --due "$FUTD" --tool shiftlead
+atitle=$(dgit log -1 --format=%s); afile=$(dgit show --name-only --format= HEAD)
 dgit checkout -q main && dgit merge -q --squash tool-append >/dev/null && dgit commit -qm "$atitle (#46)" && dgit push -q origin HEAD:main
 asha=$(dgit rev-parse HEAD)
-bepr 46 "$atitle" "$asha" docs/user_attention.md
+bepr 46 "$atitle" "$asha" "$afile"
 out=$( cd "$D" && python3 "$SCRIPT" --pr 46 --json 2>&1 )
 printf '%s' "$out" | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["prs"][0]["rows"] if x["rule"]=="review"][0]; assert r["status"]=="pass" and r["carve_out"]=="board-append" and "reviews" not in r' \
   && ok "TD-237: a tool's append PR passes review with no comment, carve_out board-append" || bad "append PR: $out"
-bepr 47 "a board line" "$asha" docs/user_attention.md                        # the same append, not the append subject
+bepr 47 "a board line" "$asha" "$afile"                                      # the same append, not the append subject
 out=$( cd "$D" && python3 "$SCRIPT" --pr 47 2>&1 )
 [ "$(rowstat "$out" review)" = FAIL ] && ok "TD-237: the same append under a title that is not the append subject needs a review" || bad "untitled append PR: $out"
 
