@@ -118,7 +118,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ledgerboard import (  # noqa: E402,F401  # sibling SYNC file: the board format, defined once (ShiftLead/ledgerboard); re-exported
     ANSWER_SPLIT_RE,
     ANSWERS_RE,
-    ARCHIVE_AT,
     CLOSED_ITEM_RE,
     CLOSED_RE,
     CONTEXT_RE,
@@ -140,7 +139,6 @@ from ledgerboard import (  # noqa: E402,F401  # sibling SYNC file: the board for
     BoardItem,
     _raw_answers,
     _trailer,
-    closed_items,
     detail_block,
     due_tag,
     item_head,

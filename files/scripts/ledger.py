@@ -471,10 +471,8 @@ def prose_waits(ledger: str, archive: str = "") -> dict[str, list[tuple[str, str
         named = {_wait_key(m["repo"], m["n"]) for i in ids if (m := WAIT_ID_RE.fullmatch(i.strip()))}
         named.add(_wait_key(None, e["id"][3:]))
         for field, value in e["fields"].items():
-            if field == "blocked by":
-                old_form = LB.parse_gates(value)["old_form"]  # v2.4: the pointer is the old form's text
-                spans = [old_form[1]] if old_form else []
-            elif field in NO_WAIT_FIELDS:
+            if field == "blocked by" or field in NO_WAIT_FIELDS:  # v3.0: a decision gate is the whole item, no pointer
+                continue
                 continue
             else:
                 spans = [re.split(r"[.;:](?:\s|$)|\(|\)", value[m.end():], maxsplit=1)[0] for m in WAIT_PHRASE_RE.finditer(value)]
