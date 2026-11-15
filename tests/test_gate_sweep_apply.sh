@@ -148,6 +148,9 @@ grep -q "^oth: pr create --head notices/o-own-sweep-$TODAY --base main --title b
   && grep -q '^archive/.*Lift of event (gone) on o/own#TD-007 was closed.*Closed:\*\* .* the gate sweep of o/own' <<< "$ob" \
   && ok "3e ... opened on that repo's forge, its board alone (a close there too), its clone left as it was" || bad "3e: $(grep 'oth:' "$GH_LOG") / $(git -C "$OTH" worktree list)"
 boardonly "$BARE" main "sweep/$TODAY" && ok "3d the sweep PR changes the board alone" || bad "3d"
+t=$(grep "^pr create --head sweep/$TODAY " "$GH_LOG" | sed 's/.* --title //; s/ --body .*//')
+[ "$t" = "board: gate sweep $TODAY — 1 filed, 1 closed" ] && ! grep -qE 'TD-[0-9]' <<< "$t" \
+  && ok "3f the own-board sweep PR's title names no TD, so the cadence check's ledger row reads it NA (TD-276)" || bad "3f: $t"
 [ "$(git -C "$OWN" rev-parse HEAD)" = "$before" ] && [ -z "$(git -C "$OWN" status --porcelain)" ] \
   && [ "$(git -C "$OWN" worktree list | wc -l)" = 1 ] && [ -z "$(git -C "$OWN" branch --list 'lift/*' 'sweep/*')" ] \
   && [ -z "$(ls "$TMP" | grep gate-sweep-)" ] \

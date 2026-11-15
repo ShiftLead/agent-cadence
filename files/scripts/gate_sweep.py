@@ -536,7 +536,9 @@ def apply(top: Path, p: dict, be, *, today_local: date, today_utc: date, by: str
                 LBB.apply(LBB.plan_edit(board, "done", key, why="the gate sweep: its condition no longer holds",
                                         today=today_local, tool="gate-sweep"))
                 closed += 1
-            subject = f"board: gate sweep {today_utc.isoformat()} — {len(items)} filed, {closed} closed (TD-219)"
+            # No TD-n in the subject: the cadence check's ledger row reads one as work the PR does, and this PR
+            # touches no ledger file (TD-276); the body names TD-219 as the tool's origin.
+            subject = f"board: gate sweep {today_utc.isoformat()} — {len(items)} filed, {closed} closed"
             body = "\n".join(["The gate sweep (TD-219; ledgerboard's target design §3.2) on this repo's own board.", ""]
                              + [f"- file: [{it['kind']}] {it['text']} — Context: {it['context']}" for it in items]
                              + [f"- close: {k}" for k in keys])
