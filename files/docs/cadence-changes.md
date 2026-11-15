@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-15 — Grok Build sessions are seen: `agents = "claude,grok"`
+Do: in a repo where Grok Build sessions run, list `grok` in `docs/cadence.toml`'s `agents`; the anchor guard, the reaper, `list_sessions.py` (`grok --resume <uuid>`) and the sweep row then see them, and "cannot see grok" means no readable `${GROK_HOME:-~/.grok}` (or `/proc`) here.
+See: cadence.md §1.13, §9.18; TD-252.
+
 ## 2026-11-15 — An item a PR adds and then closes passes the `board` row: reword it with `add` then `done`, never by squashing
 Do: an item filed earlier in the same PR is closed through `board_edit.py done` and filed again; the row judges the closed file's open form (the file less its `Closed:` line) as a new item. cadence.md §3.4 (TD-275).
 
