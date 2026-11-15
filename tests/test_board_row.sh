@@ -290,6 +290,30 @@ redo; clean "$D1" "$A1" both; sed -i 's/Was: fine\./Was: fine, reworded./' "$AR"
 [ "${st%% *}" = fail ] && echo "$st" | grep -q "a change no pre-split cleanup makes" && ok "a cleanup that also edits a kept line fails, naming it" || bad "edit: $st"
 redo; clean "$D1" "$A1" both; sed -i '/Was: fine\. Closed:/d' "$AR"; st=$(crow "cleanup and a dropped close")
 [ "${st%% *}" = fail ] && echo "$st" | grep -q "a change no pre-split cleanup makes" && ok "a cleanup that drops a closed item whose id is not kept fails" || bad "drop unkept: $st"
+# TD-277 review: nothing may follow an added date but its why; a copy alone holding a Decided:, reply or detail stays;
+# a line's own Added day is no evidence
+out=$(python3 - "$S" "$A0" "$D1" <<'EOF'
+import sys
+sys.path.insert(0, sys.argv[1])
+import check_cadence as C
+a0, d1 = sys.argv[2:]
+stub = "# board\n\nPeople: Pat\n"
+def run(base, head):
+    b = {C.BOARD_STUB: stub, C.BOARD_V2_ARCHIVE: "# archive\n\n" + base}
+    h = {C.BOARD_STUB: stub, C.BOARD_V2_ARCHIVE: "# archive\n\n" + head}
+    got = C.v2_cleanup(".", "HEAD", b, h, [C.BOARD_V2_ARCHIVE])
+    return got[0] if got else None
+line = f"- [x] {a0} (n/a) — **Done: one.** Was: x."
+print(run(line + "\n", line + f" Closed: {d1}. Decided: approve ({d1}).\n"))
+kept = f"- [x] {a0} (n/a) — **Done: two.** Was: y. Closed: {d1}\n"
+gone = f"- [x] {a0} (n/a) — **Done: two.** Was: y. Decided: approve ({a0}). Closed: {d1}\n"
+print(run(gone + kept, kept))
+print(run(f"- [x] {a0} (n/a) — **Done: two.** Was: y. Closed: {d1}\n  - **Context:** only here.\n" + kept, kept))
+EOF
+)
+[ "$out" = "$(printf 'fail\nfail\nfail')" ] && ok "a cleanup: text after the added date, or a dropped copy alone holding a Decided: or detail, fails" || bad "review cases: $out"
+redo; clean "$A0" "$A1" both; st=$(crow "dated by its own Added day")
+[ "${st%% *}" = fail ] && echo "$st" | grep -q "dated Closed: $A0" && ok "a close dated by the line's own Added day is no evidence: fails" || bad "added day: $st"
 redo; clean "$D1" "$A1" none; st=$(crow "dates only, twins kept")
 [ "${st%% *}" = fail ] && echo "$st" | grep -q "split it first" && ok "a head split_board() still refuses is no cleanup: split first, as before" || bad "still refused: $st"
 redo; git -C "$C2" switch -q main
