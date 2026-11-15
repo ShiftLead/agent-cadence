@@ -225,6 +225,99 @@ git -C "$V" reset -q --hard origin/main
 (cd "$S" && python3 -m ledgerboard.board split --board "$V/docs/user_attention.md" >/dev/null)
 git -C "$V" add -A; git -C "$V" commit -qm split
 st=$(row open HEAD); [ "${st%% *}" = pass ] && ok "a split PR (v2 base, directory head) passes" || bad "split: $st"
+# TD-277: a pre-split cleanup PR — a v2 base split_board() refuses, a head it accepts — passes when it only dates
+# closed lines (by the day the close is on record, or a day the line's words name) and drops closed copies of a kept id
+A0=$(date -d "8 days ago" +%F); A1=$(date -d "7 days ago" +%F); D1=$(date -d "6 days ago" +%F); D2=$(date -d "5 days ago" +%F)
+C2="$TMP/cl"; git init -q --bare -b main "$C2.git"; git init -q -b main "$C2"; git -C "$C2" remote add origin "$C2.git"; mkdir -p "$C2/docs"
+AR="$C2/docs/user_attention_archive.md"
+printf '# board\n\nPeople: Pat\n\n- [ ] %s (n/a) — still open. Context: TD-1. Due: %s.\n' "$P" "$F" > "$C2/docs/user_attention.md"
+printf '# archive\n\n' > "$AR"
+git -C "$C2" add -A; GIT_AUTHOR_DATE="${A0}T12:00:00Z" GIT_COMMITTER_DATE="${A0}T12:00:00Z" git -C "$C2" commit -qm board
+{ printf -- '- [x] %s (n/a) — **Resolved: the key was rotated.** Was: rotate the key.\n' "$A0"
+  printf -- '- [x] %s (n/a) — **Done %s: merged.** Was: merge it.\n' "$A0" "$A1"
+  printf -- '- [x] %s (n/a) — **Done: twin.** Was: a twin. Closed: %s\n  - **Context:** the same.\n' "$A0" "$D1"
+  printf -- '- [x] %s (n/a) — **Done: twin.** Was: a twin. Closed: %s\n  - **Context:** the same.\n' "$A0" "$D1"
+  printf -- '- [x] %s (n/a) — **Done: superseded.** Was: an old ask. Closed: %s\n  - **Question:** the first wording?\n' "$A0" "$D1"
+  printf -- '- [x] %s (n/a) — **Done: superseded.** Was: an old ask. Closed: %s\n  - **Question:** the second wording?\n' "$A0" "$D1"
+  printf -- '- [x] %s (n/a) — **Done: kept as is.** Was: fine. Closed: %s\n' "$A0" "$D1"
+} >> "$AR"
+git -C "$C2" add -A; GIT_AUTHOR_DATE="${D1}T12:00:00Z" GIT_COMMITTER_DATE="${D1}T12:00:00Z" git -C "$C2" commit -qm archive
+git -C "$C2" push -q origin main 2>/dev/null; git -C "$C2" switch -q -c cleanup
+clean() {  # $1 the rotated line's date, $2 the merged line's ("-": left undated); $3 drop: twin, copy, both, none
+  python3 - "$AR" "$1" "$2" "$3" <<'EOF'
+import sys
+path, d1, d2, drop = sys.argv[1:]
+t = open(path).read()
+t = t.replace("Was: rotate the key.\n", f"Was: rotate the key. Closed: {d1}\n")
+if d2 != "-":
+    t = t.replace("Was: merge it.\n", f"Was: merge it. Closed: {d2} — dated at the split from its own words.\n")
+twin = [ln for ln in t.splitlines(True) if "Was: a twin." in ln][0] + "  - **Context:** the same.\n"
+copy = [ln for ln in t.splitlines(True) if "Was: an old ask." in ln][0] + "  - **Question:** the first wording?\n"
+if drop in ("twin", "both"):
+    t = t.replace(twin + twin, twin)
+if drop in ("copy", "both"):
+    t = t.replace(copy, "", 1)
+open(path, "w").write(t)
+EOF
+}
+R0b="$R"; R="$C2"
+crow() { git -C "$C2" add -A; git -C "$C2" commit -qm "$1"; row open HEAD; }
+redo() { git -C "$C2" reset -q --hard origin/main; }
+clean "$D1" "$A1" both; st=$(crow cleanup)
+[ "${st%% *}" = pass ] && echo "$st" | grep -q "2 close(s) dated, 2 closed copy(ies)" && echo "$st" | grep -qF "⚠ 1 dropped copy(ies) differ from the one kept, for the review to compare: " <<< "$st" && echo "$st" | grep -qF "the first wording?»" && echo "$st" | grep -qF "the second wording?»" \
+  && ok "a pre-split cleanup: dated by its record and by its words, an exact twin and a superseded copy dropped (the copy named ⚠)" || bad "cleanup: $st"
+git -C "$C2" switch -q main; git -C "$C2" merge -q --squash cleanup; git -C "$C2" commit -qm "cleanup (#2)"
+st=$(row merged HEAD); [ "${st%% *}" = pass ] && echo "$st" | grep -q "a pre-split cleanup" && ok "the same cleanup after its squash merge passes as a cleanup" || bad "cleanup merged: $st"
+redo; git -C "$C2" switch -q cleanup; redo
+out=$(python3 - "$S" "$A0" "$D1" <<'EOF'
+import sys
+sys.path.insert(0, sys.argv[1])
+import check_cadence as C
+a0, d1 = sys.argv[2:]
+stub = "# board\n\nPeople: Pat\n"
+twin = f"- [x] {a0} (n/a) — **Done: twin.** Was: a twin. Closed: {d1}\n  - **Context:** the same.\n"
+base = {C.BOARD_STUB: stub, C.BOARD_V2_ARCHIVE: "# archive\n\n" + twin + twin}
+head = {C.BOARD_STUB: stub, C.BOARD_V2_ARCHIVE: "# archive\n\n" + twin}
+print(C.v2_cleanup(".", "HEAD", base, head, [C.BOARD_V2_ARCHIVE]))
+EOF
+)
+case "$out" in "('pass', 'a pre-split cleanup of the v2 board: 0 close(s) dated, 1 closed copy(ies) of a kept id dropped;"*"(TD-277)')") ok "a cleanup whose dropped copy is exact: passes with no ⚠" ;; *) bad "exact: $out" ;; esac
+redo; clean "$T" "$A1" both; st=$(crow "cleanup, wrong day")
+[ "${st%% *}" = fail ] && echo "$st" | grep -q "dated Closed: $T, but its close is on record on" && ok "a close dated by no evidence fails, naming it" || bad "wrong day: $st"
+redo; clean "$D1" "$D2" both; st=$(crow "cleanup, a day its words do not name")
+[ "${st%% *}" = fail ] && echo "$st" | grep -q "names .*$A1" && ok "a date after the record that its words do not name fails" || bad "words day: $st"
+redo; clean "$D1" "$A1" both; sed -i 's/Was: fine\./Was: fine, reworded./' "$AR"; st=$(crow "cleanup and an edit")
+[ "${st%% *}" = fail ] && echo "$st" | grep -q "a change no pre-split cleanup makes" && ok "a cleanup that also edits a kept line fails, naming it" || bad "edit: $st"
+redo; clean "$D1" "$A1" both; sed -i '/Was: fine\. Closed:/d' "$AR"; st=$(crow "cleanup and a dropped close")
+[ "${st%% *}" = fail ] && echo "$st" | grep -q "a change no pre-split cleanup makes" && ok "a cleanup that drops a closed item whose id is not kept fails" || bad "drop unkept: $st"
+# TD-277 review: nothing may follow an added date but its why; a copy alone holding a Decided:, reply or detail stays;
+# a line's own Added day is no evidence
+out=$(python3 - "$S" "$A0" "$D1" <<'EOF'
+import sys
+sys.path.insert(0, sys.argv[1])
+import check_cadence as C
+a0, d1 = sys.argv[2:]
+stub = "# board\n\nPeople: Pat\n"
+def run(base, head):
+    b = {C.BOARD_STUB: stub, C.BOARD_V2_ARCHIVE: "# archive\n\n" + base}
+    h = {C.BOARD_STUB: stub, C.BOARD_V2_ARCHIVE: "# archive\n\n" + head}
+    got = C.v2_cleanup(".", "HEAD", b, h, [C.BOARD_V2_ARCHIVE])
+    return got[0] if got else None
+line = f"- [x] {a0} (n/a) — **Done: one.** Was: x."
+print(run(line + "\n", line + f" Closed: {d1}. Decided: approve ({d1}).\n"))
+kept = f"- [x] {a0} (n/a) — **Done: two.** Was: y. Closed: {d1}\n"
+gone = f"- [x] {a0} (n/a) — **Done: two.** Was: y. Decided: approve ({a0}). Closed: {d1}\n"
+print(run(gone + kept, kept))
+print(run(f"- [x] {a0} (n/a) — **Done: two.** Was: y. Closed: {d1}\n  - **Context:** only here.\n" + kept, kept))
+EOF
+)
+[ "$out" = "$(printf 'fail\nfail\nfail')" ] && ok "a cleanup: text after the added date, or a dropped copy alone holding a Decided: or detail, fails" || bad "review cases: $out"
+redo; clean "$A0" "$A1" both; st=$(crow "dated by its own Added day")
+[ "${st%% *}" = fail ] && echo "$st" | grep -q "dated Closed: $A0" && ok "a close dated by the line's own Added day is no evidence: fails" || bad "added day: $st"
+redo; clean "$D1" "$A1" none; st=$(crow "dates only, twins kept")
+[ "${st%% *}" = fail ] && echo "$st" | grep -q "split it first" && ok "a head split_board() still refuses is no cleanup: split first, as before" || bad "still refused: $st"
+redo; git -C "$C2" switch -q main
+R="$R0b"
 # TD-263's review: a direct commit to a v2 board passes (⚠ board-v2) only as a v2 writer's, never a hand edit
 v2chk() { python3 - "$V" "$S" <<'EOF'
 import sys

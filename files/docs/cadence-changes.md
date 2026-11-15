@@ -12,6 +12,9 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-15 — A v2 board split_board() refuses is cured by a cleanup PR of its own, then split
+Do: date each undated closed line by its record (its closing or archiving commit's day, or a day its own words name) and drop the closed copies of a kept id, in a PR touching only the v2 board and its archive; the `board` row passes it. A dropped copy that is not exact is allowed and flagged ⚠, both texts shown, for the review to compare. Then split in a second PR. cadence.md §3.4 (TD-277).
+
 ## 2026-11-15 — Grok Build sessions are seen: `agents = "claude,grok"`
 Do: in a repo where Grok Build sessions run, list `grok` in `docs/cadence.toml`'s `agents`; the anchor guard, the reaper, `list_sessions.py` (`grok --resume <uuid>`) and the sweep row then see them, and "cannot see grok" means no readable `${GROK_HOME:-~/.grok}` (or `/proc`) here.
 See: cadence.md §1.13, §9.18; TD-252.

@@ -2135,6 +2135,165 @@ def classify_direct(root, sha, subject, files):
     return "fail", f"board change outside the carve-outs ({len(files)} file(s))"
 
 
+DAY_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+# what a pre-split cleanup may add to a closed line: the field alone, or with the close's why after an em dash
+CLEANUP_CLOSED_RE = re.compile(r"^\s*Closed:\s*\d{4}-\d{2}-\d{2}(?:\s+—\s+\S.*)?$")
+
+
+def _v2_blocks(text):
+    """A v2 board file (the stub or its archive) as its blocks, in order: ``("item", item line, detail lines)`` for
+    each closed item (its detail block as ledgerboard's _detail_source() reads it), ``("text", line, ())`` for
+    every other line, an open item's among them (TD-277)."""
+    lb = _lb()
+    lines = text.splitlines()
+    out, i = [], 0
+    while i < len(lines):
+        if lb.CLOSED_ITEM_RE.match(lines[i]):
+            detail = tuple(lb._detail_source(lines, i + 1))
+            out.append(("item", lines[i], detail))
+            i += 1 + len(detail)
+        else:
+            out.append(("text", lines[i], ()))
+            i += 1
+    return out
+
+
+def _v2_closed(line):
+    """A closed v2 line's (id, readable Closed: date or None, its words before the Closed: field)."""
+    lb = _lb()
+    got = lb.parse_closed_items(line)
+    it = got[0] if got else None
+    text = lb.CLOSED_ITEM_RE.match(line).group("text")
+    c = lb.CLOSED_RE.search(text)
+    return (it.id if it else None, (it.closed[0].isoformat() if it and it.closed and it.closed[0] else None),
+            line[: len(line) - len(text) + (c.start() if c else len(text))].rstrip())
+
+
+def _v2_first_seen(root, sha, wanted):
+    """For each line in ``wanted``, the days (UTC and the commit's own, author and committer) of the oldest commit
+    in ``sha``'s history that added it to the v2 board or its archive (the day it was closed, or last edited, as
+    it stands) and of the oldest that added it to the archive (the day it was archived): the days its close is
+    on record. One `git log -p` over both files; a line never seen is left out."""
+    out = git(["log", sha, "--reverse", "-U0", "--no-color", "--format=%x00%ct %at %cs %as", "-p", "--",
+               BOARD_STUB, BOARD_V2_ARCHIVE], cwd=root)
+    first, archived, days, path = {}, {}, None, None
+    for ln in (out or "").splitlines():
+        if ln.startswith("\0"):
+            ct, at, cs, as_ = ln[1:].split()
+            days = {cs, as_} | {dt.datetime.fromtimestamp(int(t), dt.timezone.utc).date().isoformat() for t in (ct, at)}
+        elif ln.startswith("+++ b/") or ln == "+++ /dev/null":
+            path = ln[4:].removeprefix("b/")
+        elif ln.startswith("+") and days and ln[1:] in wanted:
+            first.setdefault(ln[1:], days)
+            if path == BOARD_V2_ARCHIVE:
+                archived.setdefault(ln[1:], days)
+    return {line: d | archived.get(line, set()) for line, d in first.items()}
+
+
+def _v2_only_in(dropped, kept):
+    """What a dropped closed copy alone holds, which dropping it would lose: a `Decided:`, a reply or a detail
+    block, where no kept copy of its id has one. Empty when nothing is lost."""
+    lb = _lb()
+
+    def held(line, detail):
+        it = (lb.parse_closed_items(line) or [None])[0]
+        return {"a Decided:": bool(it and it.decided), "a reply": bool(it and it.replies), "a detail block": bool(detail)}
+    mine = held(*dropped[1:])
+    theirs = [held(*k) for k in kept]
+    return [w for w, has in mine.items() if has and not any(k[w] for k in theirs)]
+
+
+def v2_cleanup(root, old, base_t, head_t, files):
+    """TD-277, cadence §3.4: a pre-split cleanup of a v2 board, which ledgerboard's split_board() refuses at the
+    base ("date it first", "keep one") and accepts at the head. None when the PR is no such cleanup (the base
+    splits already, or the head does not); else ``(status, message)``. It passes only when, block by block,
+    base→head (1) adds a `Closed:` date to a closed line that had no readable one, its words unchanged, the
+    date the day of the commit that first wrote the line as it stands or of the one that archived it (UTC or the commit's own
+    zone), or a day its own words name no later than those and no earlier than its own; or (2) drops a closed item whose id a kept closed item carries
+    — an exact copy silently, any other copy named with a ⚠ for the review to compare, unless it alone holds a
+    `Decided:`, a reply or a detail block, which fails; and changes nothing else."""
+    if set(files) - {BOARD_STUB, BOARD_V2_ARCHIVE}:
+        return None
+    lb = _lb()
+
+    def splits(t):
+        try:
+            lb.split_board(t.get(BOARD_STUB) or "", t.get(BOARD_V2_ARCHIVE) or "")
+            return True
+        except lb.Refused:
+            return False
+    if splits(base_t) or not splits(head_t):
+        return None
+    kept_ids = {}
+    for path in (BOARD_STUB, BOARD_V2_ARCHIVE):
+        for kind, line, detail in _v2_blocks(head_t.get(path) or ""):
+            if kind == "item":
+                kept_ids.setdefault(_v2_closed(line)[0], []).append((line, detail))
+    dated, dropped, fails = [], [], []
+    for path in (BOARD_STUB, BOARD_V2_ARCHIVE):
+        base_b, head_b = _v2_blocks(base_t.get(path) or ""), _v2_blocks(head_t.get(path) or "")
+        i = j = 0
+        while i < len(base_b) or j < len(head_b):
+            b = base_b[i] if i < len(base_b) else None
+            h = head_b[j] if j < len(head_b) else None
+            if b is not None and b == h:
+                i, j = i + 1, j + 1
+                continue
+            if b and h and b[0] == h[0] == "item" and b[2] == h[2]:
+                bid, bday, bwords = _v2_closed(b[1])
+                hid, hday, hwords = _v2_closed(h[1])
+                if bday is None and hday is not None and hwords == b[1].rstrip() and hid == bid \
+                        and CLEANUP_CLOSED_RE.match(h[1][len(hwords):]):
+                    dated.append((path, b[1], hday, bid))
+                    i, j = i + 1, j + 1
+                    continue
+            if b and b[0] == "item":
+                bid = _v2_closed(b[1])[0]
+                twins = kept_ids.get(bid) or []
+                lost = _v2_only_in(b, twins) if bid and twins else []
+                if lost:
+                    fails.append(f"{bid}: a dropped copy alone holds {' and '.join(lost)}, which dropping it loses")
+                    break
+                if bid and twins:
+                    dropped.append((bid, (b[1], b[2]), twins))
+                    i += 1
+                    continue
+            where = f"{path}: " + ((b[1] if b else h[1])[:60] + "…")
+            fails.append(f"a change no pre-split cleanup makes ({where})")
+            break
+    if fails:
+        return "fail", fails[0] + " — a cleanup only dates closed lines and drops closed copies of a kept id (TD-277)"
+    first = _v2_first_seen(root, old, {line for _, line, _, _ in dated})
+    for path, line, day, iid in dated:
+        days = first.get(line)
+        if not days:
+            return "fail", f"{iid}: the commit that wrote its line is not in {old[:7]}'s history, so its date cannot be checked"
+        it = (lb.parse_closed_items(line) or [None])[0]
+        own = sorted({d for d in DAY_RE.findall(lb.CLOSED_ITEM_RE.match(line).group("text")) if lb._real_day(d)}
+                     - {iid[:10] if iid else None, str(getattr(it, "due", None) or "")})  # its own Added and Due days are no evidence
+        added = iid[:10] if iid else None
+        named = {d for d in own if d <= max(days) and (added is None or d >= added)}
+        if day not in days | named:
+            return "fail", (f"{iid}: dated Closed: {day}, but its close is on record on {'/'.join(sorted(days))} "
+                            f"and names {', '.join(own) or 'no day'} — a cleanup dates a close by its evidence (TD-277)")
+    def differs(gone, kept):
+        """Where a dropped copy and the one kept first part: each one's text around that point."""
+        a, k = "\n".join([gone[0], *gone[1]]), "\n".join([kept[0], *kept[1]])
+        p = next((x for x in range(min(len(a), len(k))) if a[x] != k[x]), min(len(a), len(k)))
+        cut = max(0, p - 25)
+
+        def show(s):
+            return ("…" if cut else "") + s[cut:p + 45].replace("\n", " ⏎ ")
+        return f"dropped «{show(a)}», kept «{show(k)}»"
+    odd = [(i, differs(gone, twins[0])) for i, gone, twins in dropped if gone not in twins]
+    msg = (f"a pre-split cleanup of the v2 board: {len(dated)} close(s) dated, {len(dropped)} closed copy(ies) of a "
+           "kept id dropped; split_board() refuses the base and accepts the head (TD-277)")
+    if odd:
+        msg += (f" — ⚠ {len(odd)} dropped copy(ies) differ from the one kept, for the review to compare: "
+                + "; ".join(f"{i}: {d}" for i, d in odd[:4]) + (f" (+{len(odd) - 4} more)" if len(odd) > 4 else ""))
+    return "pass", msg
+
+
 def row_board(pr, root):
     """TD-206, cadence §3.4: the board row. On a PR that changes the board, each item's net change across it —
     an open PR's merge-base against its head, a merged PR's merge commit against its parent — by the writers'
@@ -2153,6 +2312,10 @@ def row_board(pr, root):
     if base_t is None or head_t is None:
         return row("board", "unknown", f"the board at {old[:7]} or {new[:7]} is unreadable")
     base, head = board_of(base_t), board_of(head_t)
+    if head.form == "file" and base.form == "file":
+        got = v2_cleanup(root, old, base_t, head_t, files)
+        if got is not None:
+            return row("board", *got)
     if head.form == "file":
         what = ("the board is a v2 file (docs/user_attention.md) at the head: ledgerboard v3.0's writers write none, "
                 "so its change is not replayed")
