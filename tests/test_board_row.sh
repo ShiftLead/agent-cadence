@@ -264,7 +264,7 @@ R0b="$R"; R="$C2"
 crow() { git -C "$C2" add -A; git -C "$C2" commit -qm "$1"; row open HEAD; }
 redo() { git -C "$C2" reset -q --hard origin/main; }
 clean "$D1" "$A1" both; st=$(crow cleanup)
-[ "${st%% *}" = pass ] && echo "$st" | grep -q "2 close(s) dated, 2 closed copy(ies)" && echo "$st" | grep -q "⚠ dropped copies of 1 id" \
+[ "${st%% *}" = pass ] && echo "$st" | grep -q "2 close(s) dated, 2 closed copy(ies)" && echo "$st" | grep -qF "⚠ 1 dropped copy(ies) differ from the one kept, for the review to compare: " <<< "$st" && echo "$st" | grep -qF "the first wording?»" && echo "$st" | grep -qF "the second wording?»" \
   && ok "a pre-split cleanup: dated by its record and by its words, an exact twin and a superseded copy dropped (the copy named ⚠)" || bad "cleanup: $st"
 git -C "$C2" switch -q main; git -C "$C2" merge -q --squash cleanup; git -C "$C2" commit -qm "cleanup (#2)"
 st=$(row merged HEAD); [ "${st%% *}" = pass ] && echo "$st" | grep -q "a pre-split cleanup" && ok "the same cleanup after its squash merge passes as a cleanup" || bad "cleanup merged: $st"
@@ -288,6 +288,8 @@ redo; clean "$D1" "$D2" both; st=$(crow "cleanup, a day its words do not name")
 [ "${st%% *}" = fail ] && echo "$st" | grep -q "names .*$A1" && ok "a date after the record that its words do not name fails" || bad "words day: $st"
 redo; clean "$D1" "$A1" both; sed -i 's/Was: fine\./Was: fine, reworded./' "$AR"; st=$(crow "cleanup and an edit")
 [ "${st%% *}" = fail ] && echo "$st" | grep -q "a change no pre-split cleanup makes" && ok "a cleanup that also edits a kept line fails, naming it" || bad "edit: $st"
+redo; clean "$D1" "$A1" both; sed -i '/Was: fine\. Closed:/d' "$AR"; st=$(crow "cleanup and a dropped close")
+[ "${st%% *}" = fail ] && echo "$st" | grep -q "a change no pre-split cleanup makes" && ok "a cleanup that drops a closed item whose id is not kept fails" || bad "drop unkept: $st"
 redo; clean "$D1" "$A1" none; st=$(crow "dates only, twins kept")
 [ "${st%% *}" = fail ] && echo "$st" | grep -q "split it first" && ok "a head split_board() still refuses is no cleanup: split first, as before" || bad "still refused: $st"
 redo; git -C "$C2" switch -q main

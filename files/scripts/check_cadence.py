@@ -2234,7 +2234,7 @@ def v2_cleanup(root, old, base_t, head_t, files):
                 bid = _v2_closed(b[1])[0]
                 twins = kept_ids.get(bid) or []
                 if bid and twins:
-                    dropped.append((bid, any(t == (b[1], b[2]) for t in twins)))
+                    dropped.append((bid, (b[1], b[2]), twins))
                     i += 1
                     continue
             where = f"{path}: " + ((b[1] if b else h[1])[:60] + "…")
@@ -2253,11 +2253,21 @@ def v2_cleanup(root, old, base_t, head_t, files):
         if day not in days | named:
             return "fail", (f"{iid}: dated Closed: {day}, but its close is on record on {'/'.join(sorted(days))} "
                             f"and names {', '.join(own) or 'no day'} — a cleanup dates a close by its evidence (TD-277)")
-    odd = sorted({i for i, exact in dropped if not exact})
+    def differs(gone, kept):
+        """Where a dropped copy and the one kept first part: each one's text around that point."""
+        a, k = "\n".join([gone[0], *gone[1]]), "\n".join([kept[0], *kept[1]])
+        p = next((x for x in range(min(len(a), len(k))) if a[x] != k[x]), min(len(a), len(k)))
+        cut = max(0, p - 25)
+
+        def show(s):
+            return ("…" if cut else "") + s[cut:p + 45].replace("\n", " ⏎ ")
+        return f"dropped «{show(a)}», kept «{show(k)}»"
+    odd = [(i, differs(gone, twins[0])) for i, gone, twins in dropped if gone not in twins]
     msg = (f"a pre-split cleanup of the v2 board: {len(dated)} close(s) dated, {len(dropped)} closed copy(ies) of a "
            "kept id dropped; split_board() refuses the base and accepts the head (TD-277)")
     if odd:
-        msg += f" — ⚠ dropped copies of {len(odd)} id(s) differ from the one kept, for the review to weigh: {', '.join(odd[:5])}"
+        msg += (f" — ⚠ {len(odd)} dropped copy(ies) differ from the one kept, for the review to compare: "
+                + "; ".join(f"{i}: {d}" for i, d in odd[:4]) + (f" (+{len(odd) - 4} more)" if len(odd) > 4 else ""))
     return "pass", msg
 
 
