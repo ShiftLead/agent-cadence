@@ -307,7 +307,7 @@ lp set TD-021 --blocked-by "decision (Sam)" --by Sam >/dev/null 2>"$TMP/err"; rc
 onb() {  # the board on that branch at origin, flattened as flat() does
   local f; for f in $(git -C "$TMP/o2" ls-tree -r --name-only "$1" -- docs/user_attention 2>/dev/null | grep -v '/README.md$'); do
     printf '%s: %s \n' "${f#docs/user_attention/}" "$(git -C "$TMP/o2" show "$1:$f" | tr '\n' ' ')"; done; }
-out=$(lp set TD-002 --blocked-by "decision (Lee)" --by Robin --why "Lee owns exports now" 2>"$TMP/err"); rc=$?
+out=$(lp set TD-002 --blocked-by "decision (Lee)" --by Robin --why "Lee owns exports now, as docs/plans/TD-002-exports.md and a/TD-002/b say, and TD-002." 2>"$TMP/err"); rc=$?
 f=$(flat "$BD"); n=$(onb notices/w-TD-002-lee)
 [ $rc -eq 0 ] && grep -qx '\*\*Blocked by:\*\* decision (Lee)' "$L/TD-002.md" \
   && grep -q "^archive/.*/$I2.md: .*Context:\*\* TD-002 decision (Robin) .*Closed:\*\* $LOCAL — moved to decision (Lee) by Robin " <<< "$f" \
@@ -315,7 +315,8 @@ f=$(flat "$BD"); n=$(onb notices/w-TD-002-lee)
   && ! grep -q 'Context:\*\* TD-002 decision (Lee)' <<< "$f" \
   && grep -q '^[0-9][^/]*: .*Kind:\*\* decide .*Context:\*\* w#TD-002 decision (Lee) .*Due:\*\* ' <<< "$n" \
   && grep -q "w#TD-002.s decision moved from Robin to you" <<< "$n" \
-  && ! sed 's/^[^:]*: //' <<< "$n" | grep -q "[^#]TD-002" \
+  && grep -qF "as docs/plans/TD-002-exports.md and a/TD-002/b say, and w#TD-002." <<< "$n" \
+  && ! sed 's/^[^:]*: //; s#docs/plans/TD-002-exports.md##g; s#a/TD-002/b##g' <<< "$n" | grep -q "[^#]TD-002" \
   && [ "$(sort -u "$GH_LOG.pwd")" = "$(cd "$TMP/tools" && pwd -P)" ] \
   && [ "$(grep -vc '^archive/' <<< "$n")" -eq 2 ] \
   && grep -q '^pr create --head notices/w-TD-002-lee --base main --title board: w#TD-002 decision (Robin) moved to decision (Lee)' "$GH_LOG" \

@@ -395,7 +395,7 @@ def _other_board(top: Path, repo: str, board: str, root: str | None, items: list
             for it in items:
                 # sweep() writes the Context as <repo>#TD-n; a bare TD-n in the words would read as that repo's own
                 m = re.match(r"\S+#(TD-\d+)\b", it["context"])
-                bare = re.compile(rf"(?<![#\w]){re.escape(m.group(1))}\b") if m else None
+                bare = L.bare_id(m.group(1)) if m else None
                 fix = (lambda x: bare.sub(f"{repo.lower()}#{m.group(1)}", x)) if bare else (lambda x: x)
                 detail = ({k: [fix(x) for x in v] if isinstance(v, list) else fix(v)
                            for k, v in it["detail"].items()} if it["detail"] else None)
