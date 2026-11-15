@@ -42,7 +42,8 @@ generate_session_index.sh cron wrapper writes to docs/session_index.md).
 
 Resume a listed session with the line each block prints (Claude Code: claude --resume <session-uuid>;
 Gemini CLI: gemini --resume <session-uuid>, run from the directory the block names; Codex:
-codex resume <session-uuid>).
+codex resume <session-uuid>; Grok Build: grok --resume <session-uuid>, run from the directory the
+block names).
 A tool the `agents` setting lists that the adapter cannot read is named on stderr, not skipped.
 """
 

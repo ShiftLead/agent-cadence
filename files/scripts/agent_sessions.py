@@ -20,7 +20,9 @@ Backends: claude (the live registry ~/.claude/sessions/*.json and the transcript
 canary watches the registry); gemini (TD-109: ~/.gemini's projects.json and its
 tmp/<slug>/chats/*.jsonl, liveness from /proc — Gemini CLI keeps no live registry); codex
 (TD-102: the rollouts under ${CODEX_HOME:-~/.codex}/sessions/, found by the cwd their first
-record names, liveness from /proc — the process holds its rollout open, which names it).
+record names, liveness from /proc — the process holds its rollout open, which names it); grok
+(TD-252: the session directories under ${GROK_HOME:-~/.grok}/sessions/, grouped by the cwd
+their group's name encodes, liveness from /proc — the process holds no session file open).
 
 Stdlib only; imported by the scripts beside it.
 """
@@ -34,7 +36,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-BACKENDS = ("claude", "codex", "gemini")
+BACKENDS = ("claude", "codex", "gemini", "grok")
 
 
 @dataclass
@@ -132,6 +134,16 @@ def live(repo: "Path | str | None" = None) -> Seen:
                     out.blind.append(f"codex sessions: {why}")
                 continue
             out.items += codex_live()
+        elif tool == "grok":
+            why = _unreadable(_grok_dir()) or (None if procfs_available() else "no /proc to find its processes by")
+            if why:
+                if tool in want:
+                    out.blind.append(f"grok sessions: {why}")
+                continue
+            items, partial = grok_live()
+            out.items += items
+            if tool in want:
+                out.blind += partial
         else:
             out.blind.append(_blind_line(tool, "sessions"))
     return out
@@ -167,6 +179,13 @@ def history_dirs(repo: Path) -> Seen:
                     out.blind.append(f"codex transcripts: {why}")
                 continue
             out.items += [("codex", Path(cwd), wt) for cwd, wt in _codex_cwds(repo)]
+        elif tool == "grok":
+            why = grok_groups()[1]
+            if why:
+                if tool in want:
+                    out.blind.append(f"grok transcripts: {why}")
+                continue
+            out.items += [("grok", d, wt) for d, wt in _grok_cwds(repo)]
         else:
             out.blind.append(_blind_line(tool, "transcripts"))
     return out
@@ -208,6 +227,19 @@ def ever_ran(repo: Path) -> "bool | None":
             me = str(Path(repo).resolve())
             if any(cwd == me or cwd.startswith(me + "/") for cwd in codex_rollouts()):
                 return True
+        elif tool == "grok":
+            groups, why = grok_groups()
+            if why:
+                blind = blind or tool in want
+                continue
+            me = str(Path(repo).resolve())
+            try:  # os.listdir, never glob(): an unreadable group or session is blind, not "never ran"
+                for cwd, group in groups.items():
+                    if (cwd == me or cwd.startswith(me + "/")) and any(
+                            GROK_LOG in os.listdir(group / s) for s in os.listdir(group) if (group / s).is_dir()):
+                        return True
+            except OSError:
+                blind = True
         else:
             blind = True
     return None if blind else False
@@ -218,13 +250,16 @@ def resume_hint(session_id: str, tool: str = "claude") -> str:
     # only `latest` and an index; it is per project, so it runs in the session's directory
     return {"claude": f"claude --resume {session_id}",
             "codex": f"codex resume {session_id}",
-            "gemini": f"gemini --resume {session_id}"}.get(tool, f"resume {tool} session {session_id}")
+            "gemini": f"gemini --resume {session_id}",
+            "grok": f"grok --resume {session_id}"}.get(tool, f"resume {tool} session {session_id}")
 
 
 def transcripts(tool: str, d: Path) -> list[Path]:
     """The transcript files of one history_dirs() item."""
     if tool == "codex":
         return list(codex_rollouts().get(_codex_key(str(d)), []))
+    if tool == "grok":  # one directory per session, its log inside
+        return sorted(d.glob(f"*/{GROK_LOG}"))
     return sorted(d.glob("*.jsonl"))
 
 
@@ -232,12 +267,12 @@ def scan(tool: str, path: Path) -> "dict | None":
     """A non-Claude transcript's head and tail, unclipped, in list_sessions' keys (id, start,
     last, first_user, last_assistant, summary); None when it cannot be read or says nothing.
     Claude's scan stays list_sessions.scan_session — its format is that script's history."""
-    return {"gemini": gemini_scan, "codex": codex_scan}.get(tool, lambda _p: None)(path)
+    return {"gemini": gemini_scan, "codex": codex_scan, "grok": grok_scan}.get(tool, lambda _p: None)(path)
 
 
 def format_canary() -> "str | None":
     """Each backend's format warning, or None (TD-050)."""
-    notes = [n for n in (registry_format_note(), gemini_format_note(), codex_format_note()) if n]
+    notes = [n for n in (registry_format_note(), gemini_format_note(), codex_format_note(), grok_format_note()) if n]
     return "\n".join(notes) or None
 
 
@@ -666,6 +701,273 @@ def codex_format_note() -> "str | None":
     return (f"⚠ Codex's session files have moved on (read on 0.163.0): the newest rollout ({newest}) does not "
             "open with a session_meta record naming its id and cwd — until the scripts are updated, the "
             "session index and the sweep row may miss Codex sessions.")
+
+
+# ----------------------------------------------------------------------------------------
+# The Grok Build backend (TD-252), on the facts read off grok 1.0.77 on 2026-11-15 (its
+# user guide's *Session Management*, a real install's ~/.grok, and a live `grok agent stdio`
+# under a scratch GROK_HOME): one directory per session at
+# ${GROK_HOME:-~/.grok}/sessions/<the cwd, URL-encoded>/<session id>/ — a group name over
+# 255 bytes is a slug and a hash instead, the path in a .cwd file inside the group — each
+# holding summary.json (created_at, updated_at, last_active_at, session_summary, …) and updates.jsonl
+# (one ACP update a line, {timestamp: epoch seconds, method, params: {sessionId, update:
+# {sessionUpdate, content}}}). The process (comm grok, its exe downloads/grok-linux-x86_64)
+# holds no session file open and active_sessions.json's rows were not seen (it was empty), so
+# a live session's id is not knowable: like Gemini's, it is grok:<pid>.
+# ----------------------------------------------------------------------------------------
+
+GROK_COMM = "grok"
+GROK_LOG = "updates.jsonl"
+GROK_SUMMARY = "summary.json"
+
+
+def _grok_dir(*parts: str) -> Path:
+    return Path(os.environ.get("GROK_HOME") or Path.home() / ".grok").joinpath(*parts)
+
+
+def _grok_group_cwd(group: Path) -> "str | None":
+    """The cwd a session group stands for: its name URL-decoded, else its .cwd file (a long path)."""
+    from urllib.parse import unquote
+    name = unquote(group.name)
+    if name.startswith("/"):
+        return _codex_key(name)
+    try:
+        path = (group / ".cwd").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return _codex_key(path) if path.startswith("/") else None
+
+
+def grok_groups() -> "tuple[dict[str, Path], str | None]":
+    """cwd -> its session group dir, and why the store could not be read (None when it could).
+    A home with no sessions/ yet (installed, never run) is empty."""
+    root = _grok_dir("sessions")
+    why = _unreadable(_grok_dir())
+    out: dict[str, Path] = {}
+    if why is None and root.exists():
+        try:
+            for name in sorted(os.listdir(root)):
+                group = root / name
+                if group.is_dir():
+                    cwd = _grok_group_cwd(group)
+                    if cwd:
+                        out[cwd] = group
+                    else:  # a .cwd unreadable or gone: its sessions could be anyone's
+                        why = why or f"{group} names no working directory"
+        except OSError as e:
+            why = f"{root} unreadable ({e.strerror or e})"
+    return out, why
+
+
+def _grok_cwds(repo: "Path | str") -> list[tuple[Path, "str | None"]]:
+    """(group dir, worktree name or None) for the repo itself and each Claude-layout worktree
+    under it — the dirs the other backends find."""
+    me = str(Path(repo).resolve())
+    wt_dir = me + "/.claude/worktrees/"
+    out = []
+    for cwd, group in sorted(grok_groups()[0].items()):
+        if cwd == me:
+            out.append((group, None))
+        elif cwd.startswith(wt_dir) and "/" not in cwd[len(wt_dir):]:
+            out.append((group, cwd[len(wt_dir):]))
+    return out
+
+
+def _grok_is(pid: int) -> bool:
+    """Whether pid is a Grok Build process. comm is the name it was started by, cut to 15
+    characters: grok through the install's link, grok-linux-x86_ by the binary's own path,
+    agent through the install's other link (bin/agent) — so the binary itself is asked too."""
+    comm = _codex_comm(pid)
+    if comm == GROK_COMM or comm.startswith("grok-"):
+        return True
+    try:
+        return os.path.basename(os.readlink(f"/proc/{pid}/exe")).startswith("grok-")
+    except OSError:
+        return False
+
+
+def _grok_argv(pid: int) -> "list[str] | None":
+    """The pid's argv when it is a Grok Build process, else None."""
+    if not _grok_is(pid):
+        return None
+    try:
+        argv = [a for a in Path(f"/proc/{pid}/cmdline").read_bytes().decode("utf-8", "replace").split("\0") if a]
+    except OSError:
+        return None
+    return argv or None
+
+
+def _grok_role(argv: list[str]) -> str:
+    """session, leader (`grok agent leader`: the daemon other clients share, which keeps a
+    session running after its client quits, in no cwd of the session's) or tool (`grok
+    leader …`, which manages leaders). The subcommand is the first word after the binary."""
+    if argv[1:3] == ["agent", "leader"]:
+        return "leader"
+    if argv[1:2] == ["leader"]:
+        return "tool"
+    return "session"
+
+
+def _grok_cwd(pid: int, argv: list[str]) -> str:
+    """The session's working directory: `--cwd <dir>` where the command line names one, else the process's."""
+    try:
+        here = os.readlink(f"/proc/{pid}/cwd")
+    except OSError:
+        here = ""
+    for i, a in enumerate(argv):
+        given = a[len("--cwd="):] if a.startswith("--cwd=") else (argv[i + 1] if a == "--cwd" and i + 1 < len(argv) else None)
+        if given:
+            return _codex_key(os.path.join(here, given)) if given.startswith("/") or here else ""
+    return here
+
+
+def grok_live() -> "tuple[list[dict], list[str]]":
+    """Running Grok Build sessions, from /proc, and what keeps the answer partial. A session
+    is each grok process (a grok child of one in the same cwd folded into it); comm and the
+    binary are the identity test, so another program named grok reads as a session — the
+    guard then warns once too often, never too seldom. A running leader may hold sessions
+    whose clients have quit, in directories /proc does not show, and the home's
+    active_sessions.json (grok's own list of open sessions, its rows unread on 1.0.77, where
+    it was empty) naming sessions while no grok process runs means the same: both are blind."""
+    procs: dict[int, list[str]] = {}
+    blind: list[str] = []
+    try:
+        for name in os.listdir("/proc"):
+            if name.isdigit():
+                argv = _grok_argv(int(name))
+                if argv is None:
+                    continue
+                role = _grok_role(argv)
+                if role == "session":
+                    procs[int(name)] = argv
+                elif role == "leader":
+                    blind.append(f"grok sessions: a leader (pid {name}) is running, and the sessions it holds name no directory /proc shows")
+    except OSError:
+        return [], ["grok sessions: /proc unreadable"]
+    out = []
+    for pid in sorted(procs):
+        cwd, parent = _grok_cwd(pid, procs[pid]), _ppid(pid)
+        if parent in procs and _grok_cwd(parent, procs[parent]) == cwd:
+            continue
+        started = _proc_start_epoch(pid)
+        out.append({"tool": "grok", "id": f"grok:{pid}", "pid": pid, "cwd": cwd,
+                    **({"startedAt": started * 1000} if started is not None else {})})
+    if not out:
+        reg = _grok_dir("active_sessions.json")
+        try:
+            listed = json.loads(reg.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            listed = None
+        except (OSError, ValueError) as e:
+            listed = None
+            blind.append(f"grok sessions: {reg} unreadable ({e})")
+        if listed:
+            blind.append(f"grok sessions: {reg} lists open sessions and no grok process is running")
+    return out, blind
+
+
+def _grok_text(content) -> str:
+    """An update's text: a {type: text, text} block, or a list of {type: content, content: {…}} wrappers."""
+    if isinstance(content, dict):
+        if isinstance(content.get("content"), dict):
+            return _grok_text(content["content"])
+        return str(content.get("text") or "") if content.get("type") == "text" else ""
+    if isinstance(content, list):
+        return "\n".join(t for t in (_grok_text(c) for c in content) if t)
+    return ""
+
+
+def grok_scan(path: Path) -> "dict | None":
+    """One session's updates.jsonl: its id is its directory's name, its start summary.json's
+    created_at (else the first record's time), `last` the newest record's time, the first
+    user prompt and the last agent message (chunks of one message joined)."""
+    from datetime import datetime, timezone
+    info = {"id": path.parent.name, "file": path, "start": None, "last": None, "first_user": "", "last_assistant": "",
+            "summary": ""}
+    first = last = None
+    kind_was, msg = None, ""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                ts = rec.get("timestamp")
+                if isinstance(ts, (int, float)) and not isinstance(ts, bool):
+                    first = ts if first is None else first
+                    last = ts
+                params = rec.get("params")
+                up = params.get("update") if isinstance(params, dict) else None
+                if not isinstance(up, dict):
+                    continue
+                kind, text = up.get("sessionUpdate"), _grok_text(up.get("content"))
+                if kind == "user_message_chunk" and not info["first_user"] and text.strip():
+                    info["first_user"] = text
+                elif kind == "agent_message_chunk" and text:
+                    msg = msg + text if kind_was == kind else text
+                    if msg.strip():
+                        info["last_assistant"] = msg
+                kind_was = kind
+        mtime = path.stat().st_mtime
+    except OSError:
+        return None
+    try:
+        summary = json.loads((path.parent / GROK_SUMMARY).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        summary = {}
+    if not isinstance(summary, dict):
+        summary = {}
+    if isinstance(summary.get("session_summary"), str):
+        info["summary"] = summary["session_summary"]
+
+    def when(v) -> "datetime | None":
+        try:
+            if isinstance(v, str):  # nanoseconds on 1.0.77: fromisoformat takes six digits at most
+                d = datetime.fromisoformat(re.sub(r"(\.\d{6})\d+", r"\1", v.replace("Z", "+00:00")))
+            elif isinstance(v, (int, float)):
+                d = datetime.fromtimestamp(v, tz=timezone.utc)
+            else:
+                return None
+        except (ValueError, OverflowError, OSError):
+            return None
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    start = when(summary.get("created_at")) or when(first)  # an ISO string, as the other backends give it
+    info["start"] = start.strftime("%Y-%m-%dT%H:%M:%SZ") if start else None
+    info["last"] = when(last) or datetime.fromtimestamp(mtime, tz=timezone.utc)
+    if not (info["first_user"] or info["last_assistant"]):
+        return None
+    return info
+
+
+def grok_format_note() -> "str | None":
+    """TD-050's canary for Grok Build (read on 1.0.77): every session group must name a cwd
+    (URL-encoded, or a .cwd file), and the newest settled session's summary.json must parse
+    as an object carrying created_at. Silent when there is no session yet."""
+    root, now, bad = _grok_dir("sessions"), time.time(), []
+    try:
+        groups = [g for g in root.iterdir() if g.is_dir()]
+        if any(_grok_group_cwd(g) is None for g in groups):
+            bad.append(f"a session group under {root} names no working directory")
+        settled = sorted(((s.stat().st_mtime, s) for g in groups for s in g.iterdir()
+                          if s.is_dir() and now - s.stat().st_mtime >= REGISTRY_SETTLE_S), reverse=True)
+    except OSError:
+        return None  # unreadable is the store's blind line, not a format change
+    if settled:
+        newest = settled[0][1]
+        try:
+            summary = json.loads((newest / GROK_SUMMARY).read_text(encoding="utf-8"))
+            ok = isinstance(summary, dict) and "created_at" in summary
+        except (OSError, ValueError):
+            ok = False
+        if not ok:
+            bad.append(f"the newest session ({newest}) has no {GROK_SUMMARY} carrying created_at")
+    if not bad:
+        return None
+    return ("⚠ Grok Build's session files have moved on (read on 1.0.77): " + "; ".join(bad)
+            + " — until the scripts are updated, the session index and the sweep row may miss Grok sessions.")
 
 
 # ----------------------------------------------------------------------------------------

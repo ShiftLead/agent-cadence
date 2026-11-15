@@ -10,7 +10,7 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
-unset CADENCE_AGENTS CODEX_HOME
+unset CADENCE_AGENTS CODEX_HOME GROK_HOME
 mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
@@ -278,6 +278,118 @@ for target in "$CS" "$CODEX_HOME/sessions" "$CS/rollout-$STAMP-$CID.jsonl"; do
     chmod u+rwx "$target"
 done
 chmod 644 "$CS/rollout-$STAMP-$CID.jsonl"
+
+# --- 11) the Grok Build backend (TD-252): a fixture GROK_HOME in the shapes read off grok 1.0.77
+export GROK_HOME="$TMP/grokhome"; GS="$GROK_HOME/sessions"; mkdir -p "$GS"
+GID=01a1de5e-975d-74a2-8cf8-561ea58365b1; TS=$(date -u +%s); CREATED=$(date -u +%Y-%m-%dT%H:%M:%S.341299772Z)
+enc() { python3 -c 'import sys, urllib.parse as u; print(u.quote(sys.argv[1], safe=""))' "$1"; }
+gsession() {  # uuid cwd first-user reply [group dir name]
+    local d="$GS/${5:-$(enc "$2")}/$1"; mkdir -p "$d"
+    printf '{"created_at":"%s","last_active_at":"%s","session_summary":"","num_messages":1,"current_model_id":"grok-4.7","grok_home":"%s"}\n' "$CREATED" "$CREATED" "$GROK_HOME" > "$d/summary.json"
+    { printf '{"timestamp":%s,"method":"_x.ai/session/update","params":{"sessionId":"%s","update":{"sessionUpdate":"hook_execution"}}}\n' "$TS" "$1"
+      printf '{"timestamp":%s,"method":"session/update","params":{"sessionId":"%s","update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"%s"}}}}\n' "$TS" "$1" "$3"
+      printf '{"timestamp":%s,"method":"session/update","params":{"sessionId":"%s","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"%s"}}}}\n' "$TS" "$1" "$4"
+      printf '{"timestamp":%s,"method":"session/update","params":{"sessionId":"%s","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":" (cont.)"}}}}\n' "$TS" "$1"
+    } > "$d/updates.jsonl"
+}
+gsession "$GID" "$R" "fix the ledger from grok" "done from grok"
+gsession 01a1de5e-0000-7000-8000-000000000002 "$R/.claude/worktrees/gw1" "in a grok worktree" "ok"
+gsession 01a1de5e-0000-7000-8000-000000000003 /elsewhere "grok elsewhere" "no"
+# a long cwd: a slug and a hash for the group's name, the path in its .cwd file
+gsession 01a1de5e-0000-7000-8000-000000000004 "$R/.claude/worktrees/gw2" "a long-named group" "ok" "gw2-slug-0123abcd"
+echo "$R/.claude/worktrees/gw2" > "$GS/gw2-slug-0123abcd/.cwd"
+touch -d '1 minute ago' "$GS"/*/*
+out=$(cd "$R" && CADENCE_AGENTS="claude,grok" python3 "$S/list_sessions.py" --repo "$R" 2>&1)
+grep -q "^● $GID" <<< "$out" && grep -q "started: fix the ledger from grok" <<< "$out" \
+    && grep -q "ended:   done from grok (cont.)" <<< "$out" && grep -q "resume:  grok --resume $GID" <<< "$out" \
+    && ok "11a list_sessions: a Grok session found by its group's cwd, its chunks joined, its resume line" || bad "11a: $out"
+grep -qF "[$R/.claude/worktrees/gw1]" <<< "$out" && grep -q "a long-named group" <<< "$out" && ! grep -q "grok elsewhere" <<< "$out" \
+    && ok "11b list_sessions: the worktrees' Grok sessions (a .cwd group too), another cwd's left out" || bad "11b: $out"
+R3="$TMP/repo3"; mkdir -p "$R3"; gsession 01a1de5e-0000-7000-8000-000000000005 "$R3/sub" "in a subdir" "ok"
+[ "$(cd "$R3" && CADENCE_AGENTS=grok PYTHONPATH="$S" python3 -c 'import sys, agent_sessions as A; print(A.ever_ran(sys.argv[1]))' "$R3")" = True ] \
+    && ok "11c ever_ran: a Grok session from a subdirectory of the repo counts" || bad "11c"
+[ "$(PYTHONPATH="$S" python3 -c 'import agent_sessions as A; print(A.resume_hint("u", "grok"))')" = "grok --resume u" ] \
+    && ok "11d resume_hint: grok's" || bad "11d"
+! grep -q "Grok Build's session files have moved on" <<< "$(hook)" && ok "11e the canary is quiet on the shapes read" || bad "11e: $(hook)"
+mkdir -p "$GS/no-cwd-here/01a1de5e-0000-7000-8000-000000000006"; touch -d '1 minute ago' "$GS/no-cwd-here"/*
+grep -q "Grok Build's session files have moved on" <<< "$(hook)" \
+    && ok "11e' the canary names a group with no cwd and a session with no summary.json" || bad "11e': $(hook)"
+rm -rf "$GS/no-cwd-here"
+# live: a process named grok (python3 under that name) and a grok child in the same cwd (folded
+# in); one started with --cwd (and --cwd=, relative) counts where it says; one by the binary's
+# own name (comm grok-linux-x86_) counts; `grok leader …` is a tool, no session; a leader
+# (`grok agent leader`, python3 running a file named agent) makes the answer blind.
+ln -s "$(command -v python3)" "$NB/grok"; ln -s "$(command -v python3)" "$NB/grok-linux-x86_64"
+cat > "$NB/grok-main.py" <<'PY'
+import os, subprocess, sys, time
+if not any(a in ("child", "--cwd", "leader", "list") or a.startswith("--cwd=") for a in sys.argv[1:]):
+    subprocess.Popen([os.path.join(os.path.dirname(__file__), "grok"), __file__, "child"])
+time.sleep(30)
+PY
+mkdir -p "$TMP/elsewhere/sub" "$TMP/tooldir" "$R/.claude/worktrees/gw3" "$R/.claude/worktrees/gw5"
+cp "$NB/grok-main.py" "$TMP/elsewhere/agent"; cp "$NB/grok-main.py" "$TMP/tooldir/leader"
+(cd "$R" && exec timeout 20 "$NB/grok" "$NB/grok-main.py") & GP=$!
+(cd "$TMP/elsewhere" && exec timeout 20 "$NB/grok" "$NB/grok-main.py" --cwd "$R/.claude/worktrees/gw3") & GP2=$!
+(cd "$TMP/elsewhere" && exec timeout 20 "$NB/grok" "$NB/grok-main.py" --cwd=sub) & GP3=$!
+(cd "$R/.claude/worktrees/gw5" && exec timeout 20 "$NB/grok-linux-x86_64" "$NB/grok-main.py" child) & GP4=$!
+(cd "$TMP/tooldir" && exec timeout 20 "$NB/grok" leader list) & GP5=$!
+sleep 1
+gl() { (cd "$R" && CADENCE_AGENTS="claude,grok" PYTHONPATH="$S" python3 -c 'import sys, agent_sessions as A; s = A.live(); print(sorted((x["tool"], x["cwd"]) for x in s.items if x["tool"] == "grok" and x["cwd"].startswith(sys.argv[1])), "|", s.blind)' "$TMP"); }
+out=$(gl)
+[ "$out" = "[('grok', '$TMP/elsewhere/sub'), ('grok', '$R'), ('grok', '$R/.claude/worktrees/gw3'), ('grok', '$R/.claude/worktrees/gw5')] | []" ] \
+    && ok "11f live(): a Grok session (its child folded in), --cwd and --cwd= ones, one by the binary's name, no tool" || bad "11f: $out"
+out=$(cd "$R" && echo '{"session_id":"me","cwd":"'"$R"'"}' | CADENCE_AGENTS="claude,grok" python3 "$S/check_anchor.py" --hook 2>&1)
+grep -q "ANCHOR CONFLICT" <<< "$out" && grep -q "grok session grok:" <<< "$out" \
+    && ok "11g the anchor guard reports a Grok session in the main checkout" || bad "11g: $out"
+(cd "$TMP/elsewhere" && exec timeout 20 "$NB/grok" agent leader) & GP6=$!
+sleep 1
+grep -q "grok sessions: a leader (pid [0-9]*) is running" <<< "$(gl)" && ok "11m a running leader: cannot see" || bad "11m: $(gl)"
+kill "$GP" "$GP2" "$GP3" "$GP4" "$GP5" "$GP6" 2>/dev/null; wait "$GP" "$GP2" "$GP3" "$GP4" "$GP5" "$GP6" 2>/dev/null
+out=$(PYTHONPATH="$S" python3 -c 'import agent_sessions as A; print([A._grok_role(a) for a in (["grok", "-p", "leader"], ["grok", "agent", "leader"], ["grok", "leader", "list"], ["grok", "agent", "stdio"])])')
+[ "$out" = "['session', 'leader', 'tool', 'session']" ] && ok "11n a prompt that is the word leader is a session" || bad "11n: $out"
+# grok's own list of open sessions: rows while no grok process runs are blind; an empty list is not
+echo '[{"id":"x"}]' > "$GROK_HOME/active_sessions.json"
+grep -q "active_sessions.json lists open sessions and no grok process" <<< "$(gl)" && ok "11o active_sessions.json names a session /proc cannot find: cannot see" || bad "11o: $(gl)"
+echo '[]' > "$GROK_HOME/active_sessions.json"
+[ "$(gl)" = "[] | []" ] && ok "11p an empty active_sessions.json and no process: nobody" || bad "11p: $(gl)"
+rm "$GROK_HOME/active_sessions.json"
+# a long-named group whose .cwd is gone could be anyone's: blind, never "never ran"
+mv "$GS/gw2-slug-0123abcd/.cwd" "$TMP/cwd.off"
+out=$(cd "$R3" && CADENCE_AGENTS=grok PYTHONPATH="$S" python3 -c 'import sys, agent_sessions as A; print(A.ever_ran(sys.argv[1]), A.history_dirs(sys.argv[1]).blind)' "$R3")
+grep -q "^None .*grok transcripts: .*gw2-slug-0123abcd names no working directory" <<< "$out" \
+    && ok "11q a group with no .cwd: blind, not empty" || bad "11q: $out"
+mv "$TMP/cwd.off" "$GS/gw2-slug-0123abcd/.cwd"
+# the reaper: a landed worktree with a Grok session in it is not idle
+( cd "$W" && git worktree add -q -b wt4 .claude/worktrees/wt4 origin/main
+  ( cd .claude/worktrees/wt4 && echo z >> b.txt && git commit -qam z )
+  git merge -q --squash wt4 >/dev/null && git commit -qm "wt4 (#4)" && git push -q origin main && git fetch -q origin )
+(cd "$W/.claude/worktrees/wt4" && exec timeout 20 "$NB/grok" "$NB/grok-main.py" child) & GP=$!
+sleep 1
+out=$(cd "$W" && CADENCE_AGENTS="claude,grok" scripts/reap_worktrees.sh --reap 2>&1)
+[ -d "$W/.claude/worktrees/wt4" ] && grep -q "wt4.*idle=no" <<< "$out" \
+    && ok "11h the reaper holds off a worktree a Grok session is in" || bad "11h: $out"
+kill "$GP" 2>/dev/null; wait "$GP" 2>/dev/null
+mv "$GROK_HOME" "$GROK_HOME.off"
+out=$(cd "$R" && CADENCE_AGENTS="claude,grok" PYTHONPATH="$S" python3 -c 'import agent_sessions as A; print(A.live().blind, A.history_dirs(".").blind)')
+grep -q "grok sessions: no .*/grokhome" <<< "$out" && grep -q "grok transcripts: no .*/grokhome" <<< "$out" \
+    && ok "11i agents lists grok and there is no GROK_HOME: cannot see" || bad "11i: $out"
+mkdir -p "$GROK_HOME"
+out=$(cd "$R" && CADENCE_AGENTS="claude,grok" PYTHONPATH="$S" python3 -c 'import agent_sessions as A; h = A.history_dirs("."); print(h.blind, [i for i in h.items if i[0] == "grok"])')
+[ "$out" = "[] []" ] && ok "11j a GROK_HOME with no sessions/ yet: empty, not blind" || bad "11j: $out"
+rm -rf "$GROK_HOME"; mv "$GROK_HOME.off" "$GROK_HOME"
+# an unreadable GROK_HOME, sessions/, group or session is blind, never "never ran"
+G3="$GS/$(enc "$R3/sub")"
+for target in "$GROK_HOME" "$GS" "$G3" "$G3/01a1de5e-0000-7000-8000-000000000005"; do
+    chmod 000 "$target"
+    if [ -r "$target" ]; then
+        ok "11k unreadable $(basename "$target"): skipped (running as root)"
+    else
+        out=$(cd "$R3" && CADENCE_AGENTS=grok PYTHONPATH="$S" python3 -c 'import sys, agent_sessions as A; print(A.ever_ran(sys.argv[1]))' "$R3")
+        [ "$out" = None ] && ok "11k unreadable $(basename "$target"): blind, not empty" || bad "11k $(basename "$target"): $out"
+    fi
+    chmod u+rwx "$target"
+done
+unset GROK_HOME
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
