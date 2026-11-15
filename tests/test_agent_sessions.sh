@@ -347,11 +347,14 @@ grep -q "grok sessions: a leader (pid [0-9]*) is running" <<< "$(gl)" && ok "11m
 kill "$GP" "$GP2" "$GP3" "$GP4" "$GP5" "$GP6" 2>/dev/null; wait "$GP" "$GP2" "$GP3" "$GP4" "$GP5" "$GP6" 2>/dev/null
 out=$(PYTHONPATH="$S" python3 -c 'import agent_sessions as A; print([A._grok_role(a) for a in (["grok", "-p", "leader"], ["grok", "agent", "leader"], ["grok", "leader", "list"], ["grok", "agent", "stdio"])])')
 [ "$out" = "['session', 'leader', 'tool', 'session']" ] && ok "11n a prompt that is the word leader is a session" || bad "11n: $out"
-# grok's own list of open sessions: rows while no grok process runs are blind; an empty list is not
+# grok's own list of open sessions: rows while no grok process runs are blind; an empty list is not.
+# "No grok process" is pinned by stubbing the scan, never by hoping the machine runs none: a real
+# grok session on the host running the suite made 11o fail in a precheck (TD-276's #230).
+gn() { CADENCE_AGENTS="claude,grok" PYTHONPATH="$S" python3 -c 'import agent_sessions as A; A._grok_argv = lambda pid: None; s, b = A.grok_live(); print(s, "|", b)'; }
 echo '[{"id":"x"}]' > "$GROK_HOME/active_sessions.json"
-grep -q "active_sessions.json lists open sessions and no grok process" <<< "$(gl)" && ok "11o active_sessions.json names a session /proc cannot find: cannot see" || bad "11o: $(gl)"
+grep -q "active_sessions.json lists open sessions and no grok process" <<< "$(gn)" && ok "11o active_sessions.json names a session /proc cannot find: cannot see" || bad "11o: $(gn)"
 echo '[]' > "$GROK_HOME/active_sessions.json"
-[ "$(gl)" = "[] | []" ] && ok "11p an empty active_sessions.json and no process: nobody" || bad "11p: $(gl)"
+[ "$(gn)" = "[] | []" ] && ok "11p an empty active_sessions.json and no process: nobody" || bad "11p: $(gn)"
 rm "$GROK_HOME/active_sessions.json"
 # a long-named group whose .cwd is gone could be anyone's: blind, never "never ran"
 mv "$GS/gw2-slug-0123abcd/.cwd" "$TMP/cwd.off"
