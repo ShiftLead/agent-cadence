@@ -105,8 +105,26 @@ case("a new open decide with no detail block", board((1, CAN)),
 case("a deleted open item", board((1, CAN), (2, OLD)), board((2, OLD)), False, "board_edit.py done")
 case("editing an item's words in place", board((1, CAN)), board((1, CAN.replace("rotate the key", "rotate both keys"))), False,
      "not what the writers make")
-case("a closed item with no open item it closes", board((1, CAN)), board((1, CAN), (2, ed(OLD, ("done", {"why": "x"})))), False,
-     "board_edit.py done")
+# TD-275: an item added and closed within the change is judged by its open form (the file less its Closed: line)
+case("an item added then closed in one PR (add, then done)", board((1, CAN)), board((1, CAN), (2, ed(OLD, ("done", {"why": "x"})))), True)
+case("an item added, replied to, decided, then closed in one PR", board((1, CAN)),
+     board((1, CAN), (2, ed(DEC, ("reply", {"reply": "ok", "by": "Pat"}), ("decide", {"answer": "b", "by": "Pat"}), ("done", {"why": "x"})))), True)
+case("a gate item added then answered with decide --close in one PR", board((1, CAN)),
+     board((1, CAN), (2, lb.edit_item(GATE, "decide", answer="Go", by="Pat", today=T, close=True))), True)
+case("added and closed: an open form the writer would not write (no blank line after the heading)", board((1, CAN)),
+     board((1, CAN), (2, ed(OLD, ("done", {"why": "x"})).replace("## an old item\n\n", "## an old item\n", 1))), False,
+     "board_edit.py add")
+case("added and closed: a Closed: line placed where done never puts it", board((1, CAN)),
+     board((1, CAN), (2, OLD.replace("**Added:**", f"**Closed:** {T} — x\n**Added:**", 1))), False, "board_edit.py add, then done")
+case("added and closed: a decide without its detail block", board((1, CAN)),
+     board((1, CAN), (2, ed(DEC.split("\n\n- ")[0] + "\n", ("done", {"why": "x"})))), False, "board_edit.py add --detail")
+case("added and closed: a gate whose person is not on People:", board((1, CAN)),
+     board((1, CAN), (2, lb.edit_item(GATE.replace("decision (Pat)", "decision (Sam)"), "decide", answer="Go", by="Pat", today=T,
+                                      close=True))), False, "People:")
+case("added and closed: a Decided: by someone not on People:", board((1, CAN)),
+     board((1, CAN), (2, ed(DEC, ("decide", {"answer": "b", "by": "Sam"}), ("done", {"why": "x"})))), False, "not on the board's People:")
+case("a closed file new in the change with no item under it", board((1, CAN)), board((1, CAN), (2, f"**Closed:** {T} — x\n")), False,
+     "board_edit.py")
 case("an archived item changed", board((1, ed(CAN, ("done", {"why": "x"})))), board((1, ed(CAN, ("done", {"why": "y"})))), False,
      "archived item changed")
 case("a new decide whose gate person is not on People:", board((1, CAN)),
@@ -117,6 +135,9 @@ case("an impossible reply date fails, not a crash", board((1, CAN)), board((1, C
 # a closed item at the wrong path
 tree = {f"{D}/README.md": README, f"{D}/archive/1999-01/{iid(1)}.md": ed(CAN, ("done", {"why": "x"}))}
 case("a done filed under the wrong month", board((1, CAN)), C.board_of(tree), False, "the writers put this item at")
+tree = {f"{D}/README.md": README, f"{D}/archive/1999-01/{iid(2)}.md": ed(OLD, ("done", {"why": "x"}))}
+case("added and closed: filed under the wrong month", board((1, CAN)), C.board_of({**tree, path(iid(1), CAN): CAN}), False,
+     "the writers put this item at")
 # across the split: a v2 board's items pair by id with the files split_board() gives
 v2 = f"# board\n\nPeople: Pat\n\n- [ ] {P} (n/a) — rotate the key. Context: TD-1. Due: {F}.\n"
 split = lb.split_board(v2)
@@ -168,6 +189,18 @@ st=$(row open HEAD); [ "${st%% *}" = pass ] && ok "an open PR: a snooze commit t
 git -C "$R" switch -q main; git -C "$R" merge -q --squash topic; git -C "$R" commit -qm "squash (#9)"
 st=$(row merged HEAD); [ "${st%% *}" = pass ] && ok "the same PR after its squash merge passes" || bad "merged: $st"
 git -C "$R" reset -q --hard origin/main; git -C "$R" switch -q topic; git -C "$R" reset -q --hard origin/main
+# TD-275: an item the PR adds in one commit and closes in another passes, open and merged
+I3="$T-0000000c"
+commit "$(lbw add --board "$B" --id "$I3" --today "$T" --text "a filed-then-reworded item" --context TD-3 --due "$F" | subj)"
+commit "$(lbw done --board "$B" --id "$I3" --why "reworded below" | subj)"
+st=$(row open HEAD); [ "${st%% *}" = pass ] && ok "an open PR: an add commit then a done of that item passes (TD-275)" || bad "open add+done: $st"
+git -C "$R" switch -q main; git -C "$R" merge -q --squash topic; git -C "$R" commit -qm "squash (#10)"
+st=$(row merged HEAD); [ "${st%% *}" = pass ] && ok "the same add-and-close PR after its squash merge passes" || bad "merged add+done: $st"
+git -C "$R" reset -q --hard origin/main; git -C "$R" switch -q topic; git -C "$R" reset -q --hard origin/main
+mkdir -p "$B/archive/${T:0:7}"; printf '## hand made\n**Closed:** %s — x\n' "$T" > "$B/archive/${T:0:7}/$I3.md"; commit "hand close"
+st=$(row open HEAD); [ "${st%% *}" = fail ] && echo "$st" | grep -q "board_edit.py" \
+  && ok "an open PR: a closed file new at the head that no writer made still fails" || bad "hand closed new: $st"
+git -C "$R" reset -q --hard origin/main
 # a hand move into the archive fails
 mkdir -p "$B/archive/${T:0:7}"; git -C "$R" mv "$B/$I2.md" "$B/archive/${T:0:7}/$I2.md"; commit "move by hand"
 st=$(row open HEAD); [ "${st%% *}" = fail ] && echo "$st" | grep -q "board_edit.py" \

@@ -12,6 +12,9 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-15 — An item a PR adds and then closes passes the `board` row: reword it with `add` then `done`, never by squashing
+Do: an item filed earlier in the same PR is closed through `board_edit.py done` and filed again; the row judges the closed file's open form (the file less its `Closed:` line) as a new item. cadence.md §3.4 (TD-275).
+
 ## 2026-11-14 — An entry with an Ask, or owned by the person, carries a `decision (<person>)` gate
 Add the Ask, then `ledger.py set TD-n --blocked-by "decision (<person>)"` and its `decide` item; `new`, `set` and the cadence check's `ledger` row refuse the entry without one. cadence.md §2.14 (TD-264).
 
