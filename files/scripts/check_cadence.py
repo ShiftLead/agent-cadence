@@ -1883,12 +1883,65 @@ def _decided_check(it, people, what):
 _DECIDE_LEADS = {"context": "Context", "question": "Question", "recommended": "Recommended"}
 
 
+def _new_item_problem(it, people, gate_why, where):
+    """Why ``it``, an open item no item of the base has, is not one `board_edit.py add` would write, or None:
+    item_file_problem(), the gate's own fault for it (``gate_why``), a decide's detail block, its Decided:
+    (rule 3). The message names ``where``."""
+    lb = _lb()
+    problem = lb.item_file_problem(it.raw)
+    if problem:
+        return f"{where}: a new item the writer would not write ({problem}) — board_edit.py add"
+    if gate_why:
+        return f"{where}: {gate_why} — board_edit.py add"
+    if it.kind == "decide" and it.decided is None:
+        missing = [lead for lead in lb.DECIDE_NEEDS
+                   if not any(re.match(rf"^- \*\*{_DECIDE_LEADS[lead]}:\*\* ", x) for x in it.detail)]
+        if missing:
+            return (f"{where}: a new open decide without its detail block's "
+                    f"{', '.join(_DECIDE_LEADS[m] for m in missing)} — board_edit.py add --detail")
+    return _decided_check(it, people, where)
+
+
+def _added_and_closed(it, people, gated, where):
+    """Why ``it``, a closed item no item of the base has, is not one the change added and closed through the
+    writers (TD-275), or None. Its open form — the file with its `Closed:` line taken off, at `<id>.md` — must
+    pass the new-item checks (_new_item_problem; the gate's `People:` test on a decide naming a gate, where
+    ``gated``), `board_edit.py done` of that open form must give the file byte for byte (writers_made), and the
+    file must sit at the archive path the writers put it. The net change is read, never the commits, so an open
+    PR and a merged one read alike. An edit between the add and the close — a reply, a snooze, a due, a decide,
+    and `decide --close`, which writes Decided: beside Closed: — leaves its field in the open form, accepted as
+    it is on a new open item carrying it."""
+    lb = _lb()
+    lines = it.raw.splitlines(keepends=True)
+    at = next((i for i, ln in enumerate(lines)
+               if (m := lb.FIELD_RE.match(ln.rstrip("\r\n"))) and lb.field_key(m.group(1)) == "closed"), None)
+    opened = lb.parse_item("".join(lines[:at] + lines[at + 1:]), lb.item_path(it.id)) if at is not None else None
+    if opened is None or opened.closed is not None:
+        return f"{where}: a closed item with no open item it closes — board_edit.py done"
+    gate_why = None
+    if gated and people is not None and opened.kind == "decide" and opened.context:
+        on = {x.lower() for x in people}
+        off = [g.group("person") for g in lb.CONTEXT_GATE_RE.finditer(opened.context) if g.group("person").lower() not in on]
+        gate_why = f"context: the gate's person {', '.join(off)} is not on the board's `People:`" if off else None
+    why = _new_item_problem(opened, people, gate_why, f"{where} (added and closed in this change)")
+    if why:
+        return why
+    if not writers_made(opened.raw, it.raw):
+        return (f"{where}: a closed item new in this change, but not board_edit.py done of the item it would "
+                "have added — board_edit.py add, then done")
+    want = lb.item_path(it.id, it.closed[0].isoformat())
+    if it.path != want:
+        return f"{where}: the writers put this item at {want}"
+    return None
+
+
 def board_change_problems(base, head):
     """[(status, message)] — `fail` or `info` — for a change of the board from the Board ``base`` to the Board
     ``head`` (design §3, ledgerboard v3.0): each item's net change, paired by id. An item the change leaves
     byte-equal is never judged; a changed open item is what the writers make of its base (writers_made), at the
     path they put it (`<id>.md` open, `archive/<YYYY-MM>/<id>.md` closed); a new item is an open item file the
-    writer would write (item_file_problem(), the gate's board_problems(), a decide's detail block); a Decided:
+    writer would write (item_file_problem(), the gate's board_problems(), a decide's detail block), and a new
+    closed one is such a file closed through `done` (_added_and_closed, TD-275); a Decided:
     names who answered (rule 3); an open item gone from the head was deleted (the board closes, never deletes);
     an archived item never changes. A closed item the head holds is one the change names, so a base archive the
     change leaves alone is never read as deleted."""
@@ -1934,26 +1987,14 @@ def board_change_problems(base, head):
                     out.append(("fail", why))
             continue
         if it.closed is not None:
-            out.append(("fail", f"{where}: a closed item with no open item it closes — board_edit.py done"))
+            why = _added_and_closed(it, people, head.form == "dir", where)
+            if why:
+                out.append(("fail", why))
             continue
         if it.path != lb.item_path(it.id):
             out.append(("fail", f"{where}: an open item is <id>.md directly in the board — board_edit.py add"))
             continue
-        problem = lb.item_file_problem(it.raw)
-        if problem:
-            out.append(("fail", f"{where}: a new item the writer would not write ({problem}) — board_edit.py add"))
-            continue
-        if where in gate:
-            out.append(("fail", f"{where}: {gate[where]} — board_edit.py add"))
-            continue
-        if it.kind == "decide" and it.decided is None:
-            missing = [lead for lead in lb.DECIDE_NEEDS
-                       if not any(re.match(rf"^- \*\*{_DECIDE_LEADS[lead]}:\*\* ", x) for x in it.detail)]
-            if missing:
-                out.append(("fail", f"{where}: a new open decide without its detail block's "
-                                    f"{', '.join(_DECIDE_LEADS[m] for m in missing)} — board_edit.py add --detail"))
-                continue
-        why = _decided_check(it, people, where)
+        why = _new_item_problem(it, people, gate.get(where), where)
         if why:
             out.append(("fail", why))
     old_problems = set(base.problems)
