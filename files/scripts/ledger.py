@@ -1727,6 +1727,15 @@ def _roster_root(url: str, name: str) -> Path | None:
     return None
 
 
+def bare_id(tid: str) -> re.Pattern:
+    """A bare ``tid`` in an item's words, which a writer filing on another repo's board qualifies as
+    ``<repo>#TD-n`` so that board does not read it as its own entry — never one inside a path or a name
+    (``docs/plans/TD-109-x.md``, ``a/TD-109/b``, ``TD-109.md``), while one ending a sentence (``… TD-109.``)
+    still is (TD-274; ShiftLead's copy of the rule is its TD-1868). Both writers use it: ``_notices_pr`` here and
+    gate_sweep.py's other-board writer."""
+    return re.compile(rf"(?<![#\w/.-]){re.escape(tid)}(?![\w/-]|\.\w)")
+
+
 def _notices_pr(root: Path, specs: list[dict], closes: list, done_why: str, me: str, repo: str, gate: str,
                 to: str | None, by: str, said: str) -> str:
     """File ``specs`` on another roster repo's board, and close ``closes`` there (items as read at its
@@ -1743,7 +1752,7 @@ def _notices_pr(root: Path, specs: list[dict], closes: list, done_why: str, me: 
     default = N.default_branch(root)
     slug = lambda s: re.sub(r"[^A-Za-z0-9._-]+", "-", s).strip("-")   # noqa: E731
     branch = f"notices/{slug(repo)}-{me}-{slug(to[len('decision ('):-1]).lower() if to else 'override'}"
-    bare = re.compile(rf"(?<![#\w]){re.escape(me)}\b")   # a bare TD-n on that board would read as its own
+    bare = bare_id(me)   # a bare TD-n on that board would read as its own
     try:
         be = F.backend(root, cwd=root)   # gh infers the repo from its directory: that repo's, never this one
     except F.ForgeUnreadable as e:

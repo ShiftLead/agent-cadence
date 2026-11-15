@@ -112,7 +112,7 @@ OBARE="$TMP/oth.git"; git init -q --bare "$OBARE"; git -C "$OTH" remote set-url 
 board "$OTH" sam; item "$OTH" act "Lift of event (gone) on o/own#TD-007 was closed" "o/own#TD-007 event (gone) lift" >/dev/null
 board "$OWN" alex; item "$OWN" act "Lift of event (gone) on TD-007 was closed" "TD-007 event (gone) lift" >/dev/null
 entry "$OWN" 1 "decision (alex)" '**Ask:** Ship the thing?'
-entry "$OWN" 2 "decision (sam)" '**Ask:** Rename it, as TD-002 says?'
+entry "$OWN" 2 "decision (sam)" '**Ask:** Rename it, as TD-002 says in docs/plans/TD-002-name.md and a/TD-002/b, or as TD-002.?'
 entry "$OWN" 3 "until $PAST"
 entry "$OWN" 4 "event (landed)" "$(printf '**Event (landed):** the PR lands.\ncheck: pr-merged o/oth#3')"
 entry "$OWN" 7 -
@@ -139,9 +139,9 @@ grep -q 'Ship the thing?.*Context:\*\* TD-001 decision (alex)' <<< "$b" && ok "3
 grep -q '^archive/.*Lift of event (gone) on TD-007 was closed.*Closed:\*\* .* the gate sweep' <<< "$b" \
   && ok "3b ... and closes an item whose gate is gone" || bad "3b: $b"
 ob=$(bshow "$OBARE" "notices/o-own-sweep-$TODAY")
-! grep -q 'Rename it' <<< "$b" && grep -q 'Rename it, as o/own#TD-002 says?.*Context:\*\* o/own#TD-002 decision (sam)' <<< "$ob" \
+! grep -q 'Rename it' <<< "$b" && grep -qF 'Rename it, as o/own#TD-002 says in docs/plans/TD-002-name.md and a/TD-002/b, or as o/own#TD-002.?' <<< "$ob" && grep -q 'Context:\*\* o/own#TD-002 decision (sam)' <<< "$ob" \
   && has "board github.com/o/oth: opened https://github.com/o/oth/pull/" \
-  && ok "3c another repo's board: its item in a PR there, on notices/o-own-sweep-<date>, the entry named o/own#TD-n" || bad "3c: $out / $ob"
+  && ok "3c another repo's board: its item in a PR there, on notices/o-own-sweep-<date>, the entry named o/own#TD-n — a path's id left as written (TD-274)" || bad "3c: $out / $ob"
 grep -q "^oth: pr create --head notices/o-own-sweep-$TODAY --base main --title board: o/own's gate sweep $TODAY — 1 filed" "$GH_LOG" \
   && boardonly "$OBARE" main "notices/o-own-sweep-$TODAY" \
   && [ "$(git -C "$OTH" worktree list | wc -l)" = 1 ] && [ -z "$(git -C "$OTH" branch --list 'notices/*')" ] \
