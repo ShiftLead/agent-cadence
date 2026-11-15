@@ -316,26 +316,49 @@ grep -q "Grok Build's session files have moved on" <<< "$(hook)" \
     && ok "11e' the canary names a group with no cwd and a session with no summary.json" || bad "11e': $(hook)"
 rm -rf "$GS/no-cwd-here"
 # live: a process named grok (python3 under that name) and a grok child in the same cwd (folded
-# in); one started with --cwd counts where --cwd says; a leader is no session of its cwd.
-ln -s "$(command -v python3)" "$NB/grok"
+# in); one started with --cwd (and --cwd=, relative) counts where it says; one by the binary's
+# own name (comm grok-linux-x86_) counts; `grok leader …` is a tool, no session; a leader
+# (`grok agent leader`, python3 running a file named agent) makes the answer blind.
+ln -s "$(command -v python3)" "$NB/grok"; ln -s "$(command -v python3)" "$NB/grok-linux-x86_64"
 cat > "$NB/grok-main.py" <<'PY'
 import os, subprocess, sys, time
-if "child" not in sys.argv and "--cwd" not in sys.argv and "leader" not in sys.argv:
+if not any(a in ("child", "--cwd", "leader", "list") or a.startswith("--cwd=") for a in sys.argv[1:]):
     subprocess.Popen([os.path.join(os.path.dirname(__file__), "grok"), __file__, "child"])
 time.sleep(30)
 PY
-mkdir -p "$TMP/elsewhere" "$R/.claude/worktrees/gw3"
+mkdir -p "$TMP/elsewhere/sub" "$TMP/tooldir" "$R/.claude/worktrees/gw3" "$R/.claude/worktrees/gw5"
+cp "$NB/grok-main.py" "$TMP/elsewhere/agent"; cp "$NB/grok-main.py" "$TMP/tooldir/leader"
 (cd "$R" && exec timeout 20 "$NB/grok" "$NB/grok-main.py") & GP=$!
 (cd "$TMP/elsewhere" && exec timeout 20 "$NB/grok" "$NB/grok-main.py" --cwd "$R/.claude/worktrees/gw3") & GP2=$!
-(cd "$TMP/elsewhere" && exec timeout 20 "$NB/grok" "$NB/grok-main.py" agent leader) & GP3=$!
+(cd "$TMP/elsewhere" && exec timeout 20 "$NB/grok" "$NB/grok-main.py" --cwd=sub) & GP3=$!
+(cd "$R/.claude/worktrees/gw5" && exec timeout 20 "$NB/grok-linux-x86_64" "$NB/grok-main.py" child) & GP4=$!
+(cd "$TMP/tooldir" && exec timeout 20 "$NB/grok" leader list) & GP5=$!
 sleep 1
-out=$(cd "$R" && CADENCE_AGENTS="claude,grok" PYTHONPATH="$S" python3 -c 'import sys, agent_sessions as A; s = A.live(); print(sorted((x["tool"], x["cwd"]) for x in s.items if x["tool"] == "grok" and x["cwd"].startswith(sys.argv[1])), "|", s.blind)' "$TMP")
-[ "$out" = "[('grok', '$R'), ('grok', '$R/.claude/worktrees/gw3')] | []" ] \
-    && ok "11f live(): a Grok session (its child folded in), one by --cwd, no leader" || bad "11f: $out"
+gl() { (cd "$R" && CADENCE_AGENTS="claude,grok" PYTHONPATH="$S" python3 -c 'import sys, agent_sessions as A; s = A.live(); print(sorted((x["tool"], x["cwd"]) for x in s.items if x["tool"] == "grok" and x["cwd"].startswith(sys.argv[1])), "|", s.blind)' "$TMP"); }
+out=$(gl)
+[ "$out" = "[('grok', '$TMP/elsewhere/sub'), ('grok', '$R'), ('grok', '$R/.claude/worktrees/gw3'), ('grok', '$R/.claude/worktrees/gw5')] | []" ] \
+    && ok "11f live(): a Grok session (its child folded in), --cwd and --cwd= ones, one by the binary's name, no tool" || bad "11f: $out"
 out=$(cd "$R" && echo '{"session_id":"me","cwd":"'"$R"'"}' | CADENCE_AGENTS="claude,grok" python3 "$S/check_anchor.py" --hook 2>&1)
 grep -q "ANCHOR CONFLICT" <<< "$out" && grep -q "grok session grok:" <<< "$out" \
     && ok "11g the anchor guard reports a Grok session in the main checkout" || bad "11g: $out"
-kill "$GP" "$GP2" "$GP3" 2>/dev/null; wait "$GP" "$GP2" "$GP3" 2>/dev/null
+(cd "$TMP/elsewhere" && exec timeout 20 "$NB/grok" agent leader) & GP6=$!
+sleep 1
+grep -q "grok sessions: a leader (pid [0-9]*) is running" <<< "$(gl)" && ok "11m a running leader: cannot see" || bad "11m: $(gl)"
+kill "$GP" "$GP2" "$GP3" "$GP4" "$GP5" "$GP6" 2>/dev/null; wait "$GP" "$GP2" "$GP3" "$GP4" "$GP5" "$GP6" 2>/dev/null
+out=$(PYTHONPATH="$S" python3 -c 'import agent_sessions as A; print([A._grok_role(a) for a in (["grok", "-p", "leader"], ["grok", "agent", "leader"], ["grok", "leader", "list"], ["grok", "agent", "stdio"])])')
+[ "$out" = "['session', 'leader', 'tool', 'session']" ] && ok "11n a prompt that is the word leader is a session" || bad "11n: $out"
+# grok's own list of open sessions: rows while no grok process runs are blind; an empty list is not
+echo '[{"id":"x"}]' > "$GROK_HOME/active_sessions.json"
+grep -q "active_sessions.json lists open sessions and no grok process" <<< "$(gl)" && ok "11o active_sessions.json names a session /proc cannot find: cannot see" || bad "11o: $(gl)"
+echo '[]' > "$GROK_HOME/active_sessions.json"
+[ "$(gl)" = "[] | []" ] && ok "11p an empty active_sessions.json and no process: nobody" || bad "11p: $(gl)"
+rm "$GROK_HOME/active_sessions.json"
+# a long-named group whose .cwd is gone could be anyone's: blind, never "never ran"
+mv "$GS/gw2-slug-0123abcd/.cwd" "$TMP/cwd.off"
+out=$(cd "$R3" && CADENCE_AGENTS=grok PYTHONPATH="$S" python3 -c 'import sys, agent_sessions as A; print(A.ever_ran(sys.argv[1]), A.history_dirs(sys.argv[1]).blind)' "$R3")
+grep -q "^None .*grok transcripts: .*gw2-slug-0123abcd names no working directory" <<< "$out" \
+    && ok "11q a group with no .cwd: blind, not empty" || bad "11q: $out"
+mv "$TMP/cwd.off" "$GS/gw2-slug-0123abcd/.cwd"
 # the reaper: a landed worktree with a Grok session in it is not idle
 ( cd "$W" && git worktree add -q -b wt4 .claude/worktrees/wt4 origin/main
   ( cd .claude/worktrees/wt4 && echo z >> b.txt && git commit -qam z )

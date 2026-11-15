@@ -140,7 +140,10 @@ def live(repo: "Path | str | None" = None) -> Seen:
                 if tool in want:
                     out.blind.append(f"grok sessions: {why}")
                 continue
-            out.items += grok_live()
+            items, partial = grok_live()
+            out.items += items
+            if tool in want:
+                out.blind += partial
         else:
             out.blind.append(_blind_line(tool, "sessions"))
     return out
@@ -706,11 +709,11 @@ def codex_format_note() -> "str | None":
 # under a scratch GROK_HOME): one directory per session at
 # ${GROK_HOME:-~/.grok}/sessions/<the cwd, URL-encoded>/<session id>/ — a group name over
 # 255 bytes is a slug and a hash instead, the path in a .cwd file inside the group — each
-# holding summary.json (created_at, last_active_at, session_summary, …) and updates.jsonl
+# holding summary.json (created_at, updated_at, last_active_at, session_summary, …) and updates.jsonl
 # (one ACP update a line, {timestamp: epoch seconds, method, params: {sessionId, update:
-# {sessionUpdate, content}}}). No live registry the nets can read, and the process (comm
-# grok, its exe downloads/grok-linux-x86_64) holds no session file open, so a live session's
-# id is not knowable from /proc: like Gemini's, it is grok:<pid>.
+# {sessionUpdate, content}}}). The process (comm grok, its exe downloads/grok-linux-x86_64)
+# holds no session file open and active_sessions.json's rows were not seen (it was empty), so
+# a live session's id is not knowable: like Gemini's, it is grok:<pid>.
 # ----------------------------------------------------------------------------------------
 
 GROK_COMM = "grok"
@@ -749,6 +752,8 @@ def grok_groups() -> "tuple[dict[str, Path], str | None]":
                     cwd = _grok_group_cwd(group)
                     if cwd:
                         out[cwd] = group
+                    else:  # a .cwd unreadable or gone: its sessions could be anyone's
+                        why = why or f"{group} names no working directory"
         except OSError as e:
             why = f"{root} unreadable ({e.strerror or e})"
     return out, why
@@ -768,19 +773,39 @@ def _grok_cwds(repo: "Path | str") -> list[tuple[Path, "str | None"]]:
     return out
 
 
+def _grok_is(pid: int) -> bool:
+    """Whether pid is a Grok Build process. comm is the name it was started by, cut to 15
+    characters: grok through the install's link, grok-linux-x86_ by the binary's own path,
+    agent through the install's other link (bin/agent) — so the binary itself is asked too."""
+    comm = _codex_comm(pid)
+    if comm == GROK_COMM or comm.startswith("grok-"):
+        return True
+    try:
+        return os.path.basename(os.readlink(f"/proc/{pid}/exe")).startswith("grok-")
+    except OSError:
+        return False
+
+
 def _grok_argv(pid: int) -> "list[str] | None":
-    """The pid's argv when it is a Grok Build session process, else None. A leader (`grok
-    agent leader`, the daemon other clients share) is not a session of the cwd it runs in."""
-    if _codex_comm(pid) != GROK_COMM:
+    """The pid's argv when it is a Grok Build process, else None."""
+    if not _grok_is(pid):
         return None
     try:
         argv = [a for a in Path(f"/proc/{pid}/cmdline").read_bytes().decode("utf-8", "replace").split("\0") if a]
     except OSError:
         return None
-    words = [a for a in argv[1:] if not a.startswith("-")]
-    if words[:1] == ["leader"] or any(words[i:i + 2] == ["agent", "leader"] for i in range(len(words))):
-        return None
-    return argv
+    return argv or None
+
+
+def _grok_role(argv: list[str]) -> str:
+    """session, leader (`grok agent leader`: the daemon other clients share, which keeps a
+    session running after its client quits, in no cwd of the session's) or tool (`grok
+    leader …`, which manages leaders). The subcommand is the first word after the binary."""
+    if argv[1:3] == ["agent", "leader"]:
+        return "leader"
+    if argv[1:2] == ["leader"]:
+        return "tool"
+    return "session"
 
 
 def _grok_cwd(pid: int, argv: list[str]) -> str:
@@ -792,23 +817,33 @@ def _grok_cwd(pid: int, argv: list[str]) -> str:
     for i, a in enumerate(argv):
         given = a[len("--cwd="):] if a.startswith("--cwd=") else (argv[i + 1] if a == "--cwd" and i + 1 < len(argv) else None)
         if given:
-            return _codex_key(os.path.join(here, given))
+            return _codex_key(os.path.join(here, given)) if given.startswith("/") or here else ""
     return here
 
 
-def grok_live() -> list[dict]:
-    """Running Grok Build sessions, from /proc: each process whose comm is grok, a grok child
-    of a grok in the same cwd folded into it. comm alone is the identity test, so another
-    program named grok reads as a session: the guard then warns once too often, never too seldom."""
+def grok_live() -> "tuple[list[dict], list[str]]":
+    """Running Grok Build sessions, from /proc, and what keeps the answer partial. A session
+    is each grok process (a grok child of one in the same cwd folded into it); comm and the
+    binary are the identity test, so another program named grok reads as a session — the
+    guard then warns once too often, never too seldom. A running leader may hold sessions
+    whose clients have quit, in directories /proc does not show, and the home's
+    active_sessions.json (grok's own list of open sessions, its rows unread on 1.0.77, where
+    it was empty) naming sessions while no grok process runs means the same: both are blind."""
     procs: dict[int, list[str]] = {}
+    blind: list[str] = []
     try:
         for name in os.listdir("/proc"):
             if name.isdigit():
                 argv = _grok_argv(int(name))
-                if argv is not None:
+                if argv is None:
+                    continue
+                role = _grok_role(argv)
+                if role == "session":
                     procs[int(name)] = argv
+                elif role == "leader":
+                    blind.append(f"grok sessions: a leader (pid {name}) is running, and the sessions it holds name no directory /proc shows")
     except OSError:
-        return []
+        return [], ["grok sessions: /proc unreadable"]
     out = []
     for pid in sorted(procs):
         cwd, parent = _grok_cwd(pid, procs[pid]), _ppid(pid)
@@ -817,7 +852,18 @@ def grok_live() -> list[dict]:
         started = _proc_start_epoch(pid)
         out.append({"tool": "grok", "id": f"grok:{pid}", "pid": pid, "cwd": cwd,
                     **({"startedAt": started * 1000} if started is not None else {})})
-    return out
+    if not out:
+        reg = _grok_dir("active_sessions.json")
+        try:
+            listed = json.loads(reg.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            listed = None
+        except (OSError, ValueError) as e:
+            listed = None
+            blind.append(f"grok sessions: {reg} unreadable ({e})")
+        if listed:
+            blind.append(f"grok sessions: {reg} lists open sessions and no grok process is running")
+    return out, blind
 
 
 def _grok_text(content) -> str:
