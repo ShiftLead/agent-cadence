@@ -1276,7 +1276,8 @@ def edit(cmd: str, argv: list[str]) -> int:
         ap.add_argument("--why", help="a reassign's why (the Blocked by swaps one decision for another)")
         ap.add_argument("--override", metavar="WHY", help="lift the decision by override, --by anyone: its why")
         ap.add_argument("--ask", metavar="FILE", help="the entry's Ask section from a file, or - for stdin, written in "
-                        "the same write as the decision (<person>) gate --blocked-by gives (ledgerboard v3.2, TD-272)")
+                        "the same write as the decision (<person>) gate --blocked-by gives (ledgerboard v3.2, TD-272); "
+                        "it rides on a field or --title, so an Ask already gated is rewritten with edit --section Ask")
     elif cmd == "note":
         ap.add_argument("words", help="the note, one line")
     else:
