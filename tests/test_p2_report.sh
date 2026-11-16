@@ -504,6 +504,8 @@ assert [i["refs"] for i in it if i["id"] == sys.argv[1]] == [["TD-7"]], it
 print("ok")' "$VI1" "$VI2" 2>&1)
 [ "$chk" = ok ] && ok "v3 board --json: items by id, refs from Context" || bad "v3 json: $chk"
 out=$(env -u NUDGE_COMMAND python3 "$NEW" --board "$V3/docs/user_attention.md" --dry-run 2>&1)
+# on a Monday the nudge appends its weekly review of every open item (TD-279): judge the due list above it
+out=$(sed '/Weekly board review/,$d' <<< "$out")
 grep -q "v3 overdue thing\." <<< "$out" && ! grep -q "v3 later thing" <<< "$out" && ok "v3 board: nudge mode lists the due item" || bad "v3 nudge: $out"
 out=$(python3 "$NEW" --report --board "$V3/docs/user_attention" 2>&1)
 grep -q "v3 overdue thing" <<< "$out" && ok "v3 board: the directory named itself reads too" || bad "v3 dir path: $out"
