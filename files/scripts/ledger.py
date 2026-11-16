@@ -172,6 +172,7 @@ from pathlib import Path, PurePosixPath
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ledgerboard as LB  # noqa: E402  # sibling SYNC file: the ledger format, defined once (ShiftLead/ledgerboard)
 import nudge_user_attention as N  # noqa: E402  # sibling SYNC script: the roster, origin and default-branch readers (§9) — the resolver only
+import person_text as PT  # noqa: E402  # sibling SYNC script: text a person reads, checked at its writer (TD-268)
 from ledgerboard import (  # noqa: E402,F401  # re-exported: readers and tests reach them as ledger.<name>
     BLOCKED_RE,
     CADENCE_FIELDS,
@@ -1185,6 +1186,8 @@ def new(argv: list[str]) -> int:
     w = _Writer.open("new", a.ledger)
     if isinstance(w, int):
         return w
+    if _person_text(w, "new", title=a.title, ask=next((b for n, b in sections if n == "Ask"), None)):
+        return 1
     known = LB.heading_nums(w.text) | LB.heading_nums(w.arch)
     if w.xrepo_refused(_field_value(fields, "blocked by")):
         return 1
@@ -1330,6 +1333,10 @@ def edit(cmd: str, argv: list[str]) -> int:
     w = _Writer.open(cmd, a.ledger)
     if isinstance(w, int):
         return w
+    sec = (kw.get("section") or "").strip().lower() if cmd == "edit" and "words" in kw else ""
+    ask = kw.get("ask") if cmd == "set" else kw["words"] if sec == "ask" else None
+    if _person_text(w, cmd, title=kw.get("title"), ask=ask, answers=kw["words"] if sec == "answers" else None):
+        return 1
     if cmd == "set":
         if w.xrepo_refused(_field_value(given, "blocked by"), _blocked_raw(w, a.id)):
             return w.say(cmd, "nothing was written", 1)
@@ -1416,6 +1423,31 @@ def _lb_edit(w: _Writer, cmd: str, tid: str, kw: dict) -> int:
         return w.say(cmd, f"the write failed, every file restored: {e}", 4)
     print(LB.entry_path(str(w.ledger), tid, w.io[0]))
     return 0
+
+
+def _person_text(w: "_Writer", cmd: str, *, title: str | None = None, ask: str | None = None,
+                 answers: str | None = None) -> bool:
+    """TD-268: the person-text rules on what this write gives a person to read (``person_text.py``): a title
+    (rule 3), an Ask (rule 1, its context rule 4) and an Answers (rule 2), the people the board's ``People:``
+    names. Every problem is printed; True when one refuses the write."""
+    try:
+        fls, fread = fs_io()
+        people = LB.board_people(_board_in(((lambda p: fls(str(w.root / p))), (lambda p: fread(str(w.root / p))))))
+    except (OSError, ValueError, LB.Refused) as e:  # a board the reader refuses: no names, the rules still run
+        print(f"ledger: {cmd}: note — the board's People: names were not read ({e}); a person's name does not "
+              "count as who acts", file=sys.stderr)
+        people = None
+    people = [n for n in people or [] if n.strip()]  # a People: line with an empty name is the board's problem
+    probs = [("the title", PT.title_problems(title)) if title is not None else None,
+             ("the Ask", PT.ask_problems(ask, people)) if ask is not None else None,
+             ("the Answers", PT.answers_problems(answers, people)) if answers is not None else None]
+    refused = False
+    for what, got in filter(None, probs):
+        refused = PT.report(f"ledger: {cmd}", what, got) or refused
+    if refused:
+        print(f"ledger: {cmd}: nothing was written — text a person reads is one plain sentence, an answer says who "
+              "acts, a title is plain words (cadence.md §2.3)", file=sys.stderr)
+    return refused
 
 
 BOARD_REL = "docs/user_attention.md"  # a repo's board (§3.4): the stub naming its v3 directory, or a v2 board — a path

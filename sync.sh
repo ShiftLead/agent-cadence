@@ -75,6 +75,8 @@ SYNC_FILES=(
     "scripts/nudge_user_attention.py"
     "scripts/board_edit.py"
     "scripts/ledger.py"
+    "scripts/person_text.py"
+    "scripts/person_text.json"
     "scripts/ledger_next_id.py"
     "scripts/ledgerboard/__init__.py"
     "scripts/ledgerboard/board.py"

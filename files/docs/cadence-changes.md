@@ -12,6 +12,9 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-16 — A ledger Ask is a question first; an answer says who acts; a title is plain words
+Do: write an Ask's first paragraph as one question of at most 25 words with no code, its context after a blank line; give each answer a consequence naming who acts (*I'll…*, *you…*, *a session…*); keep ids, labels and code out of a title. `ledger.py new`, `set` and `edit` refuse what breaks them. cadence.md §2.3 (TD-268).
+
 ## 2026-11-16 — An Ask is written with its decision gate, in one write
 Do: `ledger.py set TD-n --blocked-by "<ids>, decision (<person>)" --ask FILE` (or `new … --ask FILE`), never `edit --section Ask` then `set`: ledgerboard v3.2 refuses an Ask on an entry with no decision gate (`decision-missing`). cadence.md §2.3, §2.14 (TD-272).
 

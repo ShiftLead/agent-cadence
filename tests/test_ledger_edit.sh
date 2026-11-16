@@ -186,7 +186,7 @@ cp "$L/TD-004.md" "$TMP/td4"
 lp set TD-004 --owner person >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused — ⚠ TD-004 waits on the person (Owner: person) but its Blocked by has no decision' "$TMP/err" \
   && cmp -s "$L/TD-004.md" "$TMP/td4" && ok "set refuses Owner: person with no decision gate, writing nothing" || bad "ungated owner (rc=$rc): $(cat "$TMP/err")"
-printf 'Should it? Yes or no.\n' > "$TMP/ask.md"
+printf 'Should it go ahead?\n' > "$TMP/ask.md"
 lp edit TD-004 --section Ask --from "$TMP/ask.md" >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused' "$TMP/err" && cmp -s "$L/TD-004.md" "$TMP/td4" \
   && ok "an Ask written ahead of its gate is refused, writing nothing (ledgerboard v3.2 decision-missing, TD-272)" \
@@ -198,7 +198,7 @@ lp set TD-004 --blocked-by "" --by Alex --ask "$TMP/ask.md" >/dev/null 2>"$TMP/e
   && cmp -s "$L/TD-004.md" "$TMP/td4" && ok "set refuses an empty --ask, and --ask with --by, writing nothing" \
   || bad "ask refusals (r1=$r1 r2=$r2): $(cat "$TMP/err" "$TMP/err2")"
 lp set TD-004 --owner person --blocked-by "decision (Alex)" --ask "$TMP/ask.md" >/dev/null 2>"$TMP/err" \
-  && grep -qx '\*\*Blocked by:\*\* decision (Alex)' "$L/TD-004.md" && grep -qx '\*\*Ask:\*\* Should it? Yes or no.' "$L/TD-004.md" \
+  && grep -qx '\*\*Blocked by:\*\* decision (Alex)' "$L/TD-004.md" && grep -qx '\*\*Ask:\*\* Should it go ahead?' "$L/TD-004.md" \
   && ok "set --ask writes the Owner, its decision gate and its Ask in one write" || bad "gated owner: $(cat "$TMP/err")"
 printf '## TD-007: seven\n\n**Priority:** Low\n**Owner:** person\n**Status:** Open\n\n**Why:** standing.\n' > "$L/TD-007.md"
 git -C "$W" add docs/ledger/TD-007.md; git -C "$W" commit -qm seven; git -C "$W" push -q origin main
@@ -218,6 +218,35 @@ PY
 )
 [ "$out" = "[('TD-009', 'info'), ('TD-010', 'error')]" ] \
   && ok "a lift that leaves the wait is standing (only its person drops a decision); a new ungated entry is an error" || bad "lift standing: $out"
+
+# --- TD-268: text a person reads is checked at its writer (person_text.py: ledgerboard's rules, the process's words)
+cp "$L/TD-004.md" "$TMP/td4b"
+printf 'Say Go to build it, or Hold with a note.\n' > "$TMP/stmt.md"
+lp edit TD-004 --section Ask --from "$TMP/stmt.md" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'refused — the Ask: rule 1: .*does not end in ?' "$TMP/err" && cmp -s "$L/TD-004.md" "$TMP/td4b" \
+  && ok "edit refuses an Ask that is a statement, not a question (rule 1), writing nothing" || bad "stmt ask (rc=$rc): $(cat "$TMP/err")"
+printf 'Should the cache live on disk?\n\nThe reader is `cache.py`, which runs nightly.\n' > "$TMP/ctx.md"
+lp edit TD-004 --section Ask --from "$TMP/ctx.md" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && grep -q 'warning — the Ask: rule 4: .*cache.py' "$TMP/err" && grep -qx '\*\*Ask:\*\* Should the cache live on disk?' "$L/TD-004.md" \
+  && ok "an Ask whose context holds code is written, with a rule 4 warning" || bad "ctx ask (rc=$rc): $(cat "$TMP/err")"
+cp "$L/TD-004.md" "$TMP/td4b"
+printf 'Go — a session builds it | Hold\n' > "$TMP/ans.md"
+lp edit TD-004 --section Answers --from "$TMP/ans.md" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'refused — the Answers: rule 2: answer 2 names nobody who acts' "$TMP/err" && ! grep -q 'answer 1' "$TMP/err" \
+  && cmp -s "$L/TD-004.md" "$TMP/td4b" && ok "edit refuses an answer that names nobody who acts (rule 2), passing one that names a session" \
+  || bad "answers (rc=$rc): $(cat "$TMP/err")"
+printf 'Go — a session builds it | Hold — you say what changes first\n' > "$TMP/ans.md"
+lp edit TD-004 --section Answers --from "$TMP/ans.md" >/dev/null 2>"$TMP/err" && grep -q '^\*\*Answers:\*\* Go — a session builds it' "$L/TD-004.md" \
+  && ok "answers that each say who acts are written" || bad "answers ok: $(cat "$TMP/err")"
+out=$(cd "$DC/files/scripts" && python3 -c '
+import ledgerboard as LB, person_text as PT
+a = ["Go — a session builds it"]
+print(len(LB.person_text_problems(None, a, question=True)), len(PT.answers_problems(a[0])))')
+[ "$out" = "1 0" ] && ok "a right answer naming a session passes only because person_text.json's actors are passed" || bad "actors: $out"
+cp "$L/TD-004.md" "$TMP/td4b"
+lp set TD-004 --title "Fix S3 before the next slice" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'refused — the title: rule 3: .*S3' "$TMP/err" && cmp -s "$L/TD-004.md" "$TMP/td4b" \
+  && ok "set --title refuses a title holding a label or a coined word (rule 3), writing nothing" || bad "title (rc=$rc): $(cat "$TMP/err")"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

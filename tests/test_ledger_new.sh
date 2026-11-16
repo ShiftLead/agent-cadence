@@ -159,14 +159,23 @@ out=$(lp new --id TD-090 --title "old take" --priority Low --why "$TMP/why.md" 2
   || bad "no-nonce take (rc=$rc): out=$out $(cat "$TMP/err")"
 
 # ledgerboard v3.2 (TD-272): an entry that waits on the person is filed with its gate and its Ask in one write
-printf 'Should it? Yes or no.\n' > "$TMP/ask.md"; : > "$TMP/empty.md"; was=$(last "$O")
+printf 'Should it go ahead?\n' > "$TMP/ask.md"; : > "$TMP/empty.md"; was=$(last "$O")
 lp new --title asked --priority Low --why "$TMP/why.md" --ask "$TMP/ask.md" >/dev/null 2>"$TMP/err"; r1=$?
 lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --ask "$TMP/empty.md" >/dev/null 2>"$TMP/err2"; r2=$?
 [ $r1 -eq 1 ] && grep -q 'refused' "$TMP/err" && [ $r2 -eq 2 ] && grep -q -- '--ask is empty' "$TMP/err2" && [ "$(last "$O")" = "$was" ] \
   && ok "new refuses an Ask with no decision gate, and an empty --ask, before the take" \
   || bad "new ask refusals (r1=$r1 r2=$r2): $(cat "$TMP/err" "$TMP/err2")"
 out=$(lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --ask "$TMP/ask.md" 2>"$TMP/err"); rc=$?
-[ $rc -eq 0 ] && grep -qx '\*\*Blocked by:\*\* decision (Alex)' "$out" && grep -qx '\*\*Ask:\*\* Should it? Yes or no.' "$out" \
+[ $rc -eq 0 ] && grep -qx '\*\*Blocked by:\*\* decision (Alex)' "$out" && grep -qx '\*\*Ask:\*\* Should it go ahead?' "$out" \
   && ok "new --ask files the entry with its decision gate and its Ask" || bad "new --ask (rc=$rc): $(cat "$TMP/err")"
+# TD-268: a title is plain words and an Ask a question, judged before the take
+was=$(last "$O")
+lp new --title "TD-12 follow-up" --priority Low --why "$TMP/why.md" >/dev/null 2>"$TMP/err"; r1=$?
+printf 'Say Go to build it.\n' > "$TMP/stmt.md"
+lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --ask "$TMP/stmt.md" >/dev/null 2>"$TMP/err2"; r2=$?
+[ $r1 -eq 1 ] && grep -q 'refused — the title: rule 3: .*TD-12' "$TMP/err" && [ $r2 -eq 1 ] && grep -q 'refused — the Ask: rule 1' "$TMP/err2" \
+  && [ "$(last "$O")" = "$was" ] && ok "new refuses a title holding an id (rule 3) and an Ask that is a statement (rule 1), before the take" \
+  || bad "new person text (r1=$r1 r2=$r2): $(cat "$TMP/err" "$TMP/err2")"
+
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
