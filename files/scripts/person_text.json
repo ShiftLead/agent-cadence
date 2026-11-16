@@ -1,0 +1,7 @@
+{
+  "about": "The process's words for ledgerboard's checks of text a person reads (ShiftLead design 4.10 'Text a person reads is checked at its writer'; ledgerboard TD-111 D1; agent-cadence TD-268). Every writer passes them: actors= to person_text_problems(), coined= and labels= to title_problems(). One file, read by this repo's writers and by ShiftLead's msg road from its agent-cadence pin.",
+  "actors": ["session", "seat", "techlead", "grinder", "designer", "manager", "director", "reviewer", "builder",
+             "lead", "worker", "agent", "the home", "the host agent"],
+  "coined": ["slice", "seam", "tripwire"],
+  "labels": ["[A-Z]{1,2}\\d+", "#\\d+"]
+}
