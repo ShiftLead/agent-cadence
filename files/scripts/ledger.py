@@ -1433,9 +1433,11 @@ def _person_text(w: "_Writer", cmd: str, *, title: str | None = None, ask: str |
     try:
         fls, fread = fs_io()
         people = LB.board_people(_board_in(((lambda p: fls(str(w.root / p))), (lambda p: fread(str(w.root / p))))))
-    except Exception:  # noqa: BLE001  # no board, or one the reader refuses: no names, the rules still run
+    except (OSError, ValueError, LB.Refused) as e:  # a board the reader refuses: no names, the rules still run
+        print(f"ledger: {cmd}: note — the board's People: names were not read ({e}); a person's name does not "
+              "count as who acts", file=sys.stderr)
         people = None
-    people = people or []
+    people = [n for n in people or [] if n.strip()]  # a People: line with an empty name is the board's problem
     probs = [("the title", PT.title_problems(title)) if title is not None else None,
              ("the Ask", PT.ask_problems(ask, people)) if ask is not None else None,
              ("the Answers", PT.answers_problems(answers, people)) if answers is not None else None]
