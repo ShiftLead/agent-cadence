@@ -1111,9 +1111,9 @@ apr 12 ask-ok "$OKA"; out=$(arun --pr 12)
 [ "$(rowstat "$out" ledger)" = PASS ] && ! lrow "$out" | grep -q "Ask:" && ok "ledger: an added entry with an Ask: line below its header does not warn" || bad "ask ok: $(lrow "$out")"
 apr 13 ask-hdr "$HDR"; out=$(arun --pr 13)
 hc=$( cd "$AR" && git checkout -q ask-hdr && python3 "$DC/files/scripts/ledger.py" --check --since origin/main 2>&1 )
-[ "$(rowstat "$out" ledger)" = FAIL ] && lrow "$out" | grep -qF "⚠ TD-013 waits on the person (an **Ask:**) but its Blocked by has no decision" \
+[ "$(rowstat "$out" ledger)" = FAIL ] && lrow "$out" | grep -qF "⚠ TD-013: has an **Ask:** but its Blocked by names no decision (<person>)" \
   && grep -qF "TD-013 waits on the person (Answers:; its Ask: is in the header)" <<< "$hc" \
-  && ok "ledger: an Ask: in the header block counts as a wait on the person (TD-264 fails it ungated); --check says where the Ask: is" || bad "ask header: $(lrow "$out") $hc"
+  && ok "ledger: an Ask: in the header block counts as a wait on the person (ledgerboard v3.2's decision-missing fails it ungated, TD-272); --check says where the Ask: is" || bad "ask header: $(lrow "$out") $hc"
 apr 10 ask-edit "$EDT"; out=$(arun --pr 10)
 # ledgerboard v2.4 (SPEC *The ledger*, ask-missing in EDIT_ERRORS): a decision gate with no Ask: on an entry the
 # edit changed is an error — the row fails, naming it; an Owner: person with none still only warns (TD-011 above)

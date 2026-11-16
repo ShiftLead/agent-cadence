@@ -6,8 +6,8 @@
     ledger.py --pickable [--ledger PATH] [--archive PATH] [--json]
     ledger.py --summary | --split
     ledger.py fmt [TD-n …] [--check]
-    ledger.py new --title T --priority P --why FILE|- [--fix FILE|-] [--done-when FILE|-] [--type …] [--id TD-n] …
-    ledger.py set TD-n --FIELD VALUE … [--title T]  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|- | --remove
+    ledger.py new --title T --priority P --why FILE|- [--ask FILE|-] [--fix FILE|-] [--done-when FILE|-] [--type …] [--id TD-n] …
+    ledger.py set TD-n --FIELD VALUE … [--title T] [--ask FILE|-]  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|- | --remove
     ledger.py lift TD-n --gate "event (<name>)"|"until D" --by HOST [--evidence E]   (a host's lift, TD-219)
 
 An entry may carry one optional field after **Status:** (cadence.md §2):
@@ -550,16 +550,16 @@ def ask_flags(ledger: str, archive: str, old: str | None = None) -> list[dict]:
             for tid, why in ask_missing(ledger, archive).items()]
 
 
-# TD-264 (rule 6): nothing that waits on the person is invisible. An open entry with an **Ask:** (in its body
-# or, the old place, its header) or an Owner who is a person (ask_missing()'s people) and no decision (<who>)
-# gate is on no Queue: the gate sweep files a decide only for a gate, and Owner never blocks (cadence.md §2.14).
+# TD-264 (rule 6): nothing that waits on the person is invisible. An open entry with an Owner who is a person
+# (ask_missing()'s people) and no decision (<who>) gate is on no Queue: the gate sweep files a decide only for a
+# gate, and Owner never blocks (cadence.md §2.14). An Ask with no gate is ledgerboard's half since v3.2 (its
+# decision-missing note, TD-109 D4; TD-272): only this repo reads an Owner who is a person as a wait.
 def ungated_waits(ledger: str, archive: str = "") -> dict[str, str]:
-    """id -> why the open entry waits on the person (``an **Ask:**``, ``Owner: <person>``), for each one whose
-    Blocked by names no ``decision (<who>)``."""
+    """id -> why the open entry waits on the person (``Owner: <person>``), for each one whose Blocked by names
+    no ``decision (<who>)``."""
     people = {"person"}
     for e in LB.entries(ledger) + LB.entries(archive):
         people.update(w.lower() for w in LB.parse_blocked(e["blocked_raw"] or "")[1])
-    bodies = _bodies(ledger)
     out = {}
     for e in LB.entries(ledger):
         if LB.parse_blocked(e["blocked_raw"] or "")[1]:
@@ -567,8 +567,6 @@ def ungated_waits(ledger: str, archive: str = "") -> dict[str, str]:
         owner = LB.first_word(e["fields"].get("owner"))
         if owner in people:
             out[e["id"]] = f"Owner: {owner}"
-        elif ASK_RE.search(bodies.get(e["id"], "")) or "ask" in e["fields"]:
-            out[e["id"]] = "an **Ask:**"
     return out
 
 
@@ -1157,6 +1155,8 @@ def new(argv: list[str]) -> int:
     _field_flags(ap, {"added": "default: today", "status": "default: Open"})
     for s in ("why", "fix", "done-when"):
         ap.add_argument(f"--{s}", metavar="FILE", help=f"the {s.replace('-', ' ').capitalize()} section from a file, or - for stdin")
+    ap.add_argument("--ask", metavar="FILE", help="the Ask section from a file, or - for stdin: written with the entry, "
+                    "beside its decision (<person>) gate, which --blocked-by gives (ledgerboard v3.2, TD-272)")
     ap.add_argument("--id", metavar="TD-n", help="file under an id already taken from the counter, instead of taking one")
     ap.add_argument("--by", help="the take's by (ledger_next_id.py --by), for a front end filing for its caller")
     ap.add_argument("--ledger", help="a v2 directory; default: docs/ledger/ at the work tree's top")
@@ -1165,13 +1165,15 @@ def new(argv: list[str]) -> int:
         ap.error("--priority is required (High, Medium or Low)")
     if not a.why:
         ap.error("--why is required: the Why is the point of an entry (cadence.md §2)")
-    if [a.why, a.fix, a.done_when].count("-") > 1:
+    if [a.why, a.ask, a.fix, a.done_when].count("-") > 1:
         ap.error("only one section can come from stdin")
     if a.id and not ID_ITEM_RE.match(a.id):
         ap.error(f"an entry's id is TD-n, not {a.id!r}")
     sections = []
-    for name, src in (("Why", a.why), ("Fix", a.fix), ("Done when", a.done_when)):
+    for name, src in (("Why", a.why), ("Ask", a.ask), ("Fix", a.fix), ("Done when", a.done_when)):
         body = _read_body(ap, f"--{name.lower().replace(' ', '-')}", src) if src is not None else ""
+        if name == "Ask" and src is not None and not body.strip():
+            ap.error("--ask is empty: an Ask with no words asks nothing")
         if body.strip():
             sections.append((name, body.strip()))
     if not sections or sections[0][0] != "Why":
@@ -1273,6 +1275,8 @@ def edit(cmd: str, argv: list[str]) -> int:
         ap.add_argument("--answer", help="the lifting answer (default Go): one of the covering board item's Lifts:")
         ap.add_argument("--why", help="a reassign's why (the Blocked by swaps one decision for another)")
         ap.add_argument("--override", metavar="WHY", help="lift the decision by override, --by anyone: its why")
+        ap.add_argument("--ask", metavar="FILE", help="the entry's Ask section from a file, or - for stdin, written in "
+                        "the same write as the decision (<person>) gate --blocked-by gives (ledgerboard v3.2, TD-272)")
     elif cmd == "note":
         ap.add_argument("words", help="the note, one line")
     else:
@@ -1302,6 +1306,12 @@ def edit(cmd: str, argv: list[str]) -> int:
             ap.error("--override is its own why: no --answer or --why with it")
         if a.why is not None and a.answer is not None:
             ap.error("--why is a reassign's and --answer a lift's: give one")
+        if a.ask is not None:
+            if a.by is not None:
+                ap.error("--ask writes a decision's Ask beside its gate, --by lifts one: give one")
+            kw["ask"] = _read_body(ap, "--ask", a.ask).strip()
+            if not kw["ask"]:
+                ap.error("--ask is empty: an Ask with no words asks nothing")
     elif cmd == "note":
         kw.update(words=a.words)
     else:

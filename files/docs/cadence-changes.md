@@ -12,6 +12,9 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-16 — An Ask is written with its decision gate, in one write
+Do: `ledger.py set TD-n --blocked-by "<ids>, decision (<person>)" --ask FILE` (or `new … --ask FILE`), never `edit --section Ask` then `set`: ledgerboard v3.2 refuses an Ask on an entry with no decision gate (`decision-missing`). cadence.md §2.3, §2.14 (TD-272).
+
 ## 2026-11-15 — A v2 board split_board() refuses is cured by a cleanup PR of its own, then split
 Do: date each undated closed line by its record (its closing or archiving commit's day, or a day its own words name) and drop the closed copies of a kept id, in a PR touching only the v2 board and its archive; the `board` row passes it. A dropped copy that is not exact is allowed and flagged ⚠, both texts shown, for the review to compare. Then split in a second PR. cadence.md §3.4 (TD-277).
 
