@@ -42,22 +42,23 @@ field() { grep -m1 "^\*\*$2:\*\*" "$B/$1.md" 2>/dev/null; }  # <id> <field>: the
 
 # --- 1) add --doer: a repo and a team, on an act
 mkrepo "$R"
-id=$("$EDIT" add --board "$B" --kind act --text "Bump the pin." --context TD-9 --due "$FUT" --doer shiftlead --no-commit --json 2>/dev/null \
+id=$("$EDIT" add --board "$B" --kind act --text "**Bump the pin.**" --context TD-9 --due "$FUT" --doer shiftlead --no-commit --json 2>/dev/null \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
 [ "$(field "$id" Doer)" = "**Doer:** shiftlead" ] && [ "$(field "$id" Context)" = "**Context:** TD-9" ] \
   && ok "add --doer <repo>: an act's Doer:" || bad "add --doer <repo>: $(cat "$B/$id.md" 2>&1)"
-id=$("$EDIT" add --board "$B" --kind act --text "Run the sweep." --context TD-9 --due "$FUT" --doer "team ac-grind" --no-commit --json 2>/dev/null \
+id=$("$EDIT" add --board "$B" --kind act --text "**Run the sweep.**" --context TD-9 --due "$FUT" --doer "team ac-grind" --no-commit --json 2>/dev/null \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
 [ "$(field "$id" Doer)" = "**Doer:** team ac-grind" ] && ok "add --doer 'team <name>'" || bad "add --doer team: $(cat "$B/$id.md" 2>&1)"
 
 # --- 2) add --doer refused: on decide, look and fyi; a bad value; with --decided — nothing written
 mkrepo "$R"; before=$(ls "$B" | sha256sum)
 for k in decide look fyi; do
-  extra=(); [ $k = fyi ] || extra=(--due "$FUT"); [ $k = decide ] && extra+=(--answer a --answer b)
-  "$EDIT" add --board "$B" --kind $k --text "a $k." "${extra[@]}" --doer shiftlead --no-commit >/dev/null 2>"$TMP/err" \
-    && bad "add --doer on $k: accepted" || { grep -qi "act" "$TMP/err" && ok "add --doer on $k: refused, an act's alone" || bad "add --doer on $k: refused for another reason: $(cat "$TMP/err")"; }
+  extra=(); [ $k = fyi ] || extra=(--due "$FUT"); [ $k = decide ] && extra+=(--answer "a — a session does it" --answer "b — you do it")
+  t="a $k."; [ $k = decide ] && t="Should a session ship it?"   # passes the person-text rules (TD-268): the doer rule refuses
+  "$EDIT" add --board "$B" --kind $k --text "$t" "${extra[@]}" --doer shiftlead --no-commit >/dev/null 2>"$TMP/err" \
+    && bad "add --doer on $k: accepted" || { grep -qi "act" "$TMP/err" && ! grep -q "rule [0-9]" "$TMP/err" && ok "add --doer on $k: refused, an act's alone" || bad "add --doer on $k: refused for another reason: $(cat "$TMP/err")"; }
 done
-"$EDIT" add --board "$B" --kind act --text "x." --due "$FUT" --doer "shiftlead." --no-commit >/dev/null 2>"$TMP/err"
+"$EDIT" add --board "$B" --kind act --text "**Fix it.**" --due "$FUT" --doer "shiftlead." --no-commit >/dev/null 2>"$TMP/err"
 [ $? -ne 0 ] && grep -qi "doer" "$TMP/err" && ok "add --doer: a repo ending in . refused, by the doer rule" \
   || bad "add --doer 'shiftlead.': $(cat "$TMP/err")"
 "$EDIT" add --board "$B" --text "x." --context TD-9 --answer Go --answer No --decided Go --by Pat --doer shiftlead --no-commit >/dev/null 2>"$TMP/err"

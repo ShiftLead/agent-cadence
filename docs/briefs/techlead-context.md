@@ -227,7 +227,9 @@ wait for Paul.
 - `docs/ledger/` and `docs/user_attention/` are high-churn: pull before editing,
   small edits, grep for conflict markers. A ledger entry is written only through
   `files/scripts/ledger.py` (cadence.md §2.12, TD-202), never by hand; a board item line only through
-  `files/scripts/board_edit.py` (`add`, `done`, …), which the cadence check's `board` row holds (cadence.md §3.4, TD-206).
+  `files/scripts/board_edit.py` (`add`, `done`, …), which the cadence check's `board` row holds (cadence.md §3.4, TD-206). Both writers refuse text the person
+  cannot follow (TD-268): a `decide` opens with one plain question, an `act` with its task in bold, every answer
+  names who acts, an Ask is a question first and a title is plain words (cadence.md §2.3, §3.3, §3.5).
 - **In consumers the post-merge hook reports reapable worktrees** (landed, clean, idle — see
   `files/scripts/reap_worktrees.sh` for the guards, and TD-043 for how liveness can misread).
   Here too, since TD-038's follow-up: the hook finds the reaper one level up from its own directory

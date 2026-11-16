@@ -36,7 +36,7 @@ newid() { python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])'; }
 # --- 1) add: every kind, as item_file() writes it, round-tripping the module's reader and canonical form
 R="$TMP/a"; mkrepo "$R" Pat; B="$R/docs/user_attention"
 id=$("$EDIT" add --board "$B" --kind decide --text "Back up the share?" --context TD-7 --due "$FUT" \
-  --answer Nightly --answer Weekly --default 0 --session abcdef12 --host h --json \
+  --answer "Nightly — a session sets it up" --answer "Weekly — a session sets it up" --default 0 --session abcdef12 --host h --json \
   --detail '{"context": "the share holds the notices.", "question": "Back it up?", "recommended": "cheap."}' 2>/dev/null | newid)
 chk=$(python3 - "$B/$id.md" "$S" <<'EOF'
 import sys
@@ -58,7 +58,8 @@ EOF
   || bad "add decide: $chk / $(git -C "$R" log -1 --format=%s)"
 for k in act look watch fyi; do
   extra=(); [ $k = fyi ] || extra=(--due "$FUT")
-  "$EDIT" add --board "$B" --kind $k --text "a $k item." "${extra[@]}" >/dev/null 2>&1 || bad "add $k refused"
+  t="a $k item."; [ $k = act ] && t="**Rotate the key.** a $k item."
+  "$EDIT" add --board "$B" --kind $k --text "$t" "${extra[@]}" >/dev/null 2>&1 || bad "add $k refused"
 done
 chk=$(python3 - "$R/docs/user_attention.md" "$B" "$S" <<'EOF'
 import sys
@@ -68,7 +69,7 @@ from ledgerboard import board as LBB
 for path in sys.argv[1:3]:   # the stub and the directory name one board
     b = LBB.read_board(path)
     assert b.form == "dir" and not b.problems, (path, b.problems)
-got = sorted(it.kind for it in b.items if it.words.startswith("a "))
+got = sorted(it.kind for it in b.items if it.words.startswith(("a ", "**Rotate")))
 print(" ".join(got))
 EOF
 )
@@ -123,7 +124,7 @@ printf '# board\n\nLedgerboard: 3\n\nPeople: robin\n' > "$R/docs/user_attention/
 git -C "$R" init -q -b main; git -C "$R" add -A; git -C "$R" commit -qm base
 B="$R/docs/user_attention"
 out=$("$EDIT" add --board "$B" --kind decide --text "Go on the report builds?" --context "TD-4 decision (robin)" \
-  --due "$FUT" --answer Go --answer "Not yet" --parts TD-10,TD-9 --json \
+  --due "$FUT" --answer "Go — the grinders build it" --answer "Not yet — nobody picks the entries until you say" --parts TD-10,TD-9 --json \
   --detail '{"context": "its rounds ended.", "question": "Go on its builds?", "recommended": "Go."}' 2>&1); rc=$?
 id=$(newid <<<"$out" 2>/dev/null)
 [ $rc = 0 ] && grep -qx "\*\*Parts:\*\* TD-9, TD-10" "$B/$id.md" && grep -qx "\*\*Context:\*\* TD-4 decision (robin)" "$B/$id.md" \
@@ -140,12 +141,33 @@ EOF
 )
 [ "$res" = "TD-009:['open'] TD-010:['open']" ] \
   && ok "covers(): the one end-of-rounds item covers each held build's decision gate" || bad "covers: $res"
-out=$("$EDIT" add --board "$B" --kind decide --text "Go?" --context "TD-4" --due "$FUT" --answer Go --answer No \
+out=$("$EDIT" add --board "$B" --kind decide --text "Go?" --context "TD-4" --due "$FUT" --answer "Go — the grinders build it" --answer "No — nobody builds it" \
   --parts TD-9 --detail '{"context": "c.", "question": "q?", "recommended": "Go."}' --no-commit 2>&1); rc=$?
 [ $rc != 0 ] && grep -q refused <<< "$out" && ok "add --parts with no gate in the Context: refused" || bad "no gate rc=$rc: $out"
-out=$("$EDIT" add --board "$B" --kind decide --text "Go?" --context "TD-4 decision (robin)" --due "$FUT" --answer Go --answer No \
+out=$("$EDIT" add --board "$B" --kind decide --text "Go?" --context "TD-4 decision (robin)" --due "$FUT" --answer "Go — the grinders build it" --answer "No — nobody builds it" \
   --parts TD-9,TD-99 --detail '{"context": "c.", "question": "q?", "recommended": "Go."}' --no-commit 2>&1); rc=$?
 [ $rc != 0 ] && grep -q 'TD-99' <<< "$out" && ok "add --parts naming an entry the ledger beside the board lacks: refused, naming it" || bad "missing part rc=$rc: $out"
+
+# --- TD-268: a decide or act line is text a person reads, checked at its writer (person_text.py)
+before=$(ls "$B" | sha256sum)
+padd() { "$EDIT" add --board "$B" --due "$FUT" --no-commit "$@" >/dev/null 2>"$TMP/err"; }
+padd --kind decide --text "**Backup** — should the share be backed up?" --answer "Yes — a session sets it up" --answer "No — nobody does"; r1=$?
+grep -q 'rule 1: .*does not end in ?' "$TMP/err" && [ $r1 = 1 ] && ok "a decide's bold opening is its whole question: **Title** — question? refused" || bad "bold title rc=$r1: $(cat "$TMP/err")"
+padd --kind decide --text "Should we back up **now**?" --answer "Yes — a session sets it up"; r1=$?
+grep -q 'bold run mid-text is refused' "$TMP/err" && [ $r1 = 1 ] && ok "a decide with a bold run mid-text is refused" || bad "bold mid rc=$r1: $(cat "$TMP/err")"
+padd --kind decide --text "Back up the share nightly." --answer "Yes" --answer "No — nobody does"; r1=$?
+[ $r1 = 1 ] && grep -q 'rule 1' "$TMP/err" && grep -q 'rule 2: answer 1 names nobody' "$TMP/err" && ! grep -q 'answer 2' "$TMP/err" \
+  && ok "a decide listing every problem at once: a statement (rule 1), an answer naming nobody (rule 2)" || bad "all at once rc=$r1: $(cat "$TMP/err")"
+padd --kind act --text "Merge the cleanup; only you can do this"; r1=$?
+[ $r1 = 1 ] && grep -q 'an act opens with its task in bold' "$TMP/err" && ok "an act with no bold opening is refused" || bad "act no bold rc=$r1: $(cat "$TMP/err")"
+[ "$(ls "$B" | sha256sum)" = "$before" ] && ok "the refused lines wrote nothing" || bad "a refused line wrote the board"
+padd --kind decide --text "Should the share be backed up nightly?" --answer "Nightly — a session sets it up" --answer "No — nothing is backed up, as you prefer" \
+  --detail '{"context": "the job is `backup.sh`.", "question": "Back it up?", "recommended": "cheap."}'; r1=$?
+[ $r1 = 0 ] && grep -q 'warning — the decide line: rule 4: .*backup.sh' "$TMP/err" && ok "a decide that passes is written; code in its detail context warns (rule 4)" || bad "decide ok rc=$r1: $(cat "$TMP/err")"
+padd --kind act --text "**Merge the cleanup change** — it alters the gate; only you can do this"; r1=$?
+[ $r1 = 0 ] && ok "an act opening with its task in bold is written" || bad "act ok rc=$r1: $(cat "$TMP/err")"
+out=$("$EDIT" add --board "$B" --kind act --text "no bold here" --due "$FUT" --no-commit --json 2>/dev/null); r1=$?
+[ $r1 = 1 ] && grep -q '"refused"' <<< "$out" && ok "--json: a person-text refusal prints the refused line" || bad "json refusal rc=$r1: $out"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
