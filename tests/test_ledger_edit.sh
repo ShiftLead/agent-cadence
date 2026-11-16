@@ -179,17 +179,27 @@ lp edit TD-002 --section Why --remove >/dev/null 2>&1; r4=$?
 lp set TD-002 --title nope >/dev/null 2>&1 && bad "set --title on an archived entry was accepted" || ok "set --title refuses an archived entry"
 
 # --- TD-264 (rule 6): nothing that waits on the person is invisible. A set that makes an open entry wait on the
-# person (an Owner who is one, an **Ask:**) with no decision (<person>) gate is refused; one already so on origin
-# is standing; the Ask then the gate is the way in; a person's lift that leaves the wait is standing too.
+# person (an Owner who is one) with no decision (<person>) gate is refused; one already so on origin is standing;
+# the gate with its Ask in one write (set --ask, ledgerboard v3.2, TD-272) is the way in; a person's lift that
+# leaves the wait is standing too.
 cp "$L/TD-004.md" "$TMP/td4"
 lp set TD-004 --owner person >/dev/null 2>"$TMP/err"; rc=$?
 [ $rc -eq 1 ] && grep -q 'refused — ⚠ TD-004 waits on the person (Owner: person) but its Blocked by has no decision' "$TMP/err" \
   && cmp -s "$L/TD-004.md" "$TMP/td4" && ok "set refuses Owner: person with no decision gate, writing nothing" || bad "ungated owner (rc=$rc): $(cat "$TMP/err")"
 printf 'Should it? Yes or no.\n' > "$TMP/ask.md"
-lp edit TD-004 --section Ask --from "$TMP/ask.md" >/dev/null 2>"$TMP/err" \
-  && lp set TD-004 --owner person --blocked-by "decision (Alex)" >/dev/null 2>>"$TMP/err" \
-  && grep -qx '\*\*Blocked by:\*\* decision (Alex)' "$L/TD-004.md" \
-  && ok "the Ask, then the Owner with its decision gate, is written" || bad "gated owner: $(cat "$TMP/err")"
+lp edit TD-004 --section Ask --from "$TMP/ask.md" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'refused' "$TMP/err" && cmp -s "$L/TD-004.md" "$TMP/td4" \
+  && ok "an Ask written ahead of its gate is refused, writing nothing (ledgerboard v3.2 decision-missing, TD-272)" \
+  || bad "ask before gate (rc=$rc): $(cat "$TMP/err")"
+: > "$TMP/empty.md"
+lp set TD-004 --blocked-by "decision (Alex)" --ask "$TMP/empty.md" >/dev/null 2>"$TMP/err"; r1=$?
+lp set TD-004 --blocked-by "" --by Alex --ask "$TMP/ask.md" >/dev/null 2>"$TMP/err2"; r2=$?
+[ $r1 -eq 2 ] && grep -q -- '--ask is empty' "$TMP/err" && [ $r2 -eq 2 ] && grep -q -- '--by lifts one' "$TMP/err2" \
+  && cmp -s "$L/TD-004.md" "$TMP/td4" && ok "set refuses an empty --ask, and --ask with --by, writing nothing" \
+  || bad "ask refusals (r1=$r1 r2=$r2): $(cat "$TMP/err" "$TMP/err2")"
+lp set TD-004 --owner person --blocked-by "decision (Alex)" --ask "$TMP/ask.md" >/dev/null 2>"$TMP/err" \
+  && grep -qx '\*\*Blocked by:\*\* decision (Alex)' "$L/TD-004.md" && grep -qx '\*\*Ask:\*\* Should it? Yes or no.' "$L/TD-004.md" \
+  && ok "set --ask writes the Owner, its decision gate and its Ask in one write" || bad "gated owner: $(cat "$TMP/err")"
 printf '## TD-007: seven\n\n**Priority:** Low\n**Owner:** person\n**Status:** Open\n\n**Why:** standing.\n' > "$L/TD-007.md"
 git -C "$W" add docs/ledger/TD-007.md; git -C "$W" commit -qm seven; git -C "$W" push -q origin main
 lp set TD-007 --priority High >/dev/null 2>"$TMP/err"; rc=$?
