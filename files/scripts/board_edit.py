@@ -80,6 +80,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_sessions  # noqa: E402  # sibling SYNC script: the session adapter — who is running a lift (TD-218)
 import ledgerboard as LB  # noqa: E402  # sibling SYNC package: the board format (ShiftLead/ledgerboard; the vendored tag is tests/ledgerboard.MANIFEST's)
+import person_text as PT  # noqa: E402  # sibling SYNC script: text a person reads, checked at its writer (TD-268)
 from ledgerboard import (
     Refused,  # noqa: E402,F401  # re-exported: tests reach it as board_edit.Refused
 )
@@ -154,6 +155,23 @@ def reply_fills_form(item: LB.BoardItem | None, text: str) -> str | None:
     return LB.fill_form(text, item.answers)
 
 
+def person_text_refused(a) -> bool:
+    """TD-268: an ``add`` of a ``decide`` or ``act`` line is held to the person-text rules (``person_text.py``):
+    every problem printed, True when one refuses the write (rules 1–3; rule 4 warns)."""
+    if a.action != "add" or a.kind not in ("decide", "act"):
+        return False
+    try:
+        detail = json.loads(a.detail) if a.detail else None
+    except ValueError:
+        detail = None  # the writer refuses a detail that is not JSON, in its own words
+    try:
+        people = [n for n in LB.board_people(LBB.load_v3(a.board)) or [] if n.strip()]
+    except (OSError, ValueError, Refused):
+        people = []  # a board the writer refuses says so itself, below
+    problems = PT.board_problems(a.kind, a.text or "", a.answer, detail if isinstance(detail, dict) else None, people)
+    return PT.report("board_edit", f"the {a.kind} line", problems)
+
+
 def _parse(argv: list[str]):
     ap = LBB.parser()
     ap.prog = "board_edit.py"
@@ -218,6 +236,10 @@ def main(argv: list[str] | None = None) -> int:
                 a.action, a.answer, a.text = "decide", [filled], None
                 print(f"board_edit: the reply fills the form {filled.split(':', 1)[0]}: — decided, not replied",
                       file=sys.stderr)
+        if person_text_refused(a):
+            raise Refused("text a person reads breaks the rules above, so nothing was written — a decide's opening "
+                          "is one plain question, an act opens with its task in bold, an answer says who acts "
+                          "(cadence.md §3.3, §3.5)")
         root = _root(Path(a.board)) if a.action in WRITES and not (a.no_commit or a.plan) else None
         plan = LBB.build(a)
         if a.action == "decide" and plan.info.get("entries"):   # the two-file decide lift (TD-218)

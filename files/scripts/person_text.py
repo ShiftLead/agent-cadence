@@ -47,6 +47,39 @@ def answers_problems(text: str, people: Sequence[str] = ()) -> list[LB.PersonTex
                                    people=people, actors=vocabulary()["actors"])
 
 
+BOLD_OPEN_RE = re.compile(r"\*\*(?P<head>.+?)\*\*(?P<tail>.*)", re.S)
+DETAIL_CONTEXT = ("context", "caveats", "recommended", "otherwise")  # rule 4's parts of a detail block
+
+
+def board_problems(kind: str, text: str, answers: Sequence[str] = (), detail: dict | None = None,
+                   people: Sequence[str] = ()) -> list[LB.PersonTextProblem]:
+    """A board line ``board_edit.py add`` writes (cadence.md §3.3, §3.5): a ``decide``'s bold opening, when it has
+    one, is its whole question (rule 1; with none the text is read whole), a bold run past it is refused, each
+    ``--answer`` says who acts (rule 2); an ``act`` opens with its task in bold (rule 1, a statement). The tail and
+    the detail block's context, caveats, recommended and otherwise are rule 4, a warning. The line's ``Context:``
+    field names a gate and is never read. Other kinds are not checked."""
+    if kind not in ("decide", "act"):
+        return []
+    actors = vocabulary()["actors"]
+    text = (text or "").strip()
+    m = BOLD_OPEN_RE.match(text)
+    out: list[LB.PersonTextProblem] = []
+    if kind == "act" and m is None:
+        out.append(LB.PersonTextProblem(1, True, "an act opens with its task in bold: **<the task>** then the rest"))
+    if kind == "decide" and m is not None and "**" in m.group("tail"):
+        out.append(LB.PersonTextProblem(1, True, "a decide's text holds one bold run, its opening question; "
+                                                 "a bold run later in the text is refused"))
+    if kind == "decide" and m is None and "**" in text:
+        out.append(LB.PersonTextProblem(1, True, "a decide's bold run opens the text and is its whole question; "
+                                                 "a bold run mid-text is refused"))
+    sentence = m.group("head").strip() if m else (text if kind == "decide" else None)
+    tail = m.group("tail").strip(" \t\n—-–") if m else ""
+    context = "\n".join([tail] + [str((detail or {}).get(k) or "") for k in DETAIL_CONTEXT]).strip() or None
+    out += LB.person_text_problems(sentence, list(answers) if kind == "decide" else (), context,
+                                   question=kind == "decide", people=people, actors=actors)
+    return sorted(out, key=lambda p: p.rule)
+
+
 def title_problems(title: str) -> list[LB.PersonTextProblem]:
     """An entry's title (rule 3): plain words, no code, id or label."""
     v = vocabulary()

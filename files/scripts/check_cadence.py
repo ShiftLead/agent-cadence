@@ -2457,7 +2457,8 @@ def gate_fix(kind, text):
     m = UNCOVERED_RE.match(text) if kind == "decision-uncovered" else None
     if m:
         return (f"{text}: `board_edit.py add --board {BOARD} --kind decide --context \"{m['tid']} {m['gate']}\" "
-                "--text \"<the Ask in one sentence>\" --due <date> --answer <a> --answer <b> --lift <each answer that "
+                "--text \"<the Ask: one question>\" --due <date> --answer \"<a> — <who acts>\" --answer \"<b> — <who acts>\" "
+                "--lift <each answer that "
                 "ends the wait> --detail '{\"context\": [...], \"question\": ..., \"recommended\": ...}' --no-commit` "
                 "(cadence.md §2.14)")
     if kind == "decision-no-lift":

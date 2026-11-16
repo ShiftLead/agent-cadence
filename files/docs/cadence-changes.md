@@ -12,6 +12,9 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-16 — A board decide opens with its question; an act opens with its task in bold
+Do: `board_edit.py add --kind decide` with its whole question first (in bold or not, never `**Title** — question?`); `--kind act` with `**<the task>**` first; every `--answer` naming who acts. `add` refuses what breaks them, listing every problem. cadence.md §3.3, §3.5 (TD-268).
+
 ## 2026-11-16 — A ledger Ask is a question first; an answer says who acts; a title is plain words
 Do: write an Ask's first paragraph as one question of at most 25 words with no code, its context after a blank line; give each answer a consequence naming who acts (*I'll…*, *you…*, *a session…*); keep ids, labels and code out of a title. `ledger.py new`, `set` and `edit` refuse what breaks them. cadence.md §2.3 (TD-268).
 

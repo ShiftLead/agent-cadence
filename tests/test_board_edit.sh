@@ -126,7 +126,7 @@ R3="$TMP/r3"; mkboard "$R3" "People: Pat, Sam"; D3="$R3/docs/user_attention"
 [ $rc = 1 ] && ok "reply with no --by on a two-person People: board is refused" || bad "reply two-people rc=$rc"
 
 # --- 7) add: an item file, its id printed, committed alone under the append subject
-out=$("$EDIT" add --board "$S" --kind act --text "Rotate the key." --context TD-4 --due "$FUT" --session s-1 2>&1); rc=$?
+out=$("$EDIT" add --board "$S" --kind act --text "**Rotate the key.**" --context TD-4 --due "$FUT" --session s-1 2>&1); rc=$?
 id=$(grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9a-f]{8}" <<<"$out" | head -1)
 [ $rc = 0 ] && [ -f "$D/$id.md" ] && [ "$(field "$D/$id.md" Kind)" = "**Kind:** act" ] \
   && ok "add: a new item file, its id printed" || bad "add rc=$rc: $out"
