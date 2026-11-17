@@ -37,7 +37,7 @@ For what is far-reaching: **paths alone** can be checked at merge, but miss a de
 
 ## Decision
 
-Proposed. The question for Paul, after the rounds: *Should design rounds end by a counted verdict a judge confirms or raises, with a routine design's Go no longer coming to you?* Recommended answer: `Go`.
+Proposed. The question for Paul, after the rounds: *Should design rounds end by a counted verdict a judge confirms or raises, with a routine design's Go no longer coming to you once its gate can be lifted for you?* Recommended answer: `Go`.
 
 ### 1. Read and unread
 
@@ -161,6 +161,7 @@ At the judge's run (rule 4), a design is far-reaching whatever its mark if a fil
 |---|---|
 | `One more round` within the cap, any reach | The round runs; no judge and no item. Rounds within the cap never asked the person, and still do not. |
 | `One more round` past the cap | The item goes to the person. |
+| Two or more `judge` rows since the last review, any reach | The item goes to the person; its recommendation is the counted verdict. This row is read first. |
 | `RAISE`, any reach | The item goes to the person, with the judge's reason; its recommendation is the counted verdict. |
 | `CONFIRM`, far-reaching | The item goes to the person, carrying the confirmed verdict as its recommendation. |
 | `CONFIRM` on `Go`, routine, and the design's entry carries no `decision (<person>)` gate | No item. The builds are filed under §4.8's "with no item" path. The record says `Go by: <judge>`, and the design entry's Log gets a line saying so through `ledger.py note`. |
@@ -212,7 +213,7 @@ The session that ran the rounds does every step and writes every line. `review_s
 | 9 | `next: round`, or the person answered `One more round` | runs one more round | its rows; then 1 |
 | 10 | The person answered `Go` on the item | nothing more: §4.8's decide lift, which the board answer makes, lifts the gate on the design and every listed build in one write | `Go by: <person>` (their name as `People:` spells it) and `Decided:` in the record |
 
-**What `--verdict` prints at 3.** With a counted `Closing read`, `next: closing-read`. With `One more round`, `next: round` within the cap and `next: item` past it. With a `Go` or `Hold`, it reads the header's `Verdict:`. A judge's line there applies when no review has run since the judge's row and the counted verdict is the one it judged. If none applies, it prints `next: judge`. If one does, it prints the outcome by rule 6's table: `go`, `item` or `revise`. To choose among them it reads the design entry's `Blocked by:` (through the module's `ledger_entries()`) and the header's `Holds:`.
+**What `--verdict` prints at 3.** With a counted `Closing read`, `next: closing-read`. With `One more round`, `next: round` within the cap and `next: item` past it. With a `Go` or `Hold`, it first counts the `judge` rows after the last review: two or more print `next: item`, whatever any line says (rule 4, *One judge run per verdict*). Otherwise it reads the header's `Verdict:`. A judge's line there applies when no review has run since the judge's row and the counted verdict is the one it judged. If none applies, it prints `next: judge`. If one does, it prints the outcome by rule 6's table: `go`, `item` or `revise`. To choose among them it reads the design entry's `Blocked by:` (through the module's `ledger_entries()`) and the header's `Holds:`.
 
 A Hold found at 1 reaches 3 as a Hold again: the Hold rule comes first in rule 2's table, and the closing fact-check cannot undo a reopen. So a mid-round Hold's order is the closing fact-check, then the judge, then the item or the revision.
 
