@@ -18,10 +18,11 @@
   
   Each count applies a rule to a design's whole record, after its rounds had run to the stop rule or the cap. Applied round by round, a hold would have fired earlier on some. What the counts show:
   - 19 ended with a build-changing finding unread: raised by or after the last design review, and not rejected.
-  - A design review's build-changing `reopens` row appeared in 2 or more rounds of 9 designs, and in 3 or more rounds of 6.
-  - Build-changing findings were non-zero in the last round and fell at no step over the last 2 rounds in 10 designs, over the last 3 in 3.
-  - A Hold at 2 rounds (either condition) would have held 19 of 97; at 3 rounds, 9 of 97. Paul chose 3 (on figures of 23 and 11 from a first count that took fact-checks' reopens and dropped the `review` role).
-  - **Ledgerboard TD-132's record is not one the rule at 3 holds.** Its build-changing counts per round are 7, 8, 2, 2, 2, 2, 1, 2, 1, and its last three rounds fall (2 to 1). Its recurring topic was named in prose but never recorded as `reopens`, so the count finds no recurrence. Its verdict would have been `Closing read` (one unread build-changing finding), where the item recommended `One more round` three times on 2026-11-17. **Recurrence is only counted where reviews write `reopens F<n>`**, as §4.8 already asks them to.
+  - A design review's build-changing finding whose status holds `reopens F<n>` appeared in 2 or more rounds of 15 designs, and in 3 or more rounds of 10.
+  - Build-changing findings were non-zero in the last round and fell at no step within the last 2 rounds in 10 designs, within the last 3 in 3.
+  - A Hold at 2 rounds (either condition) would have held 25 of 97; at 3 rounds, 13 of 97. Paul chose 3, on a first count of 23 and 11; that count read every role's reopens and only statuses beginning `reopens`.
+  - **Ledgerboard TD-132's record is one the rule at 3 holds.** Its build-changing counts per round are 7, 8, 2, 2, 2, 2, 1, 2, 1. Its design reviews raised build-changing reopens in rounds 2 to 7: six rounds, so it would have been held by round 4, before its rounds 5 to 9. On 2026-11-17 its item recommended `One more round` three times instead.
+  - **Recurrence is counted only where reviews write `reopens F<n>`**, as §4.8 asks them to. Once a finding is applied, its status carries it inside its text (`applied: … (reopens F19)`), so the count reads it anywhere in the status, not only at its start.
 
 ## Options
 
@@ -42,11 +43,11 @@ Proposed. The question for Paul, after the rounds: *Should design rounds end by 
 
 **Role kinds.** The Reviews table's role is read by its first word:
 - `fact-check` (with any qualifier, such as `fact-check (closing)`) is a **fact-check**;
-- `design`, `review` or `design and fact-check` is a **design review** (the last two are older records' free-form roles);
 - `closing-read` (rule 3) is a **closing read**;
-- `judge` (rule 4) is the **judge**, which raises no findings and reads nothing for rule 1.
+- `judge` (rule 4) is the **judge**, which raises no findings and reads nothing for rule 1;
+- any other role is a **design review**: `design`, and older records' free-form roles such as `review`, `design and fact-check`, `trial` or `confirming`.
 
-`review_stats.py` reads them the same way (build 2): today `read_record` reads any role but `design` and `fact-check` as `design`, so a `judge` row would inflate the design counts.
+The last kind is what `read_record` does today: it reads any role but `design` and `fact-check` as `design`, with a warning. Build 2 keeps that and its warning, and adds the `closing-read` and `judge` kinds, so a `judge` row no longer inflates the design counts.
 
 A finding is **read** once a design review or a closing read runs after it in the Reviews table's order. The table numbers reviews in the order they ran, and a round's fixes are applied before the next review reads the plan (ADR 2026-10-30 rule 1). So "read" is derived from the record and needs no status of its own. A finding is **unread** while no such review follows it. That covers:
 - a round's last design review's findings, at the cap or not;
@@ -63,8 +64,8 @@ A `rejected` finding is never unread.
 
 **The definitions** (N is `design-hold-rounds`, default 3):
 - **A round's count** is the sum of the build-changing findings its design reviews raised; fact-checks are counted apart and never in it.
-- **A reopen round** is a round in which a design review (never a fact-check, as §4.8's recurring topic already says) raised a build-changing finding with the status `reopens F<n>`. This is narrower than §4.8's recurring topic, which also counts a finding "following that topic's fix". That half needs judgement, so it stays with the item and the judge (rule 4), not the count.
-- **Not falling** means each of the last N rounds' counts is at least the round before it's (no step down), and the last is non-zero. 1, 1, 2 is not falling; 3, 1, 2 falls.
+- **A reopen round** is a round in which a design review (never a fact-check, as §4.8's recurring topic already says) raised a build-changing finding whose status holds `reopens F<n>` anywhere in its text. The status starts `reopens F<n>` while the finding is open, and keeps it inside the text once the finding is applied or rejected (`applied: … (reopens F19)`). This is narrower than §4.8's recurring topic, which also counts a finding "following that topic's fix". That half needs judgement, so it stays with the item and the judge (rule 4), not the count.
+- **Not falling** is read over the last N rounds' counts alone (N values, N−1 steps, nothing before them): within them each count is at least the one before it, and the last is non-zero. With N = 3, the last three counts 1, 1, 2 are not falling; 3, 1, 2 fall. A design with fewer than N rounds is never not falling.
 
 The first rule that matches wins:
 
