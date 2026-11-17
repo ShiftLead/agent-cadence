@@ -64,12 +64,7 @@ A finding is **read** once a design review or a closing read runs after it in th
 
 ### 2. The verdict is counted
 
-`review_stats.py --verdict TD-<n> [--repo PATH] [--json]` reads the design's review record and prints one verdict, with the counts behind it.
-
-**When it runs.**
-- **After every round from round N on** (counted since the last Hold), for **Hold** alone: a Hold then ends the rounds early, before the stop rule or the cap. The rounds have ended, so the closing fact-check runs, as §4.8 says it does however the rounds end. Its fixes belong to the Hold round, and the revision's first round opens with its own fact-check.
-- **Once the rounds end** by the stop rule or the cap, after the closing fact-check's fixes are applied: the full table below.
-- **After a closing read's fixes** are applied: the full table again.
+`review_stats.py --verdict TD-<n> [--repo PATH] [--json]` reads the design's review record and prints one verdict, the counts behind it, and a last line `next: <step>` naming the next step in rule 9's table. It knows the cap: it reads the record's `Class:` and `design-rounds` or `design-rounds-wide` through `cadence_config.py`, and counts rounds since the last Hold (rule 1). `--after-round` checks the Hold rule alone and prints `next: hold` or `next: continue`. Rule 9 says when each form runs.
 
 **The definitions** (N is `design-hold-rounds`, default 3):
 - **A round's count** is the sum of the build-changing findings its design reviews raised; fact-checks are counted apart and never in it.
@@ -98,7 +93,7 @@ The counts it prints:
 
 ### 3. The closing read (TD-243)
 
-When the verdict is `Closing read`, one review reads only the unread build-changing fixes: the plan's diff since the review that raised them, with the findings those fixes answer.
+When the verdict is `Closing read`, one review reads only the unread build-changing findings. For an applied finding it reads the plan's diff since the review that raised it, with the finding. For a rejected one, which has no diff, it reads the rejection's reason and the plan text the finding concerns.
 - It is a row of the Reviews table with the role `closing-read`, under the last round. It does not count against the cap, as fact-checks do not.
 - It runs after the closing fact-check, so it reads that check's fixes too.
 - It runs at most once per end of rounds. If it raises a build-changing finding, that finding is unread, and the verdict becomes `One more round` (rule 2's order).
@@ -107,11 +102,9 @@ When the verdict is `Closing read`, one review reads only the unread build-chang
 
 ### 4. The judge
 
-The judge is a seat independent of the design: never the designer's session, and never one of the design's own reviews.
-- **In ShiftLead** it is the techlead (ShiftLead TD-1911).
-- **Elsewhere** it is a fresh agent on `review-model`'s last model, launched by the session that ran the rounds, with the **fixed judge prompt** in the procedure (`files/docs/procedures/cadence.md` step 3). The session fills in only the paths: it never words the question.
+The judge is independent of the design: never the designer's session, and never one of the design's own reviews. By default it is a fresh agent on `review-model`'s last model. The session that ran the rounds launches it with the **fixed judge prompt** in the procedure (`files/docs/procedures/cadence.md` step 3), filling in only the paths; the session never words the question. A repo's own rules (its AGENTS.md or CLAUDE.md) may name a seat to judge in its place, as ShiftLead's TD-1911 will name its techlead.
 
-**When it runs.** Once for each verdict that ends the rounds or stops them: `Go`, a `Hold` (at the end or mid-rounds), and `One more round` past the cap. A `Closing read` verdict needs no judge; the judge runs on the verdict after it.
+**When it runs.** Rule 9 says: once for each verdict that ends the rounds or stops them (`Go`, a `Hold`, `One more round`), after the closing fact-check. A `Closing read` verdict needs no judge.
 
 **What it is given:**
 - the plan;
@@ -120,13 +113,19 @@ The judge is a seat independent of the design: never the designer's session, and
 - §4.8's definition of far-reaching, and the repo's `[far-reaching]` paths and note (rule 5).
 
 **What it returns:**
-- **The verdict confirmed, or overridden with a reason.** On a routine design it may move only toward more caution: `Go` to a closing read, `One more round` or `Hold`. An override to `One more round` runs one full round with no closing read first. It counts toward the cap, and past the cap it is the item to the person, as any `One more round` is. An override toward less caution (dropping a counted `Hold` or `One more round`) is not the judge's to make: it raises the item to the person, with the override as its recommendation. On a far-reaching design the item goes to the person anyway, with the override shown.
+- **The verdict confirmed, or overridden with a reason.** On a routine design it may move only toward more caution: `Go` to `One more round` or `Hold`, or `One more round` to `Hold`. (A closing read is never an override: a ruling that a rejection does not stand makes the finding unread, and the counted verdict becomes `Closing read` by itself.) An override to `One more round` runs one full round with no closing read first. It counts toward the cap, and past the cap it is the item to the person, as any `One more round` is. An override toward less caution (dropping a counted `Hold` or `One more round`) is not the judge's to make: it raises the item to the person, with the override as its recommendation. On a far-reaching design the item goes to the person anyway, with the override shown.
 - **A ruling on each rejected build-changing finding:** the rejection stands, or the finding counts as unread.
 - **Any untagged recurrence:** the same topic (the findings table's `topic` column) raised build-changing in two or more rounds with no `reopens`. One the judge finds counts as a reopen round for the Hold, which is a move toward caution.
 - **Hold and raise**, where a question only the person can settle remains (scope, product, cost). It goes to the person, unless the repo's rules name someone who answers for them.
 - **The reach**: the designer's mark checked against the definition, and the paths matched against the files the plan says its builds change. The mark is raised to far-reaching if the judge disagrees, and never lowered.
 
-**The record.** Each judge run is a Reviews row with the role `judge`, and every one is kept. The header's `Verdict:` holds the counted verdict, the judge's, and an override's reason. A second judge run on the same verdict needs a reason in its row. If it changes the outcome, the item goes to the person.
+**Its reply ends with one fixed line**, read as the `cadence-review:` line is:
+
+    cadence-judge: CONFIRM | OVERRIDE <verdict> | RAISE · reach <routine|far-reaching> · rulings <F<n>=stands|unread, …|none> · recurrence <topics|none>
+
+The session records the line verbatim in the header's `Verdict:`, after the counted verdict. Each ruling goes into its finding's status: `rejected: …; stands (R<n>)`, or `rejected: …; overruled (R<n>)`, which is unread. The reach goes into `Reach:`. A seat that judges (ShiftLead's techlead) sends the same line to the session in its reply, so **the session that ran the rounds is the record's only writer**.
+
+**The record.** Every completed judge run is a Reviews row with the role `judge`. Unlike other reviews, a judge run may not be discarded: the record's rule that an aborted or discarded review gets no row covers only an aborted judge run. A judge run after an intervening step (a closing read, a round, a ruling's fixes) is on a new verdict. A **rerun** is a second judge run with no step between. It needs a reason in its row, and if it changes the outcome, the item goes to the person.
 
 **`reopens` is the reviewer's word, not the designer's.** The procedure's review prompt asks each design review to name a finding it reopens by its id, as §4.8 does today. The designer copies that into the status and keeps it there when the finding is applied or rejected. The judge's scan for untagged recurrence is the check on that copy.
 
@@ -157,13 +156,17 @@ At the judge's run (rule 4), a design is far-reaching whatever its mark if a fil
 | The design and its verdict | What happens |
 |---|---|
 | Far-reaching, any verdict | The end-of-rounds item goes to the person, carrying the verdict and the judge's reading as its recommendation. |
-| Routine, `Go`, and no rule holds it for the person (below) | No item. The builds are filed under §4.8's "with no item" path. The record says `Go by: <judge>`, and the design entry's Log gets a line saying so through `ledger.py note`. |
-| Routine, `Go`, and a rule holds it for the person | The item goes to the person, carrying the judge's `Go` as its recommendation. |
+| Routine, `Go`, and the design's entry carries no `decision (<person>)` gate | No item. The builds are filed under §4.8's "with no item" path. The record says `Go by: <judge>`, and the design entry's Log gets a line saying so through `ledger.py note`. |
+| Routine, `Go`, and the design's entry carries a `decision (<person>)` gate | The item goes to the person, carrying the judge's `Go` as its recommendation. |
 | Routine, first `Hold: split or narrow` | No item. The designer revises as the judge's reason says, and the revision starts its own count (rule 1, *Since the last Hold*). |
 | Routine, a `Hold` when `Holds:` names an earlier round | The item goes to the person. Two Holds mean the design keeps failing the same way, which is the person's to judge. |
 | Any, *Hold and raise*, an override toward less caution (rule 4), or `One more round` past the cap | The item goes to the person. |
 
 The header gets `Go by: <person> | <judge seat> | pending`, where a person's Go is written with their name as the board's `People:` line spells it; the `reach` row compares it case-insensitively, as ledgerboard and the `gates` row compare a `Decided:` name. It also gets `Holds:`, the rounds of the Holds (rule 1); a round is named once however many Holds it saw, and their count is the number of rounds it names. `Decided:` keeps its date, the `Go`'s.
+
+**What holds a design for the person is its gate.** A repo's or a person's rule that requires the person's Go works by putting `Blocked by: decision (<person>)` on the design's entry, as Paul's layer (§2.4 add) does, so the table reads the entry, not prose.
+
+**This rule is a floor for repos, and the person's to lower.** A repo's rules may send more to the person (every design, say), never fewer. The person's own layer may send fewer for themselves, since it is their attention: ShiftLead's `design_go: techlead` (TD-1911) is such a choice, made by the person.
 
 **A repo's or a person's own rules that require the person's Go still raise the item.** §4.8 says "a repo whose own rules require the person's go on a plan" today. This design widens that to the person's layer (§9.18), which binds the sessions of every repo the person works in. Paul's layer (§2.4 add) does so for every design whose conversation is still going when it is filed, and changing it is his own edit, not this design's. Separately, a judge lifting a gate written for the person (`decision (paul)`) is answering for the person, which no check accepts until ledgerboard TD-132 builds a recorded delegated answer. Until then, a routine design that carries such a gate still reaches the person. Once TD-132 lands, the judge's lift is recorded as made for the person, and only where a delegation the board declares covers it.
 
@@ -198,6 +201,27 @@ The item keeps what it carries today. It adds:
 
 When no build-changing fix is unread, it says *every build-changing fix has been read by a review*; otherwise it names each unread one by its `F<n>` (TD-243's line). The recommendation is the judge's, not the author's.
 
+### 9. The ending, step by step
+
+The session that ran the rounds does every step and writes every line. `review_stats.py --verdict` prints the next step as its last line, so a session in any repo follows the script, not its memory.
+
+| # | When | The session does | It writes |
+|---|---|---|---|
+| 1 | After each round's last review is recorded, from the Nth round since the last Hold | `--verdict --after-round` | nothing; on `next: hold` go to 2, on `next: continue` run the next round, or go to 2 if the stop rule or the cap ends the rounds |
+| 2 | The rounds have ended (stop rule, cap, or a Hold from 1) | the closing fact-check, fix-then-check | its rows and fixes, as §4.8 |
+| 3 | After 2, after 4's fixes, and after a ruling overrules a rejection (5) | `--verdict` | nothing |
+| 4 | `next: closing-read` | the closing read (rule 3) | its row, findings and fixes; then 3 |
+| 5 | `next: judge` (the verdict is `Go`, `Hold` or `One more round`) | the judge (rule 4) | its row, `Verdict:`, `Reach:` and the rulings; if a ruling overrules a rejection, then 3; else 6 |
+| 6 | After 5 | `--verdict` again, which reads the judge's line and prints the outcome by rule 6's table | nothing |
+| 7 | `next: go` (routine, Go, no gate) | files the builds | `Go by: <judge>`, `Decided:`, a Log line on the design's entry (`ledger.py note`) |
+| 8 | `next: item` | raises the end-of-rounds item (rule 8) | the board item, through `board_edit.py add` |
+| 9 | `next: revise` (routine, first Hold) | revises the design as the judge's reason says | the round in `Holds:`; the revision's first round opens with its fact-check |
+| 10 | `next: round` (`One more round` within the cap) | runs one more round | its rows; then 1 |
+
+A Hold found at 1 reaches 3 as a Hold again: the Hold rule comes first in rule 2's table, and the closing fact-check cannot undo a reopen. So a mid-round Hold's order is the closing fact-check, then the judge, then the item or the revision.
+
+At 3, a Hold can also come from the reopen rounds when 1 did not fire. That happens only when the judge's untagged recurrence (rule 4) adds a reopen round.
+
 ### Open for the rounds
 
 - **TD-249's synopsis.** The item would link it once TD-249 lands. Nothing here waits on it.
@@ -209,20 +233,20 @@ When no build-changing fix is unread, it says *every build-changing fix has been
      - cadence.md §4.8: the definition, the verdict, the closing read, the judge, Reach, the item;
      - §9.18's list of `docs/cadence.toml` keys, which `tests/test_cadence_config.sh` tests 10 and 10b hold to the seed;
      - the Adoption checklist's step 10, which names the design-rounds keys;
-     - the procedure, `files/docs/procedures/cadence.md` step 3: the fixed judge prompt, and the review prompt's ask to name each reopened finding by its id;
+     - the procedure, `files/docs/procedures/cadence.md` step 3: rule 9's steps, the fixed judge prompt with its `cadence-judge:` line, and the review prompt's ask to name each reopened finding by its id;
      - the adr-template's record comment: the role cell becomes `fact-check | design | closing-read | judge`, plus the `Reach:`, `Verdict:`, `Go by:` and `Holds:` header lines;
      - the seed `files/docs/cadence.toml`: a commented `design-hold-rounds` and `[far-reaching]`;
      - a `files/docs/cadence-changes.md` line.
   2. **The scripts behind the verdict:**
      - `cadence_config.py`: `design-hold-rounds`, and `far_reaching()` with `check()`'s errors, with tests;
-     - `review_stats.py`: `read_record` reads rule 1's role kinds by first word, as rule 1 says, and `--verdict` is added (rounds counted since the last Hold; a per-round Hold mode), with fixtures for each verdict, each role kind, a rejected finding, a Hold revision, a person's Hold, and `Holds: none`.
-  3. **The `reach` row:** `check_cadence.py`'s new row, with tests for each state: open and merged, globs read from the base, no entry, no design, no record, a record with no `Reach:`, a `Go by:` against the board's `People:` in another case, and no board, no `People:` line, or a faulted one.
+     - `review_stats.py`: `read_record` reads rule 1's role kinds by first word, as rule 1 says, and `--verdict` is added (rounds counted since the last Hold, the cap read from the record's `Class:`, `--after-round`, the `next:` line of rule 9, and a warning on a `Go by:` naming a judge with no `judge` row), with fixtures for each verdict, each role kind, a rejected finding, a Hold revision, a person's Hold, and `Holds: none`.
+  3. **The `reach` row** (it can land after builds 1, 2 and 4, which work without it): `check_cadence.py`'s new row, with tests for each state: open and merged, globs read from the base, no entry, no design, no record, a record with no `Reach:`, a `Go by:` against the board's `People:` in another case, and no board, no `People:` line, or a faulted one.
   4. agent-cadence's own `[far-reaching]` in `docs/cadence.toml` (Paul, 2026-11-17). Every payload change reaches every consumer, and he decides these:
      - `files/docs/cadence.md`, `files/docs/procedures/**` and the seeds;
      - the scripts that decide whose Go counts, by the definition's "who acts or decides for the person": `files/scripts/check_cadence.py`, `files/scripts/review_stats.py` and `files/scripts/cadence_config.py`.
 - **This supersedes** ADR 2026-10-30-design-review-rounds rule 7 (how the rounds end: no build-changing fix ends them unread) and rule 9 (the end-of-rounds item: when it is raised and whose recommendation it carries). On the Go, that ADR's Status line gets the clause *rules 7 and 9 superseded by ADR 2026-11-17-design-round-endings.md*.
 - **TD-243 is covered** by rules 1, 3 and 8. It is archived when build 1 merges, its Log naming this design.
-- **ShiftLead** is told the number, so that TD-1911 (the techlead as judge, `design_go`) mirrors it after its next pin bump.
+- **ShiftLead** is told the number, so that TD-1911 (the techlead as judge, through ShiftLead's own rules; `design_go`, the person's choice under rule 6's floor) mirrors it after its next pin bump. TD-1911's Fix says ShiftLead's `[far-reaching]` globs go in "agent-cadence's `docs/cadence.toml`"; they go in ShiftLead's own.
 - **What gets harder:** a design records four more header lines and a judge row per ending verdict. A judge must be run, and that costs one agent read per ending verdict. A routine Go is seen only in the record and the entry's Log, not on the board.
 - **Out of bounds:** the designer recommending its own design's end. A routine Go reaching the person when no rule asks for it.
 
