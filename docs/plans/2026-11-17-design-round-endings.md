@@ -9,13 +9,19 @@
 - **How rounds end today** (cadence.md §4.8; ADR 2026-10-30 rules 7 and 9): by the stop rule (a round whose reviews raise nothing build-changing), at the cap, or after a bought round. Then the closing fact-check runs. The end-of-rounds item carries the evidence: how the rounds ended, the trend of build-changing findings per round, the findings no review has read, any recurring topic. It also carries the **author's** recommendation, and the author is the designer. Nothing says how to choose `Go`, `One more round` or `Hold` from that evidence.
 - **That choice is being made card by card.** During ledgerboard's v3 migration (2026-11-04 to 2026-11-16), one interactive session judged about 175 end-of-rounds items. It disagreed with the item's own recommendation 41 times (23%), almost all on how a design's rounds should end, and Paul sided with it 31 times.
 - **A build-changing fix can end the rounds unread** (TD-243). The cap ends them even when its last round raised a build-changing finding, and the closing fact-check's findings are *applied, never reviewed*. Seen on ShiftLead's TD-1434, TD-1437 and TD-1435 on 2026-11-06. Paul pressed `One more round` six times that day to get those fixes read, which buys a whole round when only the fixes needed reading.
-- **The person's Go is all or nothing.** Paul's layer (§2.4 add) holds every design's builds for his Go. He wants to decide far-reaching designs (a new seat, a new flow, what every session reads) and not routine ones (*add a button that does X*). No repo can say which is which today.
-- **What the review records show** (97 records with rounds across ShiftLead, ledgerboard and agent-cadence, read 2026-11-17; backfills left out). Each count applies a rule to a design's whole record, after its rounds had run to the stop rule or the cap. Applied round by round, a hold would have fired earlier on some.
-  - 31 ended with build-changing findings in their last round, so their fixes went unread.
-  - A build-changing finding reopening an earlier one (`reopens F<n>`) appeared in 2 or more rounds of 11 designs, and in 3 or more rounds of 7.
-  - Build-changing findings were flat or growing over the last 2 rounds in 12 designs, and over the last 3 in 4.
-  - A Hold at 2 rounds (either condition) would have held 23 of 97; at 3 rounds, 11 of 97. Paul chose 3.
-  - Ledgerboard TD-132's own record (build-changing per round 7, 8, 2, 2, 2, 2, 1, 2, 1, with a recurring topic) is one the rule at 3 holds, a few rounds before its three `One more round` answers of 2026-11-17.
+- **The person's Go is all or nothing.** Paul's layer (§2.4 add) holds the builds of every design filed while its conversation is still going, which is how his designs are filed, until he says go. He wants to decide far-reaching designs (a new seat, a new flow, what every session reads) and not routine ones (*add a button that does X*). No repo can say which is which today.
+- **What the review records show** (97 records with rounds and findings across ShiftLead, ledgerboard and agent-cadence, read 2026-11-17 from their main branches; 104 files, backfills left out). The counts use this plan's own definitions:
+  - **Role kinds:** a role starting `fact-check` is a fact-check. One starting `design` or `review` is a design review; that includes the free-form `review` and `design and fact-check` some records carry.
+  - **Round counts:** a round's count is the sum of its design reviews' build-changing findings.
+  - **Recurrence:** only a design review's `reopens` row counts.
+  - **Unread:** rule 1's sense.
+  
+  Each count applies a rule to a design's whole record, after its rounds had run to the stop rule or the cap. Applied round by round, a hold would have fired earlier on some. What the counts show:
+  - 19 ended with a build-changing finding unread: raised by or after the last design review, and not rejected.
+  - A design review's build-changing `reopens` row appeared in 2 or more rounds of 9 designs, and in 3 or more rounds of 6.
+  - Build-changing findings were non-zero in the last round and fell at no step over the last 2 rounds in 10 designs, over the last 3 in 3.
+  - A Hold at 2 rounds (either condition) would have held 19 of 97; at 3 rounds, 9 of 97. Paul chose 3 (on figures of 23 and 11 from a first count that took fact-checks' reopens and dropped the `review` role).
+  - **Ledgerboard TD-132's record is not one the rule at 3 holds.** Its build-changing counts per round are 7, 8, 2, 2, 2, 2, 1, 2, 1, and its last three rounds fall (2 to 1). Its recurring topic was named in prose but never recorded as `reopens`, so the count finds no recurrence. Its verdict would have been `Closing read` (one unread build-changing finding), where the item recommended `One more round` three times on 2026-11-17. **Recurrence is only counted where reviews write `reopens F<n>`**, as §4.8 already asks them to.
 
 ## Options
 
@@ -34,32 +40,56 @@ Proposed. The question for Paul, after the rounds: *Should design rounds end by 
 
 ### 1. Read and unread
 
-A finding is **read** once a design review or a closing read (rule 3) runs after it in the Reviews table's order. The table numbers reviews in the order they ran, and a round's fixes are applied before the next review reads the plan (ADR 2026-10-30 rule 1). So "read" is derived from the record and needs no status of its own. A finding is **unread** while no such review follows it. That covers a cap round's last review, and the closing fact-check's findings.
+**Role kinds.** The Reviews table's role is read by its first word:
+- `fact-check` (with any qualifier, such as `fact-check (closing)`) is a **fact-check**;
+- `design`, `review` or `design and fact-check` is a **design review** (the last two are older records' free-form roles);
+- `closing-read` (rule 3) is a **closing read**;
+- `judge` (rule 4) is the **judge**, which raises no findings and reads nothing for rule 1.
+
+`review_stats.py` reads them the same way (build 2): today `read_record` reads any role but `design` and `fact-check` as `design`, so a `judge` row would inflate the design counts.
+
+A finding is **read** once a design review or a closing read runs after it in the Reviews table's order. The table numbers reviews in the order they ran, and a round's fixes are applied before the next review reads the plan (ADR 2026-10-30 rule 1). So "read" is derived from the record and needs no status of its own. A finding is **unread** while no such review follows it. That covers:
+- a round's last design review's findings, at the cap or not;
+- the closing fact-check's findings;
+- a closing read's own findings.
+
+A `rejected` finding is never unread.
 
 ### 2. The verdict is counted
 
-`review_stats.py --verdict TD-<n> [--repo PATH] [--json]` reads the design's review record and prints one verdict, with the counts behind it. The first rule that matches wins:
+`review_stats.py --verdict TD-<n> [--repo PATH] [--json]` reads the design's review record and prints one verdict, with the counts behind it.
+
+**When it runs.** It runs once the rounds end by the stop rule or the cap and the closing fact-check's fixes are applied, and again after a closing read's fixes are applied.
+
+**The definitions** (N is `design-hold-rounds`, default 3):
+- **A round's count** is the sum of the build-changing findings its design reviews raised; fact-checks are counted apart and never in it.
+- **A reopen round** is a round in which a design review (never a fact-check, as §4.8's recurring topic already says) raised a build-changing finding with the status `reopens F<n>`. This is narrower than §4.8's recurring topic, which also counts a finding "following that topic's fix". That half needs judgement, so it stays with the item and the judge (rule 4), not the count.
+- **Not falling** means each of the last N rounds' counts is at least the round before it's (no step down), and the last is non-zero. 1, 1, 2 is not falling; 3, 1, 2 falls.
+
+The first rule that matches wins:
 
 | Verdict | When |
 |---|---|
-| **Hold: split or narrow** | In `design-hold-rounds` or more rounds (default 3), a review raised a build-changing finding that reopens an earlier one (`reopens F<n>`). Or the design reviews' build-changing count, non-zero in the last round, did not fall across the last `design-hold-rounds` rounds. |
-| **Closing read** | A build-changing finding is unread (rule 1), and no closing read has run since it. |
-| **One more round** | A closing read has run and raised a build-changing finding. |
+| **Hold: split or narrow** | N or more reopen rounds, or the last N rounds' counts are not falling. |
+| **One more round** | A closing read has run since the last design review, and a build-changing finding it raised, or one raised after it, is unread. |
+| **Closing read** | A build-changing finding is unread, and no closing read has run since the last design review. |
 | **Go** | No build-changing finding is unread. |
 
-The counts it prints:
-- build-changing findings per round, with the fact-checks' counted apart;
-- the unread findings, split into build-changing and minor, each by `F<n>`;
-- the rounds with a build-changing reopen.
+So a closing read runs at most once per end of rounds. If it, or anything after it, leaves a build-changing finding unread, the next verdict is `One more round`.
 
-`design-hold-rounds` is a new `docs/cadence.toml` key, read through `cadence_config.py` like `design-rounds`.
+The counts it prints:
+- each round's count, with the fact-checks' counted apart;
+- the unread findings, split into build-changing and minor, each by `F<n>`;
+- the reopen rounds.
+
+`design-hold-rounds` is a new `docs/cadence.toml` key, read through `cadence_config.py` like `design-rounds` (an integer of at least 2).
 
 ### 3. The closing read (TD-243)
 
 When the verdict is `Closing read`, one review reads only the unread build-changing fixes: the plan's diff since the review that raised them, with the findings those fixes answer.
 - It is a row of the Reviews table with the role `closing-read`, under the last round. It does not count against the cap, as fact-checks do not.
 - It runs after the closing fact-check, so it reads that check's fixes too.
-- It runs once per end of rounds. If it raises a build-changing finding, the verdict becomes `One more round`.
+- It runs at most once per end of rounds. If it raises a build-changing finding, that finding is unread, and the verdict becomes `One more round` (rule 2's order).
 - Within the cap, `One more round` runs without asking anyone. Past the cap, it is the end-of-rounds item, to the person, whatever the design's reach.
 
 ### 4. The judge
@@ -95,6 +125,8 @@ Anything else is **routine**. Any doubt counts as far-reaching.
     paths = ["docs/briefs/**", "docs/glossary.md"]   # globs, fnmatch on the repo-relative path, as [precheck-paths]
     note = "anything that changes the org schema or a seat's powers"   # optional: the repo's own prose, printed to the judge
 
+The globs match as `[precheck-paths]`' do: fnmatch on the repo-relative path, with `*` crossing `/`, so `**` matches as `*` does. The table is a list and a string, not `[precheck-paths]`' map of globs to commands. `cadence_config.check()` refuses an unknown table or key today, so `[far-reaching]` and `design-hold-rounds` are added to what it accepts, each with its own `--check` errors: a `paths` that is not a list of strings, an unknown key in the table, and a `design-hold-rounds` under 2.
+
 A design is far-reaching whatever its mark if any of its builds' `Location:` names a path one of these globs matches. With no `[far-reaching]` table, only the definition applies, and the check in rule 7 finds nothing.
 
 ### 6. Who gives the Go
@@ -108,15 +140,22 @@ A design is far-reaching whatever its mark if any of its builds' `Location:` nam
 
 The header gets `Go by: <person> | <judge seat> | pending`. `Decided:` keeps its date, the `Go`'s.
 
-**A repo or layer that requires the person's Go on every plan still raises the item**, as §4.8 says today. Paul's layer (§2.4 add) does so, and changing it is his own edit, not this design's. Separately, a judge lifting a gate written for the person (`decision (paul)`) is answering for the person, which no check accepts until ledgerboard TD-132 builds a recorded delegated answer. Until then, a routine design that carries such a gate still reaches the person.
+**A repo's or a person's own rules that require the person's Go still raise the item.** §4.8 says "a repo whose own rules require the person's go on a plan" today. This design widens that to the person's layer (§9.18), which binds the sessions of every repo the person works in. Paul's layer (§2.4 add) does so for every design whose conversation is still going when it is filed, and changing it is his own edit, not this design's. Separately, a judge lifting a gate written for the person (`decision (paul)`) is answering for the person, which no check accepts until ledgerboard TD-132 builds a recorded delegated answer. Until then, a routine design that carries such a gate still reaches the person.
 
 ### 7. The backstop at merge
 
-`check_cadence.py` gets a `reach` row. On an open PR whose entry is `Part of:` a design with a review record, it **fails** when both hold:
-- the PR changes a path that the base's `[far-reaching]` globs match (read from the base, never the PR, so a PR cannot change the check it is judged by);
-- and the design's `Go by:` is not the person.
+`check_cadence.py` gets a `reach` row, one of the structural rows (as `person` is). It works in four steps:
+1. **The PR's entries.** It finds the entries the PR names, as the `ledger` row does.
+2. **Each entry's design.** It reads each entry's `Part of:` at the base, through ledgerboard's `parse_part_of`; `check_cadence.py` reads no `Part of:` today.
+3. **Each design's record.** It reads `docs/reviews/TD-<design>.md` at the base.
+4. **The paths.** It reads the `[far-reaching]` globs from the base tree (`_DocsTree` at the base, never the PR, so a PR cannot change the check it is judged by), and matches the PR's changed files against them.
 
-The person then reads and merges the PR, as the `person` row has them do for their own paths. Merged, it is a ⚠ (a sweep never fails history). A PR with no design is `na`, because §4.11 already holds behaviour changes for the person. The row is a detector, like every row (§7).
+On an open PR it **fails** when the PR changes a far-reaching path and a design it builds has a `Go by:` that is not the person. It is **unknown**, naming the design, when that design has no record or its record has no `Go by:`. It is `na` when:
+- no far-reaching path changes;
+- the PR names no entry;
+- no entry it names is `Part of:` a design. §4.11 already holds behaviour changes for the person.
+
+On a fail the person reads and merges the PR, as the `person` row has them do for their own paths. Merged, a fail is a pass with a ⚠, as `row_person` does (a sweep never fails history). The row is a detector, like every row (§7).
 
 ### 8. The end-of-rounds item
 
@@ -137,9 +176,18 @@ When no build-changing fix is unread, it says *every build-changing fix has been
 ## Consequences
 
 - **The builds** (each `Part of: TD-281`; a session files them after the Go):
-  1. cadence.md §4.8 (the definition, the verdict, the closing read, the judge, Reach, the item), the procedure (`files/docs/procedures/cadence.md` step 3), the adr-template's record comment (the `closing-read` and `judge` roles, `Reach:`, `Verdict:`, `Go by:`), the seed `files/docs/cadence.toml` (`design-hold-rounds`, a commented `[far-reaching]`), and a `files/docs/cadence-changes.md` line.
-  2. `cadence_config.py`: `design-hold-rounds` and `far_reaching()`, with `--check` errors and tests. `review_stats.py --verdict`, with fixtures for each verdict and each override.
-  3. `check_cadence.py`'s `reach` row, with tests for each state: open and merged, base-read globs, no design.
+  1. **The docs:**
+     - cadence.md §4.8: the definition, the verdict, the closing read, the judge, Reach, the item;
+     - §9.18's list of `docs/cadence.toml` keys, which `tests/test_cadence_config.sh` tests 10 and 10b hold to the seed;
+     - the Adoption checklist's step 10, which names the design-rounds keys;
+     - the procedure, `files/docs/procedures/cadence.md` step 3;
+     - the adr-template's record comment: the role cell becomes `fact-check | design | closing-read | judge`, plus the `Reach:`, `Verdict:` and `Go by:` header lines;
+     - the seed `files/docs/cadence.toml`: a commented `design-hold-rounds` and `[far-reaching]`;
+     - a `files/docs/cadence-changes.md` line.
+  2. **The scripts behind the verdict:**
+     - `cadence_config.py`: `design-hold-rounds`, and `far_reaching()` with `check()`'s errors, with tests;
+     - `review_stats.py`: `read_record` reads the role kinds of rule 1 in place of folding every other role into `design`, and `--verdict` is added, with fixtures for each verdict, each role kind, and a `rejected` finding.
+  3. **The `reach` row:** `check_cadence.py`'s new row, with tests for each state: open and merged, globs read from the base, no entry, no design, no record.
   4. agent-cadence's own `[far-reaching]` in `docs/cadence.toml`, from the open question above.
 - **This supersedes** ADR 2026-10-30-design-review-rounds rule 7 (how the rounds end: no build-changing fix ends them unread) and rule 9 (the end-of-rounds item: when it is raised and whose recommendation it carries). On the Go, that ADR's Status line gets the clause *rules 7 and 9 superseded by ADR 2026-11-17-design-round-endings.md*.
 - **TD-243 is covered** by rules 1, 3 and 8. It is archived when build 1 merges, its Log naming this design.
