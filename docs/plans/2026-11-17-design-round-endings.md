@@ -200,9 +200,6 @@ When no build-changing fix is unread, it says *every build-changing fix has been
 
 ### Open for the rounds
 
-- **agent-cadence's own `[far-reaching]` paths** (Paul's to settle). Every payload change reaches every consumer, so the question is how much of it Paul decides. Proposed:
-  - `files/docs/cadence.md`, `files/docs/procedures/**` and the seeds;
-  - the scripts that decide whose Go counts, by the definition's "who acts or decides for the person": `files/scripts/check_cadence.py`, `files/scripts/review_stats.py` and `files/scripts/cadence_config.py`.
 - **TD-249's synopsis.** The item would link it once TD-249 lands. Nothing here waits on it.
 
 ## Consequences
@@ -220,7 +217,9 @@ When no build-changing fix is unread, it says *every build-changing fix has been
      - `cadence_config.py`: `design-hold-rounds`, and `far_reaching()` with `check()`'s errors, with tests;
      - `review_stats.py`: `read_record` reads rule 1's role kinds by first word, as rule 1 says, and `--verdict` is added (rounds counted since the last Hold; a per-round Hold mode), with fixtures for each verdict, each role kind, a rejected finding, and a Hold revision.
   3. **The `reach` row:** `check_cadence.py`'s new row, with tests for each state: open and merged, globs read from the base, no entry, no design, no record, a record with no `Reach:`, and a `Go by:` against the board's `People:`.
-  4. agent-cadence's own `[far-reaching]` in `docs/cadence.toml`, from the open question above.
+  4. agent-cadence's own `[far-reaching]` in `docs/cadence.toml` (Paul, 2026-11-17). Every payload change reaches every consumer, and he decides these:
+     - `files/docs/cadence.md`, `files/docs/procedures/**` and the seeds;
+     - the scripts that decide whose Go counts, by the definition's "who acts or decides for the person": `files/scripts/check_cadence.py`, `files/scripts/review_stats.py` and `files/scripts/cadence_config.py`.
 - **This supersedes** ADR 2026-10-30-design-review-rounds rule 7 (how the rounds end: no build-changing fix ends them unread) and rule 9 (the end-of-rounds item: when it is raised and whose recommendation it carries). On the Go, that ADR's Status line gets the clause *rules 7 and 9 superseded by ADR 2026-11-17-design-round-endings.md*.
 - **TD-243 is covered** by rules 1, 3 and 8. It is archived when build 1 merges, its Log naming this design.
 - **ShiftLead** is told the number, so that TD-1911 (the techlead as judge, `design_go`) mirrors it after its next pin bump.
