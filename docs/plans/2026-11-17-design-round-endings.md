@@ -60,14 +60,14 @@ A finding is **read** once a design review or a closing read runs after it in th
 
 **A rejected finding follows the same rule.** A build-changing finding the designer rejected is unread until a later review has read the plan and the findings table with the rejection in it. So a rejection alone never spares a design a closing read, and the closing read reads the rejection's reason. The judge also rules on every rejected build-changing finding (rule 4).
 
-**Since the last Hold.** A `Hold` revision keeps the record's numbering (ADR 2026-10-30) and starts its own count against the cap. Rules 2 and 3 count only the rounds after the round in which the last Hold was given (its `judge` row's round). With a Hold at round 4, round 5 is the revision's first round: its reopen rounds, its not-falling window and its cap all start there, and rounds 1 to 4 count for nothing. A finding a revision round raises that `reopens` a finding from before the Hold still makes a reopen round.
+**Since the last Hold.** A `Hold` revision keeps the record's numbering (ADR 2026-10-30) and starts its own count against the cap. The record's header lists the round of every Hold, `Holds: 4, 9` (none: `Holds: none`), whoever gave it: the judge on a routine design, or the person's `Hold: <note>` answer to an item. Rules 2 and 3 count only the rounds after the last round that line names. With a Hold at round 4, round 5 is the revision's first round: its reopen rounds, its not-falling window and its cap all start there, and rounds 1 to 4 count for nothing. A finding a revision round raises that `reopens` a finding from before the Hold still makes a reopen round.
 
 ### 2. The verdict is counted
 
 `review_stats.py --verdict TD-<n> [--repo PATH] [--json]` reads the design's review record and prints one verdict, with the counts behind it.
 
 **When it runs.**
-- **After every round from round N on** (counted since the last Hold), for **Hold** alone: a Hold then ends the rounds early, before the stop rule or the cap.
+- **After every round from round N on** (counted since the last Hold), for **Hold** alone: a Hold then ends the rounds early, before the stop rule or the cap. The rounds have ended, so the closing fact-check runs, as §4.8 says it does however the rounds end. Its fixes belong to the Hold round, and the revision's first round opens with its own fact-check.
 - **Once the rounds end** by the stop rule or the cap, after the closing fact-check's fixes are applied: the full table below.
 - **After a closing read's fixes** are applied: the full table again.
 
@@ -120,7 +120,7 @@ The judge is a seat independent of the design: never the designer's session, and
 - §4.8's definition of far-reaching, and the repo's `[far-reaching]` paths and note (rule 5).
 
 **What it returns:**
-- **The verdict confirmed, or overridden with a reason.** On a routine design it may move only toward more caution: `Go` to a closing read, `One more round` or `Hold`, or a closing read to `One more round` or `Hold`. An override toward less caution (dropping a counted `Hold` or `One more round`) is not the judge's to make: it raises the item to the person, with the override as its recommendation. On a far-reaching design the item goes to the person anyway, with the override shown.
+- **The verdict confirmed, or overridden with a reason.** On a routine design it may move only toward more caution: `Go` to a closing read, `One more round` or `Hold`. An override to `One more round` runs one full round with no closing read first. It counts toward the cap, and past the cap it is the item to the person, as any `One more round` is. An override toward less caution (dropping a counted `Hold` or `One more round`) is not the judge's to make: it raises the item to the person, with the override as its recommendation. On a far-reaching design the item goes to the person anyway, with the override shown.
 - **A ruling on each rejected build-changing finding:** the rejection stands, or the finding counts as unread.
 - **Any untagged recurrence:** the same topic (the findings table's `topic` column) raised build-changing in two or more rounds with no `reopens`. One the judge finds counts as a reopen round for the Hold, which is a move toward caution.
 - **Hold and raise**, where a question only the person can settle remains (scope, product, cost). It goes to the person, unless the repo's rules name someone who answers for them.
@@ -160,10 +160,10 @@ At the judge's run (rule 4), a design is far-reaching whatever its mark if a fil
 | Routine, `Go`, and no rule holds it for the person (below) | No item. The builds are filed under §4.8's "with no item" path. The record says `Go by: <judge>`, and the design entry's Log gets a line saying so through `ledger.py note`. |
 | Routine, `Go`, and a rule holds it for the person | The item goes to the person, carrying the judge's `Go` as its recommendation. |
 | Routine, first `Hold: split or narrow` | No item. The designer revises as the judge's reason says, and the revision starts its own count (rule 1, *Since the last Hold*). |
-| Routine, second `Hold` on the same design | The item goes to the person. Two Holds mean the design keeps failing the same way, which is the person's to judge. |
+| Routine, a `Hold` when `Holds:` already names one | The item goes to the person. Two Holds mean the design keeps failing the same way, which is the person's to judge. |
 | Any, *Hold and raise*, an override toward less caution (rule 4), or `One more round` past the cap | The item goes to the person. |
 
-The header gets `Go by: <person> | <judge seat> | pending` and `Holds: <n>`. `Decided:` keeps its date, the `Go`'s.
+The header gets `Go by: <person> | <judge seat> | pending`, where a person's Go is written with their name exactly as the board's `People:` line spells it. It also gets `Holds:`, the rounds of the Holds (rule 1); their count is the number of rounds it names. `Decided:` keeps its date, the `Go`'s.
 
 **A repo's or a person's own rules that require the person's Go still raise the item.** §4.8 says "a repo whose own rules require the person's go on a plan" today. This design widens that to the person's layer (§9.18), which binds the sessions of every repo the person works in. Paul's layer (§2.4 add) does so for every design whose conversation is still going when it is filed, and changing it is his own edit, not this design's. Separately, a judge lifting a gate written for the person (`decision (paul)`) is answering for the person, which no check accepts until ledgerboard TD-132 builds a recorded delegated answer. Until then, a routine design that carries such a gate still reaches the person. Once TD-132 lands, the judge's lift is recorded as made for the person, and only where a delegation the board declares covers it.
 
@@ -177,7 +177,7 @@ The header gets `Go by: <person> | <judge seat> | pending` and `Holds: <n>`. `De
 3. **Each design's record.** It reads `docs/reviews/TD-<design>.md` at the base.
 4. **The paths.** It reads the `[far-reaching]` globs from the base tree (`_DocsTree` at the base, never the PR, so a PR cannot change the check it is judged by), and matches the PR's changed files against them.
 
-**The person** is whoever the board's `People:` header names (the board's own list of whose answers count).
+**The person** is whoever the board's `People:` header names (the board's own list of whose answers count). When the row would compare a `Go by:` with it and the repo has no board, the board has no `People:` line, or ledgerboard's check faults that line, the row is **unknown**, naming which.
 
 On an open PR it **fails** when the PR changes a far-reaching path and a design it builds has a `Go by:` that is not one of the board's people. It is **unknown**, naming the design, when that design has no record, or its record has a `Reach:` line but no `Go by:`. It is `na` when:
 - no far-reaching path changes;
