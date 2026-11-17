@@ -87,7 +87,7 @@ The first rule that matches wins:
 
 So a closing read runs at most once per end of rounds. If it raises a build-changing finding, the next verdict is `One more round`.
 
-`One more round` arises only when the rounds have ended (by the stop rule, or at the cap) and a closing read then raises a build-changing finding. That round counts toward the cap. It ends as any round does, and a new end of rounds may run a new closing read. A closing read's own fixes are not fact-checked: if they are build-changing, the next round's opening fact-check reads them; if they are minor, they are applied unreviewed, as the closing fact-check's minor findings are today.
+Counted, `One more round` arises only when the rounds have ended (by the stop rule, or at the cap) and a closing read then raises a build-changing finding; otherwise only from the judge's override (rule 4). That round counts toward the cap. It ends as any round does, and a new end of rounds may run a new closing read. A closing read's own fixes are not fact-checked: if they are build-changing, the next round's opening fact-check reads them; if they are minor, they are applied unreviewed, as the closing fact-check's minor findings are today.
 
 The counts it prints:
 - each round's count, with the fact-checks' counted apart;
@@ -160,10 +160,10 @@ At the judge's run (rule 4), a design is far-reaching whatever its mark if a fil
 | Routine, `Go`, and no rule holds it for the person (below) | No item. The builds are filed under §4.8's "with no item" path. The record says `Go by: <judge>`, and the design entry's Log gets a line saying so through `ledger.py note`. |
 | Routine, `Go`, and a rule holds it for the person | The item goes to the person, carrying the judge's `Go` as its recommendation. |
 | Routine, first `Hold: split or narrow` | No item. The designer revises as the judge's reason says, and the revision starts its own count (rule 1, *Since the last Hold*). |
-| Routine, a `Hold` when `Holds:` already names one | The item goes to the person. Two Holds mean the design keeps failing the same way, which is the person's to judge. |
+| Routine, a `Hold` when `Holds:` names an earlier round | The item goes to the person. Two Holds mean the design keeps failing the same way, which is the person's to judge. |
 | Any, *Hold and raise*, an override toward less caution (rule 4), or `One more round` past the cap | The item goes to the person. |
 
-The header gets `Go by: <person> | <judge seat> | pending`, where a person's Go is written with their name exactly as the board's `People:` line spells it. It also gets `Holds:`, the rounds of the Holds (rule 1); their count is the number of rounds it names. `Decided:` keeps its date, the `Go`'s.
+The header gets `Go by: <person> | <judge seat> | pending`, where a person's Go is written with their name as the board's `People:` line spells it; the `reach` row compares it case-insensitively, as ledgerboard and the `gates` row compare a `Decided:` name. It also gets `Holds:`, the rounds of the Holds (rule 1); a round is named once however many Holds it saw, and their count is the number of rounds it names. `Decided:` keeps its date, the `Go`'s.
 
 **A repo's or a person's own rules that require the person's Go still raise the item.** §4.8 says "a repo whose own rules require the person's go on a plan" today. This design widens that to the person's layer (§9.18), which binds the sessions of every repo the person works in. Paul's layer (§2.4 add) does so for every design whose conversation is still going when it is filed, and changing it is his own edit, not this design's. Separately, a judge lifting a gate written for the person (`decision (paul)`) is answering for the person, which no check accepts until ledgerboard TD-132 builds a recorded delegated answer. Until then, a routine design that carries such a gate still reaches the person. Once TD-132 lands, the judge's lift is recorded as made for the person, and only where a delegation the board declares covers it.
 
@@ -215,8 +215,8 @@ When no build-changing fix is unread, it says *every build-changing fix has been
      - a `files/docs/cadence-changes.md` line.
   2. **The scripts behind the verdict:**
      - `cadence_config.py`: `design-hold-rounds`, and `far_reaching()` with `check()`'s errors, with tests;
-     - `review_stats.py`: `read_record` reads rule 1's role kinds by first word, as rule 1 says, and `--verdict` is added (rounds counted since the last Hold; a per-round Hold mode), with fixtures for each verdict, each role kind, a rejected finding, and a Hold revision.
-  3. **The `reach` row:** `check_cadence.py`'s new row, with tests for each state: open and merged, globs read from the base, no entry, no design, no record, a record with no `Reach:`, and a `Go by:` against the board's `People:`.
+     - `review_stats.py`: `read_record` reads rule 1's role kinds by first word, as rule 1 says, and `--verdict` is added (rounds counted since the last Hold; a per-round Hold mode), with fixtures for each verdict, each role kind, a rejected finding, a Hold revision, a person's Hold, and `Holds: none`.
+  3. **The `reach` row:** `check_cadence.py`'s new row, with tests for each state: open and merged, globs read from the base, no entry, no design, no record, a record with no `Reach:`, a `Go by:` against the board's `People:` in another case, and no board, no `People:` line, or a faulted one.
   4. agent-cadence's own `[far-reaching]` in `docs/cadence.toml` (Paul, 2026-11-17). Every payload change reaches every consumer, and he decides these:
      - `files/docs/cadence.md`, `files/docs/procedures/**` and the seeds;
      - the scripts that decide whose Go counts, by the definition's "who acts or decides for the person": `files/scripts/check_cadence.py`, `files/scripts/review_stats.py` and `files/scripts/cadence_config.py`.
