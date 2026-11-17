@@ -1,4 +1,4 @@
-# ADR 2026-11-17: a design's rounds end by a counted verdict that a judge other than the designer confirms, no build-changing fix ends them unread, and only a far-reaching design's Go is the person's
+# ADR 2026-11-17: a design's rounds end by a counted verdict that a judge other than the designer confirms or raises, no build-changing fix ends them unread, and a routine design's Go need not be the person's
 
 **Status:** proposed. Class: **wide** (it changes cadence.md §4.8, which every consumer runs, and a seed key of `docs/cadence.toml`), cap 6, set before round 1. Reach: **far-reaching** (it changes who gives a design's Go for the person). Shape agreed with Paul in session `td-1911` on 2026-11-17, before any review round; he narrowed the judge and moved the merge-time check out in round 3. The rounds are running: the record is `docs/reviews/TD-281.md`.
 **Date:** 2026-11-17
@@ -129,7 +129,7 @@ The judge is independent of the design: never the designer's session, and never 
 
 The session records the line verbatim in the header's `Verdict:`, after the counted verdict it judged and the judge's `R<n>` (`Verdict: Go (R12) · cadence-judge: CONFIRM · reach routine · …`), and the reach in `Reach:`. A seat that judges (ShiftLead's techlead) sends the same line to the session in its reply, so **the session that ran the rounds is the record's only writer**.
 
-**The record.** Every completed judge run is a Reviews row with the role `judge`. Unlike other reviews, a judge run may not be discarded: the record's rule that an aborted or discarded review gets no row covers only an aborted judge run. **One judge run per verdict.** A second judge run on the same verdict, with no review between, is not a fresh opinion to choose from: `--verdict` reads two `judge` rows after the last review as `next: item`, and the item goes to the person.
+**The record.** Every completed judge run is a Reviews row with the role `judge`. Unlike other reviews, a judge run may not be discarded: the record's rule that an aborted or discarded review gets no row covers only an aborted judge run. **One judge run per verdict.** A second judge run on the same verdict, with no review between, is not a fresh opinion to choose from: `--verdict` reads two `judge` rows after the last other row (a design review, a closing read or a fact-check) as `next: item`, and the item goes to the person.
 
 **`reopens` is the reviewer's word, not the designer's.** The procedure's review prompt asks each design review to name a finding it reopens by its id, as §4.8 does today. The designer copies that into the status and keeps it there when the finding is applied or rejected. The judge's look for untagged recurrence is the check on that copy.
 
@@ -159,9 +159,9 @@ At the judge's run (rule 4), a design is far-reaching whatever its mark if a fil
 
 | The verdict, the judge's line, and the design | What happens |
 |---|---|
+| Two or more `judge` rows after the last other row (a design review, a closing read or a fact-check), any reach | The item goes to the person; its recommendation is the counted verdict. This row is read first. |
 | `One more round` within the cap, any reach | The round runs; no judge and no item. Rounds within the cap never asked the person, and still do not. |
 | `One more round` past the cap | The item goes to the person. |
-| Two or more `judge` rows since the last review, any reach | The item goes to the person; its recommendation is the counted verdict. This row is read first. |
 | `RAISE`, any reach | The item goes to the person, with the judge's reason; its recommendation is the counted verdict. |
 | `CONFIRM`, far-reaching | The item goes to the person, carrying the confirmed verdict as its recommendation. |
 | `CONFIRM` on `Go`, routine, and the design's entry carries no `decision (<person>)` gate | No item. The builds are filed under §4.8's "with no item" path. The record says `Go by: <judge>`, and the design entry's Log gets a line saying so through `ledger.py note`. |
@@ -213,7 +213,7 @@ The session that ran the rounds does every step and writes every line. `review_s
 | 9 | `next: round`, or the person answered `One more round` | runs one more round | its rows; then 1 |
 | 10 | The person answered `Go` on the item | nothing more: §4.8's decide lift, which the board answer makes, lifts the gate on the design and every listed build in one write | `Go by: <person>` (their name as `People:` spells it) and `Decided:` in the record |
 
-**What `--verdict` prints at 3.** With a counted `Closing read`, `next: closing-read`. With `One more round`, `next: round` within the cap and `next: item` past it. With a `Go` or `Hold`, it first counts the `judge` rows after the last review: two or more print `next: item`, whatever any line says (rule 4, *One judge run per verdict*). Otherwise it reads the header's `Verdict:`. A judge's line there applies when no review has run since the judge's row and the counted verdict is the one it judged. If none applies, it prints `next: judge`. If one does, it prints the outcome by rule 6's table: `go`, `item` or `revise`. To choose among them it reads the design entry's `Blocked by:` (through the module's `ledger_entries()`) and the header's `Holds:`.
+**What `--verdict` prints at 3.** With a counted `Closing read`, `next: closing-read`. With `One more round`, `next: round` within the cap and `next: item` past it. With a `Go` or `Hold`, it first counts the `judge` rows after the last other row (a design review, a closing read or a fact-check): two or more print `next: item`, whatever any line says (rule 4, *One judge run per verdict*). Otherwise it reads the header's `Verdict:`. A judge's line there applies when no review has run since the judge's row and the counted verdict is the one it judged. If none applies, it prints `next: judge`. If one does, it prints the outcome by rule 6's table: `go`, `item` or `revise`. To choose among them it reads the design entry's `Blocked by:` (through the module's `ledger_entries()`) and the header's `Holds:`.
 
 A Hold found at 1 reaches 3 as a Hold again: the Hold rule comes first in rule 2's table, and the closing fact-check cannot undo a reopen. So a mid-round Hold's order is the closing fact-check, then the judge, then the item or the revision.
 
