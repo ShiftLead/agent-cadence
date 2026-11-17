@@ -11,7 +11,7 @@
 - **A build-changing fix can end the rounds unread** (TD-243). The cap ends them even when its last round raised a build-changing finding, and the closing fact-check's findings are *applied, never reviewed*. Seen on ShiftLead's TD-1434, TD-1437 and TD-1435 on 2026-11-06. Paul pressed `One more round` six times that day to get those fixes read, which buys a whole round when only the fixes needed reading.
 - **The person's Go is all or nothing.** Paul's layer (§2.4 add) holds the builds of every design filed while its conversation is still going, which is how his designs are filed, until he says go. He wants to decide far-reaching designs (a new seat, a new flow, what every session reads) and not routine ones (*add a button that does X*). No repo can say which is which today.
 - **What the review records show** (97 records with rounds and findings across ShiftLead, ledgerboard and agent-cadence, read 2026-11-17 from their main branches; 104 files, backfills left out). The counts use this plan's own definitions:
-  - **Role kinds:** a role starting `fact-check` is a fact-check. One starting `design` or `review` is a design review; that includes the free-form `review` and `design and fact-check` some records carry.
+  - **Role kinds:** rule 1's. A role whose first word is `fact-check` is a fact-check; `judge` and `closing-read` are their own kinds (no record has them yet); any other role is a design review. That last kind includes the free-form `review`, `design and fact-check`, `trial` and `confirming` some records carry.
   - **Round counts:** a round's count is the sum of its design reviews' build-changing findings.
   - **Recurrence:** only a design review's `reopens` row counts.
   - **Unread:** rule 1's sense.
@@ -21,7 +21,7 @@
   - A design review's build-changing finding whose status holds `reopens F<n>` appeared in 2 or more rounds of 15 designs, and in 3 or more rounds of 10.
   - Build-changing findings were non-zero in the last round and fell at no step within the last 2 rounds in 10 designs, within the last 3 in 3.
   - A Hold at 2 rounds (either condition) would have held 25 of 97; at 3 rounds, 13 of 97. Paul chose 3, on a first count of 23 and 11; that count read every role's reopens and only statuses beginning `reopens`.
-  - **Ledgerboard TD-132's record is one the rule at 3 holds.** Its build-changing counts per round are 7, 8, 2, 2, 2, 2, 1, 2, 1. Its design reviews raised build-changing reopens in rounds 2 to 7: six rounds, so it would have been held by round 4, before its rounds 5 to 9. On 2026-11-17 its item recommended `One more round` three times instead.
+  - **Ledgerboard TD-132's record is one the rule at 3 holds.** Its build-changing counts per round are 7, 8, 2, 2, 2, 2, 1, 2, 1. Its design reviews raised build-changing reopens in rounds 2 to 7: six rounds. If the verdict ran after every round (an open question below), it would have held the design after round 4, before its rounds 5 to 9. Run only at the end of the rounds, as rule 2 says, it holds the design at round 9. On 2026-11-17 its item recommended `One more round` three times instead.
   - **Recurrence is counted only where reviews write `reopens F<n>`**, as §4.8 asks them to. Once a finding is applied, its status carries it inside its text (`applied: … (reopens F19)`), so the count reads it anywhere in the status, not only at its start.
 
 ## Options
@@ -47,7 +47,11 @@ Proposed. The question for Paul, after the rounds: *Should design rounds end by 
 - `judge` (rule 4) is the **judge**, which raises no findings and reads nothing for rule 1;
 - any other role is a **design review**: `design`, and older records' free-form roles such as `review`, `design and fact-check`, `trial` or `confirming`.
 
-The last kind is what `read_record` does today: it reads any role but `design` and `fact-check` as `design`, with a warning. Build 2 keeps that and its warning, and adds the `closing-read` and `judge` kinds, so a `judge` row no longer inflates the design counts.
+This changes `review_stats.py`. Today `read_record` reads any role other than exactly `design` or `fact-check` as `design`, with a warning. That includes `fact-check (closing)` and `fact-check (re-check)`, so today's counts take a qualified fact-check's findings as a design review's. Build 2 makes `read_record` read the first word as above:
+- the four kinds;
+- a warning kept for every role other than exactly `design`, `fact-check`, `closing-read` or `judge`.
+
+So a qualified fact-check counts as a fact-check, and a `judge` row inflates no design count.
 
 A finding is **read** once a design review or a closing read runs after it in the Reviews table's order. The table numbers reviews in the order they ran, and a round's fixes are applied before the next review reads the plan (ADR 2026-10-30 rule 1). So "read" is derived from the record and needs no status of its own. A finding is **unread** while no such review follows it. That covers:
 - a round's last design review's findings, at the cap or not;
@@ -187,7 +191,7 @@ When no build-changing fix is unread, it says *every build-changing fix has been
      - a `files/docs/cadence-changes.md` line.
   2. **The scripts behind the verdict:**
      - `cadence_config.py`: `design-hold-rounds`, and `far_reaching()` with `check()`'s errors, with tests;
-     - `review_stats.py`: `read_record` reads the role kinds of rule 1 in place of folding every other role into `design`, and `--verdict` is added, with fixtures for each verdict, each role kind, and a `rejected` finding.
+     - `review_stats.py`: `read_record` reads rule 1's role kinds by first word, as rule 1 says, and `--verdict` is added, with fixtures for each verdict, each role kind, and a `rejected` finding.
   3. **The `reach` row:** `check_cadence.py`'s new row, with tests for each state: open and merged, globs read from the base, no entry, no design, no record.
   4. agent-cadence's own `[far-reaching]` in `docs/cadence.toml`, from the open question above.
 - **This supersedes** ADR 2026-10-30-design-review-rounds rule 7 (how the rounds end: no build-changing fix ends them unread) and rule 9 (the end-of-rounds item: when it is raised and whose recommendation it carries). On the Go, that ADR's Status line gets the clause *rules 7 and 9 superseded by ADR 2026-11-17-design-round-endings.md*.
