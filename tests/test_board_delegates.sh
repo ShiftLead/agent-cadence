@@ -94,6 +94,15 @@ st=$(person open noroot); [ "${st%% *}" = unknown ] && ok "2f no clone to read t
 git -C "$R" switch -q main; git -C "$R" merge -q --squash topic >/dev/null 2>&1; git -C "$R" commit -qm "people (#2)"
 st=$(person merged); [ "${st%% *}" = pass ] && grep -q "⚠" <<< "$st" && ok "2g merged: a ⚠, never a fail" || bad "2g: $st"
 git -C "$R" reset -q --hard origin/main
+# a grant is live only while the line is faultless: clearing a fault widens it with the same grants (review, #267)
+git -C "$R" switch -q main; readme "Delegates: director for Pat (merge-line); director for Pat (other-line)"; commit "faulty"
+git -C "$R" push -q origin main 2>/dev/null
+topic; readme "Delegates: director for Pat (merge-line, other-line)"; commit
+st=$(person open); [ "${st%% *}" = fail ] && grep -q "Delegates: grants" <<< "$st" \
+  && ok "2i a PR clearing a fault in the Delegates: line (the same grants, now live): fails" || bad "2i: $st"
+topic; git -C "$R" mv docs/user_attention/README.md docs/elsewhere.md; commit "rename"
+st=$(person open); [ "${st%% *}" = fail ] && ok "2j the board's README.md renamed away (the forge lists only the new name): fails" || bad "2j: $st"
+git -C "$R" switch -q main; readme "$GRANT"; commit "good"; git -C "$R" push -q origin main 2>/dev/null
 topic; add >/dev/null
 st=$(person open); [ "${st%% *}" = na ] && ok "2h a PR adding an item alone: na" || bad "2h: $st"
 

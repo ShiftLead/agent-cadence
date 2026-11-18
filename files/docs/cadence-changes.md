@@ -13,7 +13,7 @@ sessions already running (ShiftLead design §4.8). Written by the agent-cadence 
 the convention (cadence.md §7).
 
 ## 2026-11-18 — Delegated answers on the board (ledgerboard v3.4)
-Do: a delegate answers only as `board_edit.py decide --by <person> --delegate <name>`, on an item a reviewed PR raised with `--scope`, under the board's `Delegates:` grant. A PR changing `Delegates:` or `People:` is the person's to merge; a scoped item takes no carve-out.
+Do: a delegate answers only as `board_edit.py decide --by <person> --delegate <name>`, on an item a reviewed PR raised with `--scope`, under the board's `Delegates:` grant. A PR changing `Delegates:` or `People:` is the person's to merge; raising or giving an item a `Scope` takes no carve-out.
 See: cadence.md §3.4, §4.4, §4.5; board_edit.py; check_cadence.py's person row; TD-292.
 
 ## 2026-11-18 — An entry's own answers: `--answers` and `--lifts` on `ledger.py new` and `set`

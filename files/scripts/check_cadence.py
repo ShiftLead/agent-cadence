@@ -1897,7 +1897,9 @@ def _scoped(it):
         return None
     if it.scope is not None:
         return it.scope
-    m = re.search(r"^\*\*Scope:\*\*[ \t]*(.*?)[ \t]*$", it.raw or "", re.M)
+    parts = (it.raw or "").split("\n\n")
+    head = parts[1] if len(parts) > 1 else ""   # the header block: after the heading, to the first blank line
+    m = re.search(r"^\*\*Scope:\*\*[ \t]*(.*?)[ \t]*$", head, re.M)
     return None if m is None else m.group(1)
 
 
@@ -2517,7 +2519,9 @@ def board_grants_changed(root, old, new, files):
         got = lb.board_people(board)
         return None if got is None else sorted(n.lower() for n in got)
     out = []
-    if lb.delegates_changed(base, head):
+    # a grant is live only while the line is faultless (delegation_covers), so a change that clears a fault (a
+    # second line dropped, a grant named twice merged) widens what a delegate may answer with the same grants
+    if lb.delegates_changed(base, head) or bool(lb.delegates_problems(base)) != bool(lb.delegates_problems(head)):
         out.append("the board's Delegates: grants")
     if folded(base) != folded(head):
         out.append("the board's People:")
@@ -2531,7 +2535,14 @@ def row_person(pr, root=None):
     person is the person's to change; a PR touching the board's preamble whose change cannot be read is unknown."""
     files = pr.get("files") or []
     hit = [p for p in PERSON_PATHS if p in files]
-    if any(f in (f"{BOARD_DIR}/{_lb().BOARD_README}", BOARD_STUB) for f in files):
+    preamble = (f"{BOARD_DIR}/{_lb().BOARD_README}", BOARD_STUB)
+    touched = any(f in preamble for f in files)
+    if not touched and root and any(f.startswith("docs/") for f in files):
+        # a rename shows the forge only its new name: the preamble there at the base and gone at the head
+        old, new, why = pr_ends(pr, root)
+        touched = not why and any(git(["cat-file", "-e", f"{old}:{p}"], cwd=root) is not None
+                                  and git(["cat-file", "-e", f"{new}:{p}"], cwd=root) is None for p in preamble)
+    if touched:
         if not root:
             return row("person", "unknown", "the PR changes the board's preamble, and there is no clone to read "
                        "whether it changes its Delegates: grants or People:")
