@@ -2483,6 +2483,39 @@
    "name": "decision_missing_no_old",
    "ledger": "check/asks_after.md",
    "archive": ""
+  },
+  {
+   "name": "body_shape_no_old",
+   "ledger": "check/body_shape.md",
+   "archive": ""
+  },
+  {
+   "name": "body_shape_against_old",
+   "ledger": "check/body_new.md",
+   "archive": "",
+   "old": "check/body_old.md"
+  },
+  {
+   "name": "body_shape_old_none",
+   "ledger": "check/body_new.md",
+   "archive": ""
+  },
+  {
+   "name": "body_shape_standing",
+   "ledger": "check/body_shape.md",
+   "archive": "",
+   "old": "check/body_shape.md"
+  },
+  {
+   "name": "answers_unusable_against_old",
+   "ledger": "check/answers_after.md",
+   "archive": "",
+   "old": "check/answers_before.md"
+  },
+  {
+   "name": "answers_unusable_no_old",
+   "ledger": "check/answers_after.md",
+   "archive": ""
   }
  ],
  "log": [

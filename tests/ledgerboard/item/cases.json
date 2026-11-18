@@ -927,7 +927,8 @@
       "queue: respace TD-3, TD-4 (shiftlead)",
       "board: snooze 2026-11-11-3f9a2c1d Rotate the key now to 2026-11-20 (session w-9)",
       "board: append 2026-11-11-3f9a2c1d Ping sam (session n/a)",
-      "board: decide 2026-11-11-3f9a2c1d Say Go: Go (session lb-x)"
+      "board: decide 2026-11-11-3f9a2c1d Say Go: Go (session lb-x)",
+      "shiftlead: lift decision (paul) on TD-12 (session n/a)"
     ],
     "edit_actions": [
       "board_edit: due Rotate. to 2026-01-30 (session s-1)",
@@ -939,7 +940,8 @@
       "not a subject",
       "board: snooze 2026-11-11-3f9a2c1d Rotate the key now to 2026-11-20 (session w-9)",
       "board: append 2026-11-11-3f9a2c1d Ping sam (session n/a)",
-      "board: decide 2026-11-11-3f9a2c1d Say Go: Go (session lb-x)"
+      "board: decide 2026-11-11-3f9a2c1d Say Go: Go (session lb-x)",
+      "shiftlead: lift decision (paul) on TD-12 (session n/a)"
     ],
     "subject_ids": [
       "board: snooze 2026-11-11-3f9a2c1d Rotate the key now to 2026-11-20 (session w-9)",
@@ -948,8 +950,66 @@
       "board_edit: done Ship it (session s-1)",
       "shiftlead: board A new item (from TD-12)",
       "shiftlead: append Ship it (session n/a)",
-      "board: append 2026-02-30-abcd1234 Ping sam (session n/a)"
-    ]
+      "board: append 2026-02-30-abcd1234 Ping sam (session n/a)",
+      "shiftlead: lift decision (paul) on TD-12 (session n/a)"
+    ],
+    "lift_subjects": {
+      "writer": [
+        {
+          "tid": "TD-12",
+          "gate": "decision (paul)",
+          "tool": "shiftlead"
+        },
+        {
+          "tid": "TD-012",
+          "gate": "Decision(Ann)",
+          "tool": "shiftlead",
+          "session": "lb-designer"
+        },
+        {
+          "tid": "TD-12",
+          "gate": "decision (Ann )",
+          "tool": "shiftlead"
+        },
+        {
+          "tid": "acme/other#TD-12",
+          "gate": "decision (paul)",
+          "tool": "shiftlead"
+        },
+        {
+          "tid": "TD-12",
+          "gate": "until 2026-02-01",
+          "tool": "shiftlead"
+        },
+        {
+          "tid": "TD-12",
+          "gate": "decision (paul)",
+          "tool": "shiftlead",
+          "session": "w 1"
+        },
+        {
+          "tid": "TD-1234567890123456789",
+          "gate": "decision (paul)",
+          "tool": "shiftlead"
+        },
+        {
+          "tid": "TD-123456789012345678",
+          "gate": "decision (paul)",
+          "tool": "shiftlead"
+        }
+      ],
+      "reader": [
+        "shiftlead: lift decision (paul) on TD-12 (session n/a)",
+        "shiftlead: lift decision (Ann) on TD-012 (session lb-designer)",
+        "shiftlead: lift decision (paul) on TD-123456789012345678 (session n/a)",
+        "shiftlead: lift decision (paul) on TD-1234567890123456789 (session n/a)",
+        "shiftlead: lift decision (paul) on acme/other#TD-12 (session n/a)",
+        "shiftlead: lift decision (paul) on TD-12 (session `lb-designer`)",
+        "shiftlead: lift decision (paul) on TD-12 (session n/a)\n",
+        "shiftlead: lift until 2026-02-01 on TD-12 (session n/a)",
+        "shiftlead: lift decision (paul) on TD-١٢ (session n/a)"
+      ]
+    }
   },
   "gate": [
     {

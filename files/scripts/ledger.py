@@ -5,7 +5,7 @@
 
     ledger.py --pickable [--ledger PATH] [--archive PATH] [--json]
     ledger.py --summary | --split
-    ledger.py fmt [TD-n …] [--check]
+    ledger.py fmt [TD-n …] [--check]  |  migrate-body [TD-n …] [--check]
     ledger.py new --title T --priority P --why FILE|- [--ask FILE|-] [--fix FILE|-] [--done-when FILE|-] [--type …] [--id TD-n] …
     ledger.py set TD-n --FIELD VALUE … [--title T] [--ask FILE|-]  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|- | --remove
     ledger.py lift TD-n --gate "event (<name>)"|"until D" --by HOST [--evidence E]   (a host's lift, TD-219)
@@ -88,6 +88,11 @@ the heading, the header block in its field order, the body byte for byte, LF lin
 ``canonical()`` refuses is named with its hand fix and left alone. ``--check`` prints the entries that
 would change and writes nothing. Exit 1 when an entry was refused, or under ``--check`` would change;
 2 for a v1 ledger (split first), an id in neither directory, or a ledger ``v2_problems()`` faults.
+
+``migrate-body`` (TD-283) is ``fmt``'s twin over ledgerboard's ``plan_migrate_body()`` (v3.3, its TD-133): each
+entry's body leads respelled so ``--check`` flags none of ``lead-form``, ``glued-lead`` or ``field-lines``
+(``fence-open`` it does not rewrite: that is a hand fix). The same scope, ``--check`` and exits. Run it on a
+repo's ledger, as its own PR, before the repo takes ledgerboard v4.0, which reads a body strictly (cadence.md §2.12).
 
 ``new`` (TD-198) files one entry in a v2 ledger: ``docs/ledger/TD-NNN.md`` from ledgerboard's writer,
 ``plan_new()`` (TD-188), so canonical by construction — a flag per header field (``--priority``, ``--type``,
@@ -927,13 +932,23 @@ def split(ledger: Path, archive: Path, v2: bool) -> int:
     return 0
 
 
-def fmt(argv: list[str]) -> int:
-    """``ledger.py fmt``: put entries in canonical form (TD-197) through ledgerboard's ``plan_fmt()`` (TD-216):
-    every entry's write made both or neither; exit 1 an entry refused (or, ``--check``, one would change),
+REWRITES = {   # a whole-ledger rewrite: (its ledgerboard plan, its info key, the past tense, the description)
+    "fmt": ("plan_fmt", "formatted", "formatted", "write each entry of a v2 ledger in canonical form (ledgerboard SPEC)"),
+    "migrate-body": ("plan_migrate_body", "migrated", "migrated",
+                     "rewrite each entry of a v2 ledger so --check flags no lead-form, glued-lead or field-lines "
+                     "(ledgerboard v3.3); run it before the repo takes ledgerboard v4.0, which reads a body strictly"),
+}
+
+
+def fmt(argv: list[str], cmd: str = "fmt") -> int:
+    """``ledger.py fmt``: put entries in canonical form (TD-197) through ledgerboard's ``plan_fmt()`` (TD-216);
+    ``ledger.py migrate-body`` (TD-283): respell each entry's body leads through ``plan_migrate_body()`` (v3.3), so
+    ``--check`` flags none of ``lead-form``, ``glued-lead``, ``field-lines`` — archived entries too. Either: every
+    entry's write made both or neither; exit 1 an entry refused (or, ``--check``, one would change),
     2 unusable, 4 the write failed, every file restored."""
-    ap = argparse.ArgumentParser(prog="ledger.py fmt",
-                                 description="write each entry of a v2 ledger in canonical form (ledgerboard SPEC)")
-    ap.add_argument("ids", nargs="*", metavar="TD-n", help="the entries to format; default: every entry, open and archived")
+    plan_fn, key, done, desc = REWRITES[cmd]
+    ap = argparse.ArgumentParser(prog=f"ledger.py {cmd}", description=desc)
+    ap.add_argument("ids", nargs="*", metavar="TD-n", help="the entries to rewrite; default: every entry, open and archived")
     ap.add_argument("--check", action="store_true", help="print the entries that would change and exit 1; write nothing")
     ap.add_argument("--ledger", help="a v2 directory; default: docs/ledger/ at the work tree's top")
     a = ap.parse_args(argv)
@@ -943,30 +958,30 @@ def fmt(argv: list[str]) -> int:
     ledger = Path(a.ledger) if a.ledger else _toplevel() / LEDGER_DIR_REL
     io = fs_io()
     if io[0](str(ledger)) is None:
-        print(f"ledger: fmt: {ledger} is not a v2 directory — a v1 ledger: `ledger.py --split` first", file=sys.stderr)
+        print(f"ledger: {cmd}: {ledger} is not a v2 directory — a v1 ledger: `ledger.py --split` first", file=sys.stderr)
         return 2
     why = v2_unread(str(ledger), io)
     if why:
-        print(f"ledger: fmt: not read — {ledger}: {why}", file=sys.stderr)
+        print(f"ledger: {cmd}: not read — {ledger}: {why}", file=sys.stderr)
         return 2
     try:
-        plan = LBL.plan_fmt(LBL.Ledger.open(str(ledger)), a.ids)
+        plan = getattr(LBL, plan_fn)(LBL.Ledger.open(str(ledger)), a.ids)
     except LBL.Unusable as e:
-        print(f"ledger: fmt: {e}", file=sys.stderr)
+        print(f"ledger: {cmd}: {e}", file=sys.stderr)
         return 2
     for r in plan.info["refused"]:
-        print(f"ledger: fmt: {r['path']}: refused, left alone — {r['why']}", file=sys.stderr)
+        print(f"ledger: {cmd}: {r['path']}: refused, left alone — {r['why']}", file=sys.stderr)
     if not a.check:
         try:
             LBL.apply(plan)
         except OSError as e:
-            print(f"ledger: fmt: the write failed, every file restored: {e}", file=sys.stderr)
+            print(f"ledger: {cmd}: the write failed, every file restored: {e}", file=sys.stderr)
             return 4
-    n, changed, refused = plan.info["entries"], plan.info["formatted"], len(plan.info["refused"])
+    n, changed, refused = plan.info["entries"], plan.info[key], len(plan.info["refused"])
     for p in changed:
-        print(f"{'would change' if a.check else 'formatted'}: {p}")
-    print(f"ledger fmt: {n} entr{'y' if n == 1 else 'ies'}, {len(changed)} "
-          f"{'would change' if a.check else 'formatted'}, {refused} refused")
+        print(f"{'would change' if a.check else done}: {p}")
+    print(f"ledger {cmd}: {n} entr{'y' if n == 1 else 'ies'}, {len(changed)} "
+          f"{'would change' if a.check else done}, {refused} refused")
     return 1 if refused or (a.check and changed) else 0
 
 
@@ -2074,8 +2089,8 @@ def renumber(argv: list[str]) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if argv[:1] == ["fmt"]:
-        return fmt(argv[1:])
+    if argv[:1] in (["fmt"], ["migrate-body"]):
+        return fmt(argv[1:], argv[0])
     if argv[:1] == ["new"]:
         return new(argv[1:])
     if argv[:1] in (["set"], ["note"], ["edit"]):

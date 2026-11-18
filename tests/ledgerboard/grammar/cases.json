@@ -1091,5 +1091,54 @@
         "## Say Go to the split.\n\n**Kind:** decide\n**Added:** 2026-11-11\n**Session:** w-9 on host-a\n**Context:** TD-5 decision (pat)\n**Due:** 2026-11-18\n**Answers:** Go | Spl\nit\n\n- **Context:** TD-5 asks.\n- **Question:** Go?\n- **Recommended:** Go — it is ready.\n"
       ]
     }
+  },
+  "lift-subject": {
+    "lift-subject": {
+      "accept": [
+        "shiftlead: lift decision (paul) on TD-12 (session n/a)"
+      ],
+      "refuse": [
+        "shiftlead: lift decision (paul) on TD-12 (session n/a) ",
+        "shiftlead: lift decision (paul) for TD-12 (session n/a)",
+        "shiftlead: lift until (paul) on TD-12 (session n/a)"
+      ]
+    },
+    "log-token": {
+      "accept": [
+        "a.b@c/d_e-1: lift decision (paul) on TD-12 (session w-1)"
+      ],
+      "refuse": [
+        "shift lead: lift decision (paul) on TD-12 (session n/a)",
+        "shiftlead: lift decision (paul) on TD-12 (session a b)",
+        "shiftlead: lift decision (paul) on TD-12 (session `lb-designer`)"
+      ]
+    },
+    "person": {
+      "accept": [
+        "shiftlead: lift decision (sam.lee) on TD-12 (session n/a)"
+      ],
+      "refuse": [
+        "shiftlead: lift decision (a b) on TD-12 (session n/a)",
+        "shiftlead: lift decision (sam..lee) on TD-12 (session n/a)"
+      ]
+    },
+    "person-part": {
+      "accept": [
+        "shiftlead: lift decision (a-b_C) on TD-12 (session n/a)"
+      ],
+      "refuse": [
+        "shiftlead: lift decision (a+b) on TD-12 (session n/a)",
+        "shiftlead: lift decision () on TD-12 (session n/a)"
+      ]
+    },
+    "digit": {
+      "accept": [
+        "shiftlead: lift decision (paul) on TD-0012 (session n/a)"
+      ],
+      "refuse": [
+        "shiftlead: lift decision (paul) on TD-١٢ (session n/a)",
+        "shiftlead: lift decision (paul) on TD-x (session n/a)"
+      ]
+    }
   }
 }

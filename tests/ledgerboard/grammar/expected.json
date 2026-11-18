@@ -939,6 +939,86 @@
    }
   ]
  },
+ "lift-subject": {
+  "digit": [
+   {
+    "accepted": true,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   }
+  ],
+  "lift-subject": [
+   {
+    "accepted": true,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   }
+  ],
+  "log-token": [
+   {
+    "accepted": true,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   }
+  ],
+  "person": [
+   {
+    "accepted": true,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   }
+  ],
+  "person-part": [
+   {
+    "accepted": true,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   },
+   {
+    "accepted": false,
+    "why": null
+   }
+  ]
+ },
  "log-line": {
   "char": [
    {

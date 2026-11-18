@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-18 — Migrate a ledger's body leads before ledgerboard v4.0: `ledger.py migrate-body`
+Do: once your pin carries ledgerboard v3.3, run `agent-cadence run ledger.py migrate-body` as its own PR (`--check` first lists what it rewrites), and fix by hand any entry it refuses (an open code fence); v4.0 reads a body strictly. `--check`'s new ℹ kinds `lead-form`, `glued-lead`, `field-lines`, `fence-open` name what it fixes.
+See: cadence.md §2.12; ledger.py; TD-283.
+
 ## 2026-11-18 — A far-reaching build of a design the judge gave its Go waits for the person: the `reach` row
 Do: when `/cadence`'s `reach` row fails, leave the merge to the person — the build changes a `[far-reaching]` path and its design's `Go by:` names no person. Name your repo's far-reaching files in `docs/cadence.toml`'s `[far-reaching]`.
 See: cadence.md §4.8, §4 (the `reach` row); check_cadence.py; TD-290.

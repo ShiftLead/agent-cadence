@@ -63,6 +63,11 @@ files/docs/claude-memory/MEMORY.md a link to a file the tree lacks (file.md)
 # already, so this text is published there; re-releasing it to change a name would hide nothing (2026-10-28).
 tests/ledgerboard/edit/cases.json a name your publish-names lists (Paul)
 tests/ledgerboard/edit/expected.json a name your publish-names lists (Paul)
+# v3.3's lift-verdict fixtures (ledgerboard TD-123, for this repo's TD-262) name the person in the lift
+# subject ShiftLead writes, `shiftlead: lift decision (paul) on TD-n`: published in ShiftLead/ledgerboard v3.3 (2026-11-18).
+tests/ledgerboard/grammar/cases.json a name your publish-names lists (Paul)
+tests/ledgerboard/item/cases.json a name your publish-names lists (Paul)
+tests/ledgerboard/item/expected.json a name your publish-names lists (Paul)
 
 # The vendored ledgerboard fixtures (v2.4, TD-215) are ledgers and boards of imaginary repos: their relative
 # links point at files of those repos, which this tree never holds. Links only — a name or an email still shows.
