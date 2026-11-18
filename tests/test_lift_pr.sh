@@ -238,6 +238,7 @@ ljudge() {  # $1 = state (open|merged) — "<status>\t<carve_out>\t<detail>" of 
 import sys
 root, state, s = sys.argv[1:]
 sys.path.insert(0, s)
+import os
 import check_cadence as C
 class Stub:
     cli = "gh"
@@ -250,6 +251,8 @@ sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
 base = C.git(["rev-parse", "origin/main"], cwd=root).strip()
 rng = f"{sha}^..{sha}" if state == "merged" else f"{base}..{sha}"
 files = sorted(set(C.git(["diff", "--name-only", rng], cwd=root).split()))
+if os.environ.get("FORGE_FILES"):  # the forge's list, when a case says it differs from the commit's own
+    files = os.environ["FORGE_FILES"].split(",")
 title = C.git(["log", "-1", "--format=%s", sha], cwd=root).strip().removesuffix(" (#7)")
 pr = {"number": 7, "ref": "#7", "state": state, "head_sha": sha, "merge_sha": sha, "files": files, "title": title,
       "created_at": "2026-01-15T09:00:00Z", "merged_at": "2026-01-15T12:00:00Z" if state == "merged" else None,
@@ -282,6 +285,18 @@ lift_case "lift-no new Log line"
 IFS=$'\t' read -r st co det <<< "$(ljudge open)"
 [ "$st" = fail ] && [ "$co" = None ] && echo "$det" | grep -q "is not a ledger lift (TD-160's Log does not gain" \
   && ok "TD-262: a lift's title over a diff lift_gate() does not write takes review" || bad "no log line: $st $co $det"
+# two commits, the lift last: not a lift PR (the verdict is told 2, so the lift's one-commit rule fails)
+lift_case "lift-none"; git -C "$LR" reset -q --soft HEAD^; git -C "$LR" stash -q
+git -C "$LR" commit -q --allow-empty -m unrelated; git -C "$LR" stash pop -q; git -C "$LR" add -A
+git -C "$LR" commit -qm "shiftlead: lift decision (pat) on TD-160 (session n/a)"
+IFS=$'\t' read -r st co det <<< "$(ljudge open)"
+[ "$st" = fail ] && [ "$co" = None ] && echo "$det" | grep -q "a lift PR is one commit" \
+  && ok "TD-262: a two-commit ledger lift takes review" || bad "two-commit ledger lift: $st $co $det"
+# the forge's list is not trusted: it names the entry alone, but the one commit also changes other.txt
+lift_case "lift-none" other
+IFS=$'\t' read -r st co det <<< "$(FORGE_FILES=docs/ledger/TD-160.md ljudge open)"
+[ "$st" = fail ] && [ "$co" = None ] && echo "$det" | grep -q "other.txt" \
+  && ok "TD-262: a ledger lift whose commit changes a file the forge's list leaves out takes review" || bad "forge files: $st $co $det"
 # a lift by someone not the gate's person on People: ordinary review
 lift_case "lift-the gate's person not on People"
 IFS=$'\t' read -r st co det <<< "$(ljudge open)"
