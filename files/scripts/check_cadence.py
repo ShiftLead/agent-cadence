@@ -2514,7 +2514,7 @@ def _far_globs(root, sha):
     try:
         import tomllib
     except ImportError:
-        return [], "this Python has no tomllib (3.11+)"
+        raise ValueError("this Python has no tomllib (3.11+)") from None
     text = _show(root, sha, C.REPO_FILE)
     if text is None:
         return [], f"the base has no {C.REPO_FILE}"
@@ -2557,11 +2557,11 @@ def row_reach(pr, root=None):
     hit = [f for f in files if any(fnmatch.fnmatch(f, g) for g in globs)]
     if not hit:
         return row("reach", "na", "the PR changes no far-reaching path")
-    people, notes, bad = None, [], []
+    people, notes, bad, unverified = None, [], [], []
     board = None
     for n in tds:
         entry = None
-        for rev in (new, old):   # the build's entry as the PR leaves it (it may archive it), else the base's
+        for rev in (old, new):   # the build's entry at the base, else as the PR adds it (never the PR's edit of one)
             for p in (f"{LEDGER_DIR}/TD-{n:03d}.md", f"{LEDGER_DIR}/archive/TD-{n:03d}.md"):
                 entry = _show(root, rev, p)
                 if entry is not None:
@@ -2591,12 +2591,17 @@ def row_reach(pr, root=None):
             board = board_of(tree) if tree is not None else False
             people = _lb().board_people(board) if board else None
         if people is None:
-            notes.append(f"design TD-{d:03d}'s Go is by {who} (⚠ no board People: line at the base to check the name against)")
+            unverified.append(f"design TD-{d:03d}'s Go is by {who}, and the base has no board People: line to check the name against")
         elif who.lower() not in {p.lower() for p in people}:
             bad.append(f"design TD-{d:03d}'s Go is by {who}, who is not on the board's People: ({', '.join(people)})")
         else:
             notes.append(f"design TD-{d:03d}'s Go is by {who}")
     shown = ", ".join(hit[:3]) + (f" and {len(hit) - 3} more" if len(hit) > 3 else "")
+    if unverified and not bad:
+        what = f"{shown} far-reaching; " + "; ".join(unverified)
+        if pr["state"] == "merged":
+            return row("reach", "pass", f"⚠ {what}")
+        return row("reach", "unknown", f"{what} — add People: to the board, or the person merges this build")
     if not bad:
         return row("reach", "na" if not any("Go is by" in x for x in notes) else "pass",
                    f"{shown} far-reaching; " + "; ".join(notes))

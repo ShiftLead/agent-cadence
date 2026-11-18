@@ -84,6 +84,9 @@ st=$(row open "TD-002: x"); st_is na "$st" && ok "11 a PR adding a glob that mat
 topic; echo x >> "$R/rules/core.md"; git -C "$R" mv docs/ledger/TD-002.md docs/ledger/archive/TD-002.md; commit
 st=$(row open "TD-002: x"); st_is fail "$st" && ok "12 a build the PR archives is still read (its archive copy)" || bad "12: $st"
 
+topic; echo x >> "$R/rules/core.md"; sed -i '/^\*\*Part of:\*\*/d' "$R/docs/ledger/TD-002.md"; commit
+st=$(row open "TD-002: x"); st_is fail "$st" && ok "12b a PR dropping its own build's Part of: is still judged by the base's entry" || bad "12b: $st"
+
 # merged: a ⚠, never a fail
 topic; echo x >> "$R/rules/core.md"; commit
 git -C "$R" switch -q main; git -C "$R" merge -q --squash topic >/dev/null 2>&1; git -C "$R" commit -qm "TD-002 (#3)"
@@ -99,7 +102,7 @@ st=$(row open "TD-005: x"); st_is fail "$st" && grep -q "no Go by: line" <<< "$s
 # no board People: line at the base: a person's name passes with a ⚠
 git -C "$R" switch -q main; sed -i 's/^\*\*Go by:\*\* pending$/**Go by:** Bob/' "$R/docs/reviews/TD-008.md"; printf '# Attention\n' > "$R/docs/user_attention/README.md"; commit; git -C "$R" push -q origin main 2>/dev/null
 topic; echo x >> "$R/rules/core.md"; commit
-st=$(row open "TD-007: x"); st_is pass "$st" && grep -q "no board People: line" <<< "$st" && ok "16 no People: line at the base: Go by a name passes, with a ⚠" || bad "16: $st"
+st=$(row open "TD-007: x"); st_is unknown "$st" && grep -q "no board People: line" <<< "$st" && ok "16 no People: line at the base: Go by a name cannot be checked, open: unknown" || bad "16: $st"
 
 # no [far-reaching] at the base: na
 git -C "$R" switch -q main; git -C "$R" rm -q docs/cadence.toml; commit; git -C "$R" push -q origin main 2>/dev/null
