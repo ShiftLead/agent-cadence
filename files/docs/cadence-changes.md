@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-18 — A Lift the hold press's PR passes review as the `lift` carve-out
+Do: nothing for a ShiftLead lift PR (`shiftlead: lift decision (<p>) on TD-n (session n/a)`) whose diff is the lift alone: `/cadence` passes its review row, and `--since` lists it as a tool merge. One under that title with any other change takes ordinary review; the row says why.
+See: cadence.md §4.6; check_cadence.py `row_ledger_lift_pr`; TD-262.
+
 ## 2026-11-18 — Migrate a ledger's body leads before ledgerboard v4.0: `ledger.py migrate-body`
 Do: once your pin carries ledgerboard v3.3, run `agent-cadence run ledger.py migrate-body` as its own PR (`--check` first lists what it rewrites), and fix by hand any entry it refuses (an open code fence); v4.0 reads a body strictly. `--check`'s new ℹ kinds `lead-form`, `glued-lead`, `field-lines`, `fence-open` name what it fixes.
 See: cadence.md §2.12; ledger.py; TD-283.

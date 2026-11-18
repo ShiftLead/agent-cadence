@@ -40,7 +40,7 @@ first empties FILE, then writes it whole (a temporary name, then renamed):
     exit 2       nothing: the PR could not be read, so FILE stays empty and no merge is composed
 
 The lines are attested, not verified, like the review row they come from (cadence §4.9). A
-review row passed by a tool carve-out lists no comments and carries "carve_out" (board-edit, board-append,
+review row passed by a tool carve-out lists no comments and carries "carve_out" (board-edit, board-append, lift,
 decide-lift or queue-edit) in --json. The check stays a reader: it merges nothing.
 
 The person's cadence layers on this machine (cadence_layer.py, cadence.md §9.18) are reported
@@ -2763,6 +2763,49 @@ def row_lift_pr(pr, root):
     return ordinary
 
 
+def row_ledger_lift_pr(pr, root):
+    """TD-262, ledgerboard v3.3 (SPEC *The merge gate's verdicts*, its TD-115/TD-123): ShiftLead's **Lift the hold**
+    press lands a PR of its own under ledgerboard's lift subject, `<tool>: lift decision (<p>) on TD-n (session n/a)`,
+    whose diff is the writers' lift of that one gate by its person (lift_gate()) and, at most, each board item that
+    covered the gate closed `— lifted`. It is judged by ledger_lift_verdict(), which recomputes the lift over the
+    PR's base and head trees — never by its title alone, which any hand edit could carry. A lift that passes is the
+    review row's `lift` carve-out: the person's press is the review. Any other PR under that title takes ordinary
+    review, its row naming why it is not a lift. None when the title is no lift subject, or the trees cannot be read
+    (the next carve-out, then the ordinary review row, decides)."""
+    if not root or _lb().subject_kind(pr.get("title") or "") != "lift":
+        return None
+    old, new, why = pr_ends(pr, root)
+    if why:
+        return None
+    try:  # the forge's ISO timestamps, as aware datetimes (the verdict takes each as its UTC date)
+        created = parse_ts(pr.get("created_at"))
+        merged = parse_ts(pr.get("merged_at")) if pr["state"] == "merged" else None
+    except ValueError:
+        created = merged = None
+    found = _tool_pr_commit(pr, root)
+    # the one commit's own files (diff-tree), not the forge's list, which a long PR truncates
+    files = sorted(found[1]) if found else sorted(pr.get("files") or [])
+    subject = (git(["log", "-1", "--format=%s", new], cwd=root) or "").strip()
+    if pr["state"] == "merged":
+        subject = subject.removesuffix(f" ({pr.get('ref') or ''})")
+    if not created:
+        verdict_ = {"carve_out": False, "review": [("ledger-lift-no-date", "the forge gave no createdAt it could read")]}
+    else:
+        verdict_ = _lb().ledger_lift_verdict(_DocsTree(root, old), _DocsTree(root, new), files, subject,
+                                             1 if found else 2,  # 2: not one commit, all the verdict asks
+                                             created, merged, this_repo(root))
+    if verdict_["carve_out"]:
+        out = row("review", "pass", "ledger lift (ledgerboard SPEC *The merge gate's verdicts*): one commit, the "
+                  "entry's gate lifted by its person as lift_gate() writes it, its covering item at most closed "
+                  "— the person's press is the review; no comment needed")
+        out["carve_out"] = "lift"   # a tool merge, not a bypass, to --since's merged-outside list
+        return out
+    ordinary = row_review(pr)
+    reason = verdict_["review"][0][1] if verdict_["review"] else "not a ledger lift"
+    ordinary["detail"] += f" — its title is a lift's and it is not a ledger lift ({reason}), so it takes review"
+    return ordinary
+
+
 def _appends_gate_answer(root, sha, files):
     """Whether a board append at ``sha`` adds an item that carries a `Decided:` and whose Context names a gate
     (ledgerboard's _item_gate, as gate_answer reads it): a gate's answer, which lands as a decide lift (TD-218)
@@ -2850,7 +2893,7 @@ def row_queue_edit_pr(pr, root):
 
 def board_edit_or_review(pr, root):
     found = None
-    for carve_out in (row_lift_pr, row_board_edit_pr, row_queue_edit_pr):
+    for carve_out in (row_lift_pr, row_ledger_lift_pr, row_board_edit_pr, row_queue_edit_pr):
         try:
             found = carve_out(pr, root)
         except Exception:  # the carve-out unreadable: the ordinary review row still reads the comments
