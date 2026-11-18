@@ -226,9 +226,14 @@ lp edit TD-004 --section Ask --from "$TMP/stmt.md" >/dev/null 2>"$TMP/err"; rc=$
 [ $rc -eq 1 ] && grep -q 'refused — the Ask: rule 1: .*does not end in ?' "$TMP/err" && cmp -s "$L/TD-004.md" "$TMP/td4b" \
   && ok "edit refuses an Ask that is a statement, not a question (rule 1), writing nothing" || bad "stmt ask (rc=$rc): $(cat "$TMP/err")"
 printf 'Should the cache live on disk?\n\nThe reader is `cache.py`, which runs nightly.\n' > "$TMP/ctx.md"
+cp "$L/TD-004.md" "$TMP/td4b"
 lp edit TD-004 --section Ask --from "$TMP/ctx.md" >/dev/null 2>"$TMP/err"; rc=$?
-[ $rc -eq 0 ] && grep -q 'warning — the Ask: rule 4: .*cache.py' "$TMP/err" && grep -qx '\*\*Ask:\*\* Should the cache live on disk?' "$L/TD-004.md" \
-  && ok "an Ask whose context holds code is written, with a rule 4 warning" || bad "ctx ask (rc=$rc): $(cat "$TMP/err")"
+# ledgerboard v3.3 (TD-283): an Ask is one line, so one with later paragraphs is refused (field-lines); rule 4 still
+# reads the context and warns. Its context's new place, a **Context:** section, is TD-284's --context.
+[ $rc -eq 1 ] && grep -q 'warning — the Ask: rule 4: .*cache.py' "$TMP/err" && grep -q 'refused — .*(field-lines)' "$TMP/err" \
+  && cmp -s "$L/TD-004.md" "$TMP/td4b" \
+  && ok "an Ask with context paragraphs is refused (field-lines, v3.3), its code still warned by rule 4, nothing written" \
+  || bad "ctx ask (rc=$rc): $(cat "$TMP/err")"
 cp "$L/TD-004.md" "$TMP/td4b"
 printf 'Go — a session builds it | Hold\n' > "$TMP/ans.md"
 lp edit TD-004 --section Answers --from "$TMP/ans.md" >/dev/null 2>"$TMP/err"; rc=$?

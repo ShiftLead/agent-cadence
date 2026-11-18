@@ -2212,7 +2212,62 @@
    "ledgerboard: archive 2 closed items (session n/a)": null,
    "not a subject": null,
    "queue: rank TD-1 (shiftlead)": null,
-   "shiftlead: append Ship it (session n/a)": null
+   "shiftlead: append Ship it (session n/a)": null,
+   "shiftlead: lift decision (paul) on TD-12 (session n/a)": null
+  },
+  "lift_subjects": {
+   "reader": {
+    "shiftlead: lift decision (Ann) on TD-012 (session lb-designer)": {
+     "gate": "decision (Ann)",
+     "id": "TD-012",
+     "session": "lb-designer",
+     "tool": "shiftlead"
+    },
+    "shiftlead: lift decision (paul) on TD-12 (session `lb-designer`)": null,
+    "shiftlead: lift decision (paul) on TD-12 (session n/a)": {
+     "gate": "decision (paul)",
+     "id": "TD-12",
+     "session": "n/a",
+     "tool": "shiftlead"
+    },
+    "shiftlead: lift decision (paul) on TD-12 (session n/a)\n": null,
+    "shiftlead: lift decision (paul) on TD-123456789012345678 (session n/a)": {
+     "gate": "decision (paul)",
+     "id": "TD-123456789012345678",
+     "session": "n/a",
+     "tool": "shiftlead"
+    },
+    "shiftlead: lift decision (paul) on TD-1234567890123456789 (session n/a)": null,
+    "shiftlead: lift decision (paul) on TD-١٢ (session n/a)": null,
+    "shiftlead: lift decision (paul) on acme/other#TD-12 (session n/a)": null,
+    "shiftlead: lift until 2026-02-01 on TD-12 (session n/a)": null
+   },
+   "writer": [
+    {
+     "ok": "shiftlead: lift decision (paul) on TD-12 (session n/a)"
+    },
+    {
+     "ok": "shiftlead: lift decision (Ann) on TD-012 (session lb-designer)"
+    },
+    {
+     "refused": "a gate is decision (<person>), until YYYY-MM-DD or event (<name>), one of them, not 'decision (Ann )'"
+    },
+    {
+     "refused": "a lift's subject names a bare TD-n of 1 to 18 digits, not 'acme/other#TD-12'"
+    },
+    {
+     "refused": "a lift's subject names a decision (<person>) gate, not 'until 2026-02-01'"
+    },
+    {
+     "refused": "the session, 'w 1', is a token of [A-Za-z0-9_.@/-]"
+    },
+    {
+     "refused": "a lift's subject names a bare TD-n of 1 to 18 digits, not 'TD-1234567890123456789'"
+    },
+    {
+     "ok": "shiftlead: lift decision (paul) on TD-123456789012345678 (session n/a)"
+    }
+   ]
   },
   "subject_ids": {
    "board: append 2026-02-30-abcd1234 Ping sam (session n/a)": null,
@@ -2221,7 +2276,8 @@
    "board: snooze 2026-11-11-3f9a2c1d Rotate the key now to 2026-11-20 (session w-9)": "2026-11-11-3f9a2c1d",
    "board_edit: done Ship it (session s-1)": null,
    "shiftlead: append Ship it (session n/a)": null,
-   "shiftlead: board A new item (from TD-12)": null
+   "shiftlead: board A new item (from TD-12)": null,
+   "shiftlead: lift decision (paul) on TD-12 (session n/a)": null
   },
   "subject_kinds": {
    "Fix the parser (#12)": null,
@@ -2247,6 +2303,7 @@
    "shiftlead: archive 3 closed items (session w-1)": "archive",
    "shiftlead: board A new item (from TD-12)": "append",
    "shiftlead: board decide TD-12 (person)": "append",
+   "shiftlead: lift decision (paul) on TD-12 (session n/a)": "lift",
    "shiftlead: reply on Pick a name (session w-1)": "edit"
   },
   "subjects": [

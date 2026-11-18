@@ -1094,7 +1094,7 @@ abranch() { # name, then a command run in the clone that edits the ledger
   ( cd "$AR" && git checkout -q -b "$1" origin/main && eval "$2" && agit commit -qam "$1" && git rev-parse HEAD )
 }
 ADD=$(abranch ask-add 'aent TD-011 "**Owner:** person" >> docs/technical_debt.md')
-OKA=$(abranch ask-ok 'aent TD-012 "**Blocked by:** decision (alex)" "\n**Ask:** Should it? Yes or no.\n" >> docs/technical_debt.md')
+OKA=$(abranch ask-ok 'aent TD-012 "**Blocked by:** decision (alex)" "\n**Ask:** Should it? Yes or no.\n\n**Fix:** y.\n" >> docs/technical_debt.md')
 HDR=$(abranch ask-hdr 'aent TD-013 "**Ask:** Should it?" "\n**Answers:** yes | no\n" >> docs/technical_debt.md')
 EDT=$(abranch ask-edit 'sed -i "s/^\*\*Status:\*\* Open/**Status:** Open, still/" docs/technical_debt.md')
 ARC=$(abranch ask-arch '{ cat docs/technical_debt.md | sed 1,2d | sed "s/Open/Resolved/"; } >> docs/technical_debt_archive.md; printf "# ledger\n\n" > docs/technical_debt.md')
