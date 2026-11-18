@@ -219,6 +219,81 @@
    ]
   ]
  ],
+ "delegated": {
+  "a closed delegated answer whose gate stands is owed": {
+   "lifts": [],
+   "to_close": {},
+   "to_file": {
+    "example.com/acme/widgets": [
+     {
+      "answers": null,
+      "context": "TD-403 decision (pat) lift",
+      "default": null,
+      "detail": {
+       "context": "TD-403's decision (pat) was answered with a lift by director for pat (merge-line) on 2026-11-01, and the item was closed as lifted, but the gate was never lifted on TD-403",
+       "question": "Lift the gate by hand, or ask the question again?",
+       "recommended": "Lift it with ledger.py set --blocked-by … --by pat --delegate director --scope merge-line --answer \"Go\"; that PR goes to review. Not an override, which would record the person's own lift; to ask again instead, close this and add the question"
+      },
+      "kind": "act",
+      "lifts": null,
+      "text": "decision (pat) on TD-403 was answered with a lift by director for pat (merge-line) on 2026-11-01 but still stands on TD-403: lift it."
+     }
+    ]
+   }
+  },
+  "a closed delegated answer whose gate was lifted owes nothing": {
+   "lifts": [],
+   "to_close": {},
+   "to_file": {}
+  },
+  "an open delegated work order covers its gate": {
+   "lifts": [],
+   "to_close": {},
+   "to_file": {}
+  },
+  "the person's newer answer beside an older delegated one": {
+   "lifts": [],
+   "to_close": {},
+   "to_file": {
+    "example.com/acme/widgets": [
+     {
+      "answers": null,
+      "context": "TD-404 decision (pat) lift",
+      "default": null,
+      "detail": {
+       "context": "TD-404's decision (pat) was answered with a lift by director for pat (merge-line) on 2026-11-01, and the item was closed as lifted, but the gate was never lifted on TD-404",
+       "question": "Lift the gate by hand, or ask the question again?",
+       "recommended": "Lift it with ledger.py set --blocked-by … --by pat --delegate director --scope merge-line --answer \"Go\"; that PR goes to review. Not an override, which would record the person's own lift; to ask again instead, close this and add the question"
+      },
+      "kind": "act",
+      "lifts": null,
+      "text": "decision (pat) on TD-404 was answered with a lift by director for pat (merge-line) on 2026-11-01 but still stands on TD-404: lift it."
+     }
+    ]
+   }
+  },
+  "two delegated answers, the newer one's names": {
+   "lifts": [],
+   "to_close": {},
+   "to_file": {
+    "example.com/acme/widgets": [
+     {
+      "answers": null,
+      "context": "TD-405 decision (pat) lift",
+      "default": null,
+      "detail": {
+       "context": "TD-405's decision (pat) was answered with a lift by bot for pat (merge-line) on 2026-11-02, and the item was closed as lifted, but the gate was never lifted on TD-405",
+       "question": "Lift the gate by hand, or ask the question again?",
+       "recommended": "Lift it with ledger.py set --blocked-by … --by pat --delegate bot --scope merge-line --answer \"Go\"; that PR goes to review. Not an override, which would record the person's own lift; to ask again instead, close this and add the question"
+      },
+      "kind": "act",
+      "lifts": null,
+      "text": "decision (pat) on TD-405 was answered with a lift by bot for pat (merge-line) on 2026-11-02 but still stands on TD-405: lift it."
+     }
+    ]
+   }
+  }
+ },
  "entry_answers": {
   "a bold run inside an answer": {
    "ok": {

@@ -2668,7 +2668,9 @@
      "gate": "decision (Kim)",
      "kind": "kept-waiting",
      "label": "Not yet",
-     "text": "kept waiting: decision (Kim) — by Kim; answer \"Not yet\""
+     "text": "kept waiting: decision (Kim) — by Kim; answer \"Not yet\"",
+     "delegate": null,
+     "scope": null
     },
     {
      "by": "Kim",
@@ -2687,7 +2689,9 @@
      "label": "Go",
      "suffix": "; board other-repo",
      "text": "gate lifted: decision (Lee) — by Lee; answer \"Go\"; board other-repo",
-     "via": "answer"
+     "via": "answer",
+     "delegate": null,
+     "scope": null
     },
     {
      "by": "Kim",
@@ -2715,7 +2719,9 @@
      "kind": "gate-lifted",
      "label": "Drop it",
      "text": "gate lifted: event (tool-v3) — by Kim; answer \"Drop it\"",
-     "via": "answer"
+     "via": "answer",
+     "delegate": null,
+     "scope": null
     },
     {
      "by": "box-1",
@@ -2865,7 +2871,9 @@
      "kind": "gate-lifted",
      "label": "Go",
      "text": "gate lifted: event (docs) — by Kim; answer \"Go\"",
-     "via": "answer"
+     "via": "answer",
+     "delegate": null,
+     "scope": null
     },
     {
      "by": "Kim",
@@ -2873,7 +2881,9 @@
      "gate": "until 2026-03-01",
      "kind": "kept-waiting",
      "label": "Keep waiting",
-     "text": "kept waiting: until 2026-03-01 — by Kim; answer \"Keep waiting\""
+     "text": "kept waiting: until 2026-03-01 — by Kim; answer \"Keep waiting\"",
+     "delegate": null,
+     "scope": null
     },
     {
      "date": "2026-01-12",
@@ -2893,7 +2903,9 @@
      "gate": "event (none-added)",
      "kind": "kept-waiting",
      "label": "Keep waiting",
-     "text": "kept waiting: event (none-added) — by Kim; answer \"Keep waiting\""
+     "text": "kept waiting: event (none-added) — by Kim; answer \"Keep waiting\"",
+     "delegate": null,
+     "scope": null
     }
    ],
    "log_problems": [],
@@ -3062,6 +3074,75 @@
    "log_problems": [],
    "status_notes_to_log": {
     "ok": "## TD-092: x\n\n**Added:** 2026-09-01\n**Status:** Open 2026-11-01\n\n**Why:** w\n\n**Resolved:** 2026-10-01 (PR #3)\n\n**Log:**\n- 2026-10-01: was: Resolved: built\n- 2026-11-01: looked again\n"
+   }
+  },
+  "delegated": {
+   "gate_added": {
+    "decision (kim)": "2026-01-04",
+    "decision (pat)": null
+   },
+   "gate_age": {
+    "decision (kim)": "2026-01-05",
+    "decision (pat)": "2026-01-03"
+   },
+   "log_lines": [
+    {
+     "date": "2026-01-02",
+     "gate": "decision (pat)",
+     "kind": "gate-added",
+     "text": "gate added: decision (pat)"
+    },
+    {
+     "by": "pat",
+     "date": "2026-01-03",
+     "delegate": "director",
+     "gate": "decision (pat)",
+     "kind": "kept-waiting",
+     "label": "Not yet",
+     "scope": "merge-line",
+     "text": "kept waiting: decision (pat) — by director for pat (merge-line); answer \"Not yet\""
+    },
+    {
+     "by": "pat",
+     "date": "2026-01-04",
+     "delegate": "director",
+     "gate": "decision (pat)",
+     "kind": "gate-lifted",
+     "label": "Go",
+     "scope": "merge-line",
+     "text": "gate lifted: decision (pat) — by director for pat (merge-line); answer \"Go\"",
+     "via": "answer"
+    },
+    {
+     "date": "2026-01-04",
+     "gate": "decision (kim)",
+     "kind": "gate-added",
+     "text": "gate added: decision (kim)"
+    },
+    {
+     "by": "kim",
+     "date": "2026-01-05",
+     "delegate": null,
+     "gate": "decision (kim)",
+     "kind": "kept-waiting",
+     "label": "Not yet",
+     "scope": null,
+     "text": "kept waiting: decision (kim) — by kim; answer \"Not yet\""
+    },
+    {
+     "date": "2026-01-06",
+     "kind": "malformed",
+     "text": "kept waiting: decision (kim) — by director for kim; answer \"Not yet\""
+    }
+   ],
+   "log_problems": [
+    [
+     "log-line",
+     "its Log line '- 2026-01-06: kept waiting: decision (kim) — by director for kim; answer \"Not yet\"' begins with a writer's prefix but not in its shape"
+    ]
+   ],
+   "status_notes_to_log": {
+    "ok": "## TD-7: An entry a delegate answered for\n\n**Priority:** Medium\n**Type:** feature\n**Added:** 2026-01-02\n**Status:** Open\n**Blocked by:** decision (kim)\n\n**Why:** invented.\n\n**Log:**\n- 2026-01-02: gate added: decision (pat)\n- 2026-01-03: kept waiting: decision (pat) — by director for pat (merge-line); answer \"Not yet\"\n- 2026-01-04: gate lifted: decision (pat) — by director for pat (merge-line); answer \"Go\"\n- 2026-01-04: gate added: decision (kim)\n- 2026-01-05: kept waiting: decision (kim) — by kim; answer \"Not yet\"\n- 2026-01-06: kept waiting: decision (kim) — by director for kim; answer \"Not yet\"\n"
    }
   }
  }

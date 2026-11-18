@@ -121,7 +121,8 @@ Verify each before relying on it — several were true when written and may not 
   `files/scripts/check_cadence.py`; the `/cadence` skill names `scripts/`, which is wrong in this
   repo (the synced skill text; the scripts live under `files/` here).
 - **A failing `person` row is the person's merge** (TD-230): a PR that changes one of the
-  person's paths (a ledger's log-sources.toml) fails it while open, so no session merges it —
+  person's paths (a ledger's log-sources.toml), or the board's `Delegates:` grants or `People:`
+  (TD-292), fails it while open, so no session merges it —
   Paul reads and merges it. The `sources` row beside it runs `files/scripts/hostlog.py`'s validate
   on every ledger PR. **A failing `reach` row is too** (TD-290): a build of a design whose Go was the
   judge's, not a person's, that changes a path this repo's `[far-reaching]` names.

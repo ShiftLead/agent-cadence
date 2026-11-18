@@ -771,6 +771,211 @@
    "commits": 1,
    "created_at": "2026-01-15",
    "merged_at": "2026-01-15"
+  },
+  {
+   "name": "delegated: covered at base",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: the person's own answer on a scoped item passes as today",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: the PR also adds the grant",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md",
+    "docs/user_attention/README.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: only the item's Scope changes",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: rescoped and answered in the new scope",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: its Decided alone carries another scope",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: the person spelled Pat against People's pat",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: under no grant",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: rule 1, the base item has no Scope",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: rule 3 on an owner board",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: rule 4, another repo's entry",
+   "files": [
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: rule 4, this repo's own entry written with #",
+   "files": [
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: a # ref beside a second ref",
+   "files": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": []
+  },
+  {
+   "name": "delegated: uncovered before a ledger fault",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
   }
  ],
  "tripwire": [
@@ -897,6 +1102,18 @@
    "delete": [
     "docs/user_attention/2026-01-06-d6f09cf2.md"
    ]
+  },
+  {
+   "name": "delegated: a change of the delegate alone, seen by the tripwire",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ],
+   "subject": "board: decide Search go?: Go (session w-1)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": []
   }
  ],
  "uncovered": [
@@ -1606,6 +1823,62 @@
    "merged_at": "2026-01-15",
    "delete": [
     "docs/user_attention/2026-01-06-85a7b461.md"
+   ]
+  },
+  {
+   "name": "delegated: ledger lift, an undelegated line over a delegated item",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "shiftlead: lift decision (pat) on TD-150 (session n/a)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: ledger lift, a delegated line over a delegated item",
+   "files": [
+    "docs/ledger/TD-150.md",
+    "docs/user_attention/2026-01-06-54236abb.md",
+    "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md"
+   ],
+   "subject": "shiftlead: lift decision (pat) on TD-150 (session n/a)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-06-54236abb.md"
+   ]
+  },
+  {
+   "name": "delegated: ledger lift, a delegated line with no item",
+   "files": [
+    "docs/ledger/TD-160.md"
+   ],
+   "subject": "shiftlead: lift decision (pat) on TD-160 (session n/a)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": []
+  },
+  {
+   "name": "delegated: ledger lift, a delegated item in the shared set while decided wins",
+   "files": [
+    "docs/ledger/TD-111.md",
+    "docs/user_attention/2026-01-07-0c1d2e0a.md",
+    "docs/user_attention/archive/2026-01/2026-01-07-0c1d2e0a.md"
+   ],
+   "subject": "shiftlead: lift decision (pat) on TD-111 (session n/a)",
+   "commits": 1,
+   "created_at": "2026-01-15",
+   "merged_at": "2026-01-15",
+   "delete": [
+    "docs/user_attention/2026-01-07-0c1d2e0a.md"
    ]
   }
  ],

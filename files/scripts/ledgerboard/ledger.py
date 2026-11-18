@@ -1,4 +1,4 @@
-# ledgerboard v3.3 sha256:da5ea06ccd9088e64e47accc5c008c1b42403f6f65471e40d532a540128976b0
+# ledgerboard v3.4 sha256:73e21e10dc6f4cb211b15796cdbbce75657cccd148cb777e13fcbd13235b56b7
 # SYNCED FILE — canonical copy: ShiftLead/ledgerboard ledgerboard/ledger.py (vendored by agent-cadence as files/scripts/ledgerboard/ledger.py)
 # Edit it there and release; an edit made in a consumer's copy is overwritten by the next vendor or sync.
 """The ledger writer: the module's ledger edits, read from and written to files (SPEC *The ledger writer*).
@@ -16,6 +16,7 @@
     python3 -m ledgerboard.ledger set  TD-n [--title T] --FIELD VALUE ... [--field NAME=VALUE]... [--ask FILE|-]
                                        [--context FILE|-]
                                        [--by WHO [--answer L] [--board R | --no-board-item | --shared-item]
+                                        [--delegate D --scope S]   (a delegated answer, v3.4)
                                         | --by WHO --override WHY | --by WHO --why W]
     python3 -m ledgerboard.ledger split [--archive FILE] [--to DIR] [--also FILE...]
     python3 -m ledgerboard.ledger relink FILE... [--was FILE]
@@ -474,14 +475,22 @@ def _decisions(value: str | None) -> list[str]:
 
 
 def _gate_route(text: str, fields: Mapping[str, str], day: str, *, by: str | None, answer: str | None,
-                suffix: str | None, override: str | None, why: str | None) -> str:
+                suffix: str | None, override: str | None, why: str | None, delegate: str | None = None,
+                scope: str | None = None) -> str:
     """``text`` with the decisions ``set``'s Blocked by drops or swaps written as the module writes them, before
     the fields are set (SPEC *The ledger writer*, the set route): a decision removed is lifted (``lift_gate()``,
     ``by`` the gate's person and ``answer``, default ``Go``; or with ``override``, ``by`` anyone), and one
     decision replaced by another is reassigned (``reassign_gate()``, ``by`` and ``why``). Who may do either is
-    the caller's to check; the writer records ``by``."""
+    the caller's to check; the writer records ``by``. ``delegate`` and ``scope`` (v3.4), both or neither, write
+    the lift's Log line in the delegated form (``lift_gate(delegate=, scope=)``), only with ``by`` and an explicit
+    ``answer`` on a lift; the writer reads no board, so such a ``set`` is reviewed."""
     given = {k for k, v in (("--by", by), ("--answer", answer), ("a board flag", suffix), ("--override", override),
-                            ("--why", why)) if v is not None}
+                            ("--why", why), ("--delegate", delegate), ("--scope", scope)) if v is not None}
+    if (delegate is None) != (scope is None):
+        raise Unusable("--delegate and --scope go together: a delegated answer names its delegate and its scope")
+    if delegate is not None and answer is None:
+        raise Unusable("--delegate needs an explicit --answer: Go by default is the person's shorthand, not a "
+                       "delegate's")
     value = next((v for k, v in fields.items() if field_key(k) == "blocked by"), None)
     if value is None:
         if given:
@@ -502,19 +511,20 @@ def _gate_route(text: str, fields: Mapping[str, str], day: str, *, by: str | Non
     if added:
         if len(gone) != 1 or len(added) != 1:
             raise Unusable("a reassign replaces one decision by one other: set them one at a time")
-        if answer is not None or suffix is not None or override is not None:
-            raise Unusable("a reassign takes --by and --why, no --answer, board flag or --override")
+        if answer is not None or suffix is not None or override is not None or delegate is not None:
+            raise Unusable("a reassign takes --by and --why, no --answer, board flag, --override or --delegate")
         frm, to = parse_gates(gone[0])["decisions"][0], parse_gates(added[0])["decisions"][0]
         return reassign_gate(text, frm, to, by=by, why=why or "", today=day)
     if why is not None:
         raise Unusable("--why is a reassign's: a lift takes --answer, or --override with its why")
     for g in gone:
         if override is not None:
-            if answer is not None or suffix is not None:
-                raise Unusable("an override lift takes --by and its why, no --answer or board flag")
+            if answer is not None or suffix is not None or delegate is not None:
+                raise Unusable("an override lift takes --by and its why, no --answer, board flag or --delegate")
             text = lift_gate(text, g, by, override=override, today=day)
         else:
-            text = lift_gate(text, g, by, answer=answer or "Go", suffix=suffix, today=day)
+            text = lift_gate(text, g, by, answer=answer or "Go", suffix=suffix, today=day, delegate=delegate,
+                             scope=scope)
     return text
 
 
@@ -523,7 +533,8 @@ def plan_edit(led: Ledger, action: str, tid: str, *, fields: Mapping[str, str] |
               answer: str | None = None, suffix: str | None = None, override: str | None = None,
               why: str | None = None, base: Ledger | None = None, resolve: Resolve | None = None,
               today: str | None = None, title: str | None = None, remove: bool = False,
-              ask: str | None = None, context: str | None = None) -> Plan:
+              ask: str | None = None, context: str | None = None, delegate: str | None = None,
+              scope: str | None = None) -> Plan:
     """One edit of an open entry, or for ``note`` (v2.8) of an archived one too (``_noted_entry()``;
     ``edit_entry()``): ``set`` (``fields``, an empty value removing one; from v2.8
     ``title``, the heading's), ``note`` (``words``, a dated Log line) or ``edit`` (``section`` replaced by
@@ -540,9 +551,11 @@ def plan_edit(led: Ledger, action: str, tid: str, *, fields: Mapping[str, str] |
         raise Unusable(f"an entry edit is set, note or edit, not {action!r}")
     path, text = _noted_entry(led, tid) if action == "note" else _open_entry(led, tid)
     day = _today(today)
-    route = {"by": by, "answer": answer, "suffix": suffix, "override": override, "why": why}
+    route = {"by": by, "answer": answer, "suffix": suffix, "override": override, "why": why, "delegate": delegate,
+             "scope": scope}
     if action != "set" and any(v is not None for v in route.values()):
-        raise Unusable(f"{action} takes no gate route: --by, --answer, --override and --why are set's")
+        raise Unusable(f"{action} takes no gate route: --by, --answer, --override, --why, --delegate and --scope "
+                       "are set's")
     if action != "set" and (ask is not None or context is not None):
         raise Unusable(f"{action} takes no ask or context: --ask and --context are set's")
     if action == "set":
@@ -1091,6 +1104,9 @@ def _write_parser(cmd: str) -> argparse.ArgumentParser:
                                          "checked who ran it)")
             ap.add_argument("--answer", help="the lifting answer's label (default Go)")
             _board_flags(ap)
+            ap.add_argument("--delegate", help="the delegate who answered for --by (v3.4): the Log line names it; "
+                                               "with --scope and an explicit --answer")
+            ap.add_argument("--scope", help="the scope a delegated answer used (v3.4), with --delegate")
             ap.add_argument("--override", metavar="WHY", help="lift the dropped decision by override: by anyone, with its why")
             ap.add_argument("--why", help="a reassign's why (the new Blocked by swaps one decision for another)")
             ap.add_argument("--ask", metavar="FILE", help="the Ask section's words from a file, or - for stdin, written "
@@ -1212,7 +1228,7 @@ def _build(cmd: str, a: argparse.Namespace, resolve: Resolved) -> Plan:
         context = _read_src("--context", a.context) if a.context is not None else None
         return plan_edit(led, "set", tid_of(a.id), fields=fields, by=a.by, answer=a.answer, suffix=_suffix(a),
                          override=a.override, why=a.why, base=base, resolve=resolve, today=a.today, title=a.title,
-                         ask=ask, context=context)
+                         ask=ask, context=context, delegate=a.delegate, scope=a.scope)
     if cmd == "lift":
         people = [x.strip() for x in a.people.split(",") if x.strip()] if a.people is not None else None
         return plan_lift(led, tid_of(a.id), a.gate, a.by, answer=a.answer, evidence=a.evidence, suffix=_suffix(a),
