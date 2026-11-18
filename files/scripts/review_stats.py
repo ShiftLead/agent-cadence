@@ -9,6 +9,12 @@
     review_stats.py --candidates [--since DATE] [--repo PATH] [--json]
                     the backfill's mechanical half: entries that cite a design and carry no
                     Escaped from:, and Escaped from: values naming a design with no record file
+    review_stats.py --verdict TD-n [--after-round] [--repo PATH] [--json]
+                    one design's counted verdict, the counts behind it, and a last line `next: <step>`
+                    naming the next step of the ending (TD-281, cadence.md §4.8): --after-round after
+                    each round's last review (hold | end | continue; revise or round while a Hold or a
+                    bought round waits for its round, as --verdict), else after the closing fact-check
+                    (closing-read | judge | round | revise | go | item); `done` on a decided record
 
 WHY
 A design review's worth shows only later, in the defects it let through. The data for that
@@ -50,7 +56,22 @@ A review "raises" a build-changing finding by its labelled rows; a review with `
 (a backfill record's counted-only findings, or a malformed row in a rounds record) and none
 labelled build-changing reads by the trial's total-findings proxy instead.
 
-Exit: 0, or 2 on a usage error (no roster, a --repo that is not a directory).
+THE VERDICT (TD-281, ADR 2026-11-17-design-round-endings rules 1, 2 and 9)
+--verdict reads one record (the repo --repo names, else the current one) and the design's entry, and
+counts over the rounds since the last Hold (`Holds:`): a round is one holding a design review; a
+role is read by its first word (fact-check, closing-read, judge, else a design review); a finding
+is unread until a design review or a closing read follows it in the Reviews table's order, and a
+`person` finding never is. The first that matches: Hold (design-hold-rounds reopen rounds, or the
+last N counts not falling), One more round (a closing read since the last design review and a
+build-changing finding unread), Closing read (one unread), Go. The next step then follows rule 9's
+order — decided, a standing Hold (revise), a bought round not yet run (round) or run (item), the
+verdict, the cap ending, two judge rows, the judge's line in `Verdict:` read by rule 6's table. A
+header line a record lacks reads as none, no judge's line, pending, and far-reaching with a warning.
+The fixtures in tests/test_review_verdict.sh are the spec for its edges.
+
+Exit: 0, or 2 on a usage error (no roster, a --repo that is not a directory), and for --verdict on an
+input it cannot resolve: the design's entry in neither the ledger nor its archive, no record, a
+missing or unknown Class:, or a Source: backfill record.
 """
 
 from __future__ import annotations
@@ -74,7 +95,7 @@ import nudge_user_attention as N  # noqa: E402  # sibling SYNC script: the roste
 REVIEWS_DIR = "docs/reviews"
 OUT_DIR = "review-stats"
 RECORD_RE = re.compile(r"^TD-(\d+)\.md$")
-HEADER_RE = re.compile(r"^\*\*(Design|Class|Decided|Source):\*\*[ \t]*(.*?)[ \t]*$", re.M)
+HEADER_RE = re.compile(r"^\*\*(Design|Class|Decided|Source|Reach|Verdict|Go by|Holds|Bought):\*\*[ \t]*(.*?)[ \t]*$", re.M)
 DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 BARE_RE = re.compile(r"^TD-(\d+)$", re.I)
 XREPO_RE = re.compile(r"^([\w.-]+(?:/[\w.-]+)?)#TD-(\d+)$", re.I)
@@ -84,6 +105,10 @@ CLASSES = ("in-repo", "wide")
 FINDING_CLASSES = ("build-changing", "minor", "unlabelled")
 VARIANTS = ("primary", "strict")
 MAX_ROUND = 99  # a round cell past this is a typo (a date), not a round
+ROLE_KINDS = ("design", "fact-check", "closing-read", "judge")   # a role read by its first word (TD-281 rule 1)
+REOPENS_RE = re.compile(r"\breopens\s+F\d+", re.I)
+JUDGE_LINE_RE = re.compile(r"cadence-judge:\s*(CONFIRM|RAISE)\s*·\s*reach\s+(routine|far-reaching)\b\s*·?\s*(.*)$", re.I)
+VERDICT_HEAD_RE = re.compile(r"^(Go|Hold)\b[^(]*\(R(\d+)\)", re.I)
 
 
 # ---------------------------------------------------------------- reading
@@ -143,19 +168,20 @@ def read_record(path: Path, repo: str, td: int) -> tuple[dict | None, list[str]]
         if c[0] in reviews:
             probs.append(f"{path}: {c[0]} is in the Reviews table twice (the first row read)")
             continue
-        role = c[2].lower()
-        if role not in ("design", "fact-check"):
-            probs.append(f"{path}: {c[0]} role {c[2]!r} read as design")
-            role = "design"
+        role = role_kind(c[2])
+        if c[2].strip().lower() not in ROLE_KINDS:
+            probs.append(f"{path}: {c[0]} role {c[2]!r} read as {role}")
         tok = int(c[4].replace(",", "")) if c[4].replace(",", "").isdigit() else None
         reviews[c[0]] = {"review": c[0], "round": int(c[1]), "role": role, "model": c[3] or "?", "tokens": tok,
                          "date": c[5], "build_changing": 0, "minor": 0, "unlabelled": 0}
+    findings: list[dict] = []
     for c in table_rows(text, "id"):
         if len(c) < 7:
             probs.append(f"{path}: findings row {' | '.join(c)!r} not read")
             continue
-        r = reviews.get(c[2])
-        if r is None:
+        by = c[2].strip()
+        r = reviews.get(by)
+        if r is None and by.lower() != "person":
             probs.append(f"{path}: {c[0]} names review {c[2]!r}, which the Reviews table has not")
             continue
         k = c[5].lower()
@@ -164,10 +190,24 @@ def read_record(path: Path, repo: str, td: int) -> tuple[dict | None, list[str]]
         elif k not in FINDING_CLASSES:
             probs.append(f"{path}: {c[0]} class {c[5]!r} unknown (read as unlabelled)")
             k = "unlabelled"
-        r[k.replace("-", "_")] += 1
+        if r is not None and r["role"] == "judge":
+            probs.append(f"{path}: {c[0]} is raised by a judge row ({by}), which raises no findings (not counted)")
+            continue
+        if r is not None:
+            r[k.replace("-", "_")] += 1
+        findings.append({"id": c[0], "round": int(c[1]) if c[1].isdigit() else None, "by": r["review"] if r else "person",
+                         "topic": c[3], "class": k, "status": c[6]})
     order = sorted(reviews.values(), key=lambda r: int(r["review"][1:]))
     return {"repo": repo, "td": td, "design": head.get("design") or "", "class": cls, "decided": decided,
-            "source": source, "reviews": order}, probs
+            "source": source, "reviews": order, "findings": findings,
+            "reach": head.get("reach"), "verdict": head.get("verdict"), "go_by": head.get("go by"),
+            "holds": head.get("holds"), "bought": head.get("bought")}, probs
+
+
+def role_kind(cell: str) -> str:
+    """A Reviews row's kind, by its role's first word (TD-281 rule 1): fact-check, closing-read, judge, else design."""
+    w = (cell.strip().split() or [""])[0].lower()
+    return w if w in ("fact-check", "closing-read", "judge") else "design"
 
 
 def ledger_entries(root: Path) -> list[dict]:
@@ -289,9 +329,13 @@ def to_row(rec: dict, root: str, aged_days: int, today: dt.date) -> dict:
         detail.append({"n": i, "review": r["review"], "round": r["round"], "model": r["model"], "verdict": None,
                        "build_changing": bc, "minor": r["minor"], "total_findings": total, "tokens": r["tokens"]})
     nrounds = max((r["round"] for r in rec["reviews"]), default=0)
-    per = {"reviews": [0] * nrounds, "fact_checks": [0] * nrounds}
+    per = {"reviews": [0] * nrounds, "fact_checks": [0] * nrounds, "closing_reads": [0] * nrounds, "judges": [0] * nrounds}
     for r in rec["reviews"]:
-        per["reviews" if r["role"] == "design" else "fact_checks"][r["round"] - 1] += r["build_changing"]
+        if r["role"] == "judge":   # a judge raises no findings: its key counts its runs
+            per["judges"][r["round"] - 1] += 1
+        else:
+            key = {"design": "reviews", "fact-check": "fact_checks", "closing-read": "closing_reads"}[r["role"]]
+            per[key][r["round"] - 1] += r["build_changing"]
     tokens: dict[str, int] = {}
     unknown = 0
     for r in rec["reviews"]:
@@ -306,7 +350,8 @@ def to_row(rec: dict, root: str, aged_days: int, today: dt.date) -> dict:
         "date": rec["decided"], "decided": rec["decided"], "class": rec["class"], "source": rec["source"],
         "mode": "rounds", "source_kind": "record", "batch": "review-stats", "stop": None,
         "models": models, "reviews": len(design), "rounds": len({r["round"] for r in design}),
-        "fact_checks": len(facts), "reviews_detail": detail,
+        "fact_checks": len(facts), "closing_reads": sum(r["role"] == "closing-read" for r in rec["reviews"]),
+        "judges": sum(r["role"] == "judge" for r in rec["reviews"]), "reviews_detail": detail,
         "fact_checks_detail": [{"review": r["review"], "round": r["round"], "model": r["model"], "tokens": r["tokens"],
                                 "build_changing": r["build_changing"], "minor": r["minor"]} for r in facts],
         "tokens_by_model": tokens, "tokens_unknown": unknown, "build_changing_per_round": per,
@@ -534,12 +579,16 @@ def outcome_lines(D, escapes: list[dict], aged_days: int) -> list[str]:
         bf = [r for r in D if r["class"] == c and r["source"] == "backfill"]
         w("| %s | %d | %d | %s | %d | %d |" % (c, len(aged), len(hit), pct(len(hit), len(aged)), len(rs) - len(aged), len(bf)))
     w("")
-    w("## Build-changing findings per round (reviews / fact-checks)\n")
+    w("## Build-changing findings per round (reviews / fact-checks / closing reads; judge runs)\n")
     for c in CLASSES:
         n = max((len(r["build_changing_per_round"]["reviews"]) for r in D if r["class"] == c), default=0)
-        rv = [sum(r["build_changing_per_round"]["reviews"][i] for r in D if r["class"] == c and i < len(r["build_changing_per_round"]["reviews"])) for i in range(n)]
-        fc = [sum(r["build_changing_per_round"]["fact_checks"][i] for r in D if r["class"] == c and i < len(r["build_changing_per_round"]["fact_checks"])) for i in range(n)]
-        w("- **%s:** %s." % (c, ", ".join("round %d: %d / %d" % (i + 1, rv[i], fc[i]) for i in range(n)) or "no rounds"))
+
+        def col(key, i, c=c):
+            return sum(r["build_changing_per_round"].get(key, [])[i] for r in D
+                       if r["class"] == c and i < len(r["build_changing_per_round"].get(key, [])))
+        w("- **%s:** %s." % (c, ", ".join("round %d: %d / %d / %d; %d" % (i + 1, col("reviews", i), col("fact_checks", i),
+                                                                           col("closing_reads", i), col("judges", i))
+                                          for i in range(n)) or "no rounds"))
     w("")
     w("## Rounds and tokens\n")
     w("| class | designs | rounds: median / total | tokens: median per design / total | reviews with tokens unknown |")
@@ -566,14 +615,15 @@ def outcome_lines(D, escapes: list[dict], aged_days: int) -> list[str]:
 
 def per_design_lines(D) -> list[str]:
     out = ["## Per design\n",
-           "| repo | design | class | source | decided | age | reviews | fact-checks | rounds | build-changing per round (reviews / fact-checks) | tokens by model | escapes |",
-           "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+           "| repo | design | class | source | decided | age | reviews | fact-checks | closing reads | judge runs | rounds | build-changing per round (reviews / fact-checks / closing reads) | tokens by model | escapes |",
+           "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in D:
         per = r["build_changing_per_round"]
-        out.append("| %s | %s | %s | %s | %s | %s | %d | %d | %d | %s | %s | %s |" % (
+        out.append("| %s | %s | %s | %s | %s | %s | %d | %d | %d | %d | %d | %s | %s | %s |" % (
             r["repo"], r["plan"][:70].replace("|", "/"), r["class"], r["source"], r["decided"],
-            "-" if r["age_days"] is None else "%dd" % r["age_days"], r["reviews"], r["fact_checks"], r["rounds"],
-            " ".join("%d/%d" % x for x in zip(per["reviews"], per["fact_checks"])) or "-",
+            "-" if r["age_days"] is None else "%dd" % r["age_days"], r["reviews"], r["fact_checks"],
+            r.get("closing_reads", 0), r.get("judges", 0), r["rounds"],
+            " ".join("%d/%d/%d" % x for x in zip(per["reviews"], per["fact_checks"], per.get("closing_reads", [0] * len(per["reviews"])))) or "-",
             ", ".join("%s %d" % kv for kv in sorted(r["tokens_by_model"].items())) or "-",
             "; ".join(d["where"] for d in r["post_build_defects"]) or "-"))
     out.append("")
@@ -651,6 +701,185 @@ def candidates(scope: Scope, since: str | None, escapes: list[dict]) -> dict:
     return {"cites": cites, "designs_without_record": missing}
 
 
+# ---------------------------------------------------------------- the verdict (TD-281, cadence.md §4.8)
+
+
+class Unresolvable(Exception):
+    """An input --verdict cannot read without guessing: exit 2, naming it."""
+
+
+def _rounds_list(value: str | None, name: str = "", warn: list[str] | None = None) -> list[int]:
+    """`Holds:` / `Bought:` — rounds as `4, 9`; `none`, empty or missing is no round. Any other form is
+    read by the numbers in it, with a warning, since a date or prose there reads as rounds."""
+    v = (value or "").strip()
+    if v and v.lower() != "none" and not re.fullmatch(r"\d+(\s*,\s*\d+)*", v) and warn is not None:
+        warn.append(f"{name}: {v!r} is neither none nor a list of rounds (4, 9) — read as {sorted({int(n) for n in re.findall(r'[0-9]+', v)})}")
+    return sorted({int(n) for n in re.findall(r"\d+", v)})
+
+
+def judge_line(verdict: str | None) -> dict | None:
+    """The header's `Verdict:` read: {verdict, review, outcome, reach, reason}, or None with no valid judge's line."""
+    head = VERDICT_HEAD_RE.match((verdict or "").strip())
+    line = JUDGE_LINE_RE.search(verdict or "")
+    if not head or not line:
+        return None
+    return {"verdict": head.group(1).capitalize(), "review": "R" + head.group(2), "outcome": line.group(1).upper(),
+            "reach": line.group(2).lower(), "reason": line.group(3).strip()}
+
+
+def count_verdict(rec: dict, hold_n: int, cap: int, warn: list[str] | None = None) -> dict:
+    """The counts and the counted verdict of one record (rule 2), over the rounds since the last Hold (rule 1)."""
+    rows = rec["reviews"]
+    pos = {r["review"]: i for i, r in enumerate(rows)}
+    design_rounds = sorted({r["round"] for r in rows if r["role"] == "design"})
+    holds, bought = _rounds_list(rec.get("holds"), "Holds", warn), _rounds_list(rec.get("bought"), "Bought", warn)
+    last_hold = max(holds, default=0)
+    window = [n for n in design_rounds if n > last_hold]
+    counts = {n: sum(r["build_changing"] for r in rows if r["role"] == "design" and r["round"] == n) for n in design_rounds}
+    fact_counts = {n: sum(r["build_changing"] for r in rows if r["role"] == "fact-check" and r["round"] == n) for n in design_rounds}
+    reopen = sorted({rows[pos[f["by"]]]["round"] for f in rec["findings"]
+                     if f["by"] != "person" and rows[pos[f["by"]]]["role"] == "design" and f["class"] == "build-changing"
+                     and REOPENS_RE.search(f["status"]) and rows[pos[f["by"]]]["round"] in window})
+    last_n = [counts[n] for n in window[-hold_n:]]
+    not_falling = len(window) >= hold_n and all(b >= a for a, b in zip(last_n, last_n[1:])) and last_n[-1] > 0
+    # read: a design review or a closing read runs after the finding's review in the table's order
+    readers = [i for i, r in enumerate(rows) if r["role"] in ("design", "closing-read")]
+    unread = [f for f in rec["findings"] if f["by"] != "person" and not any(i > pos[f["by"]] for i in readers)]
+    unread_bc = [f["id"] for f in unread if f["class"] == "build-changing"]
+    last_design = max((i for i, r in enumerate(rows) if r["role"] == "design"), default=-1)
+    closing_since = any(i > last_design and r["role"] == "closing-read" for i, r in enumerate(rows))
+    if len(reopen) >= hold_n or not_falling:
+        v = "Hold"
+    elif closing_since and unread_bc:
+        v = "One more round"
+    elif unread_bc:
+        v = "Closing read"
+    else:
+        v = "Go"
+    last_other = max((i for i, r in enumerate(rows) if r["role"] != "judge"), default=-1)
+    return {
+        "verdict": v, "rounds": design_rounds, "window": window, "holds": holds, "bought": bought,
+        "last_round": design_rounds[-1] if design_rounds else 0, "cap": cap, "hold_rounds": hold_n,
+        "past_cap": len(window) >= cap, "counts": counts, "fact_check_counts": fact_counts, "reopen_rounds": reopen,
+        "not_falling": not_falling, "unread_build_changing": unread_bc,
+        "unread_minor": [f["id"] for f in unread if f["class"] != "build-changing"],
+        "closing_read_since": closing_since,
+        "judges_since": [r["review"] for i, r in enumerate(rows) if i > last_other and r["role"] == "judge"],
+    }
+
+
+def next_step(rec: dict, c: dict, entry: dict, after_round: bool, warn: list[str]) -> str:
+    """Rule 9's next step: --after-round's `hold | end | continue`, else *What --verdict prints at 3*, in that order."""
+    if rec["decided"] != "pending":
+        return "done"
+    last, holds, bought = c["last_round"], c["holds"], c["bought"]
+    if last and last in holds:
+        return "revise"                       # a Hold stands and the revision has recorded no round yet
+    last_bought = max(bought, default=None)
+    live_bought = last_bought is not None and last_bought >= max(holds, default=0)
+    if live_bought and last == last_bought:
+        return "round"                        # the person's One more round is waiting for its round
+    bought_ended = live_bought and last > last_bought
+    if after_round:
+        if not last:
+            return "continue"
+        if bought_ended:
+            return "end"
+        if c["verdict"] == "Hold":
+            return "hold"
+        if c["counts"][last] == 0 or c["past_cap"]:
+            return "end"
+        return "continue"
+    if not last:
+        return "round"
+    if bought_ended:
+        return "item"
+    v = c["verdict"]
+    if v == "Closing read":
+        return "closing-read"
+    if v == "One more round":
+        return "item" if c["past_cap"] else "round"
+    if c["past_cap"] and c["counts"][last] > 0:
+        return "item"
+    if len(c["judges_since"]) >= 2:
+        return "item"
+    j = judge_line(rec.get("verdict"))
+    if not (j and j["verdict"] == v and c["judges_since"] == [j["review"]]):
+        return "judge"
+    far = reach_word(rec) == "far-reaching" or j["reach"] == "far-reaching"
+    if j["outcome"] == "RAISE" or far:
+        return "item"
+    if v == "Go":
+        return "item" if re.search(r"\bdecision\s*\(", entry.get("blocked_raw") or "", re.I) else "go"
+    return "item" if holds else "revise"
+
+
+def reach_word(rec: dict, warn: list[str] | None = None) -> str:
+    """The designer's mark: routine or far-reaching; a missing or unreadable `Reach:` is far-reaching (any doubt)."""
+    reach = (rec.get("reach") or "").strip()
+    word = LB.first_word(reach) if reach else ""
+    if word in ("routine", "far-reaching"):
+        return word
+    if warn is not None:
+        warn.append(f"Reach: {reach!r} cannot be read — read as far-reaching" if reach else "no Reach: line — read as far-reaching")
+    return "far-reaching"
+
+
+def verdict(root: Path, td: int, after_round: bool) -> dict:
+    """{counts..., verdict, next, warnings} for TD-<td>'s record in ``root``; raises Unresolvable."""
+    path = root / REVIEWS_DIR / f"TD-{td:03d}.md"
+    if not path.is_file():
+        alt = root / REVIEWS_DIR / f"TD-{td}.md"
+        path = alt if alt.is_file() else path
+    if not path.is_file():
+        raise Unresolvable(f"no {REVIEWS_DIR}/TD-{td:03d}.md in {root}")
+    rec, probs = read_record(path, root.name, td)
+    if rec is None:
+        raise Unresolvable(probs[0] if probs else f"{path}: cannot be read")
+    if rec["source"] == "backfill":
+        raise Unresolvable(f"{path}: Source: backfill — a record written after the fact has no rounds to end")
+    entry = next((e for e in ledger_entries(root) if L._num(e["id"]) == td), None)
+    if entry is None:
+        raise Unresolvable(f"TD-{td:03d} is in neither the ledger nor its archive in {root}")
+    files = C.sources(str(root))
+    caps = repo_caps(str(root))
+    try:
+        hold_n = int(C.resolve("design-hold-rounds", files)[0])
+    except (C.ConfigError, TypeError, ValueError):
+        hold_n = int(C.KEYS["design-hold-rounds"][0])
+    warn = list(probs)
+    c = count_verdict(rec, hold_n, caps[rec["class"]], warn)
+    if rec["decided"] == "pending":
+        reach_word(rec, warn)
+    gb = (rec.get("go_by") or "").strip()
+    if LB.first_word(gb) == "judge" and not any(r["role"] == "judge" for r in rec["reviews"]):
+        warn.append(f"Go by: {gb!r} names the judge, but the Reviews table has no judge row")
+    c["next"] = next_step(rec, c, entry, after_round, warn)
+    c.update({"td": f"TD-{td:03d}", "class": rec["class"], "decided": rec["decided"], "warnings": warn,
+              "form": "after-round" if after_round else "verdict"})
+    return c
+
+
+def verdict_lines(c: dict) -> list[str]:
+    w = c["window"]
+    out = [f"{c['td']} ({c['class']}, cap {c['cap']}, design-hold-rounds {c['hold_rounds']}; Decided: {c['decided']})",
+           "rounds since the last Hold: %d%s%s" % (len(w), f" ({w[0]}–{w[-1]})" if w else "",
+                                                   f"; Holds: {', '.join(map(str, c['holds']))}" if c["holds"] else ""),
+           "build-changing per round (design reviews / fact-checks): "
+           + (", ".join(f"{n}: {c['counts'][n]}/{c['fact_check_counts'][n]}" for n in c["rounds"]) or "no round"),
+           "reopen rounds since the last Hold: " + (", ".join(map(str, c["reopen_rounds"])) or "none"),
+           f"last {c['hold_rounds']} rounds not falling: {'yes' if c['not_falling'] else 'no'}",
+           "unread build-changing: " + (", ".join(c["unread_build_changing"]) or "none"),
+           "unread minor: " + (", ".join(c["unread_minor"]) or "none"),
+           f"closing read since the last design review: {'yes' if c['closing_read_since'] else 'no'}",
+           "judge rows since the last other row: " + (", ".join(c["judges_since"]) or "none"),
+           f"verdict: {c['verdict']}" + (": split or narrow" if c["verdict"] == "Hold" else "")]
+    if c["bought"]:
+        out.append("Bought: " + ", ".join(map(str, c["bought"])))
+    return out + [f"next: {c['next']}"]
+
+
+
 # ---------------------------------------------------------------- main
 
 
@@ -671,7 +900,14 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--candidates", action="store_true", help="list the backfill's candidates instead of rebuilding")
     ap.add_argument("--since", metavar="DATE", help="with --candidates: entries Added on or after DATE (YYYY-MM-DD)")
     ap.add_argument("--json", action="store_true", help="print JSON")
+    ap.add_argument("--verdict", metavar="TD-n", help="a design's counted verdict and its next step (TD-281, cadence.md §4.8)")
+    ap.add_argument("--after-round", action="store_true", help="with --verdict: after a round's last review, print hold, end or continue")
     a = ap.parse_args(argv)
+    if a.after_round and not a.verdict:
+        print("review_stats.py: --after-round goes with --verdict", file=sys.stderr)
+        return 2
+    if a.verdict:
+        return main_verdict(a)
     if a.since and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", a.since):
         print("review_stats.py: --since takes YYYY-MM-DD", file=sys.stderr)
         return 2
@@ -706,6 +942,31 @@ def main(argv: list[str]) -> int:
         print("wrote %s: %d designs from %d repos; escapes %s" % (out, len(D), len(roots), dict(summary["escapes"]) or "none"))
         for p in probs:
             print("  not read as written: " + p)
+    return 0
+
+
+def main_verdict(a) -> int:
+    m = re.fullmatch(r"(?:TD-)?(\d+)", a.verdict.strip(), re.I)
+    if not m:
+        print(f"review_stats.py: --verdict takes TD-n, not {a.verdict!r}", file=sys.stderr)
+        return 2
+    root = Path(a.repo).resolve() if a.repo else Path(C.repo_root(os.getcwd()) or os.getcwd())
+    if not root.is_dir():
+        print(f"review_stats.py: --repo {a.repo}: not a directory", file=sys.stderr)
+        return 2
+    try:
+        c = verdict(root, int(m.group(1)), a.after_round)
+    except (Unresolvable, C.ConfigError) as e:
+        print(f"review_stats.py: cannot count the verdict: {e}", file=sys.stderr)
+        return 2
+    if a.json:
+        c = dict(c, counts={str(k): v for k, v in c["counts"].items()},
+                 fact_check_counts={str(k): v for k, v in c["fact_check_counts"].items()})
+        print(json.dumps(c, indent=1))
+        return 0
+    for w in c["warnings"]:
+        print("review_stats.py: warning: " + w, file=sys.stderr)
+    print("\n".join(verdict_lines(c)))
     return 0
 
 
