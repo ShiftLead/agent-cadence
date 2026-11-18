@@ -123,7 +123,8 @@ Verify each before relying on it — several were true when written and may not 
 - **A failing `person` row is the person's merge** (TD-230): a PR that changes one of the
   person's paths (a ledger's log-sources.toml) fails it while open, so no session merges it —
   Paul reads and merges it. The `sources` row beside it runs `files/scripts/hostlog.py`'s validate
-  on every ledger PR.
+  on every ledger PR. **A failing `reach` row is too** (TD-290): a build of a design whose Go was the
+  judge's, not a person's, that changes a path this repo's `[far-reaching]` names.
 - **This clone's hooks are TD-055 shims** in the clone's shared hooks dir (installed by Paul 2026-09-27;
   `core.hooksPath` unset): every worktree runs the main checkout's `files/scripts/git-hooks/`,
   whatever branch it is on. Changing this clone's git config stays Paul's step.

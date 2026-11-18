@@ -19,7 +19,7 @@ for the two that were skipped.
     --pr N --trailers FILE           also hand the merge what the gate saw (TD-231, TD-177's design,
                                      docs/plans/2026-10-31-merged-by-trailer.md): see "The gate file"
     --pr N --structural              only the rows that need no precheck — pr, review, base, ledger,
-                                     board, gates, sources, person (TD-244): run it before
+                                     board, gates, sources, person, reach (TD-244): run it before
                                      precheck.py, so a fail found in seconds never costs a precheck;
                                      its pass merges nothing (no --trailers, no --since; JSON adds
                                      "structural", the rows it ran)
@@ -2492,6 +2492,120 @@ def row_person(pr, root=None):
     return row("person", "fail", f"{what}: the person reads and merges this PR, never a session")
 
 
+REVIEWS_DIR = "docs/reviews"   # a design's review record, docs/reviews/TD-NNN.md (cadence §4.8)
+PART_OF_RE = re.compile(r"^\*\*Part of:\*\*\s*TD-0*(\d+)\b", re.M)
+RECORD_LINE_RE = re.compile(r"^\*\*(Reach|Go by):\*\*[ \t]*(.*?)[ \t]*$", re.M)
+
+
+def _show(root, sha, path):
+    """The text of ``path`` at ``sha``, or None where the tree has no such file."""
+    if git(["cat-file", "-e", f"{sha}:{path}"], cwd=root) is None:
+        return None
+    return git(["show", f"{sha}:{path}"], cwd=root)
+
+
+def _far_globs(root, sha):
+    """(globs, why) from the [far-reaching] table of docs/cadence.toml at ``sha`` (TD-281 rule 5): ([], why)
+    with no file, no table or no tomllib; raises ValueError naming a table cadence_config would refuse."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import cadence_config as C  # sibling SYNC script: the one settings reader (§9.18)
+    try:
+        import tomllib
+    except ImportError:
+        return [], "this Python has no tomllib (3.11+)"
+    text = _show(root, sha, C.REPO_FILE)
+    if text is None:
+        return [], f"the base has no {C.REPO_FILE}"
+    try:
+        table = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as e:
+        raise ValueError(f"the base's {C.REPO_FILE} is not TOML: {e}") from None
+    try:
+        far = C.far_reaching([(C.REPO_FILE, table)])
+    except C.ConfigError as e:
+        raise ValueError(str(e)) from None
+    if not far or not far["paths"]:
+        return [], f"the base's {C.REPO_FILE} has no [far-reaching] paths"
+    return far["paths"], None
+
+
+def row_reach(pr, root=None):
+    """TD-290 (TD-281 rule 7): a far-reaching build waits for the person at merge when its design's Go was not
+    theirs. A PR whose title names a build — an entry `**Part of:**` a design with a review record holding a
+    `Reach:` line — and which changes a file a base-tree `[far-reaching]` glob matches, fails while open
+    unless that record's `Go by:` names a person (on the board's `People:`, where the base board has one);
+    merged, a ⚠. The globs, the record and the board are all read from the base, never the PR."""
+    import fnmatch
+    files = pr.get("files") or []
+    tds = sorted({int(n) for n in TD_RE.findall(pr.get("title") or "")})
+    if not files or not tds:
+        return row("reach", "na", "the PR names no entry, or changes no file")
+    if not root:
+        return row("reach", "unknown", "no clone to read the base from")
+    old, new, why = pr_ends(pr, root)
+    if why:
+        return row("reach", "na" if pr["state"] == "merged" and "not in this clone" in why else "unknown",
+                   f"reach not checked: {why}")
+    try:
+        globs, gwhy = _far_globs(root, old)
+    except ValueError as e:
+        return row("reach", "unknown", f"reach not checked: {e}")
+    if not globs:
+        return row("reach", "na", f"nothing is far-reaching here: {gwhy}")
+    hit = [f for f in files if any(fnmatch.fnmatch(f, g) for g in globs)]
+    if not hit:
+        return row("reach", "na", "the PR changes no far-reaching path")
+    people, notes, bad = None, [], []
+    board = None
+    for n in tds:
+        entry = None
+        for rev in (new, old):   # the build's entry as the PR leaves it (it may archive it), else the base's
+            for p in (f"{LEDGER_DIR}/TD-{n:03d}.md", f"{LEDGER_DIR}/archive/TD-{n:03d}.md"):
+                entry = _show(root, rev, p)
+                if entry is not None:
+                    break
+            if entry is not None:
+                break
+        m = PART_OF_RE.search(entry or "")
+        if not m:
+            notes.append(f"TD-{n:03d} is part of no design")
+            continue
+        d = int(m.group(1))
+        rec = _show(root, old, f"{REVIEWS_DIR}/TD-{d:03d}.md") or _show(root, old, f"{REVIEWS_DIR}/TD-{d}.md")
+        if rec is None:
+            notes.append(f"design TD-{d:03d} has no review record")
+            continue
+        head = {k.lower(): v for k, v in RECORD_LINE_RE.findall(rec)}
+        if "reach" not in head:
+            notes.append(f"design TD-{d:03d}'s record has no Reach: line (it predates TD-281)")
+            continue
+        go_by = (head.get("go by") or "").strip()
+        who = (go_by.split() or [""])[0].strip("*_`.,;:")
+        if not who or who.lower() in ("judge", "pending", "none"):
+            bad.append(f"design TD-{d:03d}'s Go is by {go_by or 'nobody yet (no Go by: line)'}")
+            continue
+        if board is None:
+            tree = _board_tree(root, old)
+            board = board_of(tree) if tree is not None else False
+            people = _lb().board_people(board) if board else None
+        if people is None:
+            notes.append(f"design TD-{d:03d}'s Go is by {who} (⚠ no board People: line at the base to check the name against)")
+        elif who.lower() not in {p.lower() for p in people}:
+            bad.append(f"design TD-{d:03d}'s Go is by {who}, who is not on the board's People: ({', '.join(people)})")
+        else:
+            notes.append(f"design TD-{d:03d}'s Go is by {who}")
+    shown = ", ".join(hit[:3]) + (f" and {len(hit) - 3} more" if len(hit) > 3 else "")
+    if not bad:
+        return row("reach", "na" if not any("Go is by" in x for x in notes) else "pass",
+                   f"{shown} far-reaching; " + "; ".join(notes))
+    what = f"{shown} far-reaching (the base's [far-reaching]), and " + "; ".join(bad)
+    if pr["state"] == "merged":
+        return row("reach", "pass", f"⚠ {what}: merged — the person merges such a build")
+    return row("reach", "fail", f"{what}: the person reads and merges this build, never a session (TD-281 rule 7)")
+
+
 def row_sources(pr, root):
     """TD-230 (ledgerboard TD-045 rule 13): on a PR that touches the ledger or log-sources.toml, ``hostlog.py
     validate --ledger`` over its head — log-sources.toml's checks, and each open entry's host-log check whose
@@ -2878,7 +2992,7 @@ def print_outside(mo):
 # TD-244: the rows that read only the PR's diff, its comments and its trees — seconds, and no precheck
 # status — so `--structural` runs them before the precheck and a fail there never costs one (procedures/
 # cadence.md step 2). ci needs the precheck; worktree, pushed and deploy judge the merge's moment.
-STRUCTURAL = ("pr", "review", "base", "ledger", "board", "gates", "sources", "person")
+STRUCTURAL = ("pr", "review", "base", "ledger", "board", "gates", "sources", "person", "reach")
 
 
 def check_pr(number, root, only=None):
@@ -2894,6 +3008,7 @@ def check_pr(number, root, only=None):
         ("gates", lambda: row_gates(pr, root)),
         ("sources", lambda: row_sources(pr, root)),
         ("person", lambda: row_person(pr, root)),
+        ("reach", lambda: row_reach(pr, root)),
         ("worktree", lambda: row_worktree(pr, root)),
         ("pushed", lambda: row_pushed(pr, root)),
         ("deploy", lambda: row_deploy(pr, root)),
