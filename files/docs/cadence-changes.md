@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-18 — An entry's own answers: `--answers` and `--lifts` on `ledger.py new` and `set`
+Do: where an Ask's answers are not Go | Not yet, give them with the gate and Ask: `--answers "Works (default) — a session archives it | Not right — a session files a fix" --lifts "Works"` (none: Go lifts). The gate sweep offers them on the decide item; answers it cannot offer are refused.
+See: cadence.md §2.3, §2.14; ledger.py; TD-285.
+
 ## 2026-11-18 — An Ask is one line; its context goes in `**Context:**` through `--context`
 Do: write an entry's Ask as the question alone (`--ask FILE`, one line) and its context with `--context FILE` beside it (`ledger.py new`, `set`; `set --context` alone rewrites it). This supersedes the TD-272 line's whole-file `--ask`: an Ask with later paragraphs is now refused (`field-lines`).
 See: cadence.md §2.3, §2.14; procedures/cadence.md step 3; TD-284.
