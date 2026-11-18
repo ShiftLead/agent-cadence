@@ -79,7 +79,7 @@ def run(rec, after=False, decided="pending", gate=False, toml="", entry=True, ex
     if entry:
         (root / "docs/ledger/TD-001.md").write_text(
             "## TD-001: a design\n\n**Priority:** Low\n**Type:** feature\n**Added:** 2026-01-01\n**Status:** Open\n"
-            + ("**Blocked by:** decision (paul)\n" if gate else "") + "\n**Why:** y\n")
+            + ("**Blocked by:** decision (someone)\n" if gate else "") + "\n**Why:** y\n")
     (root / "docs/reviews/TD-001.md").write_text(rec if isinstance(rec, str) else rec.text(decided))
     args = ["python3", RS, "--verdict", "TD-1", "--repo", str(root)] + (["--after-round"] if after else []) + list(extra)
     p = subprocess.run(args, capture_output=True, text=True)
@@ -275,7 +275,7 @@ expect("cap f ... round 9 is within it", r, "continue", after=True)
 
 # --- decided, and what cannot be resolved
 r = Rec().rounds(2, 0)
-r.head["Go by"] = "Paul"
+r.head["Go by"] = "someone"
 expect("done a record decided by the person's Go: done", r, "done", decided="2026-01-02")
 expect("done b ... from --after-round too", r, "done", decided="2026-01-02", after=True)
 r = judged(Rec().rounds(2, 0))
