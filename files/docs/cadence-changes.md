@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-17 — A design's rounds end by a counted verdict a judge confirms or raises
+Do: mark a design's reach (routine or far-reaching) beside its class; at the end of rounds run the closing fact-check, then `review_stats.py --verdict TD-n` and follow its `next:` (a closing read of unread build-changing fixes, the fixed judge prompt, the item, or a routine Go with none); write `Reach:`, `Verdict:`, `Go by:`, `Holds:`, `Bought:` in the record. Until `--verdict` lands (TD-288), apply the table by hand.
+See: cadence.md §4.8 *Design review rounds*, §9.18 (`design-hold-rounds`, `[far-reaching]`); procedures/cadence.md step 3; TD-281.
+
 ## 2026-11-16 — A board decide opens with its question; an act opens with its task in bold
 Do: `board_edit.py add --kind decide` with its whole question first (in bold or not, never `**Title** — question?`); `--kind act` with `**<the task>**` first; every `--answer` naming who acts. `add` refuses what breaks them, listing every problem. cadence.md §3.3, §3.5 (TD-268).
 

@@ -37,8 +37,12 @@ The observable events that would reopen it ("a second consumer needs X", "the ta
 
 <!-- A design that goes through review rounds (cadence.md §4.8 *Design review rounds*) keeps its
 review record in docs/reviews/TD-NNN.md, named by the design's entry — not in this ADR. The Status
-line above states the class (in-repo or wide, and why) before round 1, and how the rounds ended.
-Each reviewer is given the findings table and names a finding it reopens by its id ("reopens F2").
+line above states the class (in-repo or wide, and why) and the reach (routine or far-reaching, and
+why) before round 1, and how the rounds ended. Each reviewer is given the findings table and names a
+finding it reopens by its id ("reopens F2"), kept in its status once applied ("applied: … (reopens F2)").
+A role is read by its first word; a judge row's line goes verbatim in Verdict:, after the counted
+verdict it judged and its R<n>. Holds: and Bought: list rounds ("4, 9"), or none. A finding the
+person raises has `person` in its by cell.
 The record file's form (cadence.md §4.8; Source: backfill only for one written after the fact, §2.13):
 
 # Review record: TD-NNN
@@ -47,12 +51,17 @@ The record file's form (cadence.md §4.8; Source: backfill only for one written 
 **Class:** in-repo | wide
 **Decided:** YYYY-MM-DD | pending
 **Source:** rounds | backfill
+**Reach:** routine | far-reaching — <reason>
+**Verdict:** <Go | Hold> (R<n>) · cadence-judge: <CONFIRM | RAISE> · reach <routine | far-reaching> · <reason> | none
+**Go by:** judge | judge (<seat>) | <person> | pending
+**Holds:** none
+**Bought:** none
 
 | review | round | role | model | tokens | date |
 |---|---|---|---|---|---|
-| R1 | 1 | fact-check \| design | <the exact model id, or alias?> | <the runner's total, or ?> | YYYY-MM-DD |
+| R1 | 1 | fact-check \| design \| closing-read \| judge | <the exact model id, or alias?> | <the runner's total, or ?> | YYYY-MM-DD |
 
 | id | round | by | topic | finding | class | status |
 |---|---|---|---|---|---|---|
-| F1 | 1 | R1 | <the mechanism, in a phrase> | <what is wrong> | build-changing \| minor | applied \| rejected: <why> \| open \| reopens F<n> |
+| F1 | 1 | R1 \| person | <the mechanism, in a phrase> | <what is wrong> | build-changing \| minor | applied \| rejected: <why> \| open \| reopens F<n> |
 -->

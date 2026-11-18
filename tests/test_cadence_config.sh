@@ -13,7 +13,7 @@ trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/xdg" AGENT_CADENCE_REG_DIR="$TMP/reg"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 mkdir -p "$HOME" "$AGENT_CADENCE_REG_DIR"
-unset CADENCE_REVIEW_MODEL CADENCE_SWEEP_MODEL CADENCE_FACT_CHECK_MODEL CADENCE_DESIGN_ROUNDS CADENCE_DESIGN_ROUNDS_WIDE
+unset CADENCE_REVIEW_MODEL CADENCE_SWEEP_MODEL CADENCE_FACT_CHECK_MODEL CADENCE_DESIGN_ROUNDS CADENCE_DESIGN_ROUNDS_WIDE CADENCE_DESIGN_HOLD_ROUNDS
 PASS=0; FAIL=0
 ok()  { echo "PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
@@ -287,6 +287,45 @@ out=$(python3 "$SCRIPT" --repo "$R" --check); rc=$?
 [ "$rc" != 0 ] && grep -q "review-outcomes" <<< "$out" && grep -q "must be on or off" <<< "$out" \
   && ok "16c a value that is not on or off: --check names it and fails" || bad "16c rc=$rc '$out'"
 rm -f "$R/docs/cadence.toml"
+
+# 17. TD-281: design-hold-rounds, a whole number of 2 or more, default 3
+rm -f "$R/docs/cadence.toml" "$AGENT_CADENCE_REG_DIR/cadence.toml"
+[ "$(get design-hold-rounds)" = 3 ] && ok "17 design-hold-rounds unset: 3" || bad "17 '$(get design-hold-rounds)'"
+printf 'design-hold-rounds = 2\n' > "$R/docs/cadence.toml"
+[ "$(get design-hold-rounds)" = 2 ] && python3 "$SCRIPT" --repo "$R" --check >/dev/null \
+  && ok "17b design-hold-rounds = 2 (an integer): read and clean" || bad "17b '$(get design-hold-rounds)'"
+f17c=0
+for badv in 1 0 '"x"' 1.5; do
+    printf 'design-hold-rounds = %s\n' "$badv" > "$R/docs/cadence.toml"
+    out=$(python3 "$SCRIPT" --repo "$R" --check); rc=$?
+    get design-hold-rounds >/dev/null; grc=$?
+    [ "$rc" = 1 ] && grep -q "design-hold-rounds must be a whole number of 2 or more" <<< "$out" && [ "$grc" = 2 ] \
+      || { bad "17c $badv: check rc=$rc get rc=$grc $out"; f17c=1; }
+done
+[ "$f17c" = 0 ] && ok "17c a design-hold-rounds under 2, or not a whole number: --check and get both refuse it"
+
+# 18. TD-281: [far-reaching], the repo's file only: paths (a list of globs) and note (a string)
+printf '[far-reaching]\npaths = ["docs/briefs/**", "docs/glossary.md"]\nnote = "the org schema"\n' > "$R/docs/cadence.toml"
+python3 "$SCRIPT" --repo "$R" --check >/dev/null \
+  && PYTHONPATH="$DC/files/scripts" python3 -c 'import cadence_config as c, sys; e = c.far_reaching(c.sources(sys.argv[1]))
+assert e == {"paths": ["docs/briefs/**", "docs/glossary.md"], "note": "the org schema"}, e' "$R" \
+  && ok "18 [far-reaching] in the repo's file: --check clean, read as paths and note" || bad "18 $(python3 "$SCRIPT" --repo "$R" --check)"
+rm -f "$R/docs/cadence.toml"
+PYTHONPATH="$DC/files/scripts" python3 -c 'import cadence_config as c, sys; assert c.far_reaching(c.sources(sys.argv[1])) is None' "$R" \
+  && ok "18b no [far-reaching]: far_reaching() is None" || bad "18b"
+printf '[far-reaching]\npaths = ["x"]\n' > "$AGENT_CADENCE_REG_DIR/cadence.toml"
+printf '[far-reaching]\npaths = "docs/**"\nnote = 3\nglobs = ["x"]\n' > "$R/docs/cadence.toml"
+out=$(python3 "$SCRIPT" --repo "$R" --check); rc=$?
+[ "$rc" = 1 ] && grep -q "reg/cadence.toml: \[far-reaching\] is the repo's decision" <<< "$out" \
+  && grep -q "\[far-reaching\] paths must be a list of glob strings" <<< "$out" \
+  && grep -q "\[far-reaching\] note must be a string" <<< "$out" \
+  && grep -q "\[far-reaching\] unknown key 'globs'" <<< "$out" \
+  && ! PYTHONPATH="$DC/files/scripts" python3 -c 'import cadence_config as c, sys; c.far_reaching(c.sources(sys.argv[1]))' "$R" 2>/dev/null \
+  && ok "18c --check: [far-reaching] in the machine file, a paths not a list, a note not a string, an unknown key; far_reaching() raises" || bad "18c rc=$rc $out"
+printf '[far-reaching]\npaths = ["ok", 3]\n' > "$R/docs/cadence.toml"
+out=$(python3 "$SCRIPT" --repo "$R" --check); rc=$?
+[ "$rc" = 1 ] && grep -q "paths must be a list of glob strings" <<< "$out" && ok "18d a paths list holding a non-string is refused" || bad "18d rc=$rc $out"
+rm -f "$R/docs/cadence.toml" "$AGENT_CADENCE_REG_DIR/cadence.toml"
 
 echo "---- $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

@@ -30,8 +30,8 @@ Where a value comes from, the first that has it (cadence.md §9.18):
              ${XDG_CONFIG_HOME:-~/.config}/agent-cadence (§9.2), so a test's override moves it too
     default  KEYS below
 A repo key (REPO_KEYS below: precheck, ledger-ids-host, publish-gate) has the repo row only — no env, no machine file, no
-default: it is a decision about that one repo; so are its tables — the opt-outs, the pin and
-[precheck-paths] (TD-155, read by precheck_paths()). A machine key (MACHINE_KEYS below: layers) has the
+default: it is a decision about that one repo; so are its tables — the opt-outs, the pin,
+[precheck-paths] (TD-155, read by precheck_paths()) and [far-reaching] (TD-281, read by far_reaching()). A machine key (MACHINE_KEYS below: layers) has the
 machine row only — no env, no repo file, no default: it belongs to the person, and follows them
 from repo to repo rather than travelling with any one (TD-126).
 
@@ -84,6 +84,7 @@ KEYS = {
     # The design review rounds' caps (TD-203, §4.8): a whole number of rounds, each one pass through review-model.
     "design-rounds": ("4", "the most review rounds for an in-repo design plan (§4.8)"),
     "design-rounds-wide": ("6", "the most review rounds for a wide design plan: another repo, the payload, a published format, the irreversible (§4.8)"),
+    "design-hold-rounds": ("3", "N, the rounds the design-rounds Hold rule reads: N reopen rounds, or the last N rounds' build-changing counts not falling, hold a design (§4.8, TD-281); a whole number of 2 or more"),
     "review-outcomes": ("off", "on | off: whether filing an entry asks if a design missed the defect (Escaped from:, §2.13) and the backfill is suggested (TD-204)"),
 }
 
@@ -99,7 +100,18 @@ def _count(v) -> int:
 
 
 COUNT_KEYS = ("sweep-every", "deep-sweep-every", "pr-stale-days", "escalate-overdue-days", "board-size-warn",
-              "design-rounds", "design-rounds-wide")
+              "design-rounds", "design-rounds-wide", "design-hold-rounds")
+
+
+def _hold_rounds(v) -> int:
+    """design-hold-rounds (TD-281): a count of at least 2 — one round cannot show a trend."""
+    try:
+        n = _count(v)
+    except ValueError:
+        n = 0
+    if n < 2:
+        raise ValueError(f"must be a whole number of 2 or more, not {v!r}")
+    return n
 
 
 def _models(v: str) -> str:
@@ -241,7 +253,7 @@ REPO_CHOICES = {"ledger-ids-host": ("on", "off"), "publish-gate": ("required", "
 
 # key -> a function returning the value to use, or raising ValueError naming what is wrong.
 # `get`, every importer through resolve(), and --check all go through it.
-VALIDATE = {"worktree-root": _rel_dir, "attention-scope": _scope, "review-outcomes": _onoff, "review-model": _models, "fact-check-model": _model, "layers": _layers, "publish-names": _names, "host-alias": _alias, **{k: _count for k in COUNT_KEYS}}
+VALIDATE = {"worktree-root": _rel_dir, "attention-scope": _scope, "review-outcomes": _onoff, "review-model": _models, "fact-check-model": _model, "layers": _layers, "publish-names": _names, "host-alias": _alias, **{k: _count for k in COUNT_KEYS}, "design-hold-rounds": _hold_rounds}
 
 
 # The opt-outs (TD-072, moved here by TD-096): tables in the repo's file, never the machine's —
@@ -297,6 +309,42 @@ def _paths_problems(label: str, v) -> list[str]:
         return [f"{label}: {PATHS_TABLE} must be a table ([{PATHS_TABLE}]), not {v!r}"]
     return [f"{label}: [{PATHS_TABLE}] {k!r} must name globs and map them to a non-empty command string, not {c!r}"
             for k, c in v.items() if not k.split() or not isinstance(c, str) or not c.strip()]
+
+
+# What is far-reaching here (TD-281, cadence.md §4.8): a table in the repo's file. `paths`, a list of
+# globs matched as [precheck-paths]' are (fnmatch on the repo-relative path; `*` crosses `/`), is the
+# floor the design judge applies — a design whose builds change a matching file is far-reaching
+# whatever its mark; `note`, the repo's own prose, is printed to the judge.
+FAR_TABLE = "far-reaching"
+FAR_FIELDS = ("paths", "note")
+
+
+def far_reaching(files: list[tuple[str, dict]]) -> dict | None:
+    """{"paths": [glob, ...], "note": str | None} from the repo's [far-reaching], or None with no table.
+    Raises ConfigError on one --check would name."""
+    for label, table in files:
+        if label != REPO_FILE or FAR_TABLE not in table:
+            continue
+        problems = _far_problems(label, table[FAR_TABLE])
+        if problems:
+            raise ConfigError(problems[0])
+        t = table[FAR_TABLE]
+        return {"paths": list(t.get("paths", [])), "note": t.get("note")}
+    return None
+
+
+def _far_problems(label: str, v) -> list[str]:
+    if label != REPO_FILE:
+        return [f"{label}: [{FAR_TABLE}] is the repo's decision — put it in {REPO_FILE}; not read here"]
+    if not isinstance(v, dict):
+        return [f"{label}: {FAR_TABLE} must be a table ([{FAR_TABLE}]), not {v!r}"]
+    out = [f"{label}: [{FAR_TABLE}] unknown key {k!r} (known: {', '.join(FAR_FIELDS)})" for k in v if k not in FAR_FIELDS]
+    paths = v.get("paths", [])
+    if not isinstance(paths, list) or not all(isinstance(g, str) and g.strip() for g in paths):
+        out.append(f"{label}: [{FAR_TABLE}] paths must be a list of glob strings, not {paths!r}")
+    if "note" in v and not isinstance(v["note"], str):
+        out.append(f"{label}: [{FAR_TABLE}] note must be a string, not {v['note']!r}")
+    return out
 
 
 LEGACY_FILE = "docs/cadence-local.conf"   # TD-072's line grammar, still read until each repo moves
@@ -435,6 +483,8 @@ def check(files: list[tuple[str, dict]]) -> list[str]:
                 problems += _pin_problems(label, v)
             elif k == PATHS_TABLE:
                 problems += _paths_problems(label, v)
+            elif k == FAR_TABLE:
+                problems += _far_problems(label, v)
             elif k in REPO_KEYS and label != REPO_FILE:
                 problems.append(f"{label}: {k} is the repo's decision — put it in {REPO_FILE}; not read here")
             elif k in MACHINE_KEYS and label == REPO_FILE:
