@@ -248,6 +248,15 @@ lp set TD-004 --blocked-by "" --by Alex --answers "Go — a session builds it" >
   || bad "answers refusals (r1=$r1 r2=$r2 r3=$r3): $(cat "$TMP/err" "$TMP/err2" "$TMP/err3")"
 lp set TD-004 --lifts "Not right" >/dev/null 2>"$TMP/err" && grep -qx '\*\*Lifts:\*\* Not right' "$L/TD-004.md" \
   && [ "$(grep -c '^\*\*Lifts:\*\*' "$L/TD-004.md")" = 1 ] && ok "set --lifts alone rewrites the Lifts in place" || bad "lifts alone: $(cat "$TMP/err")"
+cp "$TMP/td4d" "$L/TD-004.md"  # no Answers or Lifts yet
+lp set TD-004 --priority High --answers "Go — a session builds it | Not yet — nobody picks it" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && grep -qx '\*\*Priority:\*\* High' "$L/TD-004.md" && grep -qx '\*\*Answers:\*\* Go — a session builds it | Not yet — nobody picks it' "$L/TD-004.md" \
+  && ok "set with a field and --answers writes both in one write" || bad "field + answers (rc=$rc): $(cat "$TMP/err")"
+cp "$L/TD-004.md" "$TMP/td4f"
+lp set TD-004 --answers "$(printf 'Go — a session builds it\n| Not yet — nobody')" >/dev/null 2>"$TMP/err"; r1=$?
+lp set TD-002 --answers "Go — a session builds it" >/dev/null 2>"$TMP/err2"; r2=$?
+[ $r1 -eq 2 ] && grep -q -- '--answers is one line' "$TMP/err" && [ $r2 -eq 2 ] && grep -q 'archived' "$TMP/err2" && cmp -s "$L/TD-004.md" "$TMP/td4f" \
+  && ok "set refuses a multi-line --answers, and --answers on an archived entry" || bad "multi-line/archived (r1=$r1 r2=$r2): $(cat "$TMP/err" "$TMP/err2")"
 cp "$TMP/td4d" "$L/TD-004.md"
 printf '## TD-007: seven\n\n**Priority:** Low\n**Owner:** person\n**Status:** Open\n\n**Why:** standing.\n' > "$L/TD-007.md"
 git -C "$W" add docs/ledger/TD-007.md; git -C "$W" commit -qm seven; git -C "$W" push -q origin main
