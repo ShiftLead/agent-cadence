@@ -113,7 +113,9 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
         (`ledger.py note TD-<n> "…"`).
       - `item` — if an open board item's Context already names `TD-<n> decision (<person>)`
         (`board_edit.py list --board … --json`), nothing: the item is up. Otherwise, if the
-        design's entry has no `decision (<person>)` gate, add it first with its `**Ask:**`
+        design's entry has no `decision (<person>)` gate — or its Blocked by still names a
+        bought round's entry (TD-291), which this write drops and whose entry you archive — write the
+        gate and its new `**Ask:**` first
         (`ledger.py set TD-<n> --blocked-by "<its other blockers>, decision (<person>)" --ask <file> [--context <file>]`,
         the Ask one line and its context in the Context file;
         `--blocked-by` replaces the field), the person one the board's `People:` line holds; file
@@ -129,11 +131,12 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    `Go`, `Go by: <person>` (the name the board's `Decided:` line carries) and `Decided:`; on
    `One more round`, the last round the Reviews table holds in `Bought:`; on `Hold: <note>`, the
    last round in `Holds:` and `Decided: pending`. Then it runs the round (as `round` does) or
-   the revision (as `revise` does). A bought round (`One more round`) runs under an entry of its
-   own, never `Part of` the design, filed in the same ledger PR that adds it to the design's hold
-   (`ledger.py set TD-<n> --blocked-by "TD-<round>, decision (<person>)"`); at its end, the write
-   that gives the design its new Ask drops `TD-<round>` again and archives the round's entry,
-   then `item` raises the end-of-rounds item (cadence.md §4.8, TD-291).
+   the revision (as `revise` does). A bought round (`One more round`) always runs under an entry
+   of its own (`Kind: design-first`, Owner your own lane, claimed by you), never `Part of` the
+   design: the PR that files it also adds it to the design's hold
+   (`ledger.py set TD-<n> --blocked-by "TD-<round>, decision (<person>)"`). At its end, a later
+   PR runs `item`, whose write gives the design its new Ask, drops `TD-<round>` and archives the
+   round's entry (cadence.md §4.8, TD-291).
 
    **The judge's prompt is fixed** — fill in the paths, never word the question:
 
