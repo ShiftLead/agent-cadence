@@ -4,7 +4,7 @@
 # are rewritten to the strict `**Name:**` form, a multi-line Ask is joined and its context moved under **Context:**, so `--check` shows no lead-form/glued-lead; an entry with
 # no fault is left byte for byte; a second run changes nothing; --check names what would change, exits 1 and
 # writes nothing; named ids rewrite only those; an entry with an open code fence is refused, named, left
-# alone and fails the run; and a v1 ledger exits 2.
+# alone and fails the run; a v1 ledger exits 2; and this repo's own ledger, archive included, needs no rewrite.
 # Offline, fixture-driven: a temp ledger, HOME/XDG and the roster in a temp dir; dates from the run date.
 set -u
 DC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -138,6 +138,10 @@ rm "$L/TD-004.md"
 printf '# Technical debt\n' > "$TMP/technical_debt.md"
 out=$(python3 "$LEDGER_PY" migrate-body --ledger "$TMP/technical_debt.md" 2>&1); rc=$?
 [ "$rc" -eq 2 ] && printf '%s\n' "$out" | grep -q 'not a v2 directory' && ok "a v1 ledger exits 2" || bad "v1 (rc=$rc): $out"
+
+# --- 7) this repo's own ledger, archive included, is migrated (TD-283 step 3): --check rewrites nothing.
+out=$(python3 "$LEDGER_PY" migrate-body --check --ledger "$DC/docs/ledger" 2>&1); rc=$?
+[ "$rc" -eq 0 ] && ok "this repo's ledger needs no migrate-body rewrite" || bad "this repo's ledger (rc=$rc): $(printf '%s\n' "$out" | tail -3)"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
