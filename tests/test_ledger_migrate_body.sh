@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # TD-283: `ledger.py migrate-body` passes through to ledgerboard's plan_migrate_body() (v3.3, its TD-133).
 # Asserts: an open and an archived entry each carrying a non-strict lead (`**Done when** …`) and a glued lead
-# are rewritten to the strict `**Name:**` form, so `--check` shows no lead-form/glued-lead; an entry with
+# are rewritten to the strict `**Name:**` form, a multi-line Ask is joined and its context moved under **Context:**, so `--check` shows no lead-form/glued-lead; an entry with
 # no fault is left byte for byte; a second run changes nothing; --check names what would change, exits 1 and
 # writes nothing; named ids rewrite only those; an entry with an open code fence is refused, named, left
 # alone and fails the run; and a v1 ledger exits 2.
@@ -49,6 +49,20 @@ cat > "$L/TD-002.md" <<EOF
 
 **Done when:** it is done.
 EOF
+cat > "$L/TD-005.md" <<EOF
+## TD-005: an Ask with context paragraphs
+
+**Priority:** Low
+**Added:** $TODAY
+**Status:** Open
+
+**Why:** a case.
+
+**Ask:** Should the cache live
+on disk?
+
+It is read nightly.
+EOF
 cat > "$L/archive/TD-003.md" <<EOF
 ## TD-003: archived, a non-strict lead
 
@@ -88,8 +102,11 @@ fi
 out=$(mb 2>&1); rc=$?
 if [ "$rc" -eq 0 ] && grep -q '^\*\*Done when:\*\* it is done\.$' "$L/TD-001.md" \
    && grep -B1 '^\*\*Fix:\*\* glued' "$L/TD-001.md" | head -1 | grep -q '^$' \
-   && cmp -s "$L/TD-002.md" "$TMP/td2.before" && printf '%s\n' "$out" | grep -q 'ledger migrate-body: 3 entries, 1 migrated, 0 refused'; then
-  ok "migrate-body rewrites TD-001 to strict leads, unglues its Fix, leaves TD-002 as it was"
+   && grep -qx '\*\*Ask:\*\* Should the cache live on disk?' "$L/TD-005.md" \
+   && grep -A2 '^\*\*Context:\*\*' "$L/TD-005.md" | grep -q 'It is read nightly\.' \
+   && printf '%s\n' "$out" | grep -q '^migrated: .*TD-005.md$' \
+   && cmp -s "$L/TD-002.md" "$TMP/td2.before" && printf '%s\n' "$out" | grep -q 'ledger migrate-body: 4 entries, 2 migrated, 0 refused'; then
+  ok "migrate-body rewrites TD-001 to strict leads, unglues its Fix, joins TD-005's Ask and moves its context, leaves TD-002"
 else
   bad "migrate-body (rc=$rc): $out"; cat "$L/TD-001.md"
 fi
