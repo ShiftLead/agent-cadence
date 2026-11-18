@@ -168,6 +168,26 @@ lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/w
 out=$(lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --ask "$TMP/ask.md" 2>"$TMP/err"); rc=$?
 [ $rc -eq 0 ] && grep -qx '\*\*Blocked by:\*\* decision (Alex)' "$out" && grep -qx '\*\*Ask:\*\* Should it go ahead?' "$out" \
   && ok "new --ask files the entry with its decision gate and its Ask" || bad "new --ask (rc=$rc): $(cat "$TMP/err")"
+# TD-284 (ledgerboard v3.3): the Ask is one line, its context a **Context:** section right after it (--context)
+printf 'The reader is `cache.py`, which runs nightly.\n\nA second paragraph.\n' > "$TMP/ctx.md"
+out=$(lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --ask "$TMP/ask.md" \
+      --context "$TMP/ctx.md" --fix "$TMP/why.md" 2>"$TMP/err"); rc=$?
+[ $rc -eq 0 ] && grep -A1 -x '\*\*Ask:\*\* Should it go ahead?' "$out" | tail -1 | grep -qx '' \
+  && [ "$(grep -n '^\*\*Ask:\*\*' "$out" | cut -d: -f1)" -lt "$(grep -n '^\*\*Context:\*\*' "$out" | cut -d: -f1)" ] \
+  && [ "$(grep -n '^\*\*Context:\*\*' "$out" | cut -d: -f1)" -lt "$(grep -n '^\*\*Fix:\*\*' "$out" | cut -d: -f1)" ] \
+  && grep -qx '\*\*Context:\*\* The reader is `cache.py`, which runs nightly.' "$out" && grep -qx 'A second paragraph.' "$out" \
+  && grep -q 'warning — the Ask: rule 4: .*cache.py' "$TMP/err" \
+  && [ -z "$(python3 "$DC/files/scripts/ledger.py" --check --ledger "$(dirname "$out")" --json | python3 -c 'import json,sys; print(" ".join(f["id"] for f in json.load(sys.stdin)["flags"] if f["kind"]=="field-lines"))')" ] \
+  && ok "new --ask --context writes a one-line Ask, its Context right after it (before the Fix), rule 4 warning on its code, no field-lines" \
+  || bad "new --context (rc=$rc): $(cat "$TMP/err"; cat "$out" 2>/dev/null)"
+was=$(last "$O")
+lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --context "$TMP/ctx.md" >/dev/null 2>"$TMP/err"; r1=$?
+lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --ask "$TMP/ask.md" --context "$TMP/empty.md" >/dev/null 2>"$TMP/err2"; r2=$?
+lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --ask - --context - </dev/null >/dev/null 2>"$TMP/err3"; r3=$?
+[ $r1 -eq 2 ] && grep -q -- '--context is an Ask.s context: give it with --ask' "$TMP/err" && [ $r2 -eq 2 ] && grep -q -- '--context is empty' "$TMP/err2" \
+  && [ $r3 -eq 2 ] && grep -q 'only one section can come from stdin' "$TMP/err3" \
+  && [ "$(last "$O")" = "$was" ] && ok "new refuses --context without --ask, an empty --context, and --ask and --context both from stdin, before the take" \
+  || bad "new context refusals (r1=$r1 r2=$r2 r3=$r3): $(cat "$TMP/err" "$TMP/err2" "$TMP/err3")"
 # TD-268: a title is plain words and an Ask a question, judged before the take
 was=$(last "$O")
 lp new --title "TD-12 follow-up" --priority Low --why "$TMP/why.md" >/dev/null 2>"$TMP/err"; r1=$?

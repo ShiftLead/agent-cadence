@@ -200,6 +200,32 @@ lp set TD-004 --blocked-by "" --by Alex --ask "$TMP/ask.md" >/dev/null 2>"$TMP/e
 lp set TD-004 --owner person --blocked-by "decision (Alex)" --ask "$TMP/ask.md" >/dev/null 2>"$TMP/err" \
   && grep -qx '\*\*Blocked by:\*\* decision (Alex)' "$L/TD-004.md" && grep -qx '\*\*Ask:\*\* Should it go ahead?' "$L/TD-004.md" \
   && ok "set --ask writes the Owner, its decision gate and its Ask in one write" || bad "gated owner: $(cat "$TMP/err")"
+# TD-284 (ledgerboard v3.3): the Ask's context in its own **Context:** section, through set --context
+printf 'The reader is `cache.py`.\n' > "$TMP/ctx1.md"
+lp set TD-004 --context "$TMP/ctx1.md" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && grep -A2 -x '\*\*Ask:\*\* Should it go ahead?' "$L/TD-004.md" | grep -qx '\*\*Context:\*\* The reader is `cache.py`.' \
+  && grep -q "warning — the Ask's context: rule 4: .*cache.py" "$TMP/err" \
+  && ok "set --context alone writes the Context right after the entry's Ask, rule 4 warning on its code" || bad "set --context (rc=$rc): $(cat "$TMP/err"; cat "$L/TD-004.md")"
+printf 'Plain words now.\n' > "$TMP/ctx2.md"
+lp set TD-004 --context "$TMP/ctx2.md" >/dev/null 2>"$TMP/err" && grep -qx '\*\*Context:\*\* Plain words now.' "$L/TD-004.md" \
+  && [ "$(grep -c '^\*\*Context:\*\*' "$L/TD-004.md")" = 1 ] && ! grep -q 'rule 4' "$TMP/err" \
+  && ok "a second set --context replaces the Context, one section, no warning on plain words" || bad "set --context again: $(cat "$TMP/err")"
+cp "$L/TD-004.md" "$TMP/td4c"
+printf 'Run `cache.py` by hand.\n' > "$TMP/ctx3.md"
+lp edit TD-004 --section Context --from "$TMP/ctx3.md" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && grep -q "warning — the Ask's context: rule 4: .*cache.py" "$TMP/err" && grep -qx '\*\*Context:\*\* Run `cache.py` by hand.' "$L/TD-004.md" \
+  && ok "edit --section Context writes it with a rule 4 warning on its code" || bad "edit Context (rc=$rc): $(cat "$TMP/err")"
+cp "$TMP/td4c" "$L/TD-004.md"
+lp set TD-004 --ask - --context - </dev/null >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 2 ] && grep -q 'only one section can come from stdin' "$TMP/err" && cmp -s "$L/TD-004.md" "$TMP/td4c" \
+  && ok "set refuses --ask and --context both from stdin" || bad "set stdin (rc=$rc): $(cat "$TMP/err")"
+lp set TD-001 --context "$TMP/ctx2.md" >/dev/null 2>"$TMP/err"; r1=$?
+lp set TD-004 --blocked-by "" --by Alex --context "$TMP/ctx2.md" >/dev/null 2>"$TMP/err2"; r2=$?
+lp set TD-004 --context "$TMP/empty.md" >/dev/null 2>"$TMP/err3"; r3=$?
+[ $r1 -eq 1 ] && grep -q 'has no Ask' "$TMP/err" && [ $r2 -eq 2 ] && grep -q -- '--by lifts a decision' "$TMP/err2" \
+  && [ $r3 -eq 2 ] && grep -q -- '--context is empty' "$TMP/err3" && cmp -s "$L/TD-004.md" "$TMP/td4c" \
+  && ok "set refuses --context on an entry with no Ask, with --by, and empty, writing nothing" \
+  || bad "set --context refusals (r1=$r1 r2=$r2 r3=$r3): $(cat "$TMP/err" "$TMP/err2" "$TMP/err3")"
 printf '## TD-007: seven\n\n**Priority:** Low\n**Owner:** person\n**Status:** Open\n\n**Why:** standing.\n' > "$L/TD-007.md"
 git -C "$W" add docs/ledger/TD-007.md; git -C "$W" commit -qm seven; git -C "$W" push -q origin main
 lp set TD-007 --priority High >/dev/null 2>"$TMP/err"; rc=$?

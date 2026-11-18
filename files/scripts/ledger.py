@@ -6,8 +6,8 @@
     ledger.py --pickable [--ledger PATH] [--archive PATH] [--json]
     ledger.py --summary | --split
     ledger.py fmt [TD-n …] [--check]  |  migrate-body [TD-n …] [--check]
-    ledger.py new --title T --priority P --why FILE|- [--ask FILE|-] [--fix FILE|-] [--done-when FILE|-] [--type …] [--id TD-n] …
-    ledger.py set TD-n --FIELD VALUE … [--title T] [--ask FILE|-]  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|- | --remove
+    ledger.py new --title T --priority P --why FILE|- [--ask FILE|- [--context FILE|-]] [--fix FILE|-] [--done-when FILE|-] [--type …] [--id TD-n] …
+    ledger.py set TD-n --FIELD VALUE … [--title T] [--ask FILE|-] [--context FILE|-]  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|- | --remove
     ledger.py lift TD-n --gate "event (<name>)"|"until D" --by HOST [--evidence E]   (a host's lift, TD-219)
 
 An entry may carry one optional field after **Status:** (cadence.md §2):
@@ -1171,8 +1171,10 @@ def new(argv: list[str]) -> int:
     _field_flags(ap, {"added": "default: today", "status": "default: Open"})
     for s in ("why", "fix", "done-when"):
         ap.add_argument(f"--{s}", metavar="FILE", help=f"the {s.replace('-', ' ').capitalize()} section from a file, or - for stdin")
-    ap.add_argument("--ask", metavar="FILE", help="the Ask section from a file, or - for stdin: written with the entry, "
-                    "beside its decision (<person>) gate, which --blocked-by gives (ledgerboard v3.2, TD-272)")
+    ap.add_argument("--ask", metavar="FILE", help="the Ask from a file, or - for stdin: one line, the question, written "
+                    "with the entry beside its decision (<person>) gate, which --blocked-by gives (ledgerboard v3.2, TD-272)")
+    ap.add_argument("--context", metavar="FILE", help="the Ask's context from a file, or - for stdin: its **Context:** "
+                    "section, written right after the Ask (ledgerboard v3.3, TD-284); only with --ask")
     ap.add_argument("--id", metavar="TD-n", help="file under an id already taken from the counter, instead of taking one")
     ap.add_argument("--by", help="the take's by (ledger_next_id.py --by), for a front end filing for its caller")
     ap.add_argument("--ledger", help="a v2 directory; default: docs/ledger/ at the work tree's top")
@@ -1181,15 +1183,20 @@ def new(argv: list[str]) -> int:
         ap.error("--priority is required (High, Medium or Low)")
     if not a.why:
         ap.error("--why is required: the Why is the point of an entry (cadence.md §2)")
-    if [a.why, a.ask, a.fix, a.done_when].count("-") > 1:
+    if [a.why, a.ask, a.context, a.fix, a.done_when].count("-") > 1:
         ap.error("only one section can come from stdin")
+    if a.context is not None and a.ask is None:
+        ap.error("--context is an Ask's context: give it with --ask")
     if a.id and not ID_ITEM_RE.match(a.id):
         ap.error(f"an entry's id is TD-n, not {a.id!r}")
     sections = []
-    for name, src in (("Why", a.why), ("Ask", a.ask), ("Fix", a.fix), ("Done when", a.done_when)):
+    for name, src in (("Why", a.why), ("Ask", a.ask), ("Context", a.context), ("Fix", a.fix),
+                      ("Done when", a.done_when)):
         body = _read_body(ap, f"--{name.lower().replace(' ', '-')}", src) if src is not None else ""
         if name == "Ask" and src is not None and not body.strip():
             ap.error("--ask is empty: an Ask with no words asks nothing")
+        if name == "Context" and src is not None and not body.strip():
+            ap.error("--context is empty: give the Ask's context, or leave --context out")
         if body.strip():
             sections.append((name, body.strip()))
     if not sections or sections[0][0] != "Why":
@@ -1201,7 +1208,8 @@ def new(argv: list[str]) -> int:
     w = _Writer.open("new", a.ledger)
     if isinstance(w, int):
         return w
-    if _person_text(w, "new", title=a.title, ask=next((b for n, b in sections if n == "Ask"), None)):
+    if _person_text(w, "new", title=a.title, ask=next((b for n, b in sections if n == "Ask"), None),
+                    context=next((b for n, b in sections if n == "Context"), None)):
         return 1
     known = LB.heading_nums(w.text) | LB.heading_nums(w.arch)
     if w.xrepo_refused(_field_value(fields, "blocked by")):
@@ -1296,6 +1304,9 @@ def edit(cmd: str, argv: list[str]) -> int:
         ap.add_argument("--ask", metavar="FILE", help="the entry's Ask section from a file, or - for stdin, written in "
                         "the same write as the decision (<person>) gate --blocked-by gives (ledgerboard v3.2, TD-272); "
                         "it rides on a field or --title, so an Ask already gated is rewritten with edit --section Ask")
+        ap.add_argument("--context", metavar="FILE", help="the Ask's context from a file, or - for stdin: its **Context:** "
+                        "section, right after the Ask (ledgerboard v3.3, TD-284); with --ask, or alone on an entry "
+                        "that has an Ask")
     elif cmd == "note":
         ap.add_argument("words", help="the note, one line")
     else:
@@ -1316,8 +1327,10 @@ def edit(cmd: str, argv: list[str]) -> int:
             if a.by is not None:
                 ap.error("--title retitles, --by lifts a decision: give one")
             kw["title"] = a.title
-        if not kw["fields"] and a.title is None:
-            ap.error("give at least one field, or --title, to set")
+        if not kw["fields"] and a.title is None and a.context is None:
+            ap.error("give at least one field, --title or --context, to set")
+        if a.ask == "-" and a.context == "-":
+            ap.error("only one section can come from stdin")
         for flag, v in (("--answer", a.answer), ("--why", a.why), ("--override", a.override)):
             if v is not None and a.by is None:
                 ap.error(f"{flag} is a gate route's: give --by, who answered")
@@ -1331,6 +1344,12 @@ def edit(cmd: str, argv: list[str]) -> int:
             kw["ask"] = _read_body(ap, "--ask", a.ask).strip()
             if not kw["ask"]:
                 ap.error("--ask is empty: an Ask with no words asks nothing")
+        if a.context is not None:
+            if a.by is not None:
+                ap.error("--context writes an Ask's context, --by lifts a decision: give one")
+            kw["context"] = _read_body(ap, "--context", a.context).strip()
+            if not kw["context"]:
+                ap.error("--context is empty: a section is never emptied by set")
     elif cmd == "note":
         kw.update(words=a.words)
     else:
@@ -1350,7 +1369,9 @@ def edit(cmd: str, argv: list[str]) -> int:
         return w
     sec = (kw.get("section") or "").strip().lower() if cmd == "edit" and "words" in kw else ""
     ask = kw.get("ask") if cmd == "set" else kw["words"] if sec == "ask" else None
-    if _person_text(w, cmd, title=kw.get("title"), ask=ask, answers=kw["words"] if sec == "answers" else None):
+    context = kw.get("context") if cmd == "set" else kw["words"] if sec == "context" else None
+    if _person_text(w, cmd, title=kw.get("title"), ask=ask, context=context,
+                    answers=kw["words"] if sec == "answers" else None):
         return 1
     if cmd == "set":
         if w.xrepo_refused(_field_value(given, "blocked by"), _blocked_raw(w, a.id)):
@@ -1441,10 +1462,10 @@ def _lb_edit(w: _Writer, cmd: str, tid: str, kw: dict) -> int:
 
 
 def _person_text(w: "_Writer", cmd: str, *, title: str | None = None, ask: str | None = None,
-                 answers: str | None = None) -> bool:
+                 context: str | None = None, answers: str | None = None) -> bool:
     """TD-268: the person-text rules on what this write gives a person to read (``person_text.py``): a title
-    (rule 3), an Ask (rule 1, its context rule 4) and an Answers (rule 2), the people the board's ``People:``
-    names. Every problem is printed; True when one refuses the write."""
+    (rule 3), an Ask (rule 1, its context rule 4 — the ``**Context:**`` section too, TD-284) and an Answers
+    (rule 2), the people the board's ``People:`` names. Every problem is printed; True when one refuses the write."""
     try:
         fls, fread = fs_io()
         people = LB.board_people(_board_in(((lambda p: fls(str(w.root / p))), (lambda p: fread(str(w.root / p))))))
@@ -1454,7 +1475,8 @@ def _person_text(w: "_Writer", cmd: str, *, title: str | None = None, ask: str |
         people = None
     people = [n for n in people or [] if n.strip()]  # a People: line with an empty name is the board's problem
     probs = [("the title", PT.title_problems(title)) if title is not None else None,
-             ("the Ask", PT.ask_problems(ask, people)) if ask is not None else None,
+             ("the Ask", PT.ask_problems(ask, people, context)) if ask is not None else None,
+             ("the Ask's context", PT.context_problems(context, people)) if ask is None and context is not None else None,
              ("the Answers", PT.answers_problems(answers, people)) if answers is not None else None]
     refused = False
     for what, got in filter(None, probs):

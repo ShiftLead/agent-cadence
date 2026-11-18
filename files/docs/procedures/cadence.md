@@ -114,7 +114,8 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
       - `item` — if an open board item's Context already names `TD-<n> decision (<person>)`
         (`board_edit.py list --board … --json`), nothing: the item is up. Otherwise, if the
         design's entry has no `decision (<person>)` gate, add it first with its `**Ask:**`
-        (`ledger.py set TD-<n> --blocked-by "<its other blockers>, decision (<person>)" --ask <file>`;
+        (`ledger.py set TD-<n> --blocked-by "<its other blockers>, decision (<person>)" --ask <file> [--context <file>]`,
+        the Ask one line and its context in the Context file;
         `--blocked-by` replaces the field), the person one the board's `People:` line holds; file
         the builds held the first time (on a later item, bring the filed ones into line instead);
         then raise the end-of-rounds item (§4.8) through `board_edit.py add --kind decide`.
