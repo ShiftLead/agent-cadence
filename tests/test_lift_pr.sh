@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # TD-218: the review row's decide-lift carve-out (check_cadence.py row_lift_pr, ledgerboard v2.4's
-# lift_pr_verdict) and the direct audit's (d) (classify_direct: a gate item's answer lands by PR only), on
+# lift_pr_verdict), TD-262's ledger lift (row_ledger_lift_pr, v3.3's ledger_lift_verdict) and the direct
+# audit's (d) (classify_direct: a gate item's answer lands by PR only), on
 # ledgerboard v3.0's board directory (TD-263).
 # The verdict's own cases are ledgerboard's fixtures (tests/ledgerboard/verdict, run by
 # test_ledgerboard_fixtures.sh); this suite lays a few into a git repo and reads the rows. A gate-less decide
@@ -199,6 +200,92 @@ EOF2
 case_pr "a gate removed by hand" "ledger: set TD-150 (session w-1)"
 IFS=$'\t' read -r st cls det <<< "$(judge open 2026-01-15T09:00:00Z)"
 ! echo "$det" | grep -q "decide lift" && ok "a PR that answers no gate item is not judged as a lift" || bad "not a lift: $st $det"
+
+# --- TD-262: the ledger lift (ledgerboard v3.3's ledger_lift_verdict), ShiftLead's Lift the hold press's PR. Each
+# case is laid as ledgerboard's run.py lays it: main = the verdict base plus the case's base overlay, less its
+# delete_base; the topic's one commit = its head overlay, less its delete, under the case's subject (the PR's title).
+LR="$TMP/lifts"; git init -q --bare -b main "$LR.git"; git init -q -b main "$LR"; git -C "$LR" remote add origin "$LR.git"
+lift_case() {  # $1 = a ledger_lift case; $2 = extra: "" or "other" (also change a file outside the lift)
+  local name=$1 extra=${2:-}
+  python3 - "$V" "$name" "$LR" "$extra" <<'EOF'
+import json, os, shutil, subprocess, sys
+v, name, root, extra = sys.argv[1:]
+c = next(x for x in json.load(open(f"{v}/cases.json"))["ledger_lift"] if x["name"] == name)
+def git(*a): subprocess.run(["git", "-C", root, *a], check=True, capture_output=True)
+def lay(src):
+    if os.path.isdir(src):
+        shutil.copytree(src, root, dirs_exist_ok=True)
+def drop(paths):
+    for p in paths:
+        q = os.path.join(root, p)
+        shutil.rmtree(q) if os.path.isdir(q) else (os.path.exists(q) and os.remove(q))
+git("switch", "-q", "--orphan", "b"); subprocess.run(["git", "-C", root, "rm", "-rqf", "--ignore-unmatch", "."], check=True)
+for e in os.listdir(root):
+    if e != ".git":
+        drop([e])
+lay(f"{v}/base"); lay(f"{v}/cases/{name}/base"); drop(c.get("delete_base", []))
+open(os.path.join(root, "other.txt"), "w").write("x\n")
+git("add", "-A"); git("commit", "-qm", "base"); git("branch", "-M", "main"); git("push", "-qf", "origin", "main")
+git("fetch", "-q", "origin"); git("switch", "-q", "-C", "topic", "origin/main")
+lay(f"{v}/cases/{name}/head"); drop(c.get("delete", []))
+if extra == "other":
+    open(os.path.join(root, "other.txt"), "a").write("w\n")
+git("add", "-A"); git("commit", "-qm", c["subject"])
+EOF
+}
+ljudge() {  # $1 = state (open|merged) — "<status>\t<carve_out>\t<detail>" of the review row (board_edit_or_review)
+  python3 - "$LR" "$1" "$S" <<'EOF'
+import sys
+root, state, s = sys.argv[1:]
+sys.path.insert(0, s)
+import check_cadence as C
+class Stub:
+    cli = "gh"
+    def comments(self, n):
+        return []
+    def pr_commits(self, pr):
+        return pr.get("commits")
+C.FORGE = Stub()
+sha = C.git(["rev-parse", "HEAD"], cwd=root).strip()
+base = C.git(["rev-parse", "origin/main"], cwd=root).strip()
+rng = f"{sha}^..{sha}" if state == "merged" else f"{base}..{sha}"
+files = sorted(set(C.git(["diff", "--name-only", rng], cwd=root).split()))
+title = C.git(["log", "-1", "--format=%s", sha], cwd=root).strip().removesuffix(" (#7)")
+pr = {"number": 7, "ref": "#7", "state": state, "head_sha": sha, "merge_sha": sha, "files": files, "title": title,
+      "created_at": "2026-01-15T09:00:00Z", "merged_at": "2026-01-15T12:00:00Z" if state == "merged" else None,
+      "commits": 1}
+r = C.board_edit_or_review(pr, root)
+print(f"{r['status']}\t{r.get('carve_out')}\t{r['detail']}")
+EOF
+}
+# a lift with no covering item: the entry's file alone, as lift_gate() writes it — the press is its review
+lift_case "lift-none"
+IFS=$'\t' read -r st co det <<< "$(ljudge open)"
+[ "$st" = pass ] && [ "$co" = lift ] && echo "$det" | grep -q "ledger lift" \
+  && ok "TD-262: a ledger lift (the entry alone) passes the review row as carve-out lift, no comment" || bad "ledger lift: $st $co $det"
+# the same squash-merged under its title with (#7): still the carve-out, so --since lists it as a tool merge
+git -C "$LR" switch -q main; git -C "$LR" merge -q --squash topic >/dev/null 2>&1
+git -C "$LR" commit -qm "shiftlead: lift decision (pat) on TD-160 (session n/a) (#7)"
+IFS=$'\t' read -r st co det <<< "$(ljudge merged)"
+[ "$st" = pass ] && [ "$co" = lift ] && ok "TD-262: the ledger lift squash-merged (#7) is still carve-out lift" || bad "merged ledger lift: $st $co $det"
+# a lift that closes its covering decided item — lifted, as edit_item() writes it
+lift_case "lift-decided"
+IFS=$'\t' read -r st co det <<< "$(ljudge open)"
+[ "$st" = pass ] && [ "$co" = lift ] && ok "TD-262: a ledger lift closing its covering item — lifted passes" || bad "decided lift: $st $co $det"
+# the lift's title with another file changed: ordinary review, the row naming why
+lift_case "lift-none" other
+IFS=$'\t' read -r st co det <<< "$(ljudge open)"
+[ "$st" = fail ] && [ "$co" = None ] && echo "$det" | grep -q "is not a ledger lift (the PR changes other.txt" \
+  && ok "TD-262: a lift's title that also changes another file takes review, saying why" || bad "lift + other file: $st $co $det"
+# the lift's title over a diff that does not recompute (the gate dropped, no lift Log line): ordinary review
+lift_case "lift-no new Log line"
+IFS=$'\t' read -r st co det <<< "$(ljudge open)"
+[ "$st" = fail ] && [ "$co" = None ] && echo "$det" | grep -q "is not a ledger lift (TD-160's Log does not gain" \
+  && ok "TD-262: a lift's title over a diff lift_gate() does not write takes review" || bad "no log line: $st $co $det"
+# a lift by someone not the gate's person on People: ordinary review
+lift_case "lift-the gate's person not on People"
+IFS=$'\t' read -r st co det <<< "$(ljudge open)"
+[ "$st" = fail ] && [ "$co" = None ] && ok "TD-262: a lift by a person not on People: takes review" || bad "not on People: $st $co $det"
 
 echo "test_lift_pr.sh: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
