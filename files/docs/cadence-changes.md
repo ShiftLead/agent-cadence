@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-18 — A bought review round holds its design while it runs
+Do: on a design's `One more round`, file the round as an entry of its own (not `Part of` the design) and add it to the design's Blocked by, `TD-<round>, decision (<person>)`, in the same PR; at the round's end, drop it in the write that gives the design its new Ask.
+See: cadence.md §4.8; procedures/cadence.md step 3; TD-291.
+
 ## 2026-11-18 — Delegated answers on the board (ledgerboard v3.4)
 Do: a delegate answers only as `board_edit.py decide --by <person> --delegate <name>`, on an item a reviewed PR raised with `--scope`, under the board's `Delegates:` grant. A PR changing `Delegates:` or `People:` is the person's to merge; raising or giving an item a `Scope` takes no carve-out.
 See: cadence.md §3.4, §4.4, §4.5; board_edit.py; check_cadence.py's person row; TD-292.

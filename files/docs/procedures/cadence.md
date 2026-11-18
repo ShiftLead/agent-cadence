@@ -129,7 +129,11 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    `Go`, `Go by: <person>` (the name the board's `Decided:` line carries) and `Decided:`; on
    `One more round`, the last round the Reviews table holds in `Bought:`; on `Hold: <note>`, the
    last round in `Holds:` and `Decided: pending`. Then it runs the round (as `round` does) or
-   the revision (as `revise` does).
+   the revision (as `revise` does). A bought round (`One more round`) runs under an entry of its
+   own, never `Part of` the design, filed in the same ledger PR that adds it to the design's hold
+   (`ledger.py set TD-<n> --blocked-by "TD-<round>, decision (<person>)"`); at its end, the write
+   that gives the design its new Ask drops `TD-<round>` again and archives the round's entry,
+   then `item` raises the end-of-rounds item (cadence.md §4.8, TD-291).
 
    **The judge's prompt is fixed** — fill in the paths, never word the question:
 
