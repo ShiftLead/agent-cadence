@@ -54,7 +54,7 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    prints the ordered list), each round is one pass through the list, one review at a time in its
    order, each review's fixes committed before the next. **A design plan's rounds** (cadence §4.8
    *Design review rounds*) ask for each round from the same list, the fact-checks from
-   `fact-check-model`, and stop by the stop rule or at the cap — `get design-rounds` for an in-repo
+   `fact-check-model`, and stop by the stop rule, at the cap or after a bought round — `get design-rounds` for an in-repo
    plan, `get design-rounds-wide` for a wide one — each review a row of the design's record file's Reviews table — the exact model and the tokens the runner reports — and each finding a row of its findings table (`docs/reviews/TD-NNN.md`, cadence §4.8). Each design review's prompt gives it the findings table and asks it to name each finding it reopens by its id (`reopens F<n>`); copy that into the finding's status and keep it there once the finding is applied or rejected (`applied: … (reopens F19)`). How the rounds end is the last part of this step, *Ending a design's rounds*. **Its prompt names the verdict words:** *end your report with
    `cadence-review: <SHIP|FIXED|BLOCK> · <your model> · <code|docs> · <n> findings` — SHIP,
    FIXED or BLOCK and no other word*. A reviewer asked in its own words writes its own
@@ -97,7 +97,8 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
       - `closing-read` — the closing read: one review, on `get review-model`'s last model, of
         only the unread build-changing findings (an applied one's plan diff since the review that
         raised it, a rejected one's reason and the text it concerns); a `closing-read` row under
-        the last round, its findings and fixes; then 3.
+        the last round, its findings and fixes; then 3. Never after a bought round: there
+        `--verdict` prints `item`, and the item lists the unread findings.
       - `judge` — the judge, by the prompt below: a fresh agent on `get review-model`'s last
         model, or the seat your repo's own rules name, never the session that ran the rounds nor
         one of the design's reviews. Write a `judge` row under the last round (its model,
@@ -106,7 +107,8 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
         (`Verdict: Go (R12) · cadence-judge: CONFIRM · reach routine · …`); then 3. A run whose
         reply has no valid line is still a row; a second judge run on the same verdict sends it
         to the item.
-      - `go` — file the builds unblocked, each `Part of` the design, the fixes no review has read
+      - `go` — only ever after a design that has had no item (an item leaves the person's gate on
+        the entry, so a later routine Go meets it and goes to the item): file the builds unblocked, each `Part of` the design, the fixes no review has read
         in the Fix of the build each concerns (*fixed, not reviewed; the builder checks it*); write
         `Go by: judge` (or `judge (<seat>)`) and `Decided:`, and a Log line on the design's entry
         (`ledger.py note TD-<n> "…"`).
