@@ -2600,6 +2600,14 @@
    "name": "retitled_quotes",
    "text": "## TD-071: A plain title\n\n**Priority:** Low\n**Status:** Open\n\n**Why:** w\n\n**Log:**\n- 2026-01-20: retitled: was \"An \"old\" title\"\n",
    "gates": []
+  },
+  {
+   "name": "delegated",
+   "file": "log_delegated.md",
+   "gates": [
+    "decision (pat)",
+    "decision (kim)"
+   ]
   }
  ],
  "archive_plan": [

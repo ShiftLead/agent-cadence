@@ -7,7 +7,7 @@
     board_edit.py snooze --board PATH --id ID --to YYYY-MM-DD
     board_edit.py due    --board PATH --id ID --to YYYY-MM-DD
     board_edit.py done   --board PATH --id ID [--why TEXT]
-    board_edit.py decide --board PATH --id ID --answer TEXT [--by NAME] [--ledger DIR | --board-only]
+    board_edit.py decide --board PATH --id ID --answer TEXT [--by NAME] [--delegate NAME] [--ledger DIR | --board-only]
     board_edit.py reply  --board PATH --id ID --text TEXT [--by NAME]
         [--tool NAME] [--session NAME] [--today YYYY-MM-DD] [--no-commit] [--json]
     board_edit.py fmt    --board PATH
@@ -28,7 +28,8 @@ person-session refusal on a decide lift, and ``reply``'s ``--by`` defaulting to 
 add     a new item file, as ledgerboard's ``item_file()`` writes it, its id drawn (or ``--id``); the flags
         are ``board.py``'s (``--kind``, ``--text``, ``--context``, ``--due``, ``--answer`` repeated,
         ``--default`` its 0-based index, ``--lift``, ``--parts``, ``--detail`` a JSON object of the detail
-        block's parts, ``--doer`` an act's ``Doer:``, ``--hide-until``, ``--session``, ``--host``,
+        block's parts, ``--doer`` an act's ``Doer:``, ``--scope`` a decide's ``Scope:``
+        (the kind of decision a delegate may answer, v3.4), ``--hide-until``, ``--session``, ``--host``,
         ``--said``/``--decided`` with ``--by``, ``--today``). Prints the id it wrote. Committed under
         ``<tool>: append <id> <head> (session <name>)``; it rides the session's own reviewed PR (cadence.md §3.4).
 snooze  hides the item until the date (``Hide until:``) and leaves ``Due:``, the real deadline, as it is.
@@ -41,7 +42,10 @@ decide  records the person's answer (``Decided:``); an answer that begins with a
         this repo and its gate (``TD-n decision (<p>)``) is the decide lift: a lifting answer also lifts the gate
         in ``ledger/`` beside the board (or ``--ledger``), item and entry in the one commit, and a closing answer
         archives the item — refused unless the running session is a person's own (``agent_sessions``'
-        ``person_session_refusal()``, TD-218).
+        ``person_session_refusal()``, TD-218). ``--delegate NAME`` (ledgerboard v3.4, TD-292) writes a delegate's
+        answer for ``--by`` in the delegated form, ``Decided: <date> by <delegate> for <person> (<scope>) —
+        <answer>``, refused unless the item has a ``Scope:`` and the board's ``Delegates:`` grant covers it
+        (cadence.md §3.4); the person-session refusal holds for a delegated decide lift too.
 reply   appends what the person says back to the item's Log (``- <today>: <by>: <words>``). ``--by`` defaults
         to the board's one ``People:`` name. A reply decides nothing — except a form's press (TD-254, ShiftLead
         TD-1557): on an open, undecided ``decide`` or ``look`` item (or a ``watch`` carrying the look's *Works* /

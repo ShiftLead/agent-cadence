@@ -1,5 +1,45 @@
 {
  "ledger_lift": {
+  "delegated: ledger lift, a delegated item in the shared set while decided wins": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "ledger-lift-delegated",
+     "the item 2026-01-06-d6f09cf2 covering decision (pat) for TD-111 was answered by director for pat (merge-line): its lift takes review"
+    ]
+   ]
+  },
+  "delegated: ledger lift, a delegated line over a delegated item": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "ledger-lift-delegated",
+     "TD-150's lift of decision (pat) is written by director for pat (merge-line): a delegated ledger lift takes review"
+    ]
+   ]
+  },
+  "delegated: ledger lift, a delegated line with no item": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "ledger-lift-delegated",
+     "TD-160's lift of decision (pat) is written by director for pat (merge-line): a delegated ledger lift takes review"
+    ]
+   ]
+  },
+  "delegated: ledger lift, an undelegated line over a delegated item": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "ledger-lift-delegated",
+     "the item 2026-01-06-54236abb covering decision (pat) for TD-150 was answered by director for pat (merge-line): its lift takes review"
+    ]
+   ]
+  },
   "lift-a Log date a day after the merge": {
    "carve_out": false,
    "flags": [],
@@ -664,6 +704,7 @@
   ],
   "an entry the diff archives": [],
   "an override": [],
+  "delegated: a change of the delegate alone, seen by the tripwire": [],
   "no board item, and none at base or head": [],
   "no board item, but the base had one (read the head alone and it passes)": [
    [
@@ -1021,6 +1062,136 @@
     [
      "lift-files",
      "another repo's entry is answered on the board alone: ['docs/ledger/TD-150.md', 'docs/user_attention/2026-01-06-be7088b5.md']"
+    ]
+   ]
+  },
+  "delegated: a # ref beside a second ref": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-no-gate",
+     "the answered item is not a decide whose Context names one entry and one gate"
+    ]
+   ]
+  },
+  "delegated: covered at base": {
+   "carve_out": true,
+   "flags": [],
+   "review": []
+  },
+  "delegated: its Decided alone carries another scope": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-board-line",
+     "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md at the head is not what the decide edit writes at archive/2026-01/2026-01-06-54236abb.md"
+    ]
+   ]
+  },
+  "delegated: only the item's Scope changes": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-board-line",
+     "docs/user_attention/archive/2026-01/2026-01-06-54236abb.md at the head is not what the decide edit writes at archive/2026-01/2026-01-06-54236abb.md"
+    ]
+   ]
+  },
+  "delegated: rescoped and answered in the new scope": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-ledger",
+     "docs/ledger/TD-150.md is not what decide_lift writes, byte for byte"
+    ]
+   ]
+  },
+  "delegated: rule 1, the base item has no Scope": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-delegate-uncovered",
+     "rule 1: the item has no Scope"
+    ]
+   ]
+  },
+  "delegated: rule 3 on an owner board": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-delegate-uncovered",
+     "rule 3: pat may not answer this item"
+    ]
+   ]
+  },
+  "delegated: rule 4, another repo's entry": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-delegate-uncovered",
+     "rule 4: the Context names a gate on another repo's entry"
+    ]
+   ]
+  },
+  "delegated: rule 4, this repo's own entry written with #": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-delegate-uncovered",
+     "rule 4: the Context names a gate on another repo's entry"
+    ]
+   ]
+  },
+  "delegated: the PR also adds the grant": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-board-diff",
+     "the board changes are not one item's file changed in place or moved to archive/"
+    ]
+   ]
+  },
+  "delegated: the person spelled Pat against People's pat": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-ledger",
+     "docs/ledger/TD-150.md is not what decide_lift writes, byte for byte"
+    ]
+   ]
+  },
+  "delegated: the person's own answer on a scoped item passes as today": {
+   "carve_out": true,
+   "flags": [],
+   "review": []
+  },
+  "delegated: uncovered before a ledger fault": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-delegate-uncovered",
+     "rule 2: no faultless Delegates: grant covers director for pat (merge-line)"
+    ]
+   ]
+  },
+  "delegated: under no grant": {
+   "carve_out": false,
+   "flags": [],
+   "review": [
+    [
+     "lift-delegate-uncovered",
+     "rule 2: no faultless Delegates: grant covers director for pat (merge-line)"
     ]
    ]
   },

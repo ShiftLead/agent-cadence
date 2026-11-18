@@ -1185,5 +1185,57 @@
    "name": "an entry the parts refuse, no lead",
    "text": "## TD-5: An invented entry\n\n**Priority:** Medium\nnot a field\n\n**Why:** Invented.\n"
   }
+ ],
+ "delegated": [
+  {
+   "name": "an open delegated work order covers its gate",
+   "ledger": "delegated/an open delegated work order covers its gate/ledger.md",
+   "board": "delegated/an open delegated work order covers its gate/board",
+   "url": "git@example.com:acme/widgets.git",
+   "basename": "widgets",
+   "repo": "acme/widgets",
+   "today_utc": "2026-11-03",
+   "today_local": "2026-11-03"
+  },
+  {
+   "name": "a closed delegated answer whose gate was lifted owes nothing",
+   "ledger": "delegated/a closed delegated answer whose gate was lifted owes nothing/ledger.md",
+   "board": "delegated/a closed delegated answer whose gate was lifted owes nothing/board",
+   "url": "git@example.com:acme/widgets.git",
+   "basename": "widgets",
+   "repo": "acme/widgets",
+   "today_utc": "2026-11-03",
+   "today_local": "2026-11-03"
+  },
+  {
+   "name": "a closed delegated answer whose gate stands is owed",
+   "ledger": "delegated/a closed delegated answer whose gate stands is owed/ledger.md",
+   "board": "delegated/a closed delegated answer whose gate stands is owed/board",
+   "url": "git@example.com:acme/widgets.git",
+   "basename": "widgets",
+   "repo": "acme/widgets",
+   "today_utc": "2026-11-03",
+   "today_local": "2026-11-03"
+  },
+  {
+   "name": "the person's newer answer beside an older delegated one",
+   "ledger": "delegated/the person's newer answer beside an older delegated one/ledger.md",
+   "board": "delegated/the person's newer answer beside an older delegated one/board",
+   "url": "git@example.com:acme/widgets.git",
+   "basename": "widgets",
+   "repo": "acme/widgets",
+   "today_utc": "2026-11-03",
+   "today_local": "2026-11-03"
+  },
+  {
+   "name": "two delegated answers, the newer one's names",
+   "ledger": "delegated/two delegated answers, the newer one's names/ledger.md",
+   "board": "delegated/two delegated answers, the newer one's names/board",
+   "url": "git@example.com:acme/widgets.git",
+   "basename": "widgets",
+   "repo": "acme/widgets",
+   "today_utc": "2026-11-03",
+   "today_local": "2026-11-03"
+  }
  ]
 }

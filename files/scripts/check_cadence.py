@@ -1788,7 +1788,7 @@ def _as_v3(board, tree):
 
 
 def _item_fields(it):
-    return it.due, it.hide_until, it.replies, (it.decided, it.decided_by), it.closed
+    return it.due, it.hide_until, it.replies, (it.decided, it.decided_by, it.decided_delegate), it.closed
 
 
 def writers_made(base, head):
@@ -1833,10 +1833,11 @@ def _writers_made(base, head):
         reps = [("reply", {"reply": w, "by": by, "today": dt.date.fromisoformat(d)})
                 for by, d, w in h.replies[len(fb.replies):]]
         dec = []
-        if (h.decided, h.decided_by) != (fb.decided, fb.decided_by):
+        if (h.decided, h.decided_by, h.decided_delegate) != (fb.decided, fb.decided_by, fb.decided_delegate):
             if h.decided is None:
                 continue
-            dec = [("decide", {"answer": h.decided[0], "by": h.decided_by, "today": h.decided[1]})]
+            dec = [("decide", {"answer": h.decided[0], "by": h.decided_by, "today": h.decided[1],
+                               "delegate": h.decided_delegate})]  # v3.4: a delegated answer's own form (TD-292)
         done = [("done", {"why": h.closed[1], "today": h.closed[0]})] if h.closed else []
         orders = [pre + reps + dec + done, pre + dec + reps + done]
         if h.closed and dec:
@@ -1868,8 +1869,11 @@ def _people_check(base, head):
     return out
 
 
-def _decided_check(it, people, what):
-    """Rule 3: a new or changed Decided: carries its `by <person>`, on People: where the board has one."""
+def _decided_check(it, people, what, board=None):
+    """Rule 3: a new or changed Decided: carries its `by <person>`, on People: where the board has one. A
+    delegated one (ledgerboard v3.4, TD-292), `by <delegate> for <person> (<scope>)`, also stands only where
+    ledgerboard's delegate_problem() finds no fault on ``board``, the board as the change leaves it: the item has
+    that `Scope`, a faultless `Delegates:` grant covers it, and its person may answer it."""
     if it.decided is None:
         return None
     by = it.decided_by
@@ -1877,13 +1881,32 @@ def _decided_check(it, people, what):
         return f"{what}: its Decided: names no `by <person>` — write it with board_edit.py decide"
     if people is not None and by.lower() not in {p.lower() for p in people}:
         return f"{what}: its Decided: is by {by}, who is not on the board's People: — board_edit.py decide --by <person>"
+    delegate = it.decided_delegate
+    if delegate is not None and board is not None:
+        why = _lb().delegate_problem(board, it, delegate, by)
+        if why:
+            return f"{what}: its delegated Decided: by {delegate} for {by} does not stand ({why})"
     return None
+
+
+def _scoped(it):
+    """The item's `Scope` header value as written (ledgerboard v3.4), or None when its file has no such line: the
+    kind of decision a delegate may answer. Read from the raw text, so a line the module reads as no name still
+    counts (TD-292)."""
+    if it is None:
+        return None
+    if it.scope is not None:
+        return it.scope
+    parts = (it.raw or "").split("\n\n")
+    head = parts[1] if len(parts) > 1 else ""   # the header block: after the heading, to the first blank line
+    m = re.search(r"^\*\*Scope:\*\*[ \t]*(.*?)[ \t]*$", head, re.M)
+    return None if m is None else m.group(1)
 
 
 _DECIDE_LEADS = {"context": "Context", "question": "Question", "recommended": "Recommended"}
 
 
-def _new_item_problem(it, people, gate_why, where):
+def _new_item_problem(it, people, gate_why, where, board=None):
     """Why ``it``, an open item no item of the base has, is not one `board_edit.py add` would write, or None:
     item_file_problem(), the gate's own fault for it (``gate_why``), a decide's detail block, its Decided:
     (rule 3). The message names ``where``."""
@@ -1899,10 +1922,10 @@ def _new_item_problem(it, people, gate_why, where):
         if missing:
             return (f"{where}: a new open decide without its detail block's "
                     f"{', '.join(_DECIDE_LEADS[m] for m in missing)} — board_edit.py add --detail")
-    return _decided_check(it, people, where)
+    return _decided_check(it, people, where, board)
 
 
-def _added_and_closed(it, people, gated, where):
+def _added_and_closed(it, people, gated, where, board=None):
     """Why ``it``, a closed item no item of the base has, is not one the change added and closed through the
     writers (TD-275), or None. Its open form — the file with its `Closed:` line taken off, at `<id>.md` — must
     pass the new-item checks (_new_item_problem; the gate's `People:` test on a decide naming a gate, where
@@ -1923,7 +1946,7 @@ def _added_and_closed(it, people, gated, where):
         on = {x.lower() for x in people}
         off = [g.group("person") for g in lb.CONTEXT_GATE_RE.finditer(opened.context) if g.group("person").lower() not in on]
         gate_why = f"context: the gate's person {', '.join(off)} is not on the board's `People:`" if off else None
-    why = _new_item_problem(opened, people, gate_why, f"{where} (added and closed in this change)")
+    why = _new_item_problem(opened, people, gate_why, f"{where} (added and closed in this change)", board)
     if why:
         return why
     if not writers_made(opened.raw, it.raw):
@@ -1981,20 +2004,20 @@ def board_change_problems(base, head):
             if it.path != want:
                 out.append(("fail", f"{where}: the writers put this item at {want}"))
                 continue
-            if (it.decided, it.decided_by) != (b.decided, b.decided_by):
-                why = _decided_check(it, people, where)
+            if (it.decided, it.decided_by, it.decided_delegate) != (b.decided, b.decided_by, b.decided_delegate):
+                why = _decided_check(it, people, where, head)
                 if why:
                     out.append(("fail", why))
             continue
         if it.closed is not None:
-            why = _added_and_closed(it, people, head.form == "dir", where)
+            why = _added_and_closed(it, people, head.form == "dir", where, head)
             if why:
                 out.append(("fail", why))
             continue
         if it.path != lb.item_path(it.id):
             out.append(("fail", f"{where}: an open item is <id>.md directly in the board — board_edit.py add"))
             continue
-        why = _new_item_problem(it, people, gate.get(where), where)
+        why = _new_item_problem(it, people, gate.get(where), where, head)
         if why:
             out.append(("fail", why))
     old_problems = set(base.problems)
@@ -2029,7 +2052,8 @@ def gate_answer(b, h):
     gate is read by ledgerboard's _item_gate, the test lift_pr_verdict applies."""
     if b.closed is not None or _lb()._item_gate(b)[1] is None:
         return False
-    return h.decided is not None and (h.decided, h.decided_by) != (b.decided, b.decided_by)
+    return h.decided is not None and ((h.decided, h.decided_by, h.decided_delegate)
+                                      != (b.decided, b.decided_by, b.decided_delegate))
 
 
 def board_gate_answers(base, head):
@@ -2112,6 +2136,9 @@ def classify_direct(root, sha, subject, files):
     added = [r for r in rels if f"{pre}{r}" not in base_t]
     if added == rels and all("/" not in r and r.endswith(".md") and lb.is_item_id(r[:-3]) for r in rels):
         new = {it.path: it for it in head.items}
+        if any(r in new and _scoped(new[r]) is not None for r in rels):
+            return "fail", ("an appended item with a Scope: (one a delegate may answer, ledgerboard v3.4) lands by a "
+                            "reviewed PR, never a carve-out (TD-292)")
         if all(r in new and new[r].due is not None and not new[r].detail for r in rels):
             if bad:
                 return "fail", bad
@@ -2124,6 +2151,9 @@ def classify_direct(root, sha, subject, files):
         b = next((it for it in base.items if it.id == iid), None)
         h = next((it for it in [*head.items, *head.closed] if it.id == iid), None)
         if b is not None and h is not None:
+            if _scoped(h) is not None and _scoped(h) != _scoped(b):
+                return "fail", ("the item gains a Scope: (one a delegate may answer, ledgerboard v3.4), which lands by "
+                                "a reviewed PR, never a carve-out (TD-292)")
             if gate_answer(b, h):
                 return "fail", ("a gate item's answer lands by PR only (ledgerboard SPEC *The merge gate's verdicts*, "
                                 "(d)): the item's Context names a gate, and it gains a Decided:")
@@ -2473,11 +2503,56 @@ LOG_SOURCES = "docs/ledger/log-sources.toml"  # the repo's host-log sources (TD-
 PERSON_PATHS = (LOG_SOURCES,)
 
 
+def board_grants_changed(root, old, new, files):
+    """TD-292 (ledgerboard v3.4, its plan D2/D4): what of the board's grants a change between two commits makes —
+    ``["the board's Delegates: grants"]`` where ledgerboard's delegates_changed() reads the first `Delegates:`
+    line's grants as differing, ``"the board's People:"`` where the `People:` names differ (case-folded, in any
+    order: a grant is live only while its person is on it) — [] when it changes neither, and None when the
+    board at either end cannot be read. A `Swept:` stamp, or any other README.md line, is neither."""
+    base_t, head_t = _board_tree(root, old, files), _board_tree(root, new, files)
+    if base_t is None or head_t is None or _odd_tree(base_t) or _odd_tree(head_t):
+        return None
+    lb = _lb()
+    base, head = board_of(base_t), board_of(head_t)
+
+    def folded(board):
+        got = lb.board_people(board)
+        return None if got is None else sorted(n.lower() for n in got)
+    out = []
+    # a grant is live only while the line is faultless (delegation_covers), so a change that clears a fault (a
+    # second line dropped, a grant named twice merged) widens what a delegate may answer with the same grants
+    if lb.delegates_changed(base, head) or bool(lb.delegates_problems(base)) != bool(lb.delegates_problems(head)):
+        out.append("the board's Delegates: grants")
+    if folded(base) != folded(head):
+        out.append("the board's People:")
+    return out
+
+
 def row_person(pr, root=None):
     """TD-230: the person row. An open PR that changes one of PERSON_PATHS fails it: the person reads and
-    merges that PR, never a session. Merged, it is a ⚠ (a sweep never fails history)."""
+    merges that PR, never a session. Merged, it is a ⚠ (a sweep never fails history). TD-292: so does one that
+    changes the board's `Delegates:` grants or its `People:` (board_grants_changed()) — who may answer for the
+    person is the person's to change; a PR touching the board's preamble whose change cannot be read is unknown."""
     files = pr.get("files") or []
     hit = [p for p in PERSON_PATHS if p in files]
+    preamble = (f"{BOARD_DIR}/{_lb().BOARD_README}", BOARD_STUB)
+    touched = any(f in preamble for f in files)
+    if not touched and root and any(f.startswith("docs/") for f in files):
+        # a rename shows the forge only its new name: the preamble there at the base and gone at the head
+        old, new, why = pr_ends(pr, root)
+        touched = not why and any(git(["cat-file", "-e", f"{old}:{p}"], cwd=root) is not None
+                                  and git(["cat-file", "-e", f"{new}:{p}"], cwd=root) is None for p in preamble)
+    if touched:
+        if not root:
+            return row("person", "unknown", "the PR changes the board's preamble, and there is no clone to read "
+                       "whether it changes its Delegates: grants or People:")
+        old, new, why = pr_ends(pr, root)
+        got = None if why else board_grants_changed(root, old, new, files)
+        if got is None:
+            return row("person", "unknown", f"the PR changes the board's preamble, unreadable here "
+                       f"({why or 'the board at either end'}), so a change to its Delegates: grants or People: "
+                       "cannot be ruled out")
+        hit += got
     if not hit and root and any(f.startswith(LEDGER_DIR + "/") for f in files):
         # a rename shows the forge only its new name: a person's path there at the base and gone at the head
         old, new, why = pr_ends(pr, root)
