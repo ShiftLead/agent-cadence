@@ -239,5 +239,22 @@ HN=$(python3 -c 'import socket; print(socket.gethostname().split(".")[0])')
 [ "$a" = gate-sweep ] && [ "$b" = box-1 ] && [ "$c" = lab-2 ] && [ "$a" != "$HN" ] \
   && ok "host_token(): gate-sweep with nothing set, the host-alias, \$CADENCE_HOST over it (TD-240)" || bad "host_token a='$a' b='$b' c='$c'"
 
+# TD-285 (ledgerboard v3.3): a gated entry's own **Answers:** and **Lifts:** are what its decide item offers, not Go |
+# Not yet — the plan passes sweep()'s answers, default and lifts through unchanged (ledgerboard's TD-119 plan, D6)
+entry "$OWN" 8 "decision (alex)" "$(printf '**Ask:** Does the page look right?\n\n**Answers:** Works (default) — a session archives it | Not right — a session files a fix\n\n**Lifts:** Works')"
+entry "$OWN" 9 "decision (alex)" '**Ask:** Plain one?'
+publish "$OWN"
+got=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>/dev/null | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+for items in d["to_file"].values():
+    for it in items:
+        if it["context"] in ("TD-008 decision (alex)", "TD-009 decision (alex)"):
+            print(it["context"].split()[0], it["answers"], it["default"], it["lifts"])
+' | sort)
+want="TD-008 ['Works — a session archives it', 'Not right — a session files a fix'] 0 ['Works']"
+[ "$(sed -n 1p <<< "$got")" = "$want" ] && ok "TD-285: an entry's own Answers and Lifts are what the plan files on its decide item" || bad "own answers: $got"
+grep -q "^TD-009 .*Go.*Not yet" <<< "$got" && ok "TD-285: an entry with none still gets Go | Not yet" || bad "default answers: $got"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

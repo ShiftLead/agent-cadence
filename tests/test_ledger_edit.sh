@@ -226,6 +226,38 @@ lp set TD-004 --context "$TMP/empty.md" >/dev/null 2>"$TMP/err3"; r3=$?
   && [ $r3 -eq 2 ] && grep -q -- '--context is empty' "$TMP/err3" && cmp -s "$L/TD-004.md" "$TMP/td4c" \
   && ok "set refuses --context on an entry with no Ask, with --by, and empty, writing nothing" \
   || bad "set --context refusals (r1=$r1 r2=$r2 r3=$r3): $(cat "$TMP/err" "$TMP/err2" "$TMP/err3")"
+# TD-285 (ledgerboard v3.3 SPEC *An entry's own answers*): set --answers/--lifts write the one-line fields the
+# gate sweep offers; answers with no Go and no Lifts are refused (answers-unusable), and the pair lands in one write
+cp "$L/TD-004.md" "$TMP/td4d"
+lp set TD-004 --answers "Works — a session archives it | Not right — a session files a fix" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 1 ] && grep -q 'answers-unusable' "$TMP/err" && cmp -s "$L/TD-004.md" "$TMP/td4d" \
+  && ok "set --answers with no Go and no --lifts is refused (answers-unusable), writing nothing" || bad "unusable (rc=$rc): $(cat "$TMP/err")"
+lp set TD-004 --answers "Works — a session archives it | Not right — a session files a fix" --lifts "Works" >/dev/null 2>"$TMP/err"; rc=$?
+got=$(cd "$DC/files/scripts" && python3 -c 'import sys, ledgerboard as LB; print(LB.entry_answers(open(sys.argv[1]).read()))' "$L/TD-004.md")
+[ $rc -eq 0 ] && [ "$got" = "{'answers': ['Works — a session archives it', 'Not right — a session files a fix'], 'default': None, 'lifts': ['Works']}" ] \
+  && [ "$(grep -n '^\*\*Answers:\*\*' "$L/TD-004.md" | cut -d: -f1)" -lt "$(grep -n '^\*\*Lifts:\*\*' "$L/TD-004.md" | cut -d: -f1)" ] \
+  && grep -qx '\*\*Blocked by:\*\* decision (Alex)' "$L/TD-004.md" \
+  && ok "set --answers --lifts writes both one-line fields in one write, Answers first, readable by entry_answers()" || bad "answers+lifts (rc=$rc): $(cat "$TMP/err"; cat "$L/TD-004.md")"
+cp "$L/TD-004.md" "$TMP/td4e"
+lp set TD-004 --answers "Works — it is fine | Not right — a session files a fix" --lifts "Works" >/dev/null 2>"$TMP/err"; r1=$?
+lp set TD-004 --answers "" >/dev/null 2>"$TMP/err2"; r2=$?
+lp set TD-004 --blocked-by "" --by Alex --answers "Go — a session builds it" >/dev/null 2>"$TMP/err3"; r3=$?
+[ $r1 -eq 1 ] && grep -q 'refused — the Answers: rule 2: answer 1 names nobody who acts' "$TMP/err" && [ $r2 -eq 2 ] && grep -q -- '--answers is empty' "$TMP/err2" \
+  && [ $r3 -eq 2 ] && grep -q -- '--by lifts a decision' "$TMP/err3" && cmp -s "$L/TD-004.md" "$TMP/td4e" \
+  && ok "set refuses an answer naming nobody (rule 2), an empty --answers, and --answers with --by, writing nothing" \
+  || bad "answers refusals (r1=$r1 r2=$r2 r3=$r3): $(cat "$TMP/err" "$TMP/err2" "$TMP/err3")"
+lp set TD-004 --lifts "Not right" >/dev/null 2>"$TMP/err" && grep -qx '\*\*Lifts:\*\* Not right' "$L/TD-004.md" \
+  && [ "$(grep -c '^\*\*Lifts:\*\*' "$L/TD-004.md")" = 1 ] && ok "set --lifts alone rewrites the Lifts in place" || bad "lifts alone: $(cat "$TMP/err")"
+cp "$TMP/td4d" "$L/TD-004.md"  # no Answers or Lifts yet
+lp set TD-004 --priority High --answers "Go — a session builds it | Not yet — nobody picks it" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && grep -qx '\*\*Priority:\*\* High' "$L/TD-004.md" && grep -qx '\*\*Answers:\*\* Go — a session builds it | Not yet — nobody picks it' "$L/TD-004.md" \
+  && ok "set with a field and --answers writes both in one write" || bad "field + answers (rc=$rc): $(cat "$TMP/err")"
+cp "$L/TD-004.md" "$TMP/td4f"
+lp set TD-004 --answers "$(printf 'Go — a session builds it\n| Not yet — nobody')" >/dev/null 2>"$TMP/err"; r1=$?
+lp set TD-002 --answers "Go — a session builds it" >/dev/null 2>"$TMP/err2"; r2=$?
+[ $r1 -eq 2 ] && grep -q -- '--answers is one line' "$TMP/err" && [ $r2 -eq 2 ] && grep -q 'archived' "$TMP/err2" && cmp -s "$L/TD-004.md" "$TMP/td4f" \
+  && ok "set refuses a multi-line --answers, and --answers on an archived entry" || bad "multi-line/archived (r1=$r1 r2=$r2): $(cat "$TMP/err" "$TMP/err2")"
+cp "$TMP/td4d" "$L/TD-004.md"
 printf '## TD-007: seven\n\n**Priority:** Low\n**Owner:** person\n**Status:** Open\n\n**Why:** standing.\n' > "$L/TD-007.md"
 git -C "$W" add docs/ledger/TD-007.md; git -C "$W" commit -qm seven; git -C "$W" push -q origin main
 lp set TD-007 --priority High >/dev/null 2>"$TMP/err"; rc=$?

@@ -188,6 +188,20 @@ lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/w
   && [ $r3 -eq 2 ] && grep -q 'only one section can come from stdin' "$TMP/err3" \
   && [ "$(last "$O")" = "$was" ] && ok "new refuses --context without --ask, an empty --context, and --ask and --context both from stdin, before the take" \
   || bad "new context refusals (r1=$r1 r2=$r2 r3=$r3): $(cat "$TMP/err" "$TMP/err2" "$TMP/err3")"
+# TD-285: new --answers/--lifts file the entry's own answers with its gate and Ask, one line each, after the Context
+out=$(lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --ask "$TMP/ask.md" \
+      --context "$TMP/ctx.md" --answers "Works (default) — a session archives it | Not right — a session files a fix" \
+      --lifts "Works" --fix "$TMP/why.md" 2>"$TMP/err"); rc=$?
+ln() { grep -n "^\*\*$1:\*\*" "$out" | cut -d: -f1; }
+got=$(cd "$DC/files/scripts" && python3 -c 'import sys, ledgerboard as LB; print(LB.entry_answers(open(sys.argv[1]).read()))' "$out" 2>&1)
+[ $rc -eq 0 ] && [ "$(ln Context)" -lt "$(ln Answers)" ] && [ "$(ln Answers)" -lt "$(ln Lifts)" ] && [ "$(ln Lifts)" -lt "$(ln Fix)" ] \
+  && [ "$got" = "{'answers': ['Works — a session archives it', 'Not right — a session files a fix'], 'default': 0, 'lifts': ['Works']}" ] \
+  && ok "new --answers --lifts writes them after the Context, before the Fix, read back by entry_answers()" || bad "new answers (rc=$rc): $(cat "$TMP/err") $got"
+was=$(last "$O")
+lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --ask "$TMP/ask.md" \
+   --answers "Works — a session archives it | Not right — a session files a fix" >/dev/null 2>"$TMP/err"; r1=$?
+[ $r1 -eq 1 ] && grep -q 'answers-unusable' "$TMP/err" && [ "$(last "$O")" = "$was" ] \
+  && ok "new refuses answers the sweep cannot offer (no Go, no Lifts), before the take" || bad "new unusable (r1=$r1): $(cat "$TMP/err")"
 # TD-268: a title is plain words and an Ask a question, judged before the take
 was=$(last "$O")
 lp new --title "TD-12 follow-up" --priority Low --why "$TMP/why.md" >/dev/null 2>"$TMP/err"; r1=$?

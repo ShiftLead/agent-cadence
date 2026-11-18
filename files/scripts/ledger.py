@@ -6,8 +6,8 @@
     ledger.py --pickable [--ledger PATH] [--archive PATH] [--json]
     ledger.py --summary | --split
     ledger.py fmt [TD-n …] [--check]  |  migrate-body [TD-n …] [--check]
-    ledger.py new --title T --priority P --why FILE|- [--ask FILE|- [--context FILE|-]] [--fix FILE|-] [--done-when FILE|-] [--type …] [--id TD-n] …
-    ledger.py set TD-n --FIELD VALUE … [--title T] [--ask FILE|-] [--context FILE|-]  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|- | --remove
+    ledger.py new --title T --priority P --why FILE|- [--ask FILE|- [--context FILE|-]] [--answers A] [--lifts L] [--fix FILE|-] [--done-when FILE|-] [--type …] [--id TD-n] …
+    ledger.py set TD-n --FIELD VALUE … [--title T] [--ask FILE|-] [--context FILE|-] [--answers A] [--lifts L]  |  note TD-n "words"  |  edit TD-n --section NAME --from FILE|- | --remove
     ledger.py lift TD-n --gate "event (<name>)"|"until D" --by HOST [--evidence E]   (a host's lift, TD-219)
 
 An entry may carry one optional field after **Status:** (cadence.md §2):
@@ -1175,6 +1175,7 @@ def new(argv: list[str]) -> int:
                     "with the entry beside its decision (<person>) gate, which --blocked-by gives (ledgerboard v3.2, TD-272)")
     ap.add_argument("--context", metavar="FILE", help="the Ask's context from a file, or - for stdin: its **Context:** "
                     "section, written right after the Ask (ledgerboard v3.3, TD-284); only with --ask")
+    _answer_flags(ap)
     ap.add_argument("--id", metavar="TD-n", help="file under an id already taken from the counter, instead of taking one")
     ap.add_argument("--by", help="the take's by (ledger_next_id.py --by), for a front end filing for its caller")
     ap.add_argument("--ledger", help="a v2 directory; default: docs/ledger/ at the work tree's top")
@@ -1190,8 +1191,12 @@ def new(argv: list[str]) -> int:
     if a.id and not ID_ITEM_RE.match(a.id):
         ap.error(f"an entry's id is TD-n, not {a.id!r}")
     sections = []
-    for name, src in (("Why", a.why), ("Ask", a.ask), ("Context", a.context), ("Fix", a.fix),
-                      ("Done when", a.done_when)):
+    answer_secs = _answer_sections(ap, a)
+    for name, src in (("Why", a.why), ("Ask", a.ask), ("Context", a.context), ("Answers", None), ("Lifts", None),
+                      ("Fix", a.fix), ("Done when", a.done_when)):
+        if name in answer_secs:
+            sections.append((name, answer_secs[name]))
+            continue
         body = _read_body(ap, f"--{name.lower().replace(' ', '-')}", src) if src is not None else ""
         if name == "Ask" and src is not None and not body.strip():
             ap.error("--ask is empty: an Ask with no words asks nothing")
@@ -1209,7 +1214,7 @@ def new(argv: list[str]) -> int:
     if isinstance(w, int):
         return w
     if _person_text(w, "new", title=a.title, ask=next((b for n, b in sections if n == "Ask"), None),
-                    context=next((b for n, b in sections if n == "Context"), None)):
+                    context=next((b for n, b in sections if n == "Context"), None), answers=answer_secs.get("Answers")):
         return 1
     known = LB.heading_nums(w.text) | LB.heading_nums(w.arch)
     if w.xrepo_refused(_field_value(fields, "blocked by")):
@@ -1307,6 +1312,7 @@ def edit(cmd: str, argv: list[str]) -> int:
         ap.add_argument("--context", metavar="FILE", help="the Ask's context from a file, or - for stdin: its **Context:** "
                         "section, right after the Ask (ledgerboard v3.3, TD-284); with --ask, or alone on an entry "
                         "that has an Ask")
+        _answer_flags(ap)
     elif cmd == "note":
         ap.add_argument("words", help="the note, one line")
     else:
@@ -1327,8 +1333,11 @@ def edit(cmd: str, argv: list[str]) -> int:
             if a.by is not None:
                 ap.error("--title retitles, --by lifts a decision: give one")
             kw["title"] = a.title
-        if not kw["fields"] and a.title is None and a.context is None:
-            ap.error("give at least one field, --title or --context, to set")
+        answer_secs = _answer_sections(ap, a)
+        if not kw["fields"] and a.title is None and a.context is None and not answer_secs:
+            ap.error("give at least one field, --title, --context, --answers or --lifts, to set")
+        if answer_secs and a.by is not None:
+            ap.error("--answers and --lifts write the entry's own answers, --by lifts a decision: give one")
         if a.ask == "-" and a.context == "-":
             ap.error("only one section can come from stdin")
         for flag, v in (("--answer", a.answer), ("--why", a.why), ("--override", a.override)):
@@ -1370,14 +1379,16 @@ def edit(cmd: str, argv: list[str]) -> int:
     sec = (kw.get("section") or "").strip().lower() if cmd == "edit" and "words" in kw else ""
     ask = kw.get("ask") if cmd == "set" else kw["words"] if sec == "ask" else None
     context = kw.get("context") if cmd == "set" else kw["words"] if sec == "context" else None
-    if _person_text(w, cmd, title=kw.get("title"), ask=ask, context=context,
-                    answers=kw["words"] if sec == "answers" else None):
+    answers = answer_secs.get("Answers") if cmd == "set" else kw["words"] if sec == "answers" else None
+    if _person_text(w, cmd, title=kw.get("title"), ask=ask, context=context, answers=answers):
         return 1
     if cmd == "set":
         if w.xrepo_refused(_field_value(given, "blocked by"), _blocked_raw(w, a.id)):
             return w.say(cmd, "nothing was written", 1)
         if a.by is not None:
             return _set_lift(w, a.id, kw["fields"], a.by, a.answer, a.why, a.override)
+        if answer_secs:
+            return _set_answers(w, a.id, kw, answer_secs)
     return _lb_edit(w, cmd, a.id, kw)
 
 
@@ -1424,6 +1435,66 @@ def _blocked_raw(w: "_Writer", tid: str) -> str:
     found = LB.entry_path(str(w.ledger), tid, w.io[0])
     text = w.io[1](found) if found else None
     return (LB.entries(text)[0]["blocked_raw"] or "") if text and LB.entries(text) else ""
+
+
+def _answer_flags(ap: argparse.ArgumentParser) -> None:
+    """``--answers`` and ``--lifts`` (TD-285, ledgerboard v3.3 SPEC *An entry's own answers*): the one-line
+    ``**Answers:**`` and ``**Lifts:**`` sections the gate sweep offers on the entry's decide item."""
+    ap.add_argument("--answers", metavar="'A | B (default) | C'", help="the entry's own answers, one line, each "
+                    "'<label> — <who does what>': the gate sweep offers them in place of Go | Not yet (ledgerboard v3.3)")
+    ap.add_argument("--lifts", metavar="'A | B'", help="which of --answers lift the gate, one line (none given: Go lifts)")
+
+
+def _answer_sections(ap: argparse.ArgumentParser, a: argparse.Namespace) -> dict[str, str]:
+    """{Answers, Lifts: the one line given}; an empty or multi-line value is a usage error."""
+    out = {}
+    for name, v in (("Answers", a.answers), ("Lifts", a.lifts)):
+        if v is None:
+            continue
+        if not v.strip():
+            ap.error(f"--{name.lower()} is empty: give the {name.lower()}, or leave --{name.lower()} out")
+        if "\n" in v.strip():
+            ap.error(f"--{name.lower()} is one line (ledgerboard v3.3: the field is one line)")
+        out[name] = v.strip()
+    return out
+
+
+def _set_answers(w: _Writer, tid: str, kw: dict, secs: dict[str, str]) -> int:
+    """``set … --answers A [--lifts L]`` (TD-285): the package's ``set`` (fields, title, Ask, Context) where any is
+    given, then the entry's ``**Lifts:**`` and ``**Answers:**`` sections written by its ``edit_entry()``, and the
+    whole judged once by its ``gate()`` — one write, since an Answers whose labels hold no Go is refused
+    (``answers-unusable``) until its Lifts names one. 1 refused, 2 unusable, 4 the write failed."""
+    rest = {k: v for k, v in kw.items() if k != "today"}
+    try:
+        led, base = w.lb_ledgers()
+        path, archived = led.entry_file(LBL.tid_of(tid))
+        if archived:
+            raise LBL.Unusable(f"{tid} is archived ({path}): it is edited only once reopened")
+        text = out = led.files[path]
+        if rest.get("fields") or any(k in rest for k in ("title", "ask", "context")):
+            out = LBL.plan_edit(led, "set", tid, base=base, resolve=w.roster.resolve, **kw).changes.get(path, text)
+        declared = tuple(LB.declared(led.texts()[0])[0])
+        for name in ("Lifts", "Answers"):  # each placed where the package puts a new section; Answers then reads first
+            if name in secs:
+                out = LB.edit_entry(out, "edit", section=name, words=secs[name], today=kw["today"],
+                                    declared_fields=declared)
+        notes = LBL.gate(led, {path: out}, base=base, resolve=w.roster.resolve, today=kw["today"])
+    except LBL.Unusable as e:
+        return w.say("set", str(e), 2)
+    except LB.Refused as e:
+        w.say("set", f"refused — {e}", 1)
+        return w.say("set", f"nothing was written to {LB.entry_path(str(w.ledger), tid, w.io[0])}", 1)
+    if out != text and w.refused_changes(tid, {Path(path): out}, notes=False):
+        return w.say("set", f"nothing was written to {LB.entry_path(str(w.ledger), tid, w.io[0])}", 1)
+    for n in notes:
+        w.say("set", f"note — {n}", 0)
+    if out != text:
+        try:
+            LBL.apply(LBL.Plan("set", None, {path: out}, {"id": tid, "notes": notes}))
+        except OSError as e:
+            return w.say("set", f"the write failed, every file restored: {e}", 4)
+    print(LB.entry_path(str(w.ledger), tid, w.io[0]))
+    return 0
 
 
 def _lb_plan(w: _Writer, cmd: str, tid: str, kw: dict) -> "LBL.Plan | int":
