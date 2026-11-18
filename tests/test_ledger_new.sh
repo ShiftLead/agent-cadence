@@ -183,9 +183,11 @@ out=$(lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "
 was=$(last "$O")
 lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --context "$TMP/ctx.md" >/dev/null 2>"$TMP/err"; r1=$?
 lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --ask "$TMP/ask.md" --context "$TMP/empty.md" >/dev/null 2>"$TMP/err2"; r2=$?
+lp new --title asked --priority Low --blocked-by "decision (Alex)" --why "$TMP/why.md" --ask - --context - </dev/null >/dev/null 2>"$TMP/err3"; r3=$?
 [ $r1 -eq 2 ] && grep -q -- '--context is an Ask.s context: give it with --ask' "$TMP/err" && [ $r2 -eq 2 ] && grep -q -- '--context is empty' "$TMP/err2" \
-  && [ "$(last "$O")" = "$was" ] && ok "new refuses --context without --ask, and an empty --context, before the take" \
-  || bad "new context refusals (r1=$r1 r2=$r2): $(cat "$TMP/err" "$TMP/err2")"
+  && [ $r3 -eq 2 ] && grep -q 'only one section can come from stdin' "$TMP/err3" \
+  && [ "$(last "$O")" = "$was" ] && ok "new refuses --context without --ask, an empty --context, and --ask and --context both from stdin, before the take" \
+  || bad "new context refusals (r1=$r1 r2=$r2 r3=$r3): $(cat "$TMP/err" "$TMP/err2" "$TMP/err3")"
 # TD-268: a title is plain words and an Ask a question, judged before the take
 was=$(last "$O")
 lp new --title "TD-12 follow-up" --priority Low --why "$TMP/why.md" >/dev/null 2>"$TMP/err"; r1=$?

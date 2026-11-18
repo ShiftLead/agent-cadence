@@ -211,6 +211,14 @@ lp set TD-004 --context "$TMP/ctx2.md" >/dev/null 2>"$TMP/err" && grep -qx '\*\*
   && [ "$(grep -c '^\*\*Context:\*\*' "$L/TD-004.md")" = 1 ] && ! grep -q 'rule 4' "$TMP/err" \
   && ok "a second set --context replaces the Context, one section, no warning on plain words" || bad "set --context again: $(cat "$TMP/err")"
 cp "$L/TD-004.md" "$TMP/td4c"
+printf 'Run `cache.py` by hand.\n' > "$TMP/ctx3.md"
+lp edit TD-004 --section Context --from "$TMP/ctx3.md" >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 0 ] && grep -q "warning — the Ask's context: rule 4: .*cache.py" "$TMP/err" && grep -qx '\*\*Context:\*\* Run `cache.py` by hand.' "$L/TD-004.md" \
+  && ok "edit --section Context writes it with a rule 4 warning on its code" || bad "edit Context (rc=$rc): $(cat "$TMP/err")"
+cp "$TMP/td4c" "$L/TD-004.md"
+lp set TD-004 --ask - --context - </dev/null >/dev/null 2>"$TMP/err"; rc=$?
+[ $rc -eq 2 ] && grep -q 'only one section can come from stdin' "$TMP/err" && cmp -s "$L/TD-004.md" "$TMP/td4c" \
+  && ok "set refuses --ask and --context both from stdin" || bad "set stdin (rc=$rc): $(cat "$TMP/err")"
 lp set TD-001 --context "$TMP/ctx2.md" >/dev/null 2>"$TMP/err"; r1=$?
 lp set TD-004 --blocked-by "" --by Alex --context "$TMP/ctx2.md" >/dev/null 2>"$TMP/err2"; r2=$?
 lp set TD-004 --context "$TMP/empty.md" >/dev/null 2>"$TMP/err3"; r3=$?
