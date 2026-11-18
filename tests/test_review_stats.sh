@@ -116,7 +116,7 @@ out=$(python3 "$RS" 2>&1); rc=$?
 # 2. a record's tables: design reviews, fact-checks apart, a clean review, build-changing per round
 [ "$(q "R['alpha','TD-001']['reviews'], R['alpha','TD-001']['fact_checks'], R['alpha','TD-001']['rounds']")" = "4 2 2" ] \
   && ok "2 design reviews and fact-checks counted apart, rounds from the table" || bad "2 $(q "R['alpha','TD-001']")"
-[ "$(q "R['alpha','TD-001']['build_changing_per_round']")" = "{'reviews': [1, 0], 'fact_checks': [1, 0]}" ] \
+[ "$(q "R['alpha','TD-001']['build_changing_per_round']")" = "{'reviews': [1, 0], 'fact_checks': [1, 0], 'closing_reads': [0, 0], 'judges': [0, 0]}" ] \
   && ok "2b build-changing per round, reviews' and fact-checks' apart" || bad "2b $(q "R['alpha','TD-001']['build_changing_per_round']")"
 [ "$(q "[x['total_findings'] for x in R['alpha','TD-001']['reviews_detail']]")" = "[1, 1, 1, 0]" ] \
   && ok "2c a review with no findings rows is clean" || bad "2c"

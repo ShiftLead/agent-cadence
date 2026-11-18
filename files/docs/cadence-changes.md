@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-18 — `review_stats.py --verdict` counts a design's ending: follow its `next:` line
+Do: after each round's last review run `review_stats.py --verdict TD-n --after-round`, and after the closing fact-check `--verdict TD-n`; do the step its last line names instead of applying §4.8's table by hand. Exit 2 names an input it cannot read (no entry, no Class:, a backfill record).
+See: cadence.md §4.8; procedures/cadence.md step 3; TD-288.
+
 ## 2026-11-17 — A design's rounds end by a counted verdict a judge confirms or raises
 Do: mark a design's reach (routine or far-reaching) beside its class; at the end of rounds run the closing fact-check, then `review_stats.py --verdict TD-n` and follow its `next:` (a closing read of unread build-changing fixes, the fixed judge prompt, the item, or a routine Go with none); write `Reach:`, `Verdict:`, `Go by:`, `Holds:`, `Bought:` in the record. Until `--verdict` lands (TD-288), apply the table by hand.
 See: cadence.md §4.8 *Design review rounds*, §9.18 (`design-hold-rounds`, `[far-reaching]`); procedures/cadence.md step 3; TD-281.

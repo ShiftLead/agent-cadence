@@ -87,8 +87,7 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
 
    **Ending a design's rounds (cadence §4.8, TD-281).** The session that ran the rounds does
    each step and writes each line named, and `python3 scripts/review_stats.py --verdict TD-<n>`
-   prints the next step as its last line, `next: <step>` — follow the script, not memory. Until
-   `review_stats.py` has `--verdict` (TD-288), apply §4.8's verdict table and these steps by hand.
+   prints the next step as its last line, `next: <step>` — follow the script, not memory.
 
    1. After each round's last review is recorded: `review_stats.py --verdict TD-<n> --after-round`.
       `next: continue` — run the next round; `next: hold` or `next: end` — go to 2.
