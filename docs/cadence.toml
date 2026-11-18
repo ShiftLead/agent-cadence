@@ -28,5 +28,6 @@ paths = [
     "files/docs/technical_debt.md", "files/docs/technical_debt_archive.md",
     "files/docs/claude-memory/MEMORY.md", "files/.claude/settings.json", "files/docs/cadence.toml",
     "files/AGENTS.md", "files/.gemini/settings.json", "files/.gitattributes",
+    "files/.claude/skills/*/SKILL.md", "files/.agents/skills/*/SKILL.md",   # the skill pointers adopt seeds too
     "files/scripts/check_cadence.py", "files/scripts/review_stats.py", "files/scripts/cadence_config.py",
 ]
