@@ -234,6 +234,24 @@ if j and j["verdict"] == "Go" and not j["not_falling"]:
     ok("9o ... the counted verdict is Go")
 else:
     bad("9o", j)
+r = Rec().rounds(3, 2)
+r.head["Holds"] = "2"
+expect("9p after-round, a Hold standing on the last round: revise, as --verdict", r, "revise", after=True)
+r = Rec().rounds(2, 1)
+r.head["Bought"] = "2"
+expect("9q after-round, a bought round not yet run: round, as --verdict", r, "round", after=True)
+r = Rec().rounds(2, 0)
+r.head["Holds"] = "2025-11-01"
+_, err = expect("9r a Holds: that is not a list of rounds is read by its numbers", r, "judge")
+if "Holds: '2025-11-01' is neither none nor a list of rounds" in err:
+    ok("9s ... with a warning")
+else:
+    bad("9s", err)
+_, err = expect("9t a pending record with no Reach: warns on any step", Rec().rounds(2, 0), "judge")
+if "no Reach: line" in err:
+    ok("9u ... before any judge runs")
+else:
+    bad("9u", err)
 expect("9k a record lacking Holds, Bought, Verdict, Go by: read as none, pending: judge", Rec().rounds(2, 0), "judge")
 expect("9l Holds: none reads as no Hold", (lambda r: (r.head.update(Holds="none", Bought="none"), r)[1])(Rec().rounds(2, 0)), "judge")
 

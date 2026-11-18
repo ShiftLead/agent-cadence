@@ -12,7 +12,8 @@
     review_stats.py --verdict TD-n [--after-round] [--repo PATH] [--json]
                     one design's counted verdict, the counts behind it, and a last line `next: <step>`
                     naming the next step of the ending (TD-281, cadence.md §4.8): --after-round after
-                    each round's last review (hold | end | continue), else after the closing fact-check
+                    each round's last review (hold | end | continue; revise or round while a Hold or a
+                    bought round waits for its round, as --verdict), else after the closing fact-check
                     (closing-read | judge | round | revise | go | item); `done` on a decided record
 
 WHY
@@ -707,9 +708,13 @@ class Unresolvable(Exception):
     """An input --verdict cannot read without guessing: exit 2, naming it."""
 
 
-def _rounds_list(value: str | None) -> list[int]:
-    """`Holds:` / `Bought:` — rounds as `4, 9`; `none`, empty or missing is no round."""
-    return sorted({int(n) for n in re.findall(r"\d+", value or "")})
+def _rounds_list(value: str | None, name: str = "", warn: list[str] | None = None) -> list[int]:
+    """`Holds:` / `Bought:` — rounds as `4, 9`; `none`, empty or missing is no round. Any other form is
+    read by the numbers in it, with a warning, since a date or prose there reads as rounds."""
+    v = (value or "").strip()
+    if v and v.lower() != "none" and not re.fullmatch(r"\d+(\s*,\s*\d+)*", v) and warn is not None:
+        warn.append(f"{name}: {v!r} is neither none nor a list of rounds (4, 9) — read as {sorted({int(n) for n in re.findall(r'[0-9]+', v)})}")
+    return sorted({int(n) for n in re.findall(r"\d+", v)})
 
 
 def judge_line(verdict: str | None) -> dict | None:
@@ -722,12 +727,12 @@ def judge_line(verdict: str | None) -> dict | None:
             "reach": line.group(2).lower(), "reason": line.group(3).strip()}
 
 
-def count_verdict(rec: dict, hold_n: int, cap: int) -> dict:
+def count_verdict(rec: dict, hold_n: int, cap: int, warn: list[str] | None = None) -> dict:
     """The counts and the counted verdict of one record (rule 2), over the rounds since the last Hold (rule 1)."""
     rows = rec["reviews"]
     pos = {r["review"]: i for i, r in enumerate(rows)}
     design_rounds = sorted({r["round"] for r in rows if r["role"] == "design"})
-    holds, bought = _rounds_list(rec.get("holds")), _rounds_list(rec.get("bought"))
+    holds, bought = _rounds_list(rec.get("holds"), "Holds", warn), _rounds_list(rec.get("bought"), "Bought", warn)
     last_hold = max(holds, default=0)
     window = [n for n in design_rounds if n > last_hold]
     counts = {n: sum(r["build_changing"] for r in rows if r["role"] == "design" and r["round"] == n) for n in design_rounds}
@@ -801,18 +806,23 @@ def next_step(rec: dict, c: dict, entry: dict, after_round: bool, warn: list[str
     j = judge_line(rec.get("verdict"))
     if not (j and j["verdict"] == v and c["judges_since"] == [j["review"]]):
         return "judge"
-    reach = (rec.get("reach") or "").strip()
-    word = LB.first_word(reach) if reach else ""
-    if word not in ("routine", "far-reaching"):
-        warn.append(f"Reach: {reach!r} cannot be read — read as far-reaching" if reach
-                    else "no Reach: line — read as far-reaching")
-        word = "far-reaching"
-    far = word == "far-reaching" or j["reach"] == "far-reaching"
+    far = reach_word(rec) == "far-reaching" or j["reach"] == "far-reaching"
     if j["outcome"] == "RAISE" or far:
         return "item"
     if v == "Go":
         return "item" if re.search(r"\bdecision\s*\(", entry.get("blocked_raw") or "", re.I) else "go"
     return "item" if holds else "revise"
+
+
+def reach_word(rec: dict, warn: list[str] | None = None) -> str:
+    """The designer's mark: routine or far-reaching; a missing or unreadable `Reach:` is far-reaching (any doubt)."""
+    reach = (rec.get("reach") or "").strip()
+    word = LB.first_word(reach) if reach else ""
+    if word in ("routine", "far-reaching"):
+        return word
+    if warn is not None:
+        warn.append(f"Reach: {reach!r} cannot be read — read as far-reaching" if reach else "no Reach: line — read as far-reaching")
+    return "far-reaching"
 
 
 def verdict(root: Path, td: int, after_round: bool) -> dict:
@@ -837,8 +847,10 @@ def verdict(root: Path, td: int, after_round: bool) -> dict:
         hold_n = int(C.resolve("design-hold-rounds", files)[0])
     except (C.ConfigError, TypeError, ValueError):
         hold_n = int(C.KEYS["design-hold-rounds"][0])
-    c = count_verdict(rec, hold_n, caps[rec["class"]])
     warn = list(probs)
+    c = count_verdict(rec, hold_n, caps[rec["class"]], warn)
+    if rec["decided"] == "pending":
+        reach_word(rec, warn)
     gb = (rec.get("go_by") or "").strip()
     if LB.first_word(gb) == "judge" and not any(r["role"] == "judge" for r in rec["reviews"]):
         warn.append(f"Go by: {gb!r} names the judge, but the Reviews table has no judge row")
