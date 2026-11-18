@@ -32,12 +32,20 @@ def vocabulary(path: Path = VOCABULARY) -> dict[str, list[str]]:
     return {k: list(data.get(k) or []) for k in ("actors", "coined", "labels")}
 
 
-def ask_problems(text: str, people: Sequence[str] = ()) -> list[LB.PersonTextProblem]:
+def ask_problems(text: str, people: Sequence[str] = (), context: str | None = None) -> list[LB.PersonTextProblem]:
     """An entry's Ask (cadence.md §2.3): its first paragraph one plain question of one sentence (rule 1), its later
-    paragraphs the context (rule 4, a warning)."""
+    paragraphs — and ``context``, the ``**Context:**`` section written beside it (ledgerboard v3.3, TD-284) — the
+    context (rule 4, a warning)."""
     parts = PARA_RE.split(text.strip(), maxsplit=1)
     first, rest = parts[0], (parts[1].strip() if len(parts) > 1 else "")
+    rest = "\n\n".join(x for x in (rest, (context or "").strip()) if x)
     return LB.person_text_problems(first, (), rest or None, question=True, people=people,
+                                   actors=vocabulary()["actors"])
+
+
+def context_problems(text: str, people: Sequence[str] = ()) -> list[LB.PersonTextProblem]:
+    """An Ask's ``**Context:**`` section written alone (TD-284): rule 4, a warning, on its code tokens."""
+    return LB.person_text_problems(None, (), text.strip() or None, question=True, people=people,
                                    actors=vocabulary()["actors"])
 
 

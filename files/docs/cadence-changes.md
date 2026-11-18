@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-18 — An Ask is one line; its context goes in `**Context:**` through `--context`
+Do: write an entry's Ask as the question alone (`--ask FILE`, one line) and its context with `--context FILE` beside it (`ledger.py new`, `set`; `set --context` alone rewrites it). This supersedes the TD-272 line's whole-file `--ask`: an Ask with later paragraphs is now refused (`field-lines`).
+See: cadence.md §2.3, §2.14; procedures/cadence.md step 3; TD-284.
+
 ## 2026-11-18 — A Lift the hold press's PR passes review as the `lift` carve-out
 Do: nothing for a ShiftLead lift PR (`shiftlead: lift decision (<p>) on TD-n (session n/a)`) whose diff is the lift alone: `/cadence` passes its review row, and `--since` lists it as a tool merge. One under that title with any other change takes ordinary review; the row says why.
 See: cadence.md §4.6; check_cadence.py `row_ledger_lift_pr`; TD-262.
