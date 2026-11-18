@@ -15,3 +15,19 @@ publish-gate = "required"
 
 # A public repo's ledger-id takes never name the machine (TD-124, cadence.md §2.10).
 ledger-ids-host = "off"
+
+# What is far-reaching here (cadence.md §4.8, TD-281, set by the person on 2026-11-17, TD-289): every
+# payload change reaches every consumer, so a design whose builds change the rules every session
+# reads, the procedures, the seeds, or the scripts that decide whose Go counts is the person's to go.
+# The globs match as [precheck-paths]' do (fnmatch on the repo-relative path, `*` crossing `/`).
+[far-reaching]
+paths = [
+    "files/docs/cadence.md",
+    "files/docs/procedures/**",
+    "files/docs/user_attention.md", "files/docs/user_attention/README.md",
+    "files/docs/technical_debt.md", "files/docs/technical_debt_archive.md",
+    "files/docs/claude-memory/MEMORY.md", "files/.claude/settings.json", "files/docs/cadence.toml",
+    "files/AGENTS.md", "files/.gemini/settings.json", "files/.gitattributes",
+    "files/.claude/skills/*/SKILL.md", "files/.agents/skills/*/SKILL.md",   # the skill pointers adopt seeds too
+    "files/scripts/check_cadence.py", "files/scripts/review_stats.py", "files/scripts/cadence_config.py",
+]
