@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-18 — A far-reaching build of a design the judge gave its Go waits for the person: the `reach` row
+Do: when `/cadence`'s `reach` row fails, leave the merge to the person — the build changes a `[far-reaching]` path and its design's `Go by:` names no person. Name your repo's far-reaching files in `docs/cadence.toml`'s `[far-reaching]`.
+See: cadence.md §4.8, §4 (the `reach` row); check_cadence.py; TD-290.
+
 ## 2026-11-18 — `review_stats.py --verdict` counts a design's ending: follow its `next:` line
 Do: after each round's last review run `review_stats.py --verdict TD-n --after-round`, and after the closing fact-check `--verdict TD-n`; do the step its last line names instead of applying §4.8's table by hand. Exit 2 names an input it cannot read (no entry, no Class:, a backfill record).
 See: cadence.md §4.8; procedures/cadence.md step 3; TD-288.

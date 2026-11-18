@@ -23,7 +23,7 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
 2. **The cheap rows first (TD-244):** after the review — step 3 says how; its `review` row fails until
    the evidence comment is posted — and its fixes are pushed, run
    `python3 scripts/check_cadence.py --pr <n> --structural`: the rows that need no precheck (`pr`,
-   `review`, `base`, `ledger`, `board`, `gates`, `sources`, `person`), in seconds. Fix any fail now —
+   `review`, `base`, `ledger`, `board`, `gates`, `sources`, `person`, `reach`), in seconds. Fix any fail now —
    each names the command or line that cures it — since a fix moves the head and a precheck on the old
    head is spent; its pass merges nothing.
    **The repo's precheck (TD-117, cadence §4.12):** when `python3 scripts/cadence_config.py get precheck`
