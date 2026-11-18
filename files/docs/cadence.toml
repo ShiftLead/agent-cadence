@@ -64,6 +64,11 @@
 # design-rounds = "4"
 # design-rounds-wide = "6"
 
+# How a design's rounds end (§4.8, TD-281): `review_stats.py --verdict` holds a design (split or
+# narrow it) once N rounds since its last Hold reopened a build-changing finding, or its last N
+# rounds' build-changing counts did not fall. N is a whole number of 2 or more.
+# design-hold-rounds = "3"
+
 # Whether this repo tracks what its design reviews missed (§2.13, TD-204): "on" makes
 # ledger_next_id.py ask, each time it hands out ids, whether a design missed the defect being filed
 # (then `**Escaped from:** <design TD>`); turning it on, run the backfill once (§2.13). Off is cheapest.
@@ -86,6 +91,15 @@
 #
 #   [precheck-paths]
 #   "docs/technical_debt*.md docs/user_attention*.md" = "python3 scripts/ledger.py --check"
+
+# --- what is far-reaching here (§4.8, TD-281): read from this file only. A design whose builds
+# change a file matching one of these globs (fnmatch on the repo-relative path, `*` crossing `/`,
+# as [precheck-paths]) is far-reaching whatever its designer marked, so its Go reaches the person.
+# A `note` string beside `paths`, the repo's own words on what else is far-reaching, is printed to
+# the design's judge. With no table, only §4.8's definition applies.
+#
+#   [far-reaching]
+#   paths = ["docs/briefs/**", "docs/glossary.md"]
 
 # --- whether a ledger id's take names this machine (TD-124, cadence.md §2.10): read from this file
 # only. scripts/ledger_next_id.py writes each take as a commit on origin's cadence/ledger-ids

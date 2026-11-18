@@ -55,7 +55,7 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    order, each review's fixes committed before the next. **A design plan's rounds** (cadence §4.8
    *Design review rounds*) ask for each round from the same list, the fact-checks from
    `fact-check-model`, and stop by the stop rule or at the cap — `get design-rounds` for an in-repo
-   plan, `get design-rounds-wide` for a wide one — each review a row of the design's record file's Reviews table — the exact model and the tokens the runner reports — and each finding a row of its findings table (`docs/reviews/TD-NNN.md`, cadence §4.8). **Its prompt names the verdict words:** *end your report with
+   plan, `get design-rounds-wide` for a wide one — each review a row of the design's record file's Reviews table — the exact model and the tokens the runner reports — and each finding a row of its findings table (`docs/reviews/TD-NNN.md`, cadence §4.8). Each design review's prompt gives it the findings table and asks it to name each finding it reopens by its id (`reopens F<n>`); copy that into the finding's status and keep it there once the finding is applied or rejected (`applied: … (reopens F19)`). How the rounds end is the last part of this step, *Ending a design's rounds*. **Its prompt names the verdict words:** *end your report with
    `cadence-review: <SHIP|FIXED|BLOCK> · <your model> · <code|docs> · <n> findings` — SHIP,
    FIXED or BLOCK and no other word*. A reviewer asked in its own words writes its own
    (`CLEAN`), which the row never reads as a review: it fails naming the word, and the cure is a
@@ -84,6 +84,71 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    are a parity pair (cadence §7): change the shape in both or in neither. It reads it on
    any line of the comment, the last if several (TD-087), so a report that ends with its
    verdict still counts — but write it first.
+
+   **Ending a design's rounds (cadence §4.8, TD-281).** The session that ran the rounds does
+   each step and writes each line named, and `python3 scripts/review_stats.py --verdict TD-<n>`
+   prints the next step as its last line, `next: <step>` — follow the script, not memory. Until
+   `review_stats.py` has `--verdict` (TD-288), apply §4.8's verdict table and these steps by hand.
+
+   1. After each round's last review is recorded: `review_stats.py --verdict TD-<n> --after-round`.
+      `next: continue` — run the next round; `next: hold` or `next: end` — go to 2.
+   2. The closing fact-check, fix-then-check: its rows and fixes.
+   3. `--verdict` (after 2, 4 and 5), and do what its `next:` names:
+      - `closing-read` — the closing read: one review, on `get review-model`'s last model, of
+        only the unread build-changing findings (an applied one's plan diff since the review that
+        raised it, a rejected one's reason and the text it concerns); a `closing-read` row under
+        the last round, its findings and fixes; then 3.
+      - `judge` — the judge, by the prompt below: a fresh agent on `get review-model`'s last
+        model, or the seat your repo's own rules name, never the session that ran the rounds nor
+        one of the design's reviews. Write a `judge` row under the last round (its model,
+        or `?` for a seat whose model is not reported), and its line verbatim in the header's
+        `Verdict:`, after the counted verdict it judged and the judge's `R<n>`
+        (`Verdict: Go (R12) · cadence-judge: CONFIRM · reach routine · …`); then 3. A run whose
+        reply has no valid line is still a row; a second judge run on the same verdict sends it
+        to the item.
+      - `go` — file the builds unblocked, each `Part of` the design, the fixes no review has read
+        in the Fix of the build each concerns (*fixed, not reviewed; the builder checks it*); write
+        `Go by: judge` (or `judge (<seat>)`) and `Decided:`, and a Log line on the design's entry
+        (`ledger.py note TD-<n> "…"`).
+      - `item` — if an open board item's Context already names `TD-<n> decision (<person>)`
+        (`board_edit.py list --board … --json`), nothing: the item is up. Otherwise, if the
+        design's entry has no `decision (<person>)` gate, add it first with its `**Ask:**`
+        (`ledger.py set TD-<n> --blocked-by "<its other blockers>, decision (<person>)" --ask <file>`;
+        `--blocked-by` replaces the field), the person one the board's `People:` line holds; file
+        the builds held the first time (on a later item, bring the filed ones into line instead);
+        then raise the end-of-rounds item (§4.8) through `board_edit.py add --kind decide`.
+      - `revise` — revise the design as the findings show: write `Decided: pending` and the last
+        round the Reviews table holds in `Holds:`; the revision's first round opens with its
+        fact-check, and step 1 follows its rounds.
+      - `round` — run one more round; then 1.
+      - `done` — nothing: the design is decided.
+
+   After the item, the session acting on the person's answer adds one line to the record: on
+   `Go`, `Go by: <person>` (the name the board's `Decided:` line carries) and `Decided:`; on
+   `One more round`, the last round the Reviews table holds in `Bought:`; on `Hold: <note>`, the
+   last round in `Holds:` and `Decided: pending`. Then it runs the round (as `round` does) or
+   the revision (as `revise` does).
+
+   **The judge's prompt is fixed** — fill in the paths, never word the question:
+
+   ```
+   You judge how a design's review rounds end (cadence.md §4.8, The judge). You are independent of
+   the design: you never revise it, and you never change the counted verdict.
+   Read: the plan <plan path>; its review record <docs/reviews/TD-n.md>; the verdict's output
+   <file holding `review_stats.py --verdict TD-n`'s output>; cadence.md §4.8's definition of
+   far-reaching; and the [far-reaching] table in <repo>/docs/cadence.toml, if it has one.
+   Return CONFIRM if you agree with the counted verdict. Return RAISE, with one sentence of reason,
+   when: you disagree with it, either way; a rejected build-changing finding's reason does not
+   hold up; a later build-changing finding reopens an earlier one on the same topic (the findings
+   table's topic column) with no `reopens` written; or a question only the person can settle
+   remains (scope, product, cost).
+   Read the design's reach yourself: far-reaching if it changes what every session reads, who acts
+   or decides for the person, what waits for the person, or something that cannot be undone, or if
+   a file the plan says its builds change matches a [far-reaching] glob; otherwise routine. Any
+   doubt counts as far-reaching.
+   End your reply with exactly one line:
+   cadence-judge: <CONFIRM|RAISE> · reach <routine|far-reaching> · <one sentence of reason>
+   ```
 4. **Any other row fails:** fix the cause, not the row — a `ledger` fail means the TD named
    in the title needs its status line or archive move in this PR (§2; in a split ledger `ledger.py note`/`set` or
    `ledger.py archive`, never a hand edit — §2.12), or — when it says *bad
