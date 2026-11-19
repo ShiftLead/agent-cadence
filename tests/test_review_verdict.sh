@@ -306,6 +306,54 @@ if "no judge row" in err:
 else:
     bad("read d", err)
 
+# --- TD-293: the tables are read by their headers' names, never by position
+def widen(text):
+    """The findings table with a mechanism column after topic (cadence.md §4.8's old prose, read as eight)."""
+    out = []
+    for line in text.split("\n"):
+        c = line.split("|")
+        if line.startswith("| id |"):
+            line = line.replace("| topic |", "| topic | mechanism |")
+        elif line.startswith("|---|---|---|---|---|---|---|"):
+            line = "|---" * 8 + "|"
+        elif line.startswith("| F") and len(c) == 9:
+            line = "|".join(c[:5] + [" a mechanism "] + c[5:])
+        out.append(line)
+    return "\n".join(out)
+
+
+def reorder(text):
+    """Both tables with their columns in another order: status first after id, model last."""
+    out = []
+    for line in text.split("\n"):
+        c = line.split("|")
+        if line.startswith("| id |") or line.startswith("| F"):
+            line = "|".join([c[0], c[1], c[7]] + c[2:7] + [c[8]])
+        elif line.startswith("| review |") or line.startswith("| R"):
+            line = "|".join([c[0], c[1], c[2], c[3], c[5], c[6], c[4], c[7]])
+        out.append(line)
+    return "\n".join(out)
+
+
+base = Rec().row(1, "design", ("build-changing", "applied"), ("minor", "applied")).row(1, "design", ("build-changing", "rejected: no")).row(2, "design", ("minor", "applied"))
+j7, e7 = expect("hdr a the seven-column record: a judge reads the counted Go", base, "judge")
+for name, text in (("hdr b an eight-column record (a mechanism column) counts the same", widen(base.text())),
+                   ("hdr c a record with its columns reordered counts the same", reorder(base.text()))):
+    rc, out, err, j = run(text)
+    same = j7 and j and all(j[k] == j7[k] for k in ("counts", "fact_check_counts", "verdict", "next", "unread_build_changing", "unread_minor"))
+    if rc == 0 and same and "unknown" not in err and "not read" not in err:
+        ok(name)
+    else:
+        bad(name, f"rc={rc} err={err.strip()!r} j={j and {k: j[k] for k in ('counts', 'verdict', 'next')}}")
+for name, text, col in (("hdr d a findings header with no class column", base.text().replace("| finding | class |", "| finding | label |"), "class"),
+                        ("hdr e a findings header with no status column", base.text().replace("| class | status |", "| class | state |"), "status"),
+                        ("hdr f a Reviews header with no role column", base.text().replace("| round | role |", "| round | kind |"), "role")):
+    rc, out, err, _ = run(text)
+    if rc == 2 and "cannot count the verdict" in err and f"has no {col} column" in err and not out:
+        ok(name + ": refused, naming the column")
+    else:
+        bad(name, f"rc={rc} out={out!r} err={err!r}")
+
 print(f"---- {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
 PY

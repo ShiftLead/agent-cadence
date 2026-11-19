@@ -42,7 +42,8 @@ why) before round 1, and how the rounds ended. Each reviewer is given the findin
 finding it reopens by its id ("reopens F2"), kept in its status once applied ("applied: … (reopens F2)").
 A role is read by its first word; a judge row's line goes verbatim in Verdict:, after the counted
 verdict it judged and its R<n>. Holds: and Bought: list rounds ("4, 9"), or none. A finding the
-person raises has `person` in its by cell.
+person raises has `person` in its by cell. The tables are read by their headers' names (TD-293):
+keep these column names; a column added beside them is ignored.
 The record file's form (cadence.md §4.8; Source: backfill only for one written after the fact, §2.13):
 
 # Review record: TD-NNN

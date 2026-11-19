@@ -114,20 +114,34 @@ VERDICT_HEAD_RE = re.compile(r"^(Go|Hold)\b[^(]*\(R(\d+)\)", re.I)
 # ---------------------------------------------------------------- reading
 
 
-def table_rows(text: str, first: str) -> list[list[str]]:
-    """The data rows of the Markdown table whose header's first cell is ``first``."""
-    rows: list[list[str]] = []
+def table(text: str, first: str) -> tuple[list[str] | None, list[list[str]]]:
+    """(the header's cells lowercased, the data rows) of the Markdown table whose header's first cell is
+    ``first``; (None, []) when there is none."""
     lines = LB.COMMENT_RE.sub("", text).split("\n")
     for i, line in enumerate(lines):
         cells = _cells(line)
         if cells and cells[0].lower() == first and i + 1 < len(lines) and set(lines[i + 1].replace("|", "").strip()) <= set("-: "):
+            rows: list[list[str]] = []
             for nxt in lines[i + 2:]:
                 c = _cells(nxt)
                 if c is None:
                     break
                 rows.append(c)
-            break
-    return rows
+            return [h.lower() for h in cells], rows
+    return None, []
+
+
+def columns(head: list[str] | None, need: tuple[str, ...], path: Path, name: str) -> tuple[dict[str, int] | None, str]:
+    """Each needed column's index in ``head``, read by its name (TD-293: a writer may add a column, such
+    as a separate mechanism, and a table read by position would misread every cell after it); (None, the
+    problem) when the header lacks one. No table at all is no columns and no problem."""
+    if head is None:
+        return {}, ""
+    idx = {h: i for i, h in reversed(list(enumerate(head)))}
+    missing = [n for n in need if n not in idx]
+    if missing:
+        return None, f"{path}: the {name} table's header ({' | '.join(head)}) has no {', '.join(missing)} column — the record is not read"
+    return {n: idx[n] for n in need}, ""
 
 
 def _cells(line: str) -> list[str] | None:
@@ -160,43 +174,53 @@ def read_record(path: Path, repo: str, td: int) -> tuple[dict | None, list[str]]
         except ValueError:
             probs.append(f"{path}: Decided {decided!r} is no date (read as pending)")
             decided = "pending"
+    rhead, rrows = table(text, "review")
+    rcol, err = columns(rhead, ("review", "round", "role", "model", "tokens", "date"), path, "Reviews")
+    fhead, frows = table(text, "id")
+    fcol, ferr = columns(fhead, ("id", "round", "by", "topic", "finding", "class", "status"), path, "findings")
+    if rcol is None or fcol is None:
+        return None, probs + [e for e in (err, ferr) if e]
     reviews: dict[str, dict] = {}
-    for c in table_rows(text, "review"):
-        if len(c) < 6 or not re.fullmatch(r"R\d+", c[0]) or not c[1].isdigit() or not 1 <= int(c[1]) <= MAX_ROUND:
+    for c in rrows:
+        if len(c) < len(rhead):
             probs.append(f"{path}: Reviews row {' | '.join(c)!r} not read")
             continue
-        if c[0] in reviews:
-            probs.append(f"{path}: {c[0]} is in the Reviews table twice (the first row read)")
+        rv, rnd, role, model, tokens, date = (c[rcol[k]] for k in ("review", "round", "role", "model", "tokens", "date"))
+        if not re.fullmatch(r"R\d+", rv) or not rnd.isdigit() or not 1 <= int(rnd) <= MAX_ROUND:
+            probs.append(f"{path}: Reviews row {' | '.join(c)!r} not read")
             continue
-        role = role_kind(c[2])
-        if c[2].strip().lower() not in ROLE_KINDS:
-            probs.append(f"{path}: {c[0]} role {c[2]!r} read as {role}")
-        tok = int(c[4].replace(",", "")) if c[4].replace(",", "").isdigit() else None
-        reviews[c[0]] = {"review": c[0], "round": int(c[1]), "role": role, "model": c[3] or "?", "tokens": tok,
-                         "date": c[5], "build_changing": 0, "minor": 0, "unlabelled": 0}
+        if rv in reviews:
+            probs.append(f"{path}: {rv} is in the Reviews table twice (the first row read)")
+            continue
+        kind = role_kind(role)
+        if role.strip().lower() not in ROLE_KINDS:
+            probs.append(f"{path}: {rv} role {role!r} read as {kind}")
+        tok = int(tokens.replace(",", "")) if tokens.replace(",", "").isdigit() else None
+        reviews[rv] = {"review": rv, "round": int(rnd), "role": kind, "model": model or "?", "tokens": tok,
+                       "date": date, "build_changing": 0, "minor": 0, "unlabelled": 0}
     findings: list[dict] = []
-    for c in table_rows(text, "id"):
-        if len(c) < 7:
+    for c in frows:
+        if len(c) < len(fhead):
             probs.append(f"{path}: findings row {' | '.join(c)!r} not read")
             continue
-        by = c[2].strip()
+        fid, rnd, by, topic, cls_cell, status = (c[fcol[k]].strip() for k in ("id", "round", "by", "topic", "class", "status"))
         r = reviews.get(by)
         if r is None and by.lower() != "person":
-            probs.append(f"{path}: {c[0]} names review {c[2]!r}, which the Reviews table has not")
+            probs.append(f"{path}: {fid} names review {by!r}, which the Reviews table has not")
             continue
-        k = c[5].lower()
+        k = cls_cell.lower()
         if k == "unlabelled" and source != "backfill":
-            probs.append(f"{path}: {c[0]} is unlabelled in a rounds record (read as the proxy)")
+            probs.append(f"{path}: {fid} is unlabelled in a rounds record (read as the proxy)")
         elif k not in FINDING_CLASSES:
-            probs.append(f"{path}: {c[0]} class {c[5]!r} unknown (read as unlabelled)")
+            probs.append(f"{path}: {fid} class {cls_cell!r} unknown (read as unlabelled)")
             k = "unlabelled"
         if r is not None and r["role"] == "judge":
-            probs.append(f"{path}: {c[0]} is raised by a judge row ({by}), which raises no findings (not counted)")
+            probs.append(f"{path}: {fid} is raised by a judge row ({by}), which raises no findings (not counted)")
             continue
         if r is not None:
             r[k.replace("-", "_")] += 1
-        findings.append({"id": c[0], "round": int(c[1]) if c[1].isdigit() else None, "by": r["review"] if r else "person",
-                         "topic": c[3], "class": k, "status": c[6]})
+        findings.append({"id": fid, "round": int(rnd) if rnd.isdigit() else None, "by": r["review"] if r else "person",
+                         "topic": topic, "class": k, "status": status})
     order = sorted(reviews.values(), key=lambda r: int(r["review"][1:]))
     return {"repo": repo, "td": td, "design": head.get("design") or "", "class": cls, "decided": decided,
             "source": source, "reviews": order, "findings": findings,
