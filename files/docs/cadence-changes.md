@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-18 — A review record's tables are read by their headers
+Do: name a review record's columns as `adr-template.md` draws them; an extra column (a separate mechanism) is ignored, and a header lacking `by`, `class`, `status` or another named column makes `review_stats.py` refuse the record rather than misread it.
+See: cadence.md §4.8 (the findings table); TD-293.
+
 ## 2026-11-18 — A bought review round holds its design while it runs
 Do: on a design's `One more round`, file the round as an entry of its own (not `Part of` the design) and add it to the design's Blocked by, `TD-<round>, decision (<person>)`, in the same PR; at the round's end, drop it in the write that gives the design its new Ask.
 See: cadence.md §4.8; procedures/cadence.md step 3; TD-291.
