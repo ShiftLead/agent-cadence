@@ -30,9 +30,9 @@ session folder, ``claude-<uid>/<project>/<session uuid>/`` (scratchpads and comm
 nothing in it changed for SESSION_AGE seconds (3 days: a resumed session expects its scratchpad), and,
 in each ShiftLead seat's own temp dir (``<name>-<uid>/<seat>/``, owned by this user), that seat's
 ``pytest-of-<user>/pytest-*`` and Claude Code session folders, by the same rules. All of it within
-REAP_BUDGET seconds a run, listing and removing together (--report, which the person runs by hand,
-gets WALK_BUDGET; the rest next time). Nothing is reaped when the directory is ``/``, or the home directory or above it, and nothing
-under ``~/.claude`` is ever read (transcripts are kept).
+REAP_BUDGET seconds a run, listing and removing together, an entry in progress finished (--report,
+which the person runs by hand, gets WALK_BUDGET; the rest next time). Nothing is reaped when the
+directory is ``/``, the home directory or above it, or inside ``~/.claude`` (transcripts are kept).
 It says what it removed and the entries it freed. Nothing else is removed: the directory is shared,
 and every other file may be another session's, so the rest stays a printed cleanup for the person.
 Always exits 0 — a detector, never a gate (cadence §7). Stdlib only.
@@ -206,10 +206,13 @@ def _idle(path: str, cutoff: float, deadline: float) -> bool:
 
 
 def _safe_root(path: str) -> bool:
-    """Not ``/``, and not the home directory or one above it: a TMPDIR pointed there is no temp dir."""
+    """Not ``/``, not the home directory or one above it, and not ``~/.claude`` or inside it (its
+    transcripts are kept, TD-296): a TMPDIR pointed there is no temp dir."""
     real = os.path.realpath(path)
     home = os.path.realpath(os.path.expanduser("~"))
-    return real != "/" and not (home + "/").startswith(real.rstrip("/") + "/")
+    keep = os.path.join(home, ".claude")
+    return (real != "/" and not (home + "/").startswith(real.rstrip("/") + "/")
+            and real != keep and not real.startswith(keep + "/"))
 
 
 def _own_dir(path: str, uid: int) -> bool:
@@ -279,7 +282,7 @@ def reapable(path: str, patterns: tuple[str, ...] = REAP_PATTERNS, now: float | 
 def reap(path: str, patterns: tuple[str, ...] = REAP_PATTERNS,
          budget: float = REAP_BUDGET) -> tuple[list[str], int, list[str]]:
     """Remove ``reapable(path)`` within ``budget`` seconds, listing and removing together (the hook runs
-    under a 3 s bound): (removed, entries freed, not removed — each one that failed, then any left when
+    under a 3 s bound; an entry in progress is finished, so one large tree can run over): (removed, entries freed, not removed — each one that failed, then any left when
     the budget ran out)."""
     removed, freed, failed = [], 0, []
     deadline = time.monotonic() + budget
@@ -300,7 +303,7 @@ def reap(path: str, patterns: tuple[str, ...] = REAP_PATTERNS,
 def reaped_line(removed: list[str], freed: int, failed: list[str]) -> str | None:
     if not removed and not failed:
         return None
-    out = (f"  reaped {len(removed)} of your own leftovers unchanged for a day, session folders 3 ({freed:,} entries): "
+    out = (f"  reaped {len(removed)} of your own leftovers unchanged for a day (session folders: 3 days), {freed:,} entries: "
            + ", ".join(os.path.basename(r) for r in removed[:5]) + (" …" if len(removed) > 5 else "")) if removed else "  reaped nothing"
     return out + (f"; could not remove {', '.join(failed[:3])}" if failed else "") + " (TD-223)"
 

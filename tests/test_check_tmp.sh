@@ -125,7 +125,7 @@ out=$(run --report 1000 900 1000 900 900); rc=$?   # under the threshold: nothin
   && ok "10 under the threshold: nothing is reaped" || bad "10 rc=$rc $out $(ls "$T")"
 out=$(run --hook 1000 100 1000 900 900); rc=$?
 [ $rc -eq 0 ] && [ ! -e "$T/tmp.AbCdE12345" ] && [ ! -e "$T/precheck-7-x" ] && [ ! -e "$T/pytest-of-tester/pytest-3" ] \
-  && grep -q "reaped 3 of your own leftovers unchanged for a day, session folders 3" <<< "$out" \
+  && grep -q "reaped 3 of your own leftovers unchanged for a day (session folders: 3 days), [0-9,]* entries: " <<< "$out" \
   && ok "10b past the threshold --hook reaps aged tmp*, precheck-* (read-only inside) and pytest-*, saying so" || bad "10b rc=$rc $out $(ls -R "$T")"
 [ -d "$T/tmp.fresh" ] && [ -d "$T/claude-1000" ] && [ -d "$T/keep-tmp.old" ] && [ -d "$T/pytest-of-tester/other-old" ] \
   && [ -L "$T/tmp.link" ] && [ -d "$T" ] && [ -e "$T/tmpab12cd34/deep/live" ] && [ -d "$T/tmpnotes" ] \
@@ -178,7 +178,7 @@ PY2
 out=$(run --hook 1000 100 1000 900 900); rc=$?
 [ $rc -eq 0 ] && [ ! -e "$T/claude-$U/-home-x-proj/$S1" ] && [ ! -e "$T/shiftlead-$U/seat1/pytest-of-tester/pytest-5" ] \
   && [ ! -e "$T/shiftlead-$U/seat1/claude-$U/-home-x-proj/$S4" ] \
-  && grep -q "reaped 3 of your own leftovers unchanged for a day, session folders 3 (.* entries): $S1, $S4, pytest-5" <<< "$out" \
+  && grep -q "reaped 3 of your own leftovers unchanged for a day (session folders: 3 days), [0-9,]* entries: $S1, $S4, pytest-5" <<< "$out" \
   && ok "11b past the threshold: a session folder idle 3 days, a seat's pytest run dir and a seat's session folder are reaped, named" || bad "11b rc=$rc $out $(find "$T")"
 [ -d "$T/claude-$U/-home-x-proj/$S2" ] && [ -e "$T/claude-$U/-home-x-proj/$S3/today" ] && [ -d "$T/claude-$U/-home-x-proj/not-a-session" ] \
   && [ -d "$T/shiftlead-$U/seat1/keep-me" ] && [ -d "$T/shiftlead-x/seat2/pytest-of-tester/pytest-6" ] \
@@ -195,6 +195,45 @@ real = os.getuid; uid = real()
 os.getuid = lambda: uid + 1
 assert c.reapable(d) == [], c.reapable(d)
 os.getuid = real
+PY2
+
+# 11e. symlinks at each level of a session folder's path are never followed: a symlinked claude-<uid>, a
+# symlinked project and a symlinked session id, each to an aged tree whose session folder must survive;
+# a group named claude-<uid> is not read as a seat group; and ~/.claude as the temp dir reaps nothing
+T="$TMP/t11e"; mkdir -p "$T"
+aged "$TMP/t11e-a/proj/$S1" 4; aged "$TMP/t11e-b/$S2" 4; aged "$TMP/t11e-c" 4
+mkdir -p "$T/claude-$U/p2" "$T/g-$U"
+ln -s "$TMP/t11e-a" "$T/g-$U/x"   # a seat that is a symlink
+aged "$T/claude-$U/seatlike/pytest-of-tester/pytest-9" 2   # claude-<uid> read as a seat group would reap this
+ln -s "$TMP/t11e-b" "$T/claude-$U/p3"; ln -s "$TMP/t11e-c" "$T/claude-$U/p2/$S3"
+touch -h -d "4 days ago" "$T/claude-$U/p3" "$T/claude-$U/p2/$S3" "$T/claude-$U/p2" "$T/g-$U/x"   # aged links: only the symlink guard keeps them
+T2="$TMP/t11e-home"; mkdir -p "$T2/.claude/tmp"; aged "$T2/.claude/tmp/claude-$U/p/$S4" 4
+python3 - "$T" "$T2" "$TMP/t11e-a" <<'PY2' && ok "11e no symlinked claude-<uid>, project, session or seat is followed; claude-<uid> is no seat group; ~/.claude reaps nothing" || bad "11e"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.environ["SCRIPT"]))
+import check_tmp as c
+d, home, a = sys.argv[1:4]
+assert c.reapable(d) == [], c.reapable(d)
+ln = f"{d}/claude-{os.getuid()}"
+os.rename(ln, ln + ".real"); os.symlink(a, ln)   # claude-<uid> itself a symlink to a tree with an aged session
+assert c.reapable(d) == [], c.reapable(d)
+os.environ["HOME"] = home
+assert c.reapable(f"{home}/.claude/tmp") == [], c.reapable(f"{home}/.claude/tmp")
+PY2
+
+# 11f. --report reaps with the walk's budget, the hook with the 2 s one
+python3 - <<'PY2' >/dev/null && ok "11f --report's reap gets WALK_BUDGET, --hook's REAP_BUDGET" || bad "11f"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.environ["SCRIPT"]))
+import check_tmp as c
+got = []
+c.reap = lambda path, patterns=c.REAP_PATTERNS, budget=c.REAP_BUDGET: got.append(budget) or ([], 0, [])
+c.largest = lambda path, budget=None: ([], True)
+class S:
+    f_files, f_ffree, f_blocks, f_bfree, f_bavail, f_frsize = 1000, 100, 1000, 900, 900, 4096
+os.statvfs = lambda p: S
+c.main(["--hook"]); c.main(["--report"])
+assert got == [c.REAP_BUDGET, c.WALK_BUDGET] and c.WALK_BUDGET > c.REAP_BUDGET, got
 PY2
 
 echo; echo "$PASS passed, $FAIL failed"
