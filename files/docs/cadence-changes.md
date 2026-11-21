@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-21 — `check_tmp.py` also reaps Claude Code session folders idle 3 days and seats' nested `pytest-*`
+Do: nothing by hand for those — past 80% the hook and `/attention` remove your own `claude-<uid>/<project>/<session id>/` folders untouched for 3 days, and in each ShiftLead seat dir its `pytest-of-<user>/pytest-*` and session folders.
+See: cadence.md §3.9; `check_tmp.py`; TD-296.
+
 ## 2026-11-18 — A review record's tables are read by their headers
 Do: name a review record's columns as `adr-template.md` draws them; an extra column (a separate mechanism) is ignored, and a header lacking `by`, `class`, `status` or another named column makes `review_stats.py` refuse the record rather than misread it.
 See: cadence.md §4.8 (the findings table); TD-293.

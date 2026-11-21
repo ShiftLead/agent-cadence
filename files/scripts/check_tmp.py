@@ -25,8 +25,14 @@ under the temp directory (never the directory itself) owned by this user, unchan
 seconds (a day) — nothing in its tree newer, since a live tree is written at depth — and named as
 tempfile and mktemp name directories (``tmp`` + 8, ``tmp.`` + 10) or ``precheck-*`` (precheck.py's clean
 worktrees), and ``pytest-*`` under the user's own ``pytest-of-<user>/``, read-only directories made
-writable first, within REAP_BUDGET seconds (the rest next time). Nothing is reaped when the directory
-is ``/``, or the home directory or above it.
+writable first. Two more shapes are reaped where the inodes were found going (TD-296): a Claude Code
+session folder, ``claude-<uid>/<project>/<session uuid>/`` (scratchpads and command output files),
+nothing in it changed for SESSION_AGE seconds (3 days: a resumed session expects its scratchpad), and,
+in each ShiftLead seat's own temp dir (``<name>-<uid>/<seat>/``, owned by this user), that seat's
+``pytest-of-<user>/pytest-*`` and Claude Code session folders, by the same rules. All of it within
+REAP_BUDGET seconds a run, listing and removing together, an entry in progress finished (--report,
+which the person runs by hand, gets WALK_BUDGET; the rest next time). Nothing is reaped when the
+directory is ``/``, the home directory or above it, or inside ``~/.claude`` (transcripts are kept).
 It says what it removed and the entries it freed. Nothing else is removed: the directory is shared,
 and every other file may be another session's, so the rest stays a printed cleanup for the person.
 Always exits 0 — a detector, never a gate (cadence §7). Stdlib only.
@@ -54,6 +60,8 @@ REAP_PATTERNS = ("tmp*", "precheck-*")   # top-level names reaped; and pytest-* 
 # tmp* is only the names tempfile (tmp + 8 of [a-z0-9_]) and mktemp (tmp. + 10 alphanumerics) make
 TMP_NAME_RE = re.compile(r"tmp(?:[a-z0-9_]{8}|\.[A-Za-z0-9]{10})")
 REAP_BUDGET = 2.0    # seconds of reaping a run spends (the hook runs under a bound); the rest is next time
+SESSION_AGE = 3 * 86400   # a Claude Code session folder's age before it is reaped: a resumed session expects it (TD-296)
+SESSION_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")   # its name, a session id
 
 
 def tmp_dir() -> str:
@@ -198,53 +206,87 @@ def _idle(path: str, cutoff: float, deadline: float) -> bool:
 
 
 def _safe_root(path: str) -> bool:
-    """Not ``/``, and not the home directory or one above it: a TMPDIR pointed there is no temp dir."""
+    """Not ``/``, not the home directory or one above it, and not ``~/.claude`` or inside it (its
+    transcripts are kept, TD-296): a TMPDIR pointed there is no temp dir."""
     real = os.path.realpath(path)
     home = os.path.realpath(os.path.expanduser("~"))
-    return real != "/" and not (home + "/").startswith(real.rstrip("/") + "/")
+    keep = os.path.join(home, ".claude")
+    return (real != "/" and not (home + "/").startswith(real.rstrip("/") + "/")
+            and real != keep and not real.startswith(keep + "/"))
+
+
+def _own_dir(path: str, uid: int) -> bool:
+    """A real directory (never a symlink) owned by ``uid``: the only kind the reaper reads into."""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    return stat.S_ISDIR(st.st_mode) and st.st_uid == uid
+
+
+def _subdirs(path: str, uid: int) -> list[str]:
+    try:
+        with os.scandir(path) as it:
+            return sorted(e.path for e in it if _own_dir(e.path, uid))
+    except OSError:
+        return []
 
 
 def reapable(path: str, patterns: tuple[str, ...] = REAP_PATTERNS, now: float | None = None,
-             budget: float = REAP_BUDGET) -> list[str]:
+             budget: float = REAP_BUDGET, nested: bool | None = None) -> list[str]:
     """The user's own known leftovers in the temp directory ``path`` (TD-223): entries directly under it
     named by ``patterns`` (``tmp*`` only as tempfile and mktemp name them), and ``pytest-*`` under this
     user's own ``pytest-of-<user>/``, owned by this user, nothing in them changed for REAP_AGE seconds.
-    Never ``path`` itself, never another user's, never a symlink, and nothing when ``path`` is ``/`` or the
-    home directory or above it."""
+    With ``nested`` (the default for the default patterns; precheck.py's own reap passes its one name and
+    gets no more), TD-296's shapes too: Claude Code session folders ``claude-<uid>/<project>/<uuid>/``
+    idle SESSION_AGE seconds, and in each seat dir ``<name>-<uid>/<seat>/`` its ``pytest-of-<user>/pytest-*``
+    and session folders. Never ``path`` itself, never another user's, never a symlink or anything under
+    one, and nothing when ``path`` is ``/`` or the home directory or above it."""
     now = time.time() if now is None else now
     deadline = time.monotonic() + budget
     uid, user = os.getuid(), os.environ.get("USER") or os.environ.get("LOGNAME") or ""
+    nested = patterns == REAP_PATTERNS if nested is None else nested
     found: list[str] = []
     if not _safe_root(path):
         return found
 
-    def scan(d: str, pats: tuple[str, ...]) -> None:
+    def scan(d: str, pats: tuple[str, ...], age: float = REAP_AGE, named=None) -> None:
         try:
             with os.scandir(d) as it:
                 for e in it:
-                    if not _named(e.name, pats) or e.is_symlink():
+                    if not (named(e.name) if named else _named(e.name, pats)) or e.is_symlink():
                         continue
-                    if e.stat(follow_symlinks=False).st_uid == uid and _idle(e.path, now - REAP_AGE, deadline):
+                    if e.stat(follow_symlinks=False).st_uid == uid and _idle(e.path, now - age, deadline):
                         found.append(e.path)
         except OSError:
             pass
+
+    def leftovers(root: str) -> None:   # pytest's run dirs, and (nested) Claude Code's session folders
+        if user and _own_dir(mine := os.path.join(root, f"pytest-of-{user}"), uid):   # a symlink or another's: not read
+            scan(mine, ("pytest-*",))
+        if nested and _own_dir(cc := os.path.join(root, f"claude-{uid}"), uid):
+            for project in _subdirs(cc, uid):
+                scan(project, (), SESSION_AGE, SESSION_RE.fullmatch)
+
     scan(path, patterns)
-    mine = os.path.join(path, f"pytest-of-{user}")
-    try:
-        st = os.lstat(mine) if user else None
-    except OSError:
-        st = None
-    if st is not None and stat.S_ISDIR(st.st_mode) and st.st_uid == uid:   # a symlink or another's: not read
-        scan(mine, ("pytest-*",))
+    leftovers(path)
+    if nested:   # a ShiftLead seat's own temp dir, <path>/<name>-<uid>/<seat>/ (TD-296)
+        for group in _subdirs(path, uid):
+            name = os.path.basename(group)
+            if name.endswith(f"-{uid}") and name != f"claude-{uid}":
+                for seat in _subdirs(group, uid):
+                    leftovers(seat)
     return sorted(found)
 
 
-def reap(path: str, patterns: tuple[str, ...] = REAP_PATTERNS) -> tuple[list[str], int, list[str]]:
-    """Remove ``reapable(path)`` within REAP_BUDGET seconds: (removed, entries freed, not removed —
-    each one that failed, then any left when the budget ran out)."""
+def reap(path: str, patterns: tuple[str, ...] = REAP_PATTERNS,
+         budget: float = REAP_BUDGET) -> tuple[list[str], int, list[str]]:
+    """Remove ``reapable(path)`` within ``budget`` seconds, listing and removing together (the hook runs
+    under a 3 s bound; an entry in progress is finished, so one large tree can run over): (removed, entries freed, not removed — each one that failed, then any left when
+    the budget ran out)."""
     removed, freed, failed = [], 0, []
-    deadline = time.monotonic() + REAP_BUDGET
-    todo = reapable(path, patterns)
+    deadline = time.monotonic() + budget
+    todo = reapable(path, patterns, budget=budget)
     for i, e in enumerate(todo):
         if time.monotonic() > deadline:
             failed += [f"{x} (left for next time)" for x in todo[i:]]
@@ -261,7 +303,7 @@ def reap(path: str, patterns: tuple[str, ...] = REAP_PATTERNS) -> tuple[list[str
 def reaped_line(removed: list[str], freed: int, failed: list[str]) -> str | None:
     if not removed and not failed:
         return None
-    out = (f"  reaped {len(removed)} of your own leftovers older than a day ({freed:,} entries): "
+    out = (f"  reaped {len(removed)} of your own leftovers unchanged for a day (session folders: 3 days), {freed:,} entries: "
            + ", ".join(os.path.basename(r) for r in removed[:5]) + (" …" if len(removed) > 5 else "")) if removed else "  reaped nothing"
     return out + (f"; could not remove {', '.join(failed[:3])}" if failed else "") + " (TD-223)"
 
@@ -293,7 +335,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.hook and not over:
         return 0
     print(line(path, u), flush=True)   # before the reap, so a hook cut short by its bound still said it
-    said = reaped_line(*reap(path)) if over else None
+    said = reaped_line(*reap(path, budget=WALK_BUDGET if a.report else REAP_BUDGET)) if over else None
     if said:
         print(said)
     if a.hook:
@@ -305,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:
             for n, name in counts[:TOP]:
                 print(f"    {n:>10,}  {path}/{name}")
         print("  cleanups for the person to run (never run by a session — the files may be other sessions'; "
-              "the user's own aged tmp*, precheck-* and pytest-* are reaped above):")
+              "the user's own aged tmp*, precheck-*, pytest-* and Claude Code session folders are reaped above):")
         for c in cleanups(path):
             print(f"    {c}")
     return 0
