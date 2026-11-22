@@ -190,8 +190,10 @@ def plan(top: Path, roster: list[Path], runner: E.Runner, *, today_utc: date, to
     checks = [{**g, **runner.run(g)} for g in E.gates(text)]
     results = {(c["id"], c["name"]): (c["outcome"], c["evidence"]) for c in checks
                if c["outcome"] is not None}   # no outcome (a host-log check this host does not answer): left out
+    # v3.5 (TD-295, ledgerboard TD-150): a decision whose entry names a blocker in flight is deferred, never
+    # asked; another repo's id is read through the roster, as ledger.py's pickable() reads it
     out = LB.sweep([text, arch], boards, results, today_utc, today_local, reask_days=reask_days,
-                   event_age_days=event_age_days, repo=repo)
+                   event_age_days=event_age_days, repo=repo, resolve=L.Roster().resolve)
     filing, closing = unanswered(text, checks, boards, repo, today_utc, event_age_days)
     name = LB._board_name(own)
     for it in filing:

@@ -96,6 +96,12 @@ case_pr "a new decision covered on another repo's board" "ledger: set TD-170 (se
 st=$(row open); [ "${st%% *}" = pass ] && echo "$st" | grep -q "⚠ TD-170 gains decision (kim)" \
   && ok "a decision for someone this board does not list is a ⚠" || bad "elsewhere: $st"
 
+# TD-295 (ledgerboard v3.5, TD-150): a decision added beside a blocker in flight is deferred — the sweep asks it
+# later — so the row flags it as a ⚠ and passes, where the same decision with no blocker fails as uncovered
+case_pr "deferred: beside a live id" "ledger: set TD-161 (session w-1)"
+st=$(row open); [ "${st%% *}" = pass ] && echo "$st" | grep -q "⚠ TD-161 gains decision (pat), deferred behind TD-162" \
+  && ok "a decision deferred behind a live blocker is a ⚠, never a fail" || bad "deferred: $st"
+
 # na on a PR that touches neither the ledger nor the board
 git -C "$R" switch -q -C topic origin/main; echo y >> "$R/other.txt"; git -C "$R" commit -qam other
 st=$(row open); [ "${st%% *}" = na ] && ok "the row is na on a PR touching neither ledger nor board" || bad "na: $st"
