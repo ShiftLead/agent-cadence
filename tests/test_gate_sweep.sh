@@ -256,5 +256,33 @@ want="TD-008 ['Works — a session archives it', 'Not right — a session files 
 [ "$(sed -n 1p <<< "$got")" = "$want" ] && ok "TD-285: an entry's own Answers and Lifts are what the plan files on its decide item" || bad "own answers: $got"
 grep -q "^TD-009 .*Go.*Not yet" <<< "$got" && ok "TD-285: an entry with none still gets Go | Not yet" || bad "default answers: $got"
 
+# TD-295 (ledgerboard v3.5, TD-150): a decision whose entry names a blocker in flight is deferred — no decide filed.
+# A design held by its open review round, and the builds it holds, get none; another repo's blocker counts as in
+# flight only when the roster's resolver (passed to sweep()) reads it open there.
+board "$OWN" alex; board "$OTH" sam
+entry "$OWN" 20 "TD-021, decision (alex)" '**Ask:** Build the design?'                      # the design, held by its round
+entry "$OWN" 21 "none" ; sed -i '/^\*\*Blocked by:\*\* none$/d' "$OWN/docs/ledger/TD-021.md"    # the bought round, open
+entry "$OWN" 22 "decision (alex)" "$(printf '**Part of:** TD-020\n\n**Ask:** Build part one?')"   # a held build, Part of it
+entry "$OWN" 23 "o/oth#TD-010, decision (alex)" '**Ask:** Waits on the other repo, open there?'
+entry "$OWN" 24 "o/oth#TD-011, decision (alex)" '**Ask:** Waits on the other repo, archived there?'
+entry "$OTH" 10 "none"; sed -i '/^\*\*Blocked by:\*\* none$/d' "$OTH/docs/ledger/TD-010.md"
+{ printf '## TD-011: done there\n\n**Priority:** Medium\n**Added:** 2026-01-01\n**Status:** Resolved (%s)\n' "$PAST"
+  printf '**Resolved:** %s\n**Location:** x\n\n**Why:** y\n' "$PAST"; } > "$OTH/docs/ledger/archive/TD-011.md"
+publish "$OWN"; publish "$OTH"
+js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>&1)
+ctx() { python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print("\n".join(it["context"] for its in d["to_file"].values() for it in its))' "$js"; }
+c=$(ctx)
+! grep -q "^TD-020 decision" <<< "$c" && ! grep -q "^TD-022 decision" <<< "$c" \
+  && ok "TD-295: a design held by its open round, and its held build: no decide filed (deferred)" || bad "deferred design: $c"
+! grep -q "^TD-023 decision" <<< "$c" && ok "TD-295: another repo's blocker the roster reads open: deferred (the resolver is passed)" || bad "cross open: $c"
+grep -q "^TD-024 decision (alex)" <<< "$c" && ok "TD-295: another repo's blocker archived there: the decision is asked" || bad "cross archived: $c"
+rm "$OWN"/docs/ledger/TD-02[134].md
+{ printf '## TD-021: entry 21\n\n**Priority:** Medium\n**Added:** 2026-01-01\n**Status:** Resolved (%s)\n' "$PAST"
+  printf '**Resolved:** %s\n**Location:** x\n\n**Why:** y\n' "$PAST"; } > "$OWN/docs/ledger/archive/TD-021.md"
+publish "$OWN"
+js=$(cd "$OWN" && python3 "$S/gate_sweep.py" --json 2>&1); c=$(ctx)
+grep -q "^TD-020 decision (alex)" <<< "$c" && grep -q "TD-022" <<< "$c" \
+  && ok "TD-295: its round archived (Resolved), the design's decision and its build's are asked again" || bad "undeferred: $c"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-22 — The gate sweep defers a decision while its entry waits on open work
+Do: nothing by hand — a `decision (<person>)` beside a blocker in flight (an open entry, another repo's open id, a parent's) gets no `decide` until that work is archived; the `gates` row shows one added that way as a ⚠ (`decision-deferred`), not a fail.
+See: cadence.md §2.14, §4.8; ledgerboard v3.5; TD-295.
+
 ## 2026-11-21 — `check_tmp.py` also reaps Claude Code session folders idle 3 days and seats' nested `pytest-*`
 Do: nothing by hand for those — past 80% the hook and `/attention` remove your own `claude-<uid>/<project>/<session id>/` folders untouched for 3 days, and in each ShiftLead seat dir its `pytest-of-<user>/pytest-*` and session folders.
 See: cadence.md §3.9; `check_tmp.py`; TD-296.
