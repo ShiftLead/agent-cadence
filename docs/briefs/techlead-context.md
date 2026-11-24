@@ -135,7 +135,7 @@ Verify each before relying on it — several were true when written and may not 
   names the paths.
 - **The repo is squash-only and auto-deletes head branches.** So a merge is the procedure's
   step 5 line (cadence.md §4.2, it writes `Merged-by:`), run whole as one command —
-  `m=$(mktemp -d); python3 files/scripts/check_cadence.py --pr <n> --trailers "$m/gate"; python3 files/scripts/forge.py squash-message <n> --gate "$m/gate" --out "$m" && gh pr merge <n> --squash --match-head-commit "$(cat "$m/sha")" --subject "$(cat "$m/subject")" --body-file "$m/body"` —
+  `m=$(mktemp -d); python3 files/scripts/check_cadence.py --pr <n> --trailers "$m/gate"; python3 files/scripts/forge.py squash-message <n> --gate "$m/gate" --out "$m" && gh pr merge <n> --squash --match-head-commit "$(cat "$m/sha")" --subject "$(cat "$m/subject")" --body-file "$m/body"; r=$?; rm -rf "$m"; (exit $r)` —
   then `gh pr view <n> --json state`; never `--delete-branch` from a worktree, and no
   `git push origin --delete` afterwards.
 - **The board's sweep stamp is stale** (`Swept: 2026-09-06` at the time of writing). A grinder
