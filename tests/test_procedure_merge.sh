@@ -3,7 +3,8 @@
 # files/docs/procedures/cadence.md as written and run whole against a gh and a glab shim. The
 # GitHub form passes --squash --match-head-commit --subject --body-file and the GitLab form
 # --yes --squash --sha --squash-message, with subject and body in the one string. Neither ever passes
-# --delete-branch. A gate that did not pass, or one that wrote nothing, reaches no merge.
+# --delete-branch. A gate that did not pass, or one that wrote nothing, reaches no merge. Every run
+# leaves its TMPDIR empty and exits with the merge command's status (TD-298).
 #
 # The real forge.py composes the message. check_cadence.py is a stub that writes the gate file the
 # test names, since the gate's own rows are tests/test_check_cadence.sh's.
@@ -45,7 +46,8 @@ case "$*" in
   "api repos/{owner}/{repo}/pulls/"*) echo '{"commits":2}' ;;
   "pr merge"*)
     printf '%s\n' "$@" > "$F/merge.args"
-    prev=""; for a in "$@"; do [ "$prev" = --body-file ] && cat "$a" > "$F/merge.body"; prev=$a; done ;;
+    prev=""; for a in "$@"; do [ "$prev" = --body-file ] && cat "$a" > "$F/merge.body"; prev=$a; done
+    ls -A "$TMPDIR" | wc -l > "$F/merge.seen"; exit "${MERGE_RC:-0}" ;;
   *) echo "gh-shim: unhandled: $*" >&2; exit 64 ;;
 esac
 SHIM
@@ -56,7 +58,7 @@ case "$*" in
   "api "*"projects/"*"/merge_requests/9/commits"*) cat "$F/gl_commits.json" ;;
   "api "*"projects/"*"/merge_requests/9/diffs"*) echo '[]' ;;
   "api "*"projects/"*"/merge_requests/9") echo '{"iid":9,"title":"Add a thing","state":"opened","sha":"abc1234"}' ;;
-  "mr merge"*) printf '%s\n' "$@" > "$F/merge.args" ;;
+  "mr merge"*) printf '%s\n' "$@" > "$F/merge.args"; ls -A "$TMPDIR" | wc -l > "$F/merge.seen"; exit "${MERGE_RC:-0}" ;;
   *) echo "glab-shim: unhandled: $*" >&2; exit 64 ;;
 esac
 SHIM
@@ -82,8 +84,9 @@ repo() {  # <origin url>: a consumer-shaped clone whose scripts/ holds the stub 
   cp "$TMP/stub/check_cadence.py" "$R/scripts/check_cadence.py"
 }
 run() {  # <line> — step 5's line for PR 9, run whole by bash in $R
-  rm -f "$F/merge.args" "$F/merge.body"
-  (cd "$R" && PATH="$BIN:$PATH" F="$F" AGENT_NAME=g1 AGENT_MODEL=a/b bash -c "${1//<n>/9}" >"$F/out" 2>&1)
+  rm -f "$F/merge.args" "$F/merge.body" "$F/merge.seen"
+  LINE_TMP="$TMP/linetmp"; rm -rf "$LINE_TMP"; mkdir -p "$LINE_TMP"
+  (cd "$R" && TMPDIR="$LINE_TMP" PATH="$BIN:$PATH" F="$F" AGENT_NAME=g1 AGENT_MODEL=a/b bash -c "${1//<n>/9}" >"$F/out" 2>&1)
 }
 PASSED=$'pr 9\nexpect abc1234\nReview: sonnet (SHIP)\nPrecheck: abc1234\n'
 FAILED=$'pr 9\nexpect abc1234\nunverified 1 ci\n'
@@ -127,6 +130,27 @@ msg=$(python3 -c 'import sys; a=open(sys.argv[1]).read().split("\n"); i=a.index(
 # 4. GitLab, a gate that did not pass: no merge
 GATE_TEXT="$FAILED" GATE_RC=1 run "$GL_LINE"; rc=$?
 [ $rc -ne 0 ] && [ ! -e "$F/merge.args" ] && ok "4 GitLab: a gate that did not pass reaches no merge" || bad "4 rc=$rc $(cat "$F/out")"
+
+# 5. TD-298: the line's directory is gone after a merge that succeeded, one that failed and a refused
+# gate, and the line exits with the merge command's status. merge.seen proves the directory was in
+# this TMPDIR while the merge ran, so an empty TMPDIR afterwards means it was removed.
+cleans() {  # <label> <line>
+  GATE_TEXT="$PASSED" GATE_RC=0 MERGE_RC=0 run "$2"; rc=$?
+  [ $rc -eq 0 ] && [ "$(cat "$F/merge.seen" 2>/dev/null)" = 1 ] && [ -z "$(ls -A "$LINE_TMP")" ] \
+    && ok "5 $1: a merge that succeeded exits 0 and removes the line's directory" \
+    || bad "5 $1 success rc=$rc seen=$(cat "$F/merge.seen" 2>/dev/null) left=$(ls -A "$LINE_TMP") $(cat "$F/out")"
+  GATE_TEXT="$PASSED" GATE_RC=0 MERGE_RC=7 run "$2"; rc=$?
+  [ $rc -eq 7 ] && [ "$(cat "$F/merge.seen" 2>/dev/null)" = 1 ] && [ -z "$(ls -A "$LINE_TMP")" ] \
+    && ok "5b $1: a merge that failed keeps its exit status and removes the line's directory" \
+    || bad "5b $1 failure rc=$rc seen=$(cat "$F/merge.seen" 2>/dev/null) left=$(ls -A "$LINE_TMP") $(cat "$F/out")"
+  GATE_TEXT="$FAILED" GATE_RC=1 MERGE_RC=0 run "$2"; rc=$?
+  [ $rc -ne 0 ] && [ ! -e "$F/merge.args" ] && [ -z "$(ls -A "$LINE_TMP")" ] \
+    && ok "5c $1: a refused gate reaches no merge, fails, and removes the line's directory" \
+    || bad "5c $1 refused rc=$rc left=$(ls -A "$LINE_TMP") $(cat "$F/out")"
+}
+cleans GitLab "$GL_LINE"
+repo git@github.com:o/r.git
+cleans GitHub "$GH_LINE"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

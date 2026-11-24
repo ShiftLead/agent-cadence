@@ -12,6 +12,10 @@ Read by `scripts/cadence_changes.py --hook` (SessionStart) and by orchestrators 
 sessions already running (ShiftLead design §4.8). Written by the agent-cadence PR that changes
 the convention (cadence.md §7).
 
+## 2026-11-23 — The merge line removes its temporary directory
+Do: run step 5's line as now written, ending `; r=$?; rm -rf "$m"; (exit $r)`; a copy of the line in your own brief or docs takes the same ending once your pin carries this.
+See: procedures/cadence.md step 5; TD-298.
+
 ## 2026-11-22 — The gate sweep defers a decision while its entry waits on open work
 Do: nothing by hand — a `decision (<person>)` beside a blocker in flight (an open entry, another repo's open id, a parent's) gets no `decide` until that work is archived; the `gates` row shows one added that way as a ⚠ (`decision-deferred`), not a fail.
 See: cadence.md §2.14, §4.8; ledgerboard v3.5; TD-295.

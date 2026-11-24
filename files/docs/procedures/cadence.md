@@ -176,17 +176,19 @@ The commands are GitHub's (`gh`), with GitLab's (`glab`, a PR is a merge request
    forge CLI's own command, so whatever guards a merge by that command still sees it. GitHub:
 
    ```bash
-   m=$(mktemp -d); python3 scripts/check_cadence.py --pr <n> --trailers "$m/gate"; python3 scripts/forge.py squash-message <n> --gate "$m/gate" --out "$m" && gh pr merge <n> --squash --match-head-commit "$(cat "$m/sha")" --subject "$(cat "$m/subject")" --body-file "$m/body"
+   m=$(mktemp -d); python3 scripts/check_cadence.py --pr <n> --trailers "$m/gate"; python3 scripts/forge.py squash-message <n> --gate "$m/gate" --out "$m" && gh pr merge <n> --squash --match-head-commit "$(cat "$m/sha")" --subject "$(cat "$m/subject")" --body-file "$m/body"; r=$?; rm -rf "$m"; (exit $r)
    ```
 
    GitLab:
 
    ```bash
-   m=$(mktemp -d); python3 scripts/check_cadence.py --pr <n> --trailers "$m/gate"; python3 scripts/forge.py squash-message <n> --gate "$m/gate" --out "$m" && glab mr merge <n> --yes --squash --sha "$(cat "$m/sha")" --squash-message "$(cat "$m/subject"; printf '\n\n'; cat "$m/body")"
+   m=$(mktemp -d); python3 scripts/check_cadence.py --pr <n> --trailers "$m/gate"; python3 scripts/forge.py squash-message <n> --gate "$m/gate" --out "$m" && glab mr merge <n> --yes --squash --sha "$(cat "$m/sha")" --squash-message "$(cat "$m/subject"; printf '\n\n'; cat "$m/body")"; r=$?; rm -rf "$m"; (exit $r)
    ```
 
    The `;` after the gate is deliberate: `squash-message` refuses a gate that did not pass by itself, so a failing PR
    reaches no merge. `--match-head-commit` / `--sha` makes the forge refuse a push made between the gate and the merge.
+   The line's end removes its temporary directory whatever happened and keeps the merge command's exit status; the
+   `(exit $r)` is a subshell because a bare `exit` would close the shell it is pasted into (TD-298).
    Never add `--delete-branch` from a worktree (cadence §1.4); confirm with §1.4's `gh pr view <n> --json state`.
    A person merges through the same line from their shell (it writes `Merged-by: <user.name>`).
    Exit 3 is *look*, not *merge*: wait for a running CI and re-run.
